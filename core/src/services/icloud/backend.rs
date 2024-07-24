@@ -108,7 +108,7 @@ impl IcloudBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -121,7 +121,7 @@ impl IcloudBuilder {
     /// Your Apple id
     ///
     /// It is required. your Apple login email, e.g. `example@gmail.com`
-    pub fn apple_id(&mut self, apple_id: &str) -> &mut Self {
+    pub fn apple_id(mut self, apple_id: &str) -> Self {
         self.config.apple_id = if apple_id.is_empty() {
             None
         } else {
@@ -134,7 +134,7 @@ impl IcloudBuilder {
     /// Your Apple id password
     ///
     /// It is required. your icloud login password, e.g. `password`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -147,7 +147,7 @@ impl IcloudBuilder {
     /// Trust token and ds_web_auth_token is used for temporary access to the icloudDrive API.
     ///
     /// Authenticate using session token
-    pub fn trust_token(&mut self, trust_token: &str) -> &mut Self {
+    pub fn trust_token(mut self, trust_token: &str) -> Self {
         self.config.trust_token = if trust_token.is_empty() {
             None
         } else {
@@ -160,7 +160,7 @@ impl IcloudBuilder {
     /// ds_web_auth_token must be set in Session
     ///
     /// Avoid Two Factor Authentication
-    pub fn ds_web_auth_token(&mut self, ds_web_auth_token: &str) -> &mut Self {
+    pub fn ds_web_auth_token(mut self, ds_web_auth_token: &str) -> Self {
         self.config.ds_web_auth_token = if ds_web_auth_token.is_empty() {
             None
         } else {
@@ -174,7 +174,7 @@ impl IcloudBuilder {
     ///
     /// If in china mainland, we will connect to `https://www.icloud.com.cn`.
     /// Otherwise, we will connect to `https://www.icloud.com`.
-    pub fn is_china_mainland(&mut self, is_china_mainland: bool) -> &mut Self {
+    pub fn is_china_mainland(mut self, is_china_mainland: bool) -> Self {
         self.config.is_china_mainland = is_china_mainland;
         self
     }
@@ -185,7 +185,7 @@ impl IcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

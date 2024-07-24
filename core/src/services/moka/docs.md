@@ -34,8 +34,8 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Moka::default();
-    builder.name("opendal");
+    let mut builder = Moka::default()
+        .name("opendal");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

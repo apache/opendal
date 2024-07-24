@@ -56,9 +56,9 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Gdrive::default();
-    builder.root("/test");
-    builder.access_token("<token>");
+    let mut builder = Gdrive::default()
+        .root("/test")
+        .access_token("<token>");
 
     Ok(())
 }

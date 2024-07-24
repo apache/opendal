@@ -82,7 +82,7 @@ impl HdfsNativeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -98,7 +98,7 @@ impl HdfsNativeBuilder {
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn url(&mut self, url: &str) -> &mut Self {
+    pub fn url(mut self, url: &str) -> Self {
         if !url.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.url = Some(url.trim_end_matches('/').to_string())
@@ -110,7 +110,7 @@ impl HdfsNativeBuilder {
     /// Enable append capacity of this backend.
     ///
     /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+    pub fn enable_append(mut self, enable_append: bool) -> Self {
         self.config.enable_append = enable_append;
         self
     }

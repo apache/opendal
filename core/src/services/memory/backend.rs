@@ -27,7 +27,7 @@ use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
 use crate::*;
 
-///Config for memory.
+/// Config for memory.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -51,7 +51,7 @@ pub struct MemoryBuilder {
 
 impl MemoryBuilder {
     /// Set the root for BTreeMap.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }

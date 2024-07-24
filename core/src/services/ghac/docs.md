@@ -71,11 +71,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create ghac backend builder.
-    let mut builder = Ghac::default();
-    // Set the root for ghac, all operations will happen under this root.
-    //
-    // NOTE: the root must be absolute path.
-    builder.root("/path/to/dir");
+    let mut builder = Ghac::default()
+        // Set the root for ghac, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/path/to/dir");
 
     let op: Operator = Operator::new(builder)?.finish();
 

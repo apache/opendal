@@ -89,7 +89,7 @@ impl Debug for CloudflareKvBuilder {
 
 impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string())
         }
@@ -97,7 +97,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the account ID used to authenticate with CloudFlare.
-    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+    pub fn account_id(mut self, account_id: &str) -> Self {
         if !account_id.is_empty() {
             self.config.account_id = Some(account_id.to_string())
         }
@@ -105,7 +105,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the namespace ID.
-    pub fn namespace_id(&mut self, namespace_id: &str) -> &mut Self {
+    pub fn namespace_id(mut self, namespace_id: &str) -> Self {
         if !namespace_id.is_empty() {
             self.config.namespace_id = Some(namespace_id.to_string())
         }
@@ -113,7 +113,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the root within this backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }

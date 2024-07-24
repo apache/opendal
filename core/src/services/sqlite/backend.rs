@@ -109,7 +109,7 @@ impl SqliteBuilder {
     /// - `file://data.db`
     ///
     /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -119,7 +119,7 @@ impl SqliteBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -127,7 +127,7 @@ impl SqliteBuilder {
     }
 
     /// Set the table name of the sqlite service to read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -137,7 +137,7 @@ impl SqliteBuilder {
     /// Set the key field name of the sqlite service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -147,7 +147,7 @@ impl SqliteBuilder {
     /// Set the value field name of the sqlite service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }

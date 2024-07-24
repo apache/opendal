@@ -134,11 +134,11 @@ impl Config {
 
             let filename = match fp_str.split_once(['/', '\\']) {
                 Some((base, filename)) => {
-                    fs_builder.root(if base.is_empty() { "/" } else { base });
+                    fs_builder = fs_builder.root(if base.is_empty() { "/" } else { base });
                     filename
                 }
                 _ => {
-                    fs_builder.root(".");
+                    fs_builder = fs_builder.root(".");
                     s
                 }
             };

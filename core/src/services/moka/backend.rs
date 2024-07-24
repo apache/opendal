@@ -29,7 +29,7 @@ use crate::raw::adapters::typed_kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Mokaservices support.
+/// Config for Moka services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -81,7 +81,7 @@ pub struct MokaBuilder {
 
 impl MokaBuilder {
     /// Name for this cache instance.
-    pub fn name(&mut self, v: &str) -> &mut Self {
+    pub fn name(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.name = Some(v.to_owned());
         }
@@ -91,7 +91,7 @@ impl MokaBuilder {
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub fn max_capacity(&mut self, v: u64) -> &mut Self {
+    pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
             self.config.max_capacity = Some(v);
         }
@@ -101,7 +101,7 @@ impl MokaBuilder {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_live = Some(v);
         }
@@ -111,7 +111,7 @@ impl MokaBuilder {
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
         }
@@ -121,7 +121,7 @@ impl MokaBuilder {
     /// Sets the segments number of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub fn segments(&mut self, v: usize) -> &mut Self {
+    pub fn segments(mut self, v: usize) -> Self {
         assert!(v != 0);
         self.config.num_segments = Some(v);
         self

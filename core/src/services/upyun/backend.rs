@@ -33,7 +33,7 @@ use super::writer::UpyunWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze upyun services support.
+/// Config for upyun services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -93,7 +93,7 @@ impl UpyunBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -106,7 +106,7 @@ impl UpyunBuilder {
     /// bucket of this backend.
     ///
     /// It is required. e.g. `test`
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -115,7 +115,7 @@ impl UpyunBuilder {
     /// operator of this backend.
     ///
     /// It is required. e.g. `test`
-    pub fn operator(&mut self, operator: &str) -> &mut Self {
+    pub fn operator(mut self, operator: &str) -> Self {
         self.config.operator = if operator.is_empty() {
             None
         } else {
@@ -128,7 +128,7 @@ impl UpyunBuilder {
     /// password of this backend.
     ///
     /// It is required. e.g. `asecret`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -144,7 +144,7 @@ impl UpyunBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

@@ -103,7 +103,7 @@ impl GridFsBuilder {
     /// - ... (any other options you wish to highlight)
     ///
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -113,7 +113,7 @@ impl GridFsBuilder {
     /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -121,7 +121,7 @@ impl GridFsBuilder {
     }
 
     /// Set the database name of the MongoDB GridFs service to read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
         }
@@ -131,7 +131,7 @@ impl GridFsBuilder {
     /// Set the bucket name of the MongoDB GridFs service to read/write.
     ///
     /// Default to `fs` if not specified.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
             self.config.bucket = Some(bucket.to_string());
         }
@@ -141,7 +141,7 @@ impl GridFsBuilder {
     /// Set the chunk size of the MongoDB GridFs service used to break the user file into chunks.
     ///
     /// Default to `255 KiB` if not specified.
-    pub fn chunk_size(&mut self, chunk_size: u32) -> &mut Self {
+    pub fn chunk_size(mut self, chunk_size: u32) -> Self {
         if chunk_size > 0 {
             self.config.chunk_size = Some(chunk_size);
         }

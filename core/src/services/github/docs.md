@@ -34,16 +34,15 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Github::default();
-
-    // set the storage root for OpenDAL
-    builder.root("/");
-    // set the access token for Github API
-    builder.token("your_access_token");
-    // set the owner for Github
-    builder.owner("your_owner");
-    // set the repository for Github
-    builder.repo("your_repo");
+    let mut builder = Github::default()
+        // set the storage root for OpenDAL
+        .root("/")
+        // set the access token for Github API
+        .token("your_access_token")
+        // set the owner for Github
+        .owner("your_owner")
+        // set the repository for Github
+        .repo("your_repo");
 
 
     let op: Operator = Operator::new(builder)?.finish();

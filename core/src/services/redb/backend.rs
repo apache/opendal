@@ -60,19 +60,19 @@ pub struct RedbBuilder {
 
 impl RedbBuilder {
     /// Set the path to the redb data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the table name for Redb.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         self.config.table = Some(table.into());
         self
     }
 
     /// Set the root for Redb.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }

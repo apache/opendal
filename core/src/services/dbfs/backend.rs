@@ -85,7 +85,7 @@ impl DbfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -99,7 +99,7 @@ impl DbfsBuilder {
     ///
     /// - Azure: `https://adb-1234567890123456.78.azuredatabricks.net`
     /// - Aws: `https://dbc-123a5678-90bc.cloud.databricks.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -109,7 +109,7 @@ impl DbfsBuilder {
     }
 
     /// Set the token of this backend.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }

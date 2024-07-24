@@ -64,7 +64,7 @@ impl MiniMokaBuilder {
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub fn max_capacity(&mut self, v: u64) -> &mut Self {
+    pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
             self.config.max_capacity = Some(v);
         }
@@ -74,7 +74,7 @@ impl MiniMokaBuilder {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_live = Some(v);
         }
@@ -84,7 +84,7 @@ impl MiniMokaBuilder {
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
         }

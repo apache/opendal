@@ -104,7 +104,7 @@ impl SurrealdbBuilder {
     /// - `wss://ip:port`
     /// - `http://ip:port`
     /// - `https://ip:port`
-    pub fn connection_string(&mut self, connection_string: &str) -> &mut Self {
+    pub fn connection_string(mut self, connection_string: &str) -> Self {
         if !connection_string.is_empty() {
             self.config.connection_string = Some(connection_string.to_string());
         }
@@ -114,7 +114,7 @@ impl SurrealdbBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -122,7 +122,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the table name of the surrealdb service for read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -130,7 +130,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the username of the surrealdb service for signin.
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_string());
         }
@@ -138,7 +138,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the password of the surrealdb service for signin.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_string());
         }
@@ -146,7 +146,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the namespace of the surrealdb service for read/write.
-    pub fn namespace(&mut self, namespace: &str) -> &mut Self {
+    pub fn namespace(mut self, namespace: &str) -> Self {
         if !namespace.is_empty() {
             self.config.namespace = Some(namespace.to_string());
         }
@@ -154,7 +154,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the database of the surrealdb service for read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
         }
@@ -164,7 +164,7 @@ impl SurrealdbBuilder {
     /// Set the key field name of the surrealdb service for read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -174,7 +174,7 @@ impl SurrealdbBuilder {
     /// Set the value field name of the surrealdb service for read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }

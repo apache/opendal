@@ -90,7 +90,7 @@ impl Debug for GdriveBuilder {
 
 impl GdriveBuilder {
     /// Set root path of GoogleDrive folder.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = Some(root.to_string());
         self
     }
@@ -105,7 +105,7 @@ impl GdriveBuilder {
     /// - An access token is valid for 1 hour.
     /// - If you want to use the access token for a long time,
     /// you can use the refresh token to get a new access token.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
         self
     }
@@ -115,7 +115,7 @@ impl GdriveBuilder {
     /// You can get the refresh token via OAuth 2.0 Flow of GoogleDrive API.
     ///
     /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
-    pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
         self.config.refresh_token = Some(refresh_token.to_string());
         self
     }
@@ -123,7 +123,7 @@ impl GdriveBuilder {
     /// Set the client id for GoogleDrive.
     ///
     /// This is required for OAuth 2.0 Flow to refresh the access token.
-    pub fn client_id(&mut self, client_id: &str) -> &mut Self {
+    pub fn client_id(mut self, client_id: &str) -> Self {
         self.config.client_id = Some(client_id.to_string());
         self
     }
@@ -131,7 +131,7 @@ impl GdriveBuilder {
     /// Set the client secret for GoogleDrive.
     ///
     /// This is required for OAuth 2.0 Flow with refresh the access token.
-    pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
         self.config.client_secret = Some(client_secret.to_string());
         self
     }
@@ -142,7 +142,7 @@ impl GdriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
     }

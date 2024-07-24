@@ -38,7 +38,7 @@ use super::writer::KoofrWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Koofr services support.
+/// Config for Koofr services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -97,7 +97,7 @@ impl KoofrBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -110,7 +110,7 @@ impl KoofrBuilder {
     /// endpoint.
     ///
     /// It is required. e.g. `https://api.koofr.net/`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = endpoint.to_string();
 
         self
@@ -119,7 +119,7 @@ impl KoofrBuilder {
     /// email.
     ///
     /// It is required. e.g. `test@example.com`
-    pub fn email(&mut self, email: &str) -> &mut Self {
+    pub fn email(mut self, email: &str) -> Self {
         self.config.email = email.to_string();
 
         self
@@ -135,7 +135,7 @@ impl KoofrBuilder {
     /// This is not user's Koofr account password.
     /// Please use the application password instead.
     /// Please also remind users of this.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -151,7 +151,7 @@ impl KoofrBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

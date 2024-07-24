@@ -32,11 +32,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create monoiofs backend builder.
-    let mut builder = Monoiofs::default();
-    // Set the root for monoiofs, all operations will happen under this root.
-    //
-    // NOTE: the root must be absolute path.
-    builder.root("/tmp");
+    let mut builder = Monoiofs::default()
+        // Set the root for monoiofs, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/tmp");
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder)?.finish();

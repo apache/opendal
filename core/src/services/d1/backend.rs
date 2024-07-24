@@ -95,7 +95,7 @@ impl D1Builder {
     /// Set api token for the cloudflare d1 service.
     ///
     /// create a api token from [here](https://dash.cloudflare.com/profile/api-tokens)
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }
@@ -106,7 +106,7 @@ impl D1Builder {
     ///
     /// get the account identifier from Workers & Pages -> Overview -> Account ID
     /// If not specified, it will return an error when building.
-    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+    pub fn account_id(mut self, account_id: &str) -> Self {
         if !account_id.is_empty() {
             self.config.account_id = Some(account_id.to_string());
         }
@@ -117,7 +117,7 @@ impl D1Builder {
     ///
     /// get the database identifier from Workers & Pages -> D1 -> [Your Database] -> Database ID
     /// If not specified, it will return an error when building.
-    pub fn database_id(&mut self, database_id: &str) -> &mut Self {
+    pub fn database_id(mut self, database_id: &str) -> Self {
         if !database_id.is_empty() {
             self.config.database_id = Some(database_id.to_string());
         }
@@ -127,7 +127,7 @@ impl D1Builder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -137,7 +137,7 @@ impl D1Builder {
     /// Set the table name of the d1 service to read/write.
     ///
     /// If not specified, it will return an error when building.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_owned());
         }
@@ -147,7 +147,7 @@ impl D1Builder {
     /// Set the key field name of the d1 service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -157,7 +157,7 @@ impl D1Builder {
     /// Set the value field name of the d1 service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }

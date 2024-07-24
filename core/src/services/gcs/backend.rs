@@ -110,7 +110,7 @@ impl Debug for GcsBuilder {
 
 impl GcsBuilder {
     /// set the working directory root of backend
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -119,7 +119,7 @@ impl GcsBuilder {
     }
 
     /// set the container's name
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
         self
     }
@@ -135,7 +135,7 @@ impl GcsBuilder {
     /// - full-control: `https://www.googleapis.com/auth/devstorage.full_control`
     ///
     /// Reference: [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication)
-    pub fn scope(&mut self, scope: &str) -> &mut Self {
+    pub fn scope(mut self, scope: &str) -> Self {
         if !scope.is_empty() {
             self.config.scope = Some(scope.to_string())
         };
@@ -146,7 +146,7 @@ impl GcsBuilder {
     ///
     /// service account will be used for fetch token from vm metadata.
     /// If not set, we will try to fetch with `default` service account.
-    pub fn service_account(&mut self, service_account: &str) -> &mut Self {
+    pub fn service_account(mut self, service_account: &str) -> Self {
         if !service_account.is_empty() {
             self.config.service_account = Some(service_account.to_string())
         };
@@ -154,7 +154,7 @@ impl GcsBuilder {
     }
 
     /// set the endpoint GCS service uses
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string())
         };
@@ -168,7 +168,7 @@ impl GcsBuilder {
     /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
     ///
     /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
-    pub fn credential(&mut self, credential: &str) -> &mut Self {
+    pub fn credential(mut self, credential: &str) -> Self {
         if !credential.is_empty() {
             self.config.credential = Some(credential.to_string())
         };
@@ -181,7 +181,7 @@ impl GcsBuilder {
     /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
     ///
     /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
-    pub fn credential_path(&mut self, path: &str) -> &mut Self {
+    pub fn credential_path(mut self, path: &str) -> Self {
         if !path.is_empty() {
             self.config.credential_path = Some(path.to_string())
         };
@@ -194,13 +194,13 @@ impl GcsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
 
     /// Specify the customized token loader used by this service.
-    pub fn customized_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
+    pub fn customized_token_loader(mut self, token_load: Box<dyn GoogleTokenLoad>) -> Self {
         self.customized_token_loader = Some(token_load);
         self
     }
@@ -214,7 +214,7 @@ impl GcsBuilder {
     /// - `private`
     /// - `projectPrivate`
     /// - `publicRead`
-    pub fn predefined_acl(&mut self, acl: &str) -> &mut Self {
+    pub fn predefined_acl(mut self, acl: &str) -> Self {
         if !acl.is_empty() {
             self.config.predefined_acl = Some(acl.to_string())
         };
@@ -228,7 +228,7 @@ impl GcsBuilder {
     /// - `NEARLINE`
     /// - `COLDLINE`
     /// - `ARCHIVE`
-    pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
+    pub fn default_storage_class(mut self, class: &str) -> Self {
         if !class.is_empty() {
             self.config.default_storage_class = Some(class.to_string())
         };

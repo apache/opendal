@@ -115,7 +115,7 @@ impl OssBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -126,14 +126,14 @@ impl OssBuilder {
     }
 
     /// Set bucket name of this backend.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
     }
 
     /// Set endpoint of this backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
@@ -150,7 +150,7 @@ impl OssBuilder {
     ///
     /// - If presign_endpoint is set, we will use presign_endpoint on generating presigned urls.
     /// - if not, we will use endpoint as default.
-    pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn presign_endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
@@ -163,7 +163,7 @@ impl OssBuilder {
     ///
     /// - If access_key_id is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.access_key_id = Some(v.to_string())
         }
@@ -175,7 +175,7 @@ impl OssBuilder {
     ///
     /// - If access_key_secret is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_secret(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_secret(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.access_key_secret = Some(v.to_string())
         }
@@ -189,7 +189,7 @@ impl OssBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -253,7 +253,7 @@ impl OssBuilder {
     ///        or not specify the specific CMK ID for OSS-managed KMS key.
     ///     3. Include the `x-oss-server-side-encryption` parameter in the request and set its value to KMS.
     ///     4. If a specific CMK ID is specified, include the `x-oss-server-side-encryption-key-id` parameter in the request, and set its value to the specified CMK ID.
-    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption = Some(v.to_string())
         }
@@ -265,7 +265,7 @@ impl OssBuilder {
     /// # Notes
     ///
     /// This option only takes effect when server_side_encryption equals to KMS.
-    pub fn server_side_encryption_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.server_side_encryption_key_id = Some(v.to_string())
         }
@@ -273,7 +273,7 @@ impl OssBuilder {
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
         self.config.batch_max_operations = Some(batch_max_operations);
 
         self
@@ -281,7 +281,7 @@ impl OssBuilder {
 
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(&mut self) -> &mut Self {
+    pub fn allow_anonymous(mut self) -> Self {
         self.config.allow_anonymous = true;
         self
     }

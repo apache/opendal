@@ -60,7 +60,7 @@ pub struct FsBuilder {
 
 impl FsBuilder {
     /// Set root for backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -74,7 +74,7 @@ impl FsBuilder {
     ///
     /// - When append is enabled, we will not use atomic write
     /// to avoid data loss and performance issue.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         if !dir.is_empty() {
             self.config.atomic_write_dir = Some(dir.to_string());
         }

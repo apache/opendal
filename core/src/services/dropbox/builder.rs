@@ -86,7 +86,7 @@ impl DropboxBuilder {
     /// Set the root directory for dropbox.
     ///
     /// Default to `/` if not set.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = Some(root.to_string());
         self
     }
@@ -97,7 +97,7 @@ impl DropboxBuilder {
     ///
     /// NOTE: this token will be expired in 4 hours.
     /// If you are trying to use the Dropbox service in a long time, please set a refresh_token instead.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
         self
     }
@@ -107,7 +107,7 @@ impl DropboxBuilder {
     /// You can get the refresh token via OAuth 2.0 Flow of Dropbox.
     ///
     /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
-    pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
         self.config.refresh_token = Some(refresh_token.to_string());
         self
     }
@@ -115,7 +115,7 @@ impl DropboxBuilder {
     /// Set the client id for Dropbox.
     ///
     /// This is required for OAuth 2.0 Flow to refresh the access token.
-    pub fn client_id(&mut self, client_id: &str) -> &mut Self {
+    pub fn client_id(mut self, client_id: &str) -> Self {
         self.config.client_id = Some(client_id.to_string());
         self
     }
@@ -123,7 +123,7 @@ impl DropboxBuilder {
     /// Set the client secret for Dropbox.
     ///
     /// This is required for OAuth 2.0 Flow with refresh the access token.
-    pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
         self.config.client_secret = Some(client_secret.to_string());
         self
     }
@@ -134,7 +134,7 @@ impl DropboxBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
     }

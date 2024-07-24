@@ -34,8 +34,7 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = D1::default();
-    builder
+    let mut builder = D1::default()
         .token("token")
         .account_id("account_id")
         .database_id("database_id")

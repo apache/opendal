@@ -91,7 +91,7 @@ impl AlluxioBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -104,7 +104,7 @@ impl AlluxioBuilder {
     /// endpoint of this backend.
     ///
     /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:39999/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
@@ -119,7 +119,7 @@ impl AlluxioBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -270,10 +270,10 @@ mod test {
 
     #[test]
     fn test_builder_build() {
-        let mut builder = AlluxioBuilder::default();
-        builder.root("/root").endpoint("http://127.0.0.1:39999");
-
-        let builder = builder.build();
+        let builder = AlluxioBuilder::default()
+            .root("/root")
+            .endpoint("http://127.0.0.1:39999")
+            .build();
 
         assert!(builder.is_ok());
     }

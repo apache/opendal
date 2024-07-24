@@ -54,9 +54,9 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Dropbox::default();
-    builder.root("/opendal");
-    builder.access_token("<token>");
+    let mut builder = Dropbox::default()
+        .root("/opendal")
+        .access_token("<token>");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

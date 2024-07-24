@@ -104,7 +104,7 @@ impl MongodbBuilder {
     /// - ... (any other options you wish to highlight)
     ///
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -113,7 +113,7 @@ impl MongodbBuilder {
     /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -121,7 +121,7 @@ impl MongodbBuilder {
     }
 
     /// Set the database name of the MongoDB service to read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
         }
@@ -129,7 +129,7 @@ impl MongodbBuilder {
     }
 
     /// Set the collection name of the MongoDB service to read/write.
-    pub fn collection(&mut self, collection: &str) -> &mut Self {
+    pub fn collection(mut self, collection: &str) -> Self {
         if !collection.is_empty() {
             self.config.collection = Some(collection.to_string());
         }
@@ -139,7 +139,7 @@ impl MongodbBuilder {
     /// Set the key field name of the MongoDB service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -149,7 +149,7 @@ impl MongodbBuilder {
     /// Set the value field name of the MongoDB service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }

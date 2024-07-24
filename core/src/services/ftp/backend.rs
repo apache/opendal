@@ -46,7 +46,7 @@ use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Ftpservices support.
+/// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -93,7 +93,7 @@ impl Debug for FtpBuilder {
 
 impl FtpBuilder {
     /// set endpoint for ftp backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -104,7 +104,7 @@ impl FtpBuilder {
     }
 
     /// set root path for ftp backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -115,7 +115,7 @@ impl FtpBuilder {
     }
 
     /// set user for ftp backend.
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         self.config.user = if user.is_empty() {
             None
         } else {
@@ -126,7 +126,7 @@ impl FtpBuilder {
     }
 
     /// set password for ftp backend.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -499,27 +499,27 @@ mod build_test {
     #[test]
     fn test_build() {
         // ftps scheme, should suffix with default port 21
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftps://ftp_server.local");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftps://ftp_server.local")
+            .build();
         assert!(b.is_ok());
 
         // ftp scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp://ftp_server.local:1234");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp://ftp_server.local:1234")
+            .build();
         assert!(b.is_ok());
 
         // no scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp_server.local:8765")
+            .build();
         assert!(b.is_ok());
 
         // invalid scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("invalidscheme://ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("invalidscheme://ftp_server.local:8765")
+            .build();
         assert!(b.is_err());
         let e = b.unwrap_err();
         assert_eq!(e.kind(), ErrorKind::ConfigInvalid);

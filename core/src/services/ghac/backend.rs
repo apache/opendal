@@ -115,7 +115,7 @@ pub struct GhacBuilder {
 
 impl GhacBuilder {
     /// set the working directory root of backend
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -129,7 +129,7 @@ impl GhacBuilder {
     /// It's better to make sure this value is only used by this backend.
     ///
     /// If not set, we will use `opendal` as default.
-    pub fn version(&mut self, version: &str) -> &mut Self {
+    pub fn version(mut self, version: &str) -> Self {
         if !version.is_empty() {
             self.config.version = Some(version.to_string())
         }
@@ -142,7 +142,7 @@ impl GhacBuilder {
     /// For example, this is provided as the `ACTIONS_CACHE_URL` environment variable by the GHA runner.
     ///
     /// Default: the value of the `ACTIONS_CACHE_URL` environment variable.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string())
         }
@@ -155,7 +155,7 @@ impl GhacBuilder {
     /// runner.
     ///
     /// Default: the value of the `ACTIONS_RUNTIME_TOKEN` environment variable.
-    pub fn runtime_token(&mut self, runtime_token: &str) -> &mut Self {
+    pub fn runtime_token(mut self, runtime_token: &str) -> Self {
         if !runtime_token.is_empty() {
             self.config.runtime_token = Some(runtime_token.to_string())
         }
@@ -168,7 +168,7 @@ impl GhacBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

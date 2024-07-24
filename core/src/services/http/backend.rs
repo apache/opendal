@@ -89,7 +89,7 @@ impl HttpBuilder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -102,7 +102,7 @@ impl HttpBuilder {
     /// set username for http backend
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -112,7 +112,7 @@ impl HttpBuilder {
     /// set password for http backend
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -122,7 +122,7 @@ impl HttpBuilder {
     /// set bearer token for http backend
     ///
     /// default: no access token
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_owned());
         }
@@ -130,7 +130,7 @@ impl HttpBuilder {
     }
 
     /// Set root path of http backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -146,7 +146,7 @@ impl HttpBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }

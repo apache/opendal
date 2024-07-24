@@ -95,7 +95,7 @@ impl HdfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -111,7 +111,7 @@ impl HdfsBuilder {
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn name_node(&mut self, name_node: &str) -> &mut Self {
+    pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
@@ -123,7 +123,7 @@ impl HdfsBuilder {
     /// Set kerberos_ticket_cache_path of this backend
     ///
     /// This should be configured when kerberos is enabled.
-    pub fn kerberos_ticket_cache_path(&mut self, kerberos_ticket_cache_path: &str) -> &mut Self {
+    pub fn kerberos_ticket_cache_path(mut self, kerberos_ticket_cache_path: &str) -> Self {
         if !kerberos_ticket_cache_path.is_empty() {
             self.config.kerberos_ticket_cache_path = Some(kerberos_ticket_cache_path.to_string())
         }
@@ -131,7 +131,7 @@ impl HdfsBuilder {
     }
 
     /// Set user of this backend
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         if !user.is_empty() {
             self.config.user = Some(user.to_string())
         }
@@ -141,7 +141,7 @@ impl HdfsBuilder {
     /// Enable append capacity of this backend.
     ///
     /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+    pub fn enable_append(mut self, enable_append: bool) -> Self {
         self.config.enable_append = enable_append;
         self
     }
@@ -152,7 +152,7 @@ impl HdfsBuilder {
     ///
     /// - When append is enabled, we will not use atomic write
     /// to avoid data loss and performance issue.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         self.config.atomic_write_dir = if dir.is_empty() {
             None
         } else {

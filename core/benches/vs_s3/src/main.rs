@@ -42,12 +42,12 @@ fn main() {
     let region = env::var("OPENDAL_S3_REGION").unwrap();
 
     // Init OpenDAL Operator.
-    let mut cfg = services::S3::default();
-    cfg.endpoint(&endpoint);
-    cfg.access_key_id(&access_key);
-    cfg.secret_access_key(&secret_key);
-    cfg.bucket(&bucket);
-    cfg.region(&region);
+    let cfg = services::S3::default()
+        .endpoint(&endpoint)
+        .access_key_id(&access_key)
+        .secret_access_key(&secret_key)
+        .bucket(&bucket)
+        .region(&region);
     let op = Operator::new(cfg).unwrap().finish();
 
     // Init AWS S3 SDK.

@@ -117,7 +117,7 @@ impl HuggingfaceBuilder {
     ///
     /// Currently, only models and datasets are supported.
     /// [Reference](https://huggingface.co/docs/hub/repositories)
-    pub fn repo_type(&mut self, repo_type: &str) -> &mut Self {
+    pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
             self.config.repo_type = Some(repo_type.to_string());
         }
@@ -133,7 +133,7 @@ impl HuggingfaceBuilder {
     ///
     /// Dataset's repo id looks like:
     /// - databricks/databricks-dolly-15k
-    pub fn repo_id(&mut self, repo_id: &str) -> &mut Self {
+    pub fn repo_id(mut self, repo_id: &str) -> Self {
         if !repo_id.is_empty() {
             self.config.repo_id = Some(repo_id.to_string());
         }
@@ -147,7 +147,7 @@ impl HuggingfaceBuilder {
     /// For example, revision can be:
     /// - main
     /// - 1d0c4eb
-    pub fn revision(&mut self, revision: &str) -> &mut Self {
+    pub fn revision(mut self, revision: &str) -> Self {
         if !revision.is_empty() {
             self.config.revision = Some(revision.to_string());
         }
@@ -157,7 +157,7 @@ impl HuggingfaceBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -167,7 +167,7 @@ impl HuggingfaceBuilder {
     /// Set the token of this backend.
     ///
     /// This is optional.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }

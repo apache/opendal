@@ -69,13 +69,13 @@ pub struct FoundationdbBuilder {
 
 impl FoundationdbBuilder {
     /// Set the root for Foundationdb.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
 
     /// Set the config path for Foundationdb. If not set, will fallback to use default
-    pub fn config_path(&mut self, path: &str) -> &mut Self {
+    pub fn config_path(mut self, path: &str) -> Self {
         self.config.config_path = Some(path.into());
         self
     }

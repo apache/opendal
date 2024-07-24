@@ -97,7 +97,7 @@ impl SwiftBuilder {
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `https://` to it.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -109,7 +109,7 @@ impl SwiftBuilder {
     /// Set container of this backend.
     ///
     /// All operations will happen under this container. It is required. e.g. `snapshots`
-    pub fn container(&mut self, container: &str) -> &mut Self {
+    pub fn container(mut self, container: &str) -> Self {
         self.config.container = if container.is_empty() {
             None
         } else {
@@ -121,7 +121,7 @@ impl SwiftBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -132,7 +132,7 @@ impl SwiftBuilder {
     /// Set the token of this backend.
     ///
     /// Default to empty string.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }

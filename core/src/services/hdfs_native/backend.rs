@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // use uuid::Uuid;
 use super::error::parse_hdfs_error;

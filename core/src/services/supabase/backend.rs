@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;

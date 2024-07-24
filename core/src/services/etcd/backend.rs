@@ -27,12 +27,12 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::*;
 
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";

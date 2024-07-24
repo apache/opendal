@@ -16,8 +16,11 @@
 // under the License.
 
 use await_tree::InstrumentAwait;
-use futures::{Future, FutureExt};
-use oio::{ListOperation, ReadOperation, WriteOperation};
+use futures::Future;
+use futures::FutureExt;
+use oio::ListOperation;
+use oio::ReadOperation;
+use oio::WriteOperation;
 
 use crate::raw::*;
 use crate::*;

@@ -26,7 +26,8 @@ use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
@@ -43,7 +44,6 @@ use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
-
 use crate::*;
 
 /// Config for Ftpservices support.

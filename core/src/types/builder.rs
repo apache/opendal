@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+use crate::raw::*;
+use crate::*;
 
 /// Builder is used to set up underlying services.
 ///

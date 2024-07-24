@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::backend::VercelArtifactsBackend;
-use crate::raw::{Access, HttpClient};
+use crate::raw::Access;
+use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 

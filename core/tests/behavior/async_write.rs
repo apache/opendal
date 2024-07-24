@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use anyhow::Result;
 use bytes::Bytes;
 use futures::io::BufReader;
@@ -26,7 +28,6 @@ use futures::StreamExt;
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
-use std::collections::HashMap;
 
 use crate::*;
 

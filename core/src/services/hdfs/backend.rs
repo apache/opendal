@@ -24,14 +24,14 @@ use std::sync::Arc;
 
 use futures::AsyncWriteExt;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
 use super::lister::HdfsLister;
 use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::services::hdfs::reader::HdfsReader;
-
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.

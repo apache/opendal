@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;

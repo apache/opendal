@@ -22,7 +22,8 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::lister::FsLister;

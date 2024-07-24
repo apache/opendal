@@ -20,7 +20,8 @@ use std::fmt::Debug;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;

@@ -22,14 +22,14 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::error::parse_error;
 use super::model::D1Response;
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::ErrorKind;
 use crate::*;
 

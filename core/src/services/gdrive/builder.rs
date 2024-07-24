@@ -22,17 +22,18 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
+use crate::raw::normalize_root;
+use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
-use crate::raw::{normalize_root, Access};
 use crate::services::gdrive::core::GdriveCore;
 use crate::services::gdrive::core::GdrivePathQuery;
 use crate::services::gdrive::core::GdriveSigner;
-
 use crate::Scheme;
 use crate::*;
 

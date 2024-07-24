@@ -23,7 +23,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;

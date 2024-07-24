@@ -18,14 +18,14 @@
 use std::time::Duration;
 
 use bb8::RunError;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::*;
 
 /// Config for MemCached services support

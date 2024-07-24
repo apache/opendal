@@ -26,7 +26,8 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;

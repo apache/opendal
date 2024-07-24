@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 
 use rusqlite::params;
 use rusqlite::Connection;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;

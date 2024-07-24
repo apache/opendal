@@ -19,14 +19,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::{normalize_root, Access};
+use crate::raw::normalize_root;
+use crate::raw::Access;
 use crate::*;
 
 /// Config for Surrealdb services support.

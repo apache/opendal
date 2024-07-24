@@ -22,7 +22,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::DbfsCore;
 use super::error::parse_error;

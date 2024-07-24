@@ -15,12 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{io::Cursor, sync::Arc};
+use std::io::Cursor;
+use std::sync::Arc;
 
-use compio::{dispatcher::Dispatcher, fs::OpenOptions};
-use serde::{Deserialize, Serialize};
+use compio::dispatcher::Dispatcher;
+use compio::fs::OpenOptions;
+use serde::Deserialize;
+use serde::Serialize;
 
-use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+use super::core::CompfsCore;
+use super::lister::CompfsLister;
+use super::reader::CompfsReader;
+use super::writer::CompfsWriter;
 use crate::raw::*;
 use crate::*;
 

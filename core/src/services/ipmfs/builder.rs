@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use log::debug;
+use serde::Deserialize;
+use serde::Serialize;
+
 use super::backend::IpmfsBackend;
 use crate::raw::*;
-
 use crate::*;
-use log::debug;
-use serde::{Deserialize, Serialize};
 
 /// Config for IPFS MFS support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

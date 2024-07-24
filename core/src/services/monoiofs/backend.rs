@@ -20,7 +20,8 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::MonoiofsCore;
 use crate::raw::*;

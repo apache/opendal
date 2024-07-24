@@ -309,7 +309,8 @@ mod tests {
     use rand::Rng;
     use rand::RngCore;
     use tokio::sync::Mutex;
-    use tokio::time::{sleep, timeout};
+    use tokio::time::sleep;
+    use tokio::time::timeout;
 
     use super::*;
     use crate::raw::oio::Write;

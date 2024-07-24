@@ -25,7 +25,8 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -33,7 +34,6 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
-
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.

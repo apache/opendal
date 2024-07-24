@@ -15,8 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
+
+use http::Response;
+use http::StatusCode;
+use http::Uri;
+use log::debug;
+use reqsign::HuaweicloudObsConfig;
+use reqsign::HuaweicloudObsCredentialLoader;
+use reqsign::HuaweicloudObsSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::ObsCore;
 use super::error::parse_error;
@@ -25,14 +36,6 @@ use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
-use http::Response;
-use http::StatusCode;
-use http::Uri;
-use log::debug;
-use reqsign::HuaweicloudObsConfig;
-use reqsign::HuaweicloudObsCredentialLoader;
-use reqsign::HuaweicloudObsSigner;
-use serde::{Deserialize, Serialize};
 
 /// Config for Huawei-Cloud Object Storage Service (OBS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

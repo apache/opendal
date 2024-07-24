@@ -22,7 +22,8 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;

@@ -29,7 +29,8 @@ use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 

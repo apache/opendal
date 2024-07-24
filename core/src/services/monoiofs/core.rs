@@ -15,11 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{mem, path::PathBuf, sync::Mutex, time::Duration};
+use std::mem;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
 
-use flume::{Receiver, Sender};
-use futures::{channel::oneshot, Future};
-use monoio::{FusionDriver, RuntimeBuilder};
+use flume::Receiver;
+use flume::Sender;
+use futures::channel::oneshot;
+use futures::Future;
+use monoio::FusionDriver;
+use monoio::RuntimeBuilder;
 
 /// a boxed function that spawns task in current monoio runtime
 type TaskSpawner = Box<dyn FnOnce() + Send>;
@@ -135,12 +141,12 @@ impl MonoiofsCore {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
+    use std::time::Duration;
 
-    use futures::{
-        channel::mpsc::{self, UnboundedSender},
-        StreamExt,
-    };
+    use futures::channel::mpsc::UnboundedSender;
+    use futures::channel::mpsc::{self};
+    use futures::StreamExt;
 
     use super::*;
 

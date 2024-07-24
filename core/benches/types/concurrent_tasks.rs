@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use criterion::BatchSize;
 use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;
-use std::time::Duration;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));

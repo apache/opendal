@@ -20,12 +20,12 @@ use std::fmt::Formatter;
 use std::str;
 
 use persy;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;

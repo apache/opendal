@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use compio::{buf::buf_try, io::AsyncReadAt};
+use compio::buf::buf_try;
+use compio::io::AsyncReadAt;
 
 use super::core::CompfsCore;
 use crate::raw::*;

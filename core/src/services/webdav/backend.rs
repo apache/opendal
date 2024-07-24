@@ -23,14 +23,14 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
-
 use crate::*;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.

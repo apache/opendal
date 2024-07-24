@@ -18,13 +18,15 @@
 use std::fmt::Debug;
 use std::time::Duration;
 
-use crate::raw::adapters::typed_kv;
-use crate::raw::Access;
-use crate::*;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
+use crate::*;
 
 /// Config for mini-moka support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

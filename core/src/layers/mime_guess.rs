@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{raw::*, Result};
+use crate::raw::*;
+use crate::Result;
 
 /// A layer that can automatically set `Content-Type` based on the file extension in the path.
 ///
@@ -157,7 +158,9 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{services::Memory, Metakey, Operator};
+    use crate::services::Memory;
+    use crate::Metakey;
+    use crate::Operator;
 
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";

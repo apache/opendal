@@ -163,10 +163,11 @@ impl futures::Sink<Buffer> for BufferSink {
 
 #[cfg(test)]
 mod tests {
-    use crate::raw::*;
-    use crate::*;
     use std::collections::HashMap;
     use std::sync::Arc;
+
+    use crate::raw::*;
+    use crate::*;
 
     #[tokio::test]
     async fn test_trait() {

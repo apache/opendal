@@ -23,7 +23,8 @@ use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
 use mongodb::options::UpdateOptions;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

@@ -22,13 +22,13 @@ use std::sync::Arc;
 
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 use tokio_postgres::Config;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::*;
 
 /// Config for PostgreSQL services support.

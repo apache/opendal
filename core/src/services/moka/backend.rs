@@ -22,7 +22,8 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;

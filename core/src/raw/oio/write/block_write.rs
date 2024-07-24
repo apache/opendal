@@ -17,8 +17,10 @@
 
 use std::sync::Arc;
 
-use futures::{select, Future};
-use futures::{FutureExt, TryFutureExt};
+use futures::select;
+use futures::Future;
+use futures::FutureExt;
+use futures::TryFutureExt;
 use uuid::Uuid;
 
 use crate::raw::*;

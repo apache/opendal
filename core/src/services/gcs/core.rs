@@ -37,7 +37,8 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 
 use super::uri::percent_encode_path;

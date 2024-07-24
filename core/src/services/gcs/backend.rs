@@ -27,7 +27,8 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json;
 
 use super::core::*;
@@ -36,7 +37,6 @@ use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use crate::raw::*;
-
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";

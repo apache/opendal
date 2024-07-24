@@ -22,12 +22,12 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
-
 use crate::ErrorKind;
 use crate::*;
 

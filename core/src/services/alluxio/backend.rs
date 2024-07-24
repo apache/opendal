@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use http::Response;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::AlluxioCore;
 use super::error::parse_error;
@@ -251,8 +252,9 @@ impl Access for AlluxioBackend {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     #[test]
     fn test_builder_from_map() {

@@ -18,7 +18,8 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;

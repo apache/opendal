@@ -39,7 +39,8 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;

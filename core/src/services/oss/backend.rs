@@ -20,13 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::core::*;
-use super::error::parse_error;
-use super::lister::OssLister;
-use super::writer::OssWriter;
-use crate::raw::*;
-use crate::services::oss::writer::OssWriters;
-use crate::*;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
@@ -35,7 +28,16 @@ use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::core::*;
+use super::error::parse_error;
+use super::lister::OssLister;
+use super::writer::OssWriter;
+use crate::raw::*;
+use crate::services::oss::writer::OssWriters;
+use crate::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 

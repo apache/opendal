@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 
 /// WriteContext holds the immutable context for give write operation.
 pub struct WriteContext {
@@ -286,10 +287,9 @@ impl WriteGenerator<oio::BlockingWriter> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::raw::oio::Write;
+    use bytes::Buf;
+    use bytes::BufMut;
     use bytes::Bytes;
-    use bytes::{Buf, BufMut};
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -298,6 +298,9 @@ mod tests {
     use sha2::Digest;
     use sha2::Sha256;
     use tokio::sync::Mutex;
+
+    use super::*;
+    use crate::raw::oio::Write;
 
     struct MockWriter {
         buf: Arc<Mutex<Vec<u8>>>,

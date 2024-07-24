@@ -19,11 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::backend::OnedriveBackend;
+use crate::raw::normalize_root;
+use crate::raw::Access;
 use crate::raw::HttpClient;
-use crate::raw::{normalize_root, Access};
 use crate::Scheme;
 use crate::*;
 

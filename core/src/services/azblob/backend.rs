@@ -30,7 +30,8 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -40,7 +41,6 @@ use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::services::azblob::writer::AzblobWriters;
-
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.

@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use chrono::prelude::*;
 use flagset::flags;
 use flagset::FlagSet;
-use std::collections::HashMap;
 
 use crate::raw::*;
 use crate::*;

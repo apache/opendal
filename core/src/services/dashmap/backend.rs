@@ -19,10 +19,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
-
 use crate::raw::Access;
 use crate::*;
 

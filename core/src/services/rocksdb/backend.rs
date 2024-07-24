@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;

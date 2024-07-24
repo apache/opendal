@@ -25,7 +25,8 @@ use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -33,7 +34,6 @@ use super::lister::CosLister;
 use super::writer::CosWriter;
 use crate::raw::*;
 use crate::services::cos::writer::CosWriters;
-
 use crate::*;
 
 /// Tencent-Cloud COS services support.

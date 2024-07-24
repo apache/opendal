@@ -23,7 +23,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -35,7 +36,6 @@ use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
-
 use crate::*;
 
 /// Config for backblaze Koofr services support.

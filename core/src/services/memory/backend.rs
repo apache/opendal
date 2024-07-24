@@ -20,7 +20,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;

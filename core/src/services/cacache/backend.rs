@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::str;
 
 use cacache;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::Access;

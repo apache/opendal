@@ -78,10 +78,11 @@ impl futures::Sink<Bytes> for FuturesBytesSink {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::raw::MaybeSend;
     use std::collections::HashMap;
     use std::sync::Arc;
+
+    use super::*;
+    use crate::raw::MaybeSend;
 
     #[tokio::test]
     async fn test_trait() {

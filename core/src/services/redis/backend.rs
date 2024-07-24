@@ -31,7 +31,8 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-use http::StatusCode;
 use std::sync::Arc;
 
-use super::core::{CompleteMultipartUploadRequestPart, GcsCore, InitiateMultipartUploadResult};
+use bytes::Buf;
+use http::StatusCode;
+
+use super::core::CompleteMultipartUploadRequestPart;
+use super::core::GcsCore;
+use super::core::InitiateMultipartUploadResult;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

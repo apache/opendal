@@ -35,7 +35,8 @@ use hrana_client_proto::StmtResult;
 use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;

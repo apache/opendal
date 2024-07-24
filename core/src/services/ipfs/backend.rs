@@ -19,17 +19,18 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::error::parse_error;
-use super::ipld::PBNode;
-use crate::raw::*;
-
-use crate::*;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::error::parse_error;
+use super::ipld::PBNode;
+use crate::raw::*;
+use crate::*;
 
 /// Config for IPFS file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

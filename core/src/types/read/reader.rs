@@ -379,7 +379,6 @@ impl Reader {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use bytes::Bytes;
     use rand::rngs::ThreadRng;
@@ -393,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -426,7 +425,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -443,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_with_chunk() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -460,7 +459,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_with_concurrent() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -482,7 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_into() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();

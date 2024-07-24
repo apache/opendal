@@ -103,6 +103,213 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
+    /// Create a new operator from given iterator in static dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `from_iter` generates a `OperatorBuilder` which allows adding layer in zero-cost way.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    /// async fn test() -> Result<()> {
+    ///     let map = HashMap::from([
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ]);
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_iter::<Fs>(map)?.finish();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_iter<B: Builder>(
+        iter: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<impl Access>> {
+        let builder = B::Config::from_iter(iter)?.into_builder();
+        let acc = builder.build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `via_iter` generates a `Operator` which allows building operator without generic type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::Operator;
+    /// use opendal::Scheme;
+    /// async fn test() -> Result<()> {
+    ///     let map = [
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ];
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::via_iter(Scheme::Fs, map)?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[allow(unused_variables, unreachable_code)]
+    pub fn via_iter(
+        scheme: Scheme,
+        iter: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Operator> {
+        let op = match scheme {
+            #[cfg(feature = "services-aliyun-drive")]
+            Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
+            #[cfg(feature = "services-atomicserver")]
+            Scheme::Atomicserver => Self::from_iter::<services::Atomicserver>(iter)?.finish(),
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
+            #[cfg(feature = "services-compfs")]
+            Scheme::Compfs => Self::from_iter::<services::Compfs>(iter)?.finish(),
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun => Self::from_iter::<services::Upyun>(iter)?.finish(),
+            #[cfg(feature = "services-koofr")]
+            Scheme::Koofr => Self::from_iter::<services::Koofr>(iter)?.finish(),
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk => Self::from_iter::<services::YandexDisk>(iter)?.finish(),
+            #[cfg(feature = "services-pcloud")]
+            Scheme::Pcloud => Self::from_iter::<services::Pcloud>(iter)?.finish(),
+            #[cfg(feature = "services-chainsafe")]
+            Scheme::Chainsafe => Self::from_iter::<services::Chainsafe>(iter)?.finish(),
+            #[cfg(feature = "services-azblob")]
+            Scheme::Azblob => Self::from_iter::<services::Azblob>(iter)?.finish(),
+            #[cfg(feature = "services-azdls")]
+            Scheme::Azdls => Self::from_iter::<services::Azdls>(iter)?.finish(),
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile => Self::from_iter::<services::Azfile>(iter)?.finish(),
+            #[cfg(feature = "services-b2")]
+            Scheme::B2 => Self::from_iter::<services::B2>(iter)?.finish(),
+            #[cfg(feature = "services-cacache")]
+            Scheme::Cacache => Self::from_iter::<services::Cacache>(iter)?.finish(),
+            #[cfg(feature = "services-cos")]
+            Scheme::Cos => Self::from_iter::<services::Cos>(iter)?.finish(),
+            #[cfg(feature = "services-d1")]
+            Scheme::D1 => Self::from_iter::<services::D1>(iter)?.finish(),
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap => Self::from_iter::<services::Dashmap>(iter)?.finish(),
+            #[cfg(feature = "services-dropbox")]
+            Scheme::Dropbox => Self::from_iter::<services::Dropbox>(iter)?.finish(),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Self::from_iter::<services::Etcd>(iter)?.finish(),
+            #[cfg(feature = "services-foundationdb")]
+            Scheme::Foundationdb => Self::from_iter::<services::Foundationdb>(iter)?.finish(),
+            #[cfg(feature = "services-fs")]
+            Scheme::Fs => Self::from_iter::<services::Fs>(iter)?.finish(),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => Self::from_iter::<services::Ftp>(iter)?.finish(),
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs => Self::from_iter::<services::Gcs>(iter)?.finish(),
+            #[cfg(feature = "services-ghac")]
+            Scheme::Ghac => Self::from_iter::<services::Ghac>(iter)?.finish(),
+            #[cfg(feature = "services-gridfs")]
+            Scheme::Gridfs => Self::from_iter::<services::Gridfs>(iter)?.finish(),
+            #[cfg(feature = "services-github")]
+            Scheme::Github => Self::from_iter::<services::Github>(iter)?.finish(),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => Self::from_iter::<services::Hdfs>(iter)?.finish(),
+            #[cfg(feature = "services-http")]
+            Scheme::Http => Self::from_iter::<services::Http>(iter)?.finish(),
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface => Self::from_iter::<services::Huggingface>(iter)?.finish(),
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs => Self::from_iter::<services::Ipfs>(iter)?.finish(),
+            #[cfg(feature = "services-ipmfs")]
+            Scheme::Ipmfs => Self::from_iter::<services::Ipmfs>(iter)?.finish(),
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud => Self::from_iter::<services::Icloud>(iter)?.finish(),
+            #[cfg(feature = "services-libsql")]
+            Scheme::Libsql => Self::from_iter::<services::Libsql>(iter)?.finish(),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => Self::from_iter::<services::Memcached>(iter)?.finish(),
+            #[cfg(feature = "services-memory")]
+            Scheme::Memory => Self::from_iter::<services::Memory>(iter)?.finish(),
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka => Self::from_iter::<services::MiniMoka>(iter)?.finish(),
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => Self::from_iter::<services::Moka>(iter)?.finish(),
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs => Self::from_iter::<services::Monoiofs>(iter)?.finish(),
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql => Self::from_iter::<services::Mysql>(iter)?.finish(),
+            #[cfg(feature = "services-obs")]
+            Scheme::Obs => Self::from_iter::<services::Obs>(iter)?.finish(),
+            #[cfg(feature = "services-onedrive")]
+            Scheme::Onedrive => Self::from_iter::<services::Onedrive>(iter)?.finish(),
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql => Self::from_iter::<services::Postgresql>(iter)?.finish(),
+            #[cfg(feature = "services-gdrive")]
+            Scheme::Gdrive => Self::from_iter::<services::Gdrive>(iter)?.finish(),
+            #[cfg(feature = "services-oss")]
+            Scheme::Oss => Self::from_iter::<services::Oss>(iter)?.finish(),
+            #[cfg(feature = "services-persy")]
+            Scheme::Persy => Self::from_iter::<services::Persy>(iter)?.finish(),
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => Self::from_iter::<services::Redis>(iter)?.finish(),
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb => Self::from_iter::<services::Rocksdb>(iter)?.finish(),
+            #[cfg(feature = "services-s3")]
+            Scheme::S3 => Self::from_iter::<services::S3>(iter)?.finish(),
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile => Self::from_iter::<services::Seafile>(iter)?.finish(),
+            #[cfg(feature = "services-sftp")]
+            Scheme::Sftp => Self::from_iter::<services::Sftp>(iter)?.finish(),
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled => Self::from_iter::<services::Sled>(iter)?.finish(),
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite => Self::from_iter::<services::Sqlite>(iter)?.finish(),
+            #[cfg(feature = "services-supabase")]
+            Scheme::Supabase => Self::from_iter::<services::Supabase>(iter)?.finish(),
+            #[cfg(feature = "services-swift")]
+            Scheme::Swift => Self::from_iter::<services::Swift>(iter)?.finish(),
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv => Self::from_iter::<services::Tikv>(iter)?.finish(),
+            #[cfg(feature = "services-vercel-artifacts")]
+            Scheme::VercelArtifacts => Self::from_iter::<services::VercelArtifacts>(iter)?.finish(),
+            #[cfg(feature = "services-vercel-blob")]
+            Scheme::VercelBlob => Self::from_iter::<services::VercelBlob>(iter)?.finish(),
+            #[cfg(feature = "services-webdav")]
+            Scheme::Webdav => Self::from_iter::<services::Webdav>(iter)?.finish(),
+            #[cfg(feature = "services-webhdfs")]
+            Scheme::Webhdfs => Self::from_iter::<services::Webhdfs>(iter)?.finish(),
+            #[cfg(feature = "services-redb")]
+            Scheme::Redb => Self::from_iter::<services::Redb>(iter)?.finish(),
+            #[cfg(feature = "services-mongodb")]
+            Scheme::Mongodb => Self::from_iter::<services::Mongodb>(iter)?.finish(),
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative => Self::from_iter::<services::HdfsNative>(iter)?.finish(),
+            v => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "scheme is not enabled or supported",
+                )
+                .with_context("scheme", v))
+            }
+        };
+
+        Ok(op)
+    }
+
     /// Create a new operator from given map.
     ///
     /// # Notes
@@ -134,12 +341,11 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated = "use from_iter instead"]
     pub fn from_map<B: Builder>(
         map: HashMap<String, String>,
     ) -> Result<OperatorBuilder<impl Access>> {
-        let builder = B::Config::from_iter(map)?.into_builder();
-        let acc = builder.build()?;
-        Ok(OperatorBuilder::new(acc))
+        Self::from_iter::<B>(map)
     }
 
     /// Create a new operator from given scheme and map.
@@ -168,148 +374,14 @@ impl Operator {
     ///     ]);
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?;
+    ///     let op: Operator = Operator::via_iter(Scheme::Fs, map)?;
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[allow(unused_variables, unreachable_code)]
+    #[deprecated = "use via_iter instead"]
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
-        let op = match scheme {
-            #[cfg(feature = "services-aliyun-drive")]
-            Scheme::AliyunDrive => Self::from_map::<services::AliyunDrive>(map)?.finish(),
-            #[cfg(feature = "services-atomicserver")]
-            Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
-            #[cfg(feature = "services-alluxio")]
-            Scheme::Alluxio => Self::from_map::<services::Alluxio>(map)?.finish(),
-            #[cfg(feature = "services-compfs")]
-            Scheme::Compfs => Self::from_map::<services::Compfs>(map)?.finish(),
-            #[cfg(feature = "services-upyun")]
-            Scheme::Upyun => Self::from_map::<services::Upyun>(map)?.finish(),
-            #[cfg(feature = "services-koofr")]
-            Scheme::Koofr => Self::from_map::<services::Koofr>(map)?.finish(),
-            #[cfg(feature = "services-yandex-disk")]
-            Scheme::YandexDisk => Self::from_map::<services::YandexDisk>(map)?.finish(),
-            #[cfg(feature = "services-pcloud")]
-            Scheme::Pcloud => Self::from_map::<services::Pcloud>(map)?.finish(),
-            #[cfg(feature = "services-chainsafe")]
-            Scheme::Chainsafe => Self::from_map::<services::Chainsafe>(map)?.finish(),
-            #[cfg(feature = "services-azblob")]
-            Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
-            #[cfg(feature = "services-azdls")]
-            Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
-            #[cfg(feature = "services-azfile")]
-            Scheme::Azfile => Self::from_map::<services::Azfile>(map)?.finish(),
-            #[cfg(feature = "services-b2")]
-            Scheme::B2 => Self::from_map::<services::B2>(map)?.finish(),
-            #[cfg(feature = "services-cacache")]
-            Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
-            #[cfg(feature = "services-cos")]
-            Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
-            #[cfg(feature = "services-d1")]
-            Scheme::D1 => Self::from_map::<services::D1>(map)?.finish(),
-            #[cfg(feature = "services-dashmap")]
-            Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
-            #[cfg(feature = "services-dropbox")]
-            Scheme::Dropbox => Self::from_map::<services::Dropbox>(map)?.finish(),
-            #[cfg(feature = "services-etcd")]
-            Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
-            #[cfg(feature = "services-foundationdb")]
-            Scheme::Foundationdb => Self::from_map::<services::Foundationdb>(map)?.finish(),
-            #[cfg(feature = "services-fs")]
-            Scheme::Fs => Self::from_map::<services::Fs>(map)?.finish(),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => Self::from_map::<services::Ftp>(map)?.finish(),
-            #[cfg(feature = "services-gcs")]
-            Scheme::Gcs => Self::from_map::<services::Gcs>(map)?.finish(),
-            #[cfg(feature = "services-ghac")]
-            Scheme::Ghac => Self::from_map::<services::Ghac>(map)?.finish(),
-            #[cfg(feature = "services-gridfs")]
-            Scheme::Gridfs => Self::from_map::<services::Gridfs>(map)?.finish(),
-            #[cfg(feature = "services-github")]
-            Scheme::Github => Self::from_map::<services::Github>(map)?.finish(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
-            #[cfg(feature = "services-http")]
-            Scheme::Http => Self::from_map::<services::Http>(map)?.finish(),
-            #[cfg(feature = "services-huggingface")]
-            Scheme::Huggingface => Self::from_map::<services::Huggingface>(map)?.finish(),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
-            #[cfg(feature = "services-ipmfs")]
-            Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
-            #[cfg(feature = "services-icloud")]
-            Scheme::Icloud => Self::from_map::<services::Icloud>(map)?.finish(),
-            #[cfg(feature = "services-libsql")]
-            Scheme::Libsql => Self::from_map::<services::Libsql>(map)?.finish(),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
-            #[cfg(feature = "services-memory")]
-            Scheme::Memory => Self::from_map::<services::Memory>(map)?.finish(),
-            #[cfg(feature = "services-mini-moka")]
-            Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
-            #[cfg(feature = "services-monoiofs")]
-            Scheme::Monoiofs => Self::from_map::<services::Monoiofs>(map)?.finish(),
-            #[cfg(feature = "services-mysql")]
-            Scheme::Mysql => Self::from_map::<services::Mysql>(map)?.finish(),
-            #[cfg(feature = "services-obs")]
-            Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
-            #[cfg(feature = "services-onedrive")]
-            Scheme::Onedrive => Self::from_map::<services::Onedrive>(map)?.finish(),
-            #[cfg(feature = "services-postgresql")]
-            Scheme::Postgresql => Self::from_map::<services::Postgresql>(map)?.finish(),
-            #[cfg(feature = "services-gdrive")]
-            Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
-            #[cfg(feature = "services-oss")]
-            Scheme::Oss => Self::from_map::<services::Oss>(map)?.finish(),
-            #[cfg(feature = "services-persy")]
-            Scheme::Persy => Self::from_map::<services::Persy>(map)?.finish(),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => Self::from_map::<services::Redis>(map)?.finish(),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),
-            #[cfg(feature = "services-s3")]
-            Scheme::S3 => Self::from_map::<services::S3>(map)?.finish(),
-            #[cfg(feature = "services-seafile")]
-            Scheme::Seafile => Self::from_map::<services::Seafile>(map)?.finish(),
-            #[cfg(feature = "services-sftp")]
-            Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
-            #[cfg(feature = "services-sled")]
-            Scheme::Sled => Self::from_map::<services::Sled>(map)?.finish(),
-            #[cfg(feature = "services-sqlite")]
-            Scheme::Sqlite => Self::from_map::<services::Sqlite>(map)?.finish(),
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
-            #[cfg(feature = "services-swift")]
-            Scheme::Swift => Self::from_map::<services::Swift>(map)?.finish(),
-            #[cfg(feature = "services-tikv")]
-            Scheme::Tikv => Self::from_map::<services::Tikv>(map)?.finish(),
-            #[cfg(feature = "services-vercel-artifacts")]
-            Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
-            #[cfg(feature = "services-vercel-blob")]
-            Scheme::VercelBlob => Self::from_map::<services::VercelBlob>(map)?.finish(),
-            #[cfg(feature = "services-webdav")]
-            Scheme::Webdav => Self::from_map::<services::Webdav>(map)?.finish(),
-            #[cfg(feature = "services-webhdfs")]
-            Scheme::Webhdfs => Self::from_map::<services::Webhdfs>(map)?.finish(),
-            #[cfg(feature = "services-redb")]
-            Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
-            #[cfg(feature = "services-mongodb")]
-            Scheme::Mongodb => Self::from_map::<services::Mongodb>(map)?.finish(),
-            #[cfg(feature = "services-hdfs-native")]
-            Scheme::HdfsNative => Self::from_map::<services::HdfsNative>(map)?.finish(),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "scheme is not enabled or supported",
-                )
-                .with_context("scheme", v))
-            }
-        };
-
-        Ok(op)
+        Self::via_iter(scheme, map)
     }
 
     /// Create a new layer with dynamic dispatch.

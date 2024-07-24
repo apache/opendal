@@ -146,7 +146,6 @@ impl ReadGenerator {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use bytes::Bytes;
 
@@ -154,7 +153,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_reader() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -180,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_next_blocking_reader() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.blocking().write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),

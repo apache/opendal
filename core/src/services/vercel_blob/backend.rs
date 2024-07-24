@@ -36,7 +36,7 @@ use super::writer::VercelBlobWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze VercelBlob services support.
+/// Config for VercelBlob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

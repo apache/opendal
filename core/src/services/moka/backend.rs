@@ -29,7 +29,7 @@ use crate::raw::adapters::typed_kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Mokaservices support.
+/// Config for Moka services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

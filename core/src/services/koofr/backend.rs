@@ -38,7 +38,7 @@ use super::writer::KoofrWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Koofr services support.
+/// Config for Koofr services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

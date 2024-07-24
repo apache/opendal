@@ -36,7 +36,7 @@ use super::writer::YandexDiskWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze YandexDisk services support.
+/// Config for YandexDisk services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

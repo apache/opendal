@@ -35,7 +35,7 @@ use super::writer::PcloudWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Pcloud services support.
+/// Config for Pcloud services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

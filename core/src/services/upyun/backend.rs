@@ -33,7 +33,7 @@ use super::writer::UpyunWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze upyun services support.
+/// Config for upyun services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

@@ -43,7 +43,7 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Libsqlservices support.
+/// Config for Libsql services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

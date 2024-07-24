@@ -29,10 +29,10 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
+/// Config for Rocksdb Service.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-/// Config for Rocksdb Service.
 pub struct RocksdbConfig {
     /// The path to the rocksdb data directory.
     pub datadir: Option<String>,

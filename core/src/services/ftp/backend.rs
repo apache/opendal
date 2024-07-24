@@ -46,7 +46,7 @@ use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Ftpservices support.
+/// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]

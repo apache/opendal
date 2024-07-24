@@ -15,20 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
-
-use crate::raw::*;
-use crate::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
+use crate::raw::*;
+use crate::*;
 
 /// Config for supabase service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,6 +52,15 @@ impl Debug for SupabaseConfig {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for SupabaseConfig {
+    fn into_builder(self) -> impl Builder {
+        SupabaseBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -124,25 +134,17 @@ impl SupabaseBuilder {
 
 impl Builder for SupabaseBuilder {
     const SCHEME: Scheme = Scheme::Supabase;
-    type Accessor = SupabaseBackend;
     type Config = SupabaseConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SupabaseBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", &root);
 
         let bucket = &self.config.bucket;
 
-        let endpoint = self.config.endpoint.take().unwrap_or_default();
+        let endpoint = self.config.endpoint.unwrap_or_default();
 
-        let http_client = if let Some(client) = self.http_client.take() {
+        let http_client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

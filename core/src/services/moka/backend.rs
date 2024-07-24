@@ -22,9 +22,11 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::*;
 use crate::*;
 
 /// Config for Mokaservices support.
@@ -61,6 +63,12 @@ impl Debug for MokaConfig {
             .field("time_to_idle", &self.time_to_idle)
             .field("num_segments", &self.num_segments)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for MokaConfig {
+    fn into_builder(self) -> impl Builder {
+        MokaBuilder { config: self }
     }
 }
 
@@ -122,14 +130,9 @@ impl MokaBuilder {
 
 impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
-    type Accessor = MokaBackend;
     type Config = MokaConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MokaBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, typed_kv::Value, _> =

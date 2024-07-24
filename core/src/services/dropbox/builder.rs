@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::backend::DropboxBackend;
@@ -52,6 +53,15 @@ impl Debug for DropboxConfig {
         f.debug_struct("DropBoxConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for DropboxConfig {
+    fn into_builder(self) -> impl Builder {
+        DropboxBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -132,19 +142,11 @@ impl DropboxBuilder {
 
 impl Builder for DropboxBuilder {
     const SCHEME: Scheme = Scheme::Dropbox;
-    type Accessor = DropboxBackend;
     type Config = DropboxConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
-        let client = if let Some(client) = self.http_client.take() {
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -153,10 +155,7 @@ impl Builder for DropboxBuilder {
             })?
         };
 
-        let signer = match (
-            self.config.access_token.take(),
-            self.config.refresh_token.take(),
-        ) {
+        let signer = match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
                 // We will never expire user specified token.
@@ -164,14 +163,14 @@ impl Builder for DropboxBuilder {
                 ..Default::default()
             },
             (None, Some(refresh_token)) => {
-                let client_id = self.config.client_id.take().ok_or_else(|| {
+                let client_id = self.config.client_id.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
                     .with_context("service", Scheme::Dropbox)
                 })?;
-                let client_secret = self.config.client_secret.take().ok_or_else(|| {
+                let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",

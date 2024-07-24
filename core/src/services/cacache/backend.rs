@@ -20,9 +20,11 @@ use std::fmt::Formatter;
 use std::str;
 
 use cacache;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
+use crate::raw::Access;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -34,6 +36,12 @@ use crate::*;
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
     pub datadir: Option<String>,
+}
+
+impl Configurator for CacacheConfig {
+    fn into_builder(self) -> impl Builder {
+        CacacheBuilder { config: self }
+    }
 }
 
 /// cacache service support.
@@ -53,15 +61,10 @@ impl CacacheBuilder {
 
 impl Builder for CacacheBuilder {
     const SCHEME: Scheme = Scheme::Cacache;
-    type Accessor = CacacheBackend;
     type Config = CacacheConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Cacache)
         })?;

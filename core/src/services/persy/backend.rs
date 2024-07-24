@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::str;
 
 use persy;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -42,6 +43,12 @@ pub struct PersyConfig {
     pub segment: Option<String>,
     /// That name of the persy index.
     pub index: Option<String>,
+}
+
+impl Configurator for PersyConfig {
+    fn into_builder(self) -> impl Builder {
+        PersyBuilder { config: self }
+    }
 }
 
 /// persy service support.
@@ -73,27 +80,22 @@ impl PersyBuilder {
 
 impl Builder for PersyBuilder {
     const SCHEME: Scheme = Scheme::Persy;
-    type Accessor = PersyBackend;
     type Config = PersyConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datafile_path = self.config.datafile.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datafile_path = self.config.datafile.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
-        let segment_name = self.config.segment.take().ok_or_else(|| {
+        let segment_name = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
         let segment = segment_name.clone();
 
-        let index_name = self.config.index.take().ok_or_else(|| {
+        let index_name = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;

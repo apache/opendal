@@ -15,8 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
+
+use http::Response;
+use http::StatusCode;
+use http::Uri;
+use log::debug;
+use reqsign::HuaweicloudObsConfig;
+use reqsign::HuaweicloudObsCredentialLoader;
+use reqsign::HuaweicloudObsSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::ObsCore;
 use super::error::parse_error;
@@ -25,14 +36,6 @@ use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
-use http::Response;
-use http::StatusCode;
-use http::Uri;
-use log::debug;
-use reqsign::HuaweicloudObsConfig;
-use reqsign::HuaweicloudObsCredentialLoader;
-use reqsign::HuaweicloudObsSigner;
-use serde::{Deserialize, Serialize};
 
 /// Config for Huawei-Cloud Object Storage Service (OBS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,6 +63,15 @@ impl Debug for ObsConfig {
             .field("secret_access_key", &"<redacted>")
             .field("bucket", &self.bucket)
             .finish()
+    }
+}
+
+impl Configurator for ObsConfig {
+    fn into_builder(self) -> impl Builder {
+        ObsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -153,20 +165,12 @@ impl ObsBuilder {
 
 impl Builder for ObsBuilder {
     const SCHEME: Scheme = Scheme::Obs;
-    type Accessor = ObsBackend;
     type Config = ObsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        ObsBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let bucket = match &self.config.bucket {
@@ -203,7 +207,7 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -216,11 +220,11 @@ impl Builder for ObsBuilder {
         // Load cfg from env first.
         cfg = cfg.from_env();
 
-        if let Some(v) = self.config.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v);
         }
 
-        if let Some(v) = self.config.secret_access_key.take() {
+        if let Some(v) = self.config.secret_access_key {
             cfg.secret_access_key = Some(v);
         }
 

@@ -22,7 +22,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::DbfsCore;
 use super::error::parse_error;
@@ -54,6 +55,12 @@ impl Debug for DbfsConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for DbfsConfig {
+    fn into_builder(self) -> impl Builder {
+        DbfsBuilder { config: self }
     }
 }
 
@@ -112,18 +119,13 @@ impl DbfsBuilder {
 
 impl Builder for DbfsBuilder {
     const SCHEME: Scheme = Scheme::Dbfs;
-    type Accessor = DbfsBackend;
     type Config = DbfsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
     /// Build a DbfsBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = match &self.config.endpoint {
@@ -134,7 +136,7 @@ impl Builder for DbfsBuilder {
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 
-        let token = match self.config.token.take() {
+        let token = match self.config.token {
             Some(token) => token,
             None => {
                 return Err(Error::new(
@@ -145,8 +147,6 @@ impl Builder for DbfsBuilder {
         };
 
         let client = HttpClient::new()?;
-
-        debug!("backend build finished: {:?}", &self);
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,

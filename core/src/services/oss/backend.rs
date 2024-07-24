@@ -20,13 +20,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::core::*;
-use super::error::parse_error;
-use super::lister::OssLister;
-use super::writer::OssWriter;
-use crate::raw::*;
-use crate::services::oss::writer::OssWriters;
-use crate::*;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
@@ -35,7 +28,16 @@ use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::core::*;
+use super::error::parse_error;
+use super::lister::OssLister;
+use super::writer::OssWriter;
+use crate::raw::*;
+use crate::services::oss::writer::OssWriters;
+use crate::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
@@ -80,6 +82,15 @@ impl Debug for OssConfig {
             .field("allow_anonymous", &self.allow_anonymous);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for OssConfig {
+    fn into_builder(self) -> impl Builder {
+        OssBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -278,17 +289,9 @@ impl OssBuilder {
 
 impl Builder for OssBuilder {
     const SCHEME: Scheme = Scheme::Oss;
-    type Accessor = OssBackend;
     type Config = OssConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        OssBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -302,15 +305,6 @@ impl Builder for OssBuilder {
                     .with_context("service", Scheme::Oss),
             ),
         }?;
-
-        let client = if let Some(client) = self.http_client.take() {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Oss)
-            })?
-        };
 
         // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
@@ -345,13 +339,22 @@ impl Builder for OssBuilder {
         // Load cfg from env first.
         cfg = cfg.from_env();
 
-        if let Some(v) = self.config.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v);
         }
 
-        if let Some(v) = self.config.access_key_secret.take() {
+        if let Some(v) = self.config.access_key_secret {
             cfg.access_key_secret = Some(v);
         }
+
+        let client = if let Some(client) = self.http_client {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Oss)
+            })?
+        };
 
         let loader = AliyunLoader::new(client.client(), cfg);
 
@@ -361,7 +364,6 @@ impl Builder for OssBuilder {
             .config
             .batch_max_operations
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-        debug!("Backend build finished");
 
         Ok(OssBackend {
             core: Arc::new(OssCore {

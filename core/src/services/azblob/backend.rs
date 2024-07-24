@@ -30,7 +30,8 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -114,6 +115,15 @@ impl Debug for AzblobConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for AzblobConfig {
+    fn into_builder(self) -> impl Builder {
+        AzblobBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -395,20 +405,12 @@ impl AzblobBuilder {
 
 impl Builder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
-    type Accessor = AzblobBackend;
     type Config = AzblobConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
@@ -428,7 +430,7 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -496,7 +498,6 @@ impl Builder for AzblobBuilder {
             .batch_max_operations
             .unwrap_or(AZBLOB_BATCH_LIMIT);
 
-        debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
                 root,
@@ -770,9 +771,8 @@ impl Access for AzblobBackend {
 
 #[cfg(test)]
 mod tests {
+    use super::infer_storage_name_from_endpoint;
     use super::AzblobBuilder;
-    use crate::services::azblob::backend::infer_storage_name_from_endpoint;
-    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -786,75 +786,6 @@ mod tests {
         let endpoint = "https://account.blob.core.windows.net/";
         let storage_name = infer_storage_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.chinacloudapi.cn");
-        azblob_builder.container("container");
-        azblob_builder.account_key("account-key");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.chinacloudapi.cn"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(
-            azblob_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-    }
-
-    #[test]
-    fn test_no_key_wont_infer_account_name() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.windows.net");
-        azblob_builder.container("container");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.windows.net"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(azblob_builder.config.account_key, None);
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_sas() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.usgovcloudapi.net");
-        azblob_builder.container("container");
-        azblob_builder.account_name("storagesample");
-        azblob_builder.account_key("account-key");
-        azblob_builder.sas_token("sas");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.usgovcloudapi.net"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(
-            azblob_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-
-        assert_eq!(azblob_builder.config.sas_token.unwrap(), "sas".to_string());
     }
 
     #[test]

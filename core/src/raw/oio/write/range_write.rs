@@ -17,8 +17,9 @@
 
 use std::sync::Arc;
 
+use futures::select;
+use futures::Future;
 use futures::FutureExt;
-use futures::{select, Future};
 
 use crate::raw::*;
 use crate::*;

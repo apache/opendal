@@ -4,25 +4,20 @@ use bytes::Bytes;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use object_store_opendal::OpendalStore;
-use opendal::services::S3;
-use opendal::{Builder, Operator};
+use opendal::services::S3Config;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() {
-    let builder = S3::from_map(
-        vec![
-            ("access_key".to_string(), "my_access_key".to_string()),
-            ("secret_key".to_string(), "my_secret_key".to_string()),
-            ("endpoint".to_string(), "my_endpoint".to_string()),
-            ("region".to_string(), "my_region".to_string()),
-        ]
-        .into_iter()
-        .collect(),
-    )
-    .unwrap();
+    let mut cfg = S3Config::default();
+    cfg.access_key_id = Some("my_access_key".to_string());
+    cfg.secret_access_key = Some("my_secret_key".to_string());
+    cfg.endpoint = Some("my_endpoint".to_string());
+    cfg.region = Some("my_region".to_string());
+    cfg.bucket = "my_bucket".to_string();
 
     // Create a new operator
-    let operator = Operator::new(builder).unwrap().finish();
+    let operator = Operator::from_config(cfg).unwrap().finish();
 
     // Create a new object store
     let object_store = Arc::new(OpendalStore::new(operator));

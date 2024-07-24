@@ -27,7 +27,8 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -97,6 +98,12 @@ impl Debug for EtcdConfig {
             ds.field("key_path", &key_path);
         }
         ds.finish()
+    }
+}
+
+impl Configurator for EtcdConfig {
+    fn into_builder(self) -> impl Builder {
+        EtcdBuilder { config: self }
     }
 }
 
@@ -190,14 +197,9 @@ impl EtcdBuilder {
 
 impl Builder for EtcdBuilder {
     const SCHEME: Scheme = Scheme::Etcd;
-    type Accessor = EtcdBackend;
     type Config = EtcdConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let endpoints = self
             .config
             .endpoints

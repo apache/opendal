@@ -19,7 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -53,6 +54,12 @@ impl Debug for SledConfig {
             .field("root", &self.root)
             .field("tree", &self.tree)
             .finish()
+    }
+}
+
+impl Configurator for SledConfig {
+    fn into_builder(self) -> impl Builder {
+        SledBuilder { config: self }
     }
 }
 
@@ -93,15 +100,10 @@ impl SledBuilder {
 
 impl Builder for SledBuilder {
     const SCHEME: Scheme = Scheme::Sled;
-    type Accessor = SledBackend;
     type Config = SledConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SledBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Sled)
         })?;
@@ -117,7 +119,6 @@ impl Builder for SledBuilder {
         let tree_name = self
             .config
             .tree
-            .take()
             .unwrap_or_else(|| DEFAULT_TREE_ID.to_string());
 
         let tree = db.open_tree(&tree_name).map_err(|e| {

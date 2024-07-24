@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Cursor;
+use std::sync::Arc;
+
+use compio::buf::buf_try;
+use compio::fs::File;
+use compio::io::AsyncWriteExt;
+
 use super::core::CompfsCore;
 use crate::raw::*;
 use crate::*;
-use compio::io::AsyncWriteExt;
-use compio::{buf::buf_try, fs::File};
-use std::{io::Cursor, sync::Arc};
 
 #[derive(Debug)]
 pub struct CompfsWriter {

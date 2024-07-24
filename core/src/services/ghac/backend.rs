@@ -96,6 +96,15 @@ pub struct GhacConfig {
     pub runtime_token: Option<String>,
 }
 
+impl Configurator for GhacConfig {
+    fn into_builder(self) -> impl Builder {
+        GhacBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// GitHub Action Cache Services support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
@@ -167,23 +176,15 @@ impl GhacBuilder {
 
 impl Builder for GhacBuilder {
     const SCHEME: Scheme = Scheme::Ghac;
-    type Accessor = GhacBackend;
     type Config = GhacConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        GhacBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -195,13 +196,9 @@ impl Builder for GhacBuilder {
         let backend = GhacBackend {
             root,
 
-            cache_url: value_or_env(
-                self.config.endpoint.take(),
-                ACTIONS_CACHE_URL,
-                "Builder::build",
-            )?,
+            cache_url: value_or_env(self.config.endpoint, ACTIONS_CACHE_URL, "Builder::build")?,
             catch_token: value_or_env(
-                self.config.runtime_token.take(),
+                self.config.runtime_token,
                 ACTIONS_RUNTIME_TOKEN,
                 "Builder::build",
             )?,

@@ -22,7 +22,8 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::error::parse_error;
@@ -62,6 +63,15 @@ impl Debug for D1Config {
         ds.field("key_field", &self.key_field);
         ds.field("value_field", &self.value_field);
         ds.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for D1Config {
+    fn into_builder(self) -> impl Builder {
+        D1Builder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -157,24 +167,17 @@ impl D1Builder {
 
 impl Builder for D1Builder {
     const SCHEME: Scheme = Scheme::D1;
-    type Accessor = D1Backend;
     type Config = D1Config;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let mut authorization = None;
-        let config = &self.config;
-        if let Some(token) = &config.token {
-            authorization = Some(format_authorization_by_bearer(token)?)
+        let config = self.config;
+
+        if let Some(token) = config.token {
+            authorization = Some(format_authorization_by_bearer(&token)?)
         }
 
-        let Some(account_id) = config.account_id.clone() else {
+        let Some(account_id) = config.account_id else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "account_id is required",
@@ -188,7 +191,7 @@ impl Builder for D1Builder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

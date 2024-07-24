@@ -20,7 +20,8 @@ use std::fmt::Debug;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -57,6 +58,12 @@ impl Debug for MysqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for MysqlConfig {
+    fn into_builder(self) -> impl Builder {
+        MysqlBuilder { config: self }
     }
 }
 
@@ -137,14 +144,9 @@ impl MysqlBuilder {
 
 impl Builder for MysqlBuilder {
     const SCHEME: Scheme = Scheme::Mysql;
-    type Accessor = MySqlBackend;
     type Config = MysqlConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MysqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

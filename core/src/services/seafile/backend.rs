@@ -22,21 +22,22 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::core::SeafileCore;
+use super::core::SeafileSigner;
 use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
-use crate::services::seafile::core::SeafileSigner;
 use crate::*;
 
-/// Config for backblaze seafile services support.
+/// Config for seafile services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -67,6 +68,15 @@ impl Debug for SeafileConfig {
             .field("repo_name", &self.repo_name);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for SeafileConfig {
+    fn into_builder(self) -> impl Builder {
+        SeafileBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -164,18 +174,10 @@ impl SeafileBuilder {
 
 impl Builder for SeafileBuilder {
     const SCHEME: Scheme = Scheme::Seafile;
-    type Accessor = SeafileBackend;
     type Config = SeafileConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SeafileBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of SeafileBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -211,7 +213,7 @@ impl Builder for SeafileBuilder {
                 .with_context("service", Scheme::Seafile)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

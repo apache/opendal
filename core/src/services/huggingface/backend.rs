@@ -23,7 +23,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
@@ -82,6 +83,12 @@ impl Debug for HuggingfaceConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for HuggingfaceConfig {
+    fn into_builder(self) -> impl Builder {
+        HuggingfaceBuilder { config: self }
     }
 }
 
@@ -170,15 +177,10 @@ impl HuggingfaceBuilder {
 
 impl Builder for HuggingfaceBuilder {
     const SCHEME: Scheme = Scheme::Huggingface;
-    type Accessor = HuggingfaceBackend;
     type Config = HuggingfaceConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
     /// Build a HuggingfaceBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let repo_type = match self.config.repo_type.as_deref() {
@@ -212,14 +214,13 @@ impl Builder for HuggingfaceBuilder {
         };
         debug!("backend use revision: {}", &revision);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root: {}", &root);
 
         let token = self.config.token.as_ref().cloned();
 
         let client = HttpClient::new()?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
                 repo_type,

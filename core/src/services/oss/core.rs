@@ -29,10 +29,11 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
+use http::HeaderMap;
+use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
-use http::{HeaderMap, HeaderName};
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -464,19 +465,6 @@ impl OssCore {
 
     pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
         let mut req = self.oss_head_object_request(path, false, args)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
-    pub async fn oss_put_object(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

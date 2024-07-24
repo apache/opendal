@@ -23,7 +23,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::parse_info;
 use super::core::ChainsafeCore;
@@ -35,7 +36,7 @@ use super::writer::ChainsafeWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Chainsafe services support.
+/// Config for Chainsafe services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -60,6 +61,15 @@ impl Debug for ChainsafeConfig {
             .field("bucket_id", &self.bucket_id);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for ChainsafeConfig {
+    fn into_builder(self) -> impl Builder {
+        ChainsafeBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -129,18 +139,10 @@ impl ChainsafeBuilder {
 
 impl Builder for ChainsafeBuilder {
     const SCHEME: Scheme = Scheme::Chainsafe;
-    type Accessor = ChainsafeBackend;
     type Config = ChainsafeConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        ChainsafeBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of ChainsafeBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -162,7 +164,7 @@ impl Builder for ChainsafeBuilder {
                 .with_context("service", Scheme::Chainsafe)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

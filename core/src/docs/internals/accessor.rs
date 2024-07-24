@@ -256,10 +256,10 @@
 //!     type Config = DuckConfig;
 //!
 //!     fn from_config(config: Self::Config) -> Self {
-//!        DuckBuilder { config }
+//!        DuckBuilder { config: self }
 //!     }
 //!
-//!     fn build(&mut self) -> Result<Self::Accessor> {
+//!     fn build(self) -> Result<impl Access>  {
 //!         debug!("backend build started: {:?}", &self);
 //!
 //!         let root = normalize_root(&self.config.root.clone().unwrap_or_default());

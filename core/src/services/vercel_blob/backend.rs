@@ -23,7 +23,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::parse_blob;
 use super::core::Blob;
@@ -55,6 +56,15 @@ impl Debug for VercelBlobConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl Configurator for VercelBlobConfig {
+    fn into_builder(self) -> impl Builder {
+        VercelBlobBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -114,18 +124,10 @@ impl VercelBlobBuilder {
 
 impl Builder for VercelBlobBuilder {
     const SCHEME: Scheme = Scheme::VercelBlob;
-    type Accessor = VercelBlobBackend;
     type Config = VercelBlobConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        VercelBlobBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
     /// Builds the backend and returns the result of VercelBlobBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -138,7 +140,7 @@ impl Builder for VercelBlobBuilder {
                 .with_context("service", Scheme::VercelBlob));
         }
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

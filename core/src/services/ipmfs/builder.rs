@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use log::debug;
+use serde::Deserialize;
+use serde::Serialize;
+
 use super::backend::IpmfsBackend;
 use crate::raw::*;
 use crate::*;
-use log::debug;
-use serde::{Deserialize, Serialize};
 
 /// Config for IPFS MFS support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -30,6 +32,15 @@ pub struct IpmfsConfig {
     pub root: Option<String>,
     /// Endpoint for ipfs.
     pub endpoint: Option<String>,
+}
+
+impl Configurator for IpmfsConfig {
+    fn into_builder(self) -> impl Builder {
+        IpmfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
 }
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
@@ -117,18 +128,10 @@ impl IpmfsBuilder {
 
 impl Builder for IpmfsBuilder {
     const SCHEME: Scheme = Scheme::Ipmfs;
-    type Accessor = IpmfsBackend;
     type Config = IpmfsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        IpmfsBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = self
@@ -137,7 +140,7 @@ impl Builder for IpmfsBuilder {
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -146,7 +149,6 @@ impl Builder for IpmfsBuilder {
             })?
         };
 
-        debug!("backend build finished: {:?}", &self);
         Ok(IpmfsBackend::new(root, client, endpoint))
     }
 }

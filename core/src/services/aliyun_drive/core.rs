@@ -382,19 +382,6 @@ impl AliyunDriveCore {
         self.send(req, token.as_deref()).await
     }
 
-    pub async fn get(&self, file_id: &str) -> Result<Buffer> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
-        let body = serde_json::to_vec(&FileRequest {
-            drive_id: &drive_id,
-            file_id,
-        })
-        .map_err(new_json_serialize_error)?;
-        let req = Request::post(format!("{}/adrive/v1.0/openFile/get", self.endpoint))
-            .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
-    }
-
     pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Buffer> {
         let req = Request::put(upload_url)
             .body(body)

@@ -29,7 +29,8 @@ use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
@@ -68,6 +69,12 @@ impl Debug for SftpConfig {
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for SftpConfig {
+    fn into_builder(self) -> impl Builder {
+        SftpBuilder { config: self }
     }
 }
 
@@ -167,14 +174,9 @@ impl SftpBuilder {
 
 impl Builder for SftpBuilder {
     const SCHEME: Scheme = Scheme::Sftp;
-    type Accessor = SftpBackend;
     type Config = SftpConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SftpBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("sftp backend build started: {:?}", &self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,

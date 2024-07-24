@@ -22,16 +22,16 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::{Deserialize, Serialize};
-
-use crate::raw::*;
-use crate::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
+use crate::raw::*;
+use crate::*;
 
 /// config for file system
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,6 +43,12 @@ pub struct FsConfig {
 
     /// tmp dir for atomic write
     pub atomic_write_dir: Option<String>,
+}
+
+impl Configurator for FsConfig {
+    fn into_builder(self) -> impl Builder {
+        FsBuilder { config: self }
+    }
 }
 
 /// POSIX file system support.
@@ -79,17 +85,12 @@ impl FsBuilder {
 
 impl Builder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
-    type Accessor = FsBackend;
     type Config = FsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = match self.config.root.take().map(PathBuf::from) {
+        let root = match self.config.root.map(PathBuf::from) {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -110,7 +111,7 @@ impl Builder for FsBuilder {
             }
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir.take().map(PathBuf::from);
+        let atomic_write_dir = self.config.atomic_write_dir.map(PathBuf::from);
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
@@ -154,7 +155,6 @@ impl Builder for FsBuilder {
             })
             .unwrap_or(Ok(None))?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(FsBackend {
             core: Arc::new(FsCore {
                 root,

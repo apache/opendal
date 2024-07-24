@@ -19,7 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
@@ -27,12 +28,8 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
-use crate::Buffer;
-use crate::Builder;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
+use crate::raw::Access;
+use crate::*;
 
 /// Config for Surrealdb services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -75,6 +72,13 @@ impl Debug for SurrealdbConfig {
             .finish()
     }
 }
+
+impl Configurator for SurrealdbConfig {
+    fn into_builder(self) -> impl Builder {
+        SurrealdbBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SurrealdbBuilder {
@@ -180,14 +184,9 @@ impl SurrealdbBuilder {
 
 impl Builder for SurrealdbBuilder {
     const SCHEME: Scheme = Scheme::Surrealdb;
-    type Accessor = SurrealdbBackend;
     type Config = SurrealdbConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        SurrealdbBuilder { config }
-    }
-
-    fn build(&mut self) -> crate::Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let connection_string = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

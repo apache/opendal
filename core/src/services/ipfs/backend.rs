@@ -19,16 +19,18 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::error::parse_error;
-use super::ipld::PBNode;
-use crate::raw::*;
-use crate::*;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::error::parse_error;
+use super::ipld::PBNode;
+use crate::raw::*;
+use crate::*;
 
 /// Config for IPFS file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -39,6 +41,15 @@ pub struct IpfsConfig {
     pub endpoint: Option<String>,
     /// IPFS root.
     pub root: Option<String>,
+}
+
+impl Configurator for IpfsConfig {
+    fn into_builder(self) -> impl Builder {
+        IpfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
 }
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
@@ -99,20 +110,12 @@ impl IpfsBuilder {
 
 impl Builder for IpfsBuilder {
     const SCHEME: Scheme = Scheme::Ipfs;
-    type Accessor = IpfsBackend;
     type Config = IpfsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        IpfsBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -131,7 +134,7 @@ impl Builder for IpfsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -140,7 +143,6 @@ impl Builder for IpfsBuilder {
             })?
         };
 
-        debug!("backend build finished: {:?}", &self);
         Ok(IpfsBackend {
             root,
             endpoint,

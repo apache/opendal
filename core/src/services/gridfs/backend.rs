@@ -25,11 +25,13 @@ use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 use mongodb::options::GridFsFindOptions;
 use mongodb::GridFsBucket;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::new_std_io_error;
+use crate::raw::Access;
 use crate::*;
 
 /// Config for Grid file system support.
@@ -57,6 +59,12 @@ impl Debug for GridFsConfig {
             .field("chunk_size", &self.chunk_size)
             .field("root", &self.root)
             .finish()
+    }
+}
+
+impl Configurator for GridFsConfig {
+    fn into_builder(self) -> impl Builder {
+        GridFsBuilder { config: self }
     }
 }
 
@@ -143,14 +151,9 @@ impl GridFsBuilder {
 
 impl Builder for GridFsBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
-    type Accessor = GridFsBackend;
     type Config = GridFsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        GridFsBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {

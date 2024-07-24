@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -39,6 +40,12 @@ pub struct RocksdbConfig {
     ///
     /// default is "/"
     pub root: Option<String>,
+}
+
+impl Configurator for RocksdbConfig {
+    fn into_builder(self) -> impl Builder {
+        RocksdbBuilder { config: self }
+    }
 }
 
 /// RocksDB service support.
@@ -68,15 +75,10 @@ impl RocksdbBuilder {
 
 impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
-    type Accessor = RocksdbBackend;
     type Config = RocksdbConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        RocksdbBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Rocksdb)
         })?;

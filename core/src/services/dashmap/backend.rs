@@ -19,9 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -29,6 +31,12 @@ use crate::*;
 pub struct DashmapConfig {
     /// The root path for dashmap.
     pub root: Option<String>,
+}
+
+impl Configurator for DashmapConfig {
+    fn into_builder(self) -> impl Builder {
+        DashmapBuilder { config: self }
+    }
 }
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -48,14 +56,9 @@ impl DashmapBuilder {
 
 impl Builder for DashmapBuilder {
     const SCHEME: Scheme = Scheme::Dashmap;
-    type Accessor = DashmapBackend;
     type Config = DashmapConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         Ok(DashmapBackend::new(Adapter {
             inner: DashMap::default(),
         })
@@ -141,7 +144,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

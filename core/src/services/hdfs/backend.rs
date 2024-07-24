@@ -24,7 +24,8 @@ use std::sync::Arc;
 
 use futures::AsyncWriteExt;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
 use super::lister::HdfsLister;
@@ -67,6 +68,12 @@ impl Debug for HdfsConfig {
             .field("enable_append", &self.enable_append)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for HdfsConfig {
+    fn into_builder(self) -> impl Builder {
+        HdfsBuilder { config: self }
     }
 }
 
@@ -157,14 +164,9 @@ impl HdfsBuilder {
 
 impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
-    type Accessor = HdfsBackend;
     type Config = HdfsConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        HdfsBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.config.name_node {
@@ -175,7 +177,7 @@ impl Builder for HdfsBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let mut builder = hdrs::ClientBuilder::new(name_node);
@@ -197,7 +199,7 @@ impl Builder for HdfsBuilder {
             }
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir.take();
+        let atomic_write_dir = self.config.atomic_write_dir;
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
@@ -208,7 +210,6 @@ impl Builder for HdfsBuilder {
             }
         }
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HdfsBackend {
             root,
             atomic_write_dir,

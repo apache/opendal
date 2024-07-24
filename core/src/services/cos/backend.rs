@@ -25,7 +25,8 @@ use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -62,6 +63,15 @@ impl Debug for CosConfig {
             .field("secret_key", &"<redacted>")
             .field("bucket", &self.bucket)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for CosConfig {
+    fn into_builder(self) -> impl Builder {
+        CosBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -165,20 +175,12 @@ impl CosBuilder {
 
 impl Builder for CosBuilder {
     const SCHEME: Scheme = Scheme::Cos;
-    type Accessor = CosBackend;
     type Config = CosConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let bucket = match &self.config.bucket {
@@ -210,7 +212,7 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -224,10 +226,10 @@ impl Builder for CosBuilder {
             cfg = cfg.from_env();
         }
 
-        if let Some(v) = self.config.secret_id.take() {
+        if let Some(v) = self.config.secret_id {
             cfg.secret_id = Some(v);
         }
-        if let Some(v) = self.config.secret_key.take() {
+        if let Some(v) = self.config.secret_key {
             cfg.secret_key = Some(v);
         }
 
@@ -235,7 +237,6 @@ impl Builder for CosBuilder {
 
         let signer = TencentCosSigner::new();
 
-        debug!("backend build finished");
         Ok(CosBackend {
             core: Arc::new(CosCore {
                 bucket: bucket.clone(),

@@ -20,9 +20,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
 use crate::*;
 
 ///Config for memory.
@@ -32,6 +34,12 @@ use crate::*;
 pub struct MemoryConfig {
     /// root of the backend.
     pub root: Option<String>,
+}
+
+impl Configurator for MemoryConfig {
+    fn into_builder(self) -> impl Builder {
+        MemoryBuilder { config: self }
+    }
 }
 
 /// In memory service support. (BTreeMap Based)
@@ -51,14 +59,9 @@ impl MemoryBuilder {
 
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
-    type Accessor = MemoryBackend;
     type Config = MemoryConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        MemoryBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
@@ -154,7 +157,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

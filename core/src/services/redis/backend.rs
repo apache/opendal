@@ -31,7 +31,8 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -94,6 +95,12 @@ impl Debug for RedisConfig {
         }
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for RedisConfig {
+    fn into_builder(self) -> impl Builder {
+        RedisBuilder { config: self }
     }
 }
 
@@ -192,14 +199,9 @@ impl RedisBuilder {
 
 impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
-    type Accessor = RedisBackend;
     type Config = RedisConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        RedisBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let root = normalize_root(
             self.config
                 .root

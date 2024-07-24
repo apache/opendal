@@ -26,11 +26,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
-
-use crate::raw::*;
-use crate::*;
 
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
@@ -39,6 +37,8 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
+use crate::raw::*;
+use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
@@ -66,6 +66,12 @@ impl Debug for WebhdfsConfig {
             .field("endpoint", &self.endpoint)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for WebhdfsConfig {
+    fn into_builder(self) -> impl Builder {
+        WebhdfsBuilder { config: self }
     }
 }
 
@@ -159,12 +165,7 @@ impl WebhdfsBuilder {
 
 impl Builder for WebhdfsBuilder {
     const SCHEME: Scheme = Scheme::Webhdfs;
-    type Accessor = WebhdfsBackend;
     type Config = WebhdfsConfig;
-
-    fn from_config(config: Self::Config) -> Self {
-        Self { config }
-    }
 
     /// build the backend
     ///
@@ -173,14 +174,14 @@ impl Builder for WebhdfsBuilder {
     /// when building backend, the built backend will check if the root directory
     /// exits.
     /// if the directory does not exits, the directory will be automatically created
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("start building backend: {:?}", self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
         // check scheme
-        let endpoint = match self.config.endpoint.take() {
+        let endpoint = match self.config.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint
@@ -192,12 +193,11 @@ impl Builder for WebhdfsBuilder {
         };
         debug!("backend use endpoint {}", endpoint);
 
-        let atomic_write_dir = self.config.atomic_write_dir.take();
+        let atomic_write_dir = self.config.atomic_write_dir;
 
         let auth = self
             .config
             .delegation
-            .take()
             .map(|dt| format!("delegation_token={dt}"));
 
         let client = HttpClient::new()?;

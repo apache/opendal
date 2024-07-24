@@ -325,36 +325,15 @@ pub struct Tree {
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct ListResponse {
-    pub size: u64,
-    pub sha: String,
-    #[serde(rename = "type")]
-    pub type_field: String,
     pub git_url: String,
     pub entries: Vec<Entry>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct Entry {
-    pub name: String,
     pub path: String,
     pub sha: String,
     pub size: u64,
-    pub url: String,
-    pub html_url: String,
-    pub git_url: String,
-    pub download_url: Option<String>,
     #[serde(rename = "type")]
     pub type_field: String,
-    pub content: Option<String>,
-    pub encoding: Option<String>,
-    #[serde(rename = "_links")]
-    pub links: Links,
-}
-
-#[derive(Default, Debug, Clone, Deserialize)]
-pub struct Links {
-    #[serde(rename = "self")]
-    pub self_field: String,
-    pub git: String,
-    pub html: String,
 }

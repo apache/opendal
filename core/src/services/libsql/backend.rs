@@ -35,7 +35,8 @@ use hrana_client_proto::StmtResult;
 use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
@@ -76,6 +77,12 @@ impl Debug for LibsqlConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for LibsqlConfig {
+    fn into_builder(self) -> impl Builder {
+        LibsqlBuilder { config: self }
     }
 }
 
@@ -166,14 +173,9 @@ impl LibsqlBuilder {
 
 impl Builder for LibsqlBuilder {
     const SCHEME: Scheme = Scheme::Libsql;
-    type Accessor = LibsqlBackend;
     type Config = LibsqlConfig;
 
-    fn from_config(config: Self::Config) -> Self {
-        LibsqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = self.get_connection_string()?;
 
         let table = match self.config.table.clone() {

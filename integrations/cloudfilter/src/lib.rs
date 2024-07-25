@@ -18,14 +18,14 @@
 mod file;
 
 use std::{
+    cmp::min,
     fs::{self, File},
-    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
 use cloud_filter::{
     error::{CResult, CloudErrorKind},
-    filter::{info, ticket, SyncFilter},
+    filter::{info, ticket, Filter},
     metadata::Metadata,
     placeholder::{ConvertOptions, Placeholder},
     placeholder_file::PlaceholderFile,
@@ -33,26 +33,24 @@ use cloud_filter::{
     utility::{FileTime, WriteAt},
 };
 use file::FileBlob;
-use opendal::{BlockingOperator, Entry, Metakey, Operator};
+use futures::StreamExt;
+use opendal::{Entry, Metakey, Operator};
 
 const BUF_SIZE: usize = 65536;
 
 pub struct CloudFilter {
-    op: BlockingOperator,
+    op: Operator,
     root: PathBuf,
 }
 
 impl CloudFilter {
     pub fn new(op: Operator, root: PathBuf) -> Self {
-        Self {
-            op: op.blocking(),
-            root,
-        }
+        Self { op, root }
     }
 }
 
-impl SyncFilter for CloudFilter {
-    fn fetch_data(
+impl Filter for CloudFilter {
+    async fn fetch_data(
         &self,
         request: Request,
         ticket: ticket::FetchData,
@@ -71,38 +69,33 @@ impl SyncFilter for CloudFilter {
             .strip_prefix(&self.root)
             .map_err(|_| CloudErrorKind::NotUnderSyncRoot)?;
 
-        let mut reader = self
+        let reader = self
             .op
             .reader_with(&remote_path.to_string_lossy().replace('\\', "/"))
-            .call()
+            .await
             .map_err(|e| {
                 log::warn!("failed to open file: {}", e);
-                CloudErrorKind::Unsuccessful
-            })?
-            .into_std_read(range.clone())
-            .map_err(|e| {
-                log::warn!("failed to read file: {}", e);
                 CloudErrorKind::Unsuccessful
             })?;
 
         let mut position = range.start;
-        let mut buffer = [0u8; BUF_SIZE];
+        let mut buffer = Vec::with_capacity(BUF_SIZE);
 
         loop {
-            let mut bytes_read = reader.read(&mut buffer).map_err(|e| {
-                log::warn!("failed to read file: {}", e);
-                CloudErrorKind::Unsuccessful
-            })?;
+            let mut bytes_read = reader
+                .read_into(
+                    &mut buffer,
+                    position..min(range.end, position + BUF_SIZE as u64),
+                )
+                .await
+                .map_err(|e| {
+                    log::warn!("failed to read file: {}", e);
+                    CloudErrorKind::Unsuccessful
+                })?;
 
             let unaligned = bytes_read % 4096;
             if unaligned != 0 && position + (bytes_read as u64) < range.end {
                 bytes_read -= unaligned;
-                reader
-                    .seek(SeekFrom::Current(-(unaligned as i64)))
-                    .map_err(|e| {
-                        log::warn!("failed to seek file: {}", e);
-                        CloudErrorKind::Unsuccessful
-                    })?;
             }
 
             ticket
@@ -117,6 +110,8 @@ impl SyncFilter for CloudFilter {
                 break;
             }
 
+            buffer.clear();
+
             ticket.report_progress(range.end, position).map_err(|e| {
                 log::warn!("failed to report progress: {}", e);
                 CloudErrorKind::Unsuccessful
@@ -126,7 +121,7 @@ impl SyncFilter for CloudFilter {
         Ok(())
     }
 
-    fn fetch_placeholders(
+    async fn fetch_placeholders(
         &self,
         request: Request,
         ticket: ticket::FetchPlaceholders,
@@ -146,12 +141,12 @@ impl SyncFilter for CloudFilter {
             .op
             .lister_with(&remote_path.to_string_lossy().replace('\\', "/"))
             .metakey(Metakey::LastModified | Metakey::ContentLength)
-            .call()
+            .await
             .map_err(|e| {
                 log::warn!("failed to list files: {}", e);
                 CloudErrorKind::Unsuccessful
             })?
-            .filter_map(|e| {
+            .filter_map(|e| async {
                 let entry = e.ok()?;
                 let metadata = entry.metadata();
                 let entry_remote_path = PathBuf::from(entry.path());
@@ -183,7 +178,8 @@ impl SyncFilter for CloudFilter {
                         )
                 })
             })
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+            .await;
 
         _ = ticket.pass_with_placeholder(&mut entries).map_err(|e| {
             log::warn!("failed to pass placeholder: {e:?}");
@@ -193,12 +189,11 @@ impl SyncFilter for CloudFilter {
     }
 }
 
-/// Checks if the entry is in sync.
+/// Checks if the entry is in sync, then convert to placeholder.
 ///
 /// Returns `true` if the entry is not exists, `false` otherwise.
 fn check_in_sync(entry: &Entry, root: &Path) -> bool {
     let absolute = root.join(entry.path());
-    println!("absolute: {}", absolute.display());
 
     let Ok(metadata) = fs::metadata(&absolute) else {
         return true;

@@ -29,13 +29,19 @@ version = "0.0.0"
 [dependencies]
 anyhow = "1.0.86"
 opendal = { version = "0.47.0", path = "../../core" }
-widestring = "1.1.0"
-cloud-filter = "0.0.2"
+cloud-filter = "0.0.3"
+futures = "0.3.30"
 bincode = "1.3.3"
 serde = { version = "1.0.203", features = ["derive"] }
 log = "0.4.17"
 
 [dev-dependencies]
-tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1.38.0", features = [
+    "macros",
+    "rt-multi-thread",
+    "signal",
+] }
 env_logger = "0.11.2"
-opendal = { version = "0.47.0", path = "../../core", features = ["services-fs"] }
+opendal = { version = "0.47.0", path = "../../core", features = [
+    "services-fs",
+] }

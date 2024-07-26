@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.48.0] - 2024-07-26
+
+### Added
+* feat(services/fs): Support fs config by @meteorgan in https://github.com/apache/opendal/pull/4853
+* feat(services): init monoiofs by @NKID00 in https://github.com/apache/opendal/pull/4855
+* feat(core/types): avoid a copy in `Buffer::to_bytes()` by cloning contiguous bytes by @LDeakin in https://github.com/apache/opendal/pull/4858
+* feat(core): Add object versioning for OSS by @Lzzzzzt in https://github.com/apache/opendal/pull/4870
+* feat: fs add concurrent write by @hoslo in https://github.com/apache/opendal/pull/4817
+* feat(services/s3): Add object versioning for S3 by @Lzzzzzt in https://github.com/apache/opendal/pull/4873
+* feat(integrations/cloudfilter): read only cloud filter by @ho-229 in https://github.com/apache/opendal/pull/4856
+* feat(bindings/go): Add full native support from C to Go. by @yuchanns in https://github.com/apache/opendal/pull/4886
+* feat(bindings/go): add benchmark. by @yuchanns in https://github.com/apache/opendal/pull/4893
+* feat(core): support user defined metadata for oss by @meteorgan in https://github.com/apache/opendal/pull/4881
+* feat(service/fastrace): rename minitrace to fastrace by @andylokandy in https://github.com/apache/opendal/pull/4906
+* feat(prometheus-client): add metric label about `root` on using PrometheusClientLayer by @flaneur2020 in https://github.com/apache/opendal/pull/4907
+* feat(services/monoiofs): monoio wrapper by @NKID00 in https://github.com/apache/opendal/pull/4885
+* feat(layers/mime-guess): add a layer that can automatically set `Content-Type` based on the extension in the path. by @czy-29 in https://github.com/apache/opendal/pull/4912
+* feat(core)!: Make config data object by @tisonkun in https://github.com/apache/opendal/pull/4915
+* feat(core)!: from_map is now fallible by @tisonkun in https://github.com/apache/opendal/pull/4917
+* ci(bindings/go): always test against the latest core by @yuchanns in https://github.com/apache/opendal/pull/4913
+* feat(!): Allow users to build operator from config by @Xuanwo in https://github.com/apache/opendal/pull/4919
+* feat: Add from_iter and via_iter for operator by @Xuanwo in https://github.com/apache/opendal/pull/4921
+### Changed
+* refactor(services/s3)!: renamed security_token to session_token by @Zyyeric in https://github.com/apache/opendal/pull/4875
+* refactor(core)!: Make oio::Write always write all given buffer by @Xuanwo in https://github.com/apache/opendal/pull/4880
+* refactor(core)!: Return `Arc<AccessInfo>` for metadata by @Lzzzzzt in https://github.com/apache/opendal/pull/4883
+* refactor(core!): Make service builder takes ownership by @Xuanwo in https://github.com/apache/opendal/pull/4922
+* refactor(integrations/cloudfilter): implement Filter instead of SyncFilter by @ho-229 in https://github.com/apache/opendal/pull/4920
+### Fixed
+* fix(services/s3): NoSuchBucket is a ConfigInvalid for OpenDAL by @tisonkun in https://github.com/apache/opendal/pull/4895
+* fix: oss will not use the port by @Lzzzzzt in https://github.com/apache/opendal/pull/4899
+### Docs
+* docs(core): update README to add `MimeGuessLayer`. by @czy-29 in https://github.com/apache/opendal/pull/4916
+* docs(core): Add upgrade docs for 0.48 by @Xuanwo in https://github.com/apache/opendal/pull/4924
+* docs: fix spelling by @jbampton in https://github.com/apache/opendal/pull/4925
+* docs(core): Fix comment for into_futures_async_write by @Xuanwo in https://github.com/apache/opendal/pull/4928
+### CI
+* ci: Add issue template and pr template for opendal by @Xuanwo in https://github.com/apache/opendal/pull/4884
+* ci: Remove CI reviewer since it doesn't work by @Xuanwo in https://github.com/apache/opendal/pull/4891
+### Chore
+* chore!: fix typo customed should be customized by @tisonkun in https://github.com/apache/opendal/pull/4847
+* chore: Fix spelling by @jbampton in https://github.com/apache/opendal/pull/4864
+* chore: remove unneeded duplicate word by @jbampton in https://github.com/apache/opendal/pull/4865
+* chore: fix spelling by @jbampton in https://github.com/apache/opendal/pull/4866
+* chore: fix spelling by @NKID00 in https://github.com/apache/opendal/pull/4869
+* chore: Make compfs able to test by @Xuanwo in https://github.com/apache/opendal/pull/4878
+* chore(services/compfs): remove allow(dead_code) by @George-Miao in https://github.com/apache/opendal/pull/4879
+* chore: Make rust 1.80 clippy happy by @Xuanwo in https://github.com/apache/opendal/pull/4927
+* chore: Bump crates versions  by @Xuanwo in https://github.com/apache/opendal/pull/4929
+
 ## [v0.47.3] - 2024-07-03
 
 ### Changed
@@ -3821,6 +3871,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.48.0]: https://github.com/apache/opendal/compare/v0.47.3...v0.48.0
 [v0.47.3]: https://github.com/apache/opendal/compare/v0.47.2...v0.47.3
 [v0.47.2]: https://github.com/apache/opendal/compare/v0.47.1...v0.47.2
 [v0.47.1]: https://github.com/apache/opendal/compare/v0.47.0...v0.47.1

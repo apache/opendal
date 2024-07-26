@@ -160,7 +160,7 @@ futures = "0.3.28"
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.21.2", features = ["abi3", "abi3-py311"] }
+pyo3 = { version = "0.22.2", features = ["abi3", "abi3-py311"] }
 pyo3-asyncio = { package = "pyo3-asyncio-0-21", version = "0.21", features = [
   "tokio-runtime",
 ] }

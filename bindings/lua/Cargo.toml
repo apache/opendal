@@ -18,7 +18,7 @@
 [package]
 name = "opendal-lua"
 publish = false
-version = "0.1.4"
+version = "0.1.5"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -36,24 +36,25 @@ crate-type = ["cdylib"]
 
 [dependencies]
 mlua = { version = "0.9", features = [
-  "module",
-  "macros",
+    "module",
+    "macros",
 ], default-features = false, optional = true }
-opendal = { version = "0.47.0", path = "../../core", features = [
-  # These are default features before v0.46. TODO: change to optional features
-  "services-azblob",
-  "services-azdls",
-  "services-cos",
-  "services-fs",
-  "services-gcs",
-  "services-ghac",
-  "services-http",
-  "services-ipmfs",
-  "services-memory",
-  "services-obs",
-  "services-oss",
-  "services-s3",
-  "services-webdav",
-  "services-webhdfs",
-  "services-azfile",
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
+    # These are default features before v0.46. TODO: change to optional features
+    "services-azblob",
+    "services-azdls",
+    "services-cos",
+    "services-fs",
+    "services-gcs",
+    "services-ghac",
+    "services-http",
+    "services-ipmfs",
+    "services-memory",
+    "services-obs",
+    "services-oss",
+    "services-s3",
+    "services-webdav",
+    "services-webhdfs",
+    "services-azfile",
 ] }

@@ -25,72 +25,72 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.47.0"
+version = "0.47.1"
 
 [features]
 default = [
-  "services-azblob",
-  "services-azdls",
-  "services-cos",
-  "services-fs",
-  "services-gcs",
-  "services-ghac",
-  "services-http",
-  "services-ipmfs",
-  "services-memory",
-  "services-obs",
-  "services-oss",
-  "services-s3",
-  "services-webdav",
-  "services-webhdfs",
+    "services-azblob",
+    "services-azdls",
+    "services-cos",
+    "services-fs",
+    "services-gcs",
+    "services-ghac",
+    "services-http",
+    "services-ipmfs",
+    "services-memory",
+    "services-obs",
+    "services-oss",
+    "services-s3",
+    "services-webdav",
+    "services-webhdfs",
 ]
 
 services-all = [
-  "default",
-  "services-aliyun-drive",
-  "services-alluxio",
-  "services-azfile",
-  "services-cacache",
-  "services-chainsafe",
-  "services-dashmap",
-  "services-dropbox",
-  # FIXME this service need protoc
-  # "services-etcd",
-  # FIXME this requires a preinstalled fdb library
-  # "services-foundationdb",
-  # "services-ftp",
-  "services-gdrive",
-  # FIXME how to support HDFS services in bindings?
-  # "services-hdfs",
-  "services-huggingface",
-  "services-ipfs",
-  "services-memcached",
-  "services-mini-moka",
-  "services-moka",
-  "services-onedrive",
-  "services-persy",
-  "services-postgresql",
-  "services-mysql",
-  "services-redb",
-  "services-redis",
-  # FIXME how to support rocksdb services in bindings?
-  # "services-rocksdb",
-  "services-sled",
-  "services-supabase",
-  "services-swift",
-  # FIXME this service need protoc
-  # "services-tikv",
-  "services-vercel-artifacts",
-  "services-mongodb",
-  "services-gridfs",
-  "services-sqlite",
-  "services-libsql",
-  "services-alluxio",
-  "services-b2",
-  "services-seafile",
-  "services-upyun",
-  "services-koofr",
-  "services-yandex-disk",
+    "default",
+    "services-aliyun-drive",
+    "services-alluxio",
+    "services-azfile",
+    "services-cacache",
+    "services-chainsafe",
+    "services-dashmap",
+    "services-dropbox",
+    # FIXME this service need protoc
+    # "services-etcd",
+    # FIXME this requires a preinstalled fdb library
+    # "services-foundationdb",
+    # "services-ftp",
+    "services-gdrive",
+    # FIXME how to support HDFS services in bindings?
+    # "services-hdfs",
+    "services-huggingface",
+    "services-ipfs",
+    "services-memcached",
+    "services-mini-moka",
+    "services-moka",
+    "services-onedrive",
+    "services-persy",
+    "services-postgresql",
+    "services-mysql",
+    "services-redb",
+    "services-redis",
+    # FIXME how to support rocksdb services in bindings?
+    # "services-rocksdb",
+    "services-sled",
+    "services-supabase",
+    "services-swift",
+    # FIXME this service need protoc
+    # "services-tikv",
+    "services-vercel-artifacts",
+    "services-mongodb",
+    "services-gridfs",
+    "services-sqlite",
+    "services-libsql",
+    "services-alluxio",
+    "services-b2",
+    "services-seafile",
+    "services-upyun",
+    "services-koofr",
+    "services-yandex-disk",
 ]
 
 # Default services provided by opendal.
@@ -157,12 +157,13 @@ doc = false
 [dependencies]
 futures = "0.3.28"
 napi = { version = "2.11.3", default-features = false, features = [
-  "napi6",
-  "async",
+    "napi6",
+    "async",
 ] }
 napi-derive = "2.14.6"
-opendal = { version = "0.47.0", path = "../../core", features = [
-  "layers-blocking",
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
+    "layers-blocking",
 ] }
 tokio = "1"
 

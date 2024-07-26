@@ -322,7 +322,7 @@ redis = { version = "0.25", features = [
   "connection-manager",
 ], optional = true }
 # for services-rocksdb
-rocksdb = { version = "0.22", default-features = false, optional = true }
+rocksdb = { version = "0.21", default-features = false, optional = true }
 # for services-sqlite
 rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
 # for services-sled

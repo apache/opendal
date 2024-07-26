@@ -29,6 +29,7 @@ greenify.greenify()
 
 monkey.patch_all()
 
+
 class Config(BaseSettings):
     aws_region: str
     aws_endpoint: str

@@ -22,7 +22,6 @@ use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
-use mongodb::options::UpdateOptions;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -265,7 +264,7 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! {self.key_field.as_str():path};
         let result = collection
-            .find_one(filter, None)
+            .find_one(filter)
             .await
             .map_err(parse_mongodb_error)?;
         match result {
@@ -283,9 +282,9 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! { self.key_field.as_str(): path };
         let update = doc! { "$set": { self.value_field.as_str(): Binary { subtype: mongodb::bson::spec::BinarySubtype::Generic, bytes: value.to_vec() } } };
-        let update_options = UpdateOptions::builder().upsert(true).build();
         collection
-            .update_one(filter, update, update_options)
+            .update_one(filter, update)
+            .upsert(true)
             .await
             .map_err(parse_mongodb_error)?;
 
@@ -296,7 +295,7 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! {self.key_field.as_str():path};
         collection
-            .delete_one(filter, None)
+            .delete_one(filter)
             .await
             .map_err(parse_mongodb_error)?;
         Ok(())

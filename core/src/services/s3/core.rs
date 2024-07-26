@@ -996,8 +996,6 @@ mod tests {
             </CompleteMultipartUpload>"#
                 // Cleanup space and new line
                 .replace([' ', '\n'], "")
-                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
-                .replace('"', "&quot;")
         )
     }
 

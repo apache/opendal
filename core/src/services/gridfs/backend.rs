@@ -18,13 +18,12 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
-use futures::StreamExt;
 use mongodb::bson::doc;
+use mongodb::gridfs::GridFsBucket;
 use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
-use mongodb::options::GridFsFindOptions;
-use mongodb::GridFsBucket;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -245,41 +244,38 @@ impl kv::Adapter for Adapter {
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
-        let options = GridFsFindOptions::builder().limit(Some(1)).build();
-        let mut cursor = bucket
-            .find(filter, options)
+        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
+            return Ok(None);
+        };
+
+        let mut destination = Vec::new();
+        let file_id = doc.id;
+        let mut stream = bucket
+            .open_download_stream(file_id)
             .await
             .map_err(parse_mongodb_error)?;
-
-        match cursor.next().await {
-            Some(doc) => {
-                let mut destination = Vec::new();
-                let file_id = doc.map_err(parse_mongodb_error)?.id;
-                bucket
-                    .download_to_futures_0_3_writer(file_id, &mut destination)
-                    .await
-                    .map_err(parse_mongodb_error)?;
-                Ok(Some(Buffer::from(destination)))
-            }
-            None => Ok(None),
-        }
+        stream
+            .read_to_end(&mut destination)
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(Some(Buffer::from(destination)))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
+
         // delete old file if exists
         let filter = doc! { "filename": path };
-        let options = GridFsFindOptions::builder().limit(Some(1)).build();
-        let mut cursor = bucket
-            .find(filter, options)
+        if let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? {
+            let file_id = doc.id;
+            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
+        };
+
+        // set new file
+        let mut upload_stream = bucket
+            .open_upload_stream(path)
             .await
             .map_err(parse_mongodb_error)?;
-        if let Some(doc) = cursor.next().await {
-            let file_id = doc.map_err(parse_mongodb_error)?.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        }
-        // set new file
-        let mut upload_stream = bucket.open_upload_stream(path, None);
         upload_stream
             .write_all(&value.to_vec())
             .await
@@ -292,14 +288,12 @@ impl kv::Adapter for Adapter {
     async fn delete(&self, path: &str) -> Result<()> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
-        let mut cursor = bucket
-            .find(filter, None)
-            .await
-            .map_err(parse_mongodb_error)?;
-        while let Some(doc) = cursor.next().await {
-            let file_id = doc.map_err(parse_mongodb_error)?.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        }
+        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
+            return Ok(());
+        };
+
+        let file_id = doc.id;
+        bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
         Ok(())
     }
 }

@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.6"
+version = "0.41.7"
 
 [features]
 # Enable services dashmap support
@@ -60,7 +60,7 @@ dirs = "5.0.1"
 env_logger = "0.11"
 futures = "0.3"
 log = "0.4"
-opendal = { version = "0.47.0", path = "../../core", features = [
+opendal = { version = "0.48.0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",

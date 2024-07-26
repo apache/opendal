@@ -18,6 +18,7 @@
 
 import subprocess
 import sys
+import platform
 from pathlib import Path
 from constants import PACKAGES
 
@@ -28,6 +29,15 @@ if __name__ == "__main__":
 
     for directory in PACKAGES:
         print(f"Executing '{command}' in {directory}")
+
+        # Don't build cloud filter on non-Windows platform
+        if (
+            command.startswith("cargo")
+            and platform.system().lower() != "windows"
+            and f"{directory}" == "integrations/cloudfilter"
+        ):
+            print(f"Skip {directory} because it only builds on Windows")
+            continue
 
         # Make cargo happy if `Cargo.toml` not exist
         if (

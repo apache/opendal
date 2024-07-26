@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ruby"
 publish = false
-version = "0.1.4"
+version = "0.1.5"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -34,7 +34,8 @@ name = "opendal_ruby"
 
 [dependencies]
 magnus = { version = "0.5", features = ["bytes-crate"] }
-opendal = { version = "0.47.0", path = "../../core", features = [
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",

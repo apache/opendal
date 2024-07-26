@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use redb::ReadableTable;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::task;

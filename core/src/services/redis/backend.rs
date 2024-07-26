@@ -291,6 +291,7 @@ impl RedisBuilder {
                     host,
                     port,
                     insecure: false,
+                    tls_params: None,
                 }
             }
             Some("unix") | Some("redis+unix") => {
@@ -401,11 +402,11 @@ impl kv::Adapter for Adapter {
         match self.default_ttl {
             Some(ttl) => match conn {
                 RedisConnection::Normal(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
                 RedisConnection::Cluster(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
             },

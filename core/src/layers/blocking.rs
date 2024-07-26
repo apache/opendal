@@ -95,7 +95,7 @@ use crate::*;
 /// In a pure blocking context, we can create a runtime and use it to create the `BlockingLayer`.
 ///
 /// > The following code uses a global statically created runtime as an example, please manage the
-/// runtime on demand.
+/// > runtime on demand.
 ///
 /// ```rust,no_run
 /// use once_cell::sync::Lazy;

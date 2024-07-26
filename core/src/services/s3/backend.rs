@@ -147,13 +147,13 @@ pub struct S3Config {
     /// server_side_encryption_aws_kms_key_id for this backend
     ///
     /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    /// is not set, S3 will use aws managed kms key to encrypt data.
+    ///   is not set, S3 will use aws managed kms key to encrypt data.
     /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    /// is a valid kms key id, S3 will use the provided kms key to encrypt data.
+    ///   is a valid kms key id, S3 will use the provided kms key to encrypt data.
     /// - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be
-    /// returned.
+    ///   returned.
     /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
-    /// is a noop.
+    ///   is a noop.
     pub server_side_encryption_aws_kms_key_id: Option<String>,
     /// server_side_encryption_customer_algorithm for this backend.
     ///
@@ -398,13 +398,12 @@ impl S3Builder {
     /// Set server_side_encryption_aws_kms_key_id for this backend
     ///
     /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    /// is not set, S3 will use aws managed kms key to encrypt data.
+    ///   is not set, S3 will use aws managed kms key to encrypt data.
     /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    /// is a valid kms key id, S3 will use the provided kms key to encrypt data.
+    ///   is a valid kms key id, S3 will use the provided kms key to encrypt data.
     /// - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be
-    /// returned.
-    /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
-    /// is a noop.
+    ///   returned.
+    /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id` is a noop.
     ///
     /// # Note
     ///

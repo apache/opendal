@@ -104,7 +104,7 @@ impl GdriveBuilder {
     ///
     /// - An access token is valid for 1 hour.
     /// - If you want to use the access token for a long time,
-    /// you can use the refresh token to get a new access token.
+    ///   you can use the refresh token to get a new access token.
     pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
         self

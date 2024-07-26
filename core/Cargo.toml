@@ -32,7 +32,6 @@ version = "0.47.3"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docs"]
 
 [workspace]
 default-members = ["."]

@@ -186,9 +186,8 @@ impl Writer {
     /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
     /// requires an owned [`Buffer`], which involves an extra copy operation.
     ///
-    /// FuturesAsyncWriters are automatically closed when they go out of scope. Errors detected on
-    /// closing are ignored by the implementation of Drop. Use the method `close` if these errors
-    /// must be manually handled.
+    /// FuturesAsyncWriter is required to call `close()` to make sure all
+    /// data have been written to the storage.
     ///
     /// # Examples
     ///

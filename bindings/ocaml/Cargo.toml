@@ -35,22 +35,22 @@ doc = false
 ocaml = { version = "^1.0.0-beta" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
-    # These are default features before v0.46. TODO: change to optional features
-    "services-azblob",
-    "services-azdls",
-    "services-cos",
-    "services-fs",
-    "services-gcs",
-    "services-ghac",
-    "services-http",
-    "services-ipmfs",
-    "services-memory",
-    "services-obs",
-    "services-oss",
-    "services-s3",
-    "services-webdav",
-    "services-webhdfs",
-    "services-azfile",
+  # These are default features before v0.46. TODO: change to optional features
+  "services-azblob",
+  "services-azdls",
+  "services-cos",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+  "services-azfile",
 ] }
 
 [build-dependencies]

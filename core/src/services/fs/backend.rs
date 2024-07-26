@@ -73,7 +73,7 @@ impl FsBuilder {
     /// # Notes
     ///
     /// - When append is enabled, we will not use atomic write
-    /// to avoid data loss and performance issue.
+    ///   to avoid data loss and performance issue.
     pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         if !dir.is_empty() {
             self.config.atomic_write_dir = Some(dir.to_string());

@@ -69,7 +69,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     ///
     /// - the total size of data is unknown.
     /// - the total size of data is known, but the size of current write
-    /// is less then the total size.
+    ///   is less then the total size.
     fn initiate_part(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_part will write a part of the data and returns the result

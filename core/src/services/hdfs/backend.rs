@@ -151,7 +151,7 @@ impl HdfsBuilder {
     /// # Notes
     ///
     /// - When append is enabled, we will not use atomic write
-    /// to avoid data loss and performance issue.
+    ///   to avoid data loss and performance issue.
     pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         self.config.atomic_write_dir = if dir.is_empty() {
             None

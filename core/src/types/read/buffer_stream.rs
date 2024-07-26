@@ -132,7 +132,7 @@ impl oio::Read for ChunkedReader {
 /// The underlying reader is either a StreamingReader or a ChunkedReader.
 ///
 /// - If chunk is None, BufferStream will use StreamingReader to iterate
-/// data in streaming way.
+///   data in streaming way.
 /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
 pub struct BufferStream {
     state: State,

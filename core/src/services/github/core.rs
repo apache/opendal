@@ -169,7 +169,7 @@ impl GithubCore {
 
         let mut req_body = CreateOrUpdateContentsRequest {
             message: format!("Write {} at {} via opendal", path, chrono::Local::now()),
-            content: base64::engine::general_purpose::STANDARD.encode(&bs.to_bytes()),
+            content: base64::engine::general_purpose::STANDARD.encode(bs.to_bytes()),
             sha: None,
         };
 

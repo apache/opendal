@@ -34,9 +34,8 @@ anyhow = "1"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 env_logger = "0.11.2"
 futures-util = "0.3.30"
-libc = "0.2.154"
 log = "0.4.21"
-opendal = { version = "0.47.0", path = "../../core" }
+opendal = { version = "0.48.0", path = "../../core" }
 tokio = { version = "1.37.0", features = [
   "fs",
   "macros",
@@ -47,12 +46,13 @@ tokio = { version = "1.37.0", features = [
 url = "2.5.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
-fuse3_opendal = { version = "0.0.2", path = "../../integrations/fuse3" }
+fuse3_opendal = { version = "0.0.3", path = "../../integrations/fuse3" }
 fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
 nix = { version = "0.29.0", features = ["user"] }
+libc = "0.2.154"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-cloud-filter = { version = "0.0.2" }
+cloud-filter = { version = "0.0.3" }
 cloudfilter_opendal = { version = "0.0.0", path = "../../integrations/cloudfilter" }
 
 [features]

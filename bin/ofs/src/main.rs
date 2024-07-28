@@ -44,7 +44,6 @@ async fn main() -> Result<()> {
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 async fn execute(cfg: Config) -> Result<()> {
-    use std::collections::HashMap;
     use std::env;
     use std::str::FromStr;
 

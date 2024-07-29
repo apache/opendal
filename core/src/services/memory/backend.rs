@@ -28,7 +28,7 @@ use crate::raw::Access;
 use crate::*;
 
 /// Config for memory.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemoryConfig {

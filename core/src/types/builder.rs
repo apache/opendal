@@ -17,6 +17,7 @@
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::fmt::Debug;
 
 use crate::raw::*;
 use crate::*;
@@ -93,7 +94,7 @@ impl Builder for () {
 ///     Ok(())
 /// }
 /// ```
-pub trait Configurator: Serialize + DeserializeOwned + 'static {
+pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     /// Deserialize from an iterator.
     ///
     /// This API is provided by opendal, developer should not implement it.

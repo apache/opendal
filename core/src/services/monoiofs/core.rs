@@ -109,20 +109,19 @@ impl MonoiofsCore {
     {
         // oneshot channel to send result back
         let (tx, rx) = oneshot::channel();
-        self.tx
+        let result = self
+            .tx
             .send_async(Box::new(move || {
                 // task will be spawned on current thread, task panic
                 // will cause current worker thread panic
                 monoio::spawn(async move {
-                    tx.send(f().await)
-                        // discard result because it may be non-Debug and
-                        // we don't need it to appear in the panic message
-                        .map_err(|_| ())
-                        .expect("send result from worker thread should success");
+                    // discard the result if send failed due to
+                    // MonoiofsCore::dispatch cancelled
+                    let _ = tx.send(f().await);
                 });
             }))
-            .await
-            .expect("send new TaskSpawner to worker thread should success");
+            .await;
+        self.unwrap(result);
         self.unwrap(rx.await)
     }
 
@@ -137,19 +136,18 @@ impl MonoiofsCore {
     {
         // oneshot channel to send JoinHandle back
         let (tx, rx) = oneshot::channel();
-        self.tx
+        let result = self
+            .tx
             .send_async(Box::new(move || {
                 // task will be spawned on current thread, task panic
                 // will cause current worker thread panic
                 let handle = monoio::spawn(async move { f().await });
-                tx.send(handle)
-                    // discard result because it may be non-Debug and
-                    // we don't need it to appear in the panic message
-                    .map_err(|_| ())
-                    .expect("send result from worker thread should success");
+                // discard the result if send failed due to
+                // MonoiofsCore::spawn cancelled
+                let _ = tx.send(handle);
             }))
-            .await
-            .expect("send new TaskSpawner to worker thread should success");
+            .await;
+        self.unwrap(result);
         self.unwrap(rx.await)
     }
 

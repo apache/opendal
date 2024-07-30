@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fuse3::path::Session;
-use fuse3::MountOptions;
 use std::sync::OnceLock;
 
-use fuse3::raw::MountHandle;
 use opendal::raw::tests;
 use opendal::Capability;
 use tempfile::TempDir;
@@ -30,14 +27,16 @@ use tokio::runtime::{self};
 static INIT_LOGGER: OnceLock<()> = OnceLock::new();
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub struct OfsTestContext {
     pub mount_point: TempDir,
     // This is a false positive, the field is used in the test.
     #[allow(dead_code)]
     pub capability: Capability,
-    mount_handle: MountHandle,
+    mount_handle: fuse3::raw::MountHandle,
 }
 
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 impl TestContext for OfsTestContext {
     fn setup() -> Self {
         let backend = tests::init_test_service()
@@ -59,14 +58,14 @@ impl TestContext for OfsTestContext {
             .block_on(
                 #[allow(clippy::async_yields_async)]
                 async move {
-                    let mut mount_options = MountOptions::default();
+                    let mut mount_options = fuse3::MountOptions::default();
                     let gid = nix::unistd::getgid().into();
                     mount_options.gid(gid);
                     let uid = nix::unistd::getuid().into();
                     mount_options.uid(uid);
 
                     let fs = fuse3_opendal::Filesystem::new(backend, uid, gid);
-                    Session::new(mount_options)
+                    fuse3::path::Session::new(mount_options)
                         .mount_with_unprivileged(fs, mount_point_str)
                         .await
                         .unwrap()

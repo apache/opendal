@@ -156,7 +156,10 @@ impl MonoiofsCore {
     /// unrecoverable. It propagates worker thread's panic if there
     /// is any and panics on normally exited thread.
     pub fn propagate_worker_panic(&self) -> ! {
-        let mut guard = self.threads.lock().unwrap();
+        let mut guard = self
+            .threads
+            .lock()
+            .expect("worker thread has panicked");
         // wait until the panicked thread exits
         std::thread::sleep(Duration::from_millis(100));
         let threads = mem::take(&mut *guard);

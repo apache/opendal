@@ -3,8 +3,8 @@
 This service can be used to:
 
 - [ ] stat
-- [ ] read
-- [ ] write
+- [x] read
+- [x] write
 - [ ] append
 - [ ] create_dir
 - [ ] delete

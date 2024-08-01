@@ -39,14 +39,10 @@ use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
+use opendal::Writer;
 use opendal::{Buffer, Metakey};
-use opendal::{Operator, Writer};
-use tokio::sync::Mutex;
 use opendal::{Operator, OperatorInfo};
-use std::fmt::{Debug, Display, Formatter};
-use std::future::IntoFuture;
-use std::ops::Range;
-use std::sync::Arc;
+use tokio::sync::{Mutex, Notify};
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -437,12 +433,9 @@ impl ObjectStore for OpendalStore {
 
 /// `MultipartUpload`'s impl based on `Writer` in opendal
 struct OpendalMultipartUpload {
-    // Refer to the fs impl in `object_store`:
-    // https://github.com/apache/arrow-rs/blob/a35214f92ad7c3bce19875bb091cb776447aa49e/object_store/src/local.rs#L715
-    // IO exists during locking, so use tokio::sync::Mutex here
     writer: Arc<Mutex<Writer>>,
-
     location: Path,
+    next_notify: Option<Arc<Notify>>,
 }
 
 impl OpendalMultipartUpload {
@@ -450,6 +443,7 @@ impl OpendalMultipartUpload {
         Self {
             writer: Arc::new(Mutex::new(writer)),
             location,
+            next_notify: None,
         }
     }
 }
@@ -459,13 +453,25 @@ impl MultipartUpload for OpendalMultipartUpload {
     fn put_part(&mut self, data: PutPayload) -> UploadPart {
         let writer = self.writer.clone();
         let location = self.location.clone();
+        let next_notify = Arc::new(Notify::new());
+        let current_notify = self.next_notify.replace(next_notify.clone());
 
         async move {
+            // Wait for the previous part to be written
+            if let Some(notify) = current_notify {
+                notify.notified().await;
+            }
+
             let mut writer = writer.lock().await;
-            writer
+            let result = writer
                 .write(Buffer::from_iter(data.into_iter()))
                 .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))
+                .map_err(|err| format_object_store_error(err, location.as_ref()));
+
+            // Notify the next part to be written
+            next_notify.notify_one();
+
+            result
         }
         .into_send()
         .boxed()
@@ -508,8 +514,9 @@ mod tests {
     use std::sync::Arc;
 
     use object_store::path::Path;
-    use object_store::ObjectStore;
+    use object_store::{ObjectStore, WriteMultipart};
     use opendal::services;
+    use rand::prelude::*;
 
     use super::*;
 
@@ -560,20 +567,30 @@ mod tests {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
-        let bytes = Bytes::from_static(b"hello, world!");
-        let part1 = Bytes::copy_from_slice(&bytes.slice(0..6));
-        let part2 = Bytes::copy_from_slice(&bytes.slice(6..));
+        let mut rng = thread_rng();
 
         // Case complete
         let path: Path = "data/test_complete.txt".into();
-        let mut upload = object_store.put_multipart(&path).await.unwrap();
-        upload.put_part(part1.clone().into()).await.unwrap();
-        upload.put_part(part2.clone().into()).await.unwrap();
-        let _ = upload.complete().await.unwrap();
+        let upload = object_store.put_multipart(&path).await.unwrap();
+
+        let mut write = WriteMultipart::new(upload);
+
+        let mut all_bytes = vec![];
+        let round = rng.gen_range(1..=1024);
+        for _ in 0..round {
+            let size = rng.gen_range(1..=1024);
+            let mut bytes = vec![0; size];
+            rng.fill_bytes(&mut bytes);
+
+            all_bytes.extend_from_slice(&bytes);
+            write.put(bytes.into());
+        }
+
+        let _ = write.finish().await.unwrap();
 
         let meta = object_store.head(&path).await.unwrap();
 
-        assert_eq!(meta.size, 13);
+        assert_eq!(meta.size, all_bytes.len());
 
         assert_eq!(
             object_store
@@ -583,13 +600,13 @@ mod tests {
                 .bytes()
                 .await
                 .unwrap(),
-            bytes
+            Bytes::from(all_bytes)
         );
 
         // Case abort
         let path: Path = "data/test_abort.txt".into();
         let mut upload = object_store.put_multipart(&path).await.unwrap();
-        upload.put_part(part1.clone().into()).await.unwrap();
+        upload.put_part(vec![1; 1024].into()).await.unwrap();
         upload.abort().await.unwrap();
 
         let res = object_store.head(&path).await;

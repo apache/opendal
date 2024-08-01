@@ -15,13 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use log::debug;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::backend::IpmfsBackend;
 use crate::raw::*;
 use crate::*;
+
+/// Config for IPFS MFS support.
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct IpmfsConfig {
+    /// Root for ipfs.
+    pub root: Option<String>,
+    /// Endpoint for ipfs.
+    pub endpoint: Option<String>,
+}
+
+impl Configurator for IpmfsConfig {
+    fn into_builder(self) -> impl Builder {
+        IpmfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
@@ -54,10 +74,9 @@ use crate::*;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = Ipmfs::default();
-///
-///     // set the storage bucket for OpenDAL
-///     builder.endpoint("http://127.0.0.1:5001");
+///     let mut builder = Ipmfs::default()
+///         // set the storage bucket for OpenDAL
+///         .endpoint("http://127.0.0.1:5001");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///
@@ -66,15 +85,14 @@ use crate::*;
 /// ```
 #[derive(Default, Debug)]
 pub struct IpmfsBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
+    config: IpmfsConfig,
     http_client: Option<HttpClient>,
 }
 
 impl IpmfsBuilder {
     /// Set root for ipfs.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -86,8 +104,8 @@ impl IpmfsBuilder {
     /// Set endpoint for ipfs.
     ///
     /// Default: http://localhost:5001
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -101,7 +119,7 @@ impl IpmfsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -109,27 +127,19 @@ impl IpmfsBuilder {
 
 impl Builder for IpmfsBuilder {
     const SCHEME: Scheme = Scheme::Ipmfs;
-    type Accessor = IpmfsBackend;
+    type Config = IpmfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = IpmfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = self
+            .config
             .endpoint
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -138,7 +148,6 @@ impl Builder for IpmfsBuilder {
             })?
         };
 
-        debug!("backend build finished: {:?}", &self);
         Ok(IpmfsBackend::new(root, client, endpoint))
     }
 }

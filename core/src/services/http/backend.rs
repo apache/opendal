@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use http::header;
 use http::header::IF_MATCH;
@@ -27,13 +27,14 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 /// Config for Http service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HttpConfig {
@@ -59,6 +60,15 @@ impl Debug for HttpConfig {
     }
 }
 
+impl Configurator for HttpConfig {
+    fn into_builder(self) -> impl Builder {
+        HttpBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -79,7 +89,7 @@ impl HttpBuilder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -92,7 +102,7 @@ impl HttpBuilder {
     /// set username for http backend
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -102,7 +112,7 @@ impl HttpBuilder {
     /// set password for http backend
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -112,7 +122,7 @@ impl HttpBuilder {
     /// set bearer token for http backend
     ///
     /// default: no access token
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_owned());
         }
@@ -120,7 +130,7 @@ impl HttpBuilder {
     }
 
     /// Set root path of http backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -136,7 +146,7 @@ impl HttpBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -144,19 +154,9 @@ impl HttpBuilder {
 
 impl Builder for HttpBuilder {
     const SCHEME: Scheme = Scheme::Http;
-    type Accessor = HttpBackend;
+    type Config = HttpConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HttpConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        HttpBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.config.endpoint {
@@ -167,10 +167,10 @@ impl Builder for HttpBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -190,7 +190,6 @@ impl Builder for HttpBuilder {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HttpBackend {
             endpoint: endpoint.to_string(),
             authorization: auth,
@@ -228,7 +227,7 @@ impl Access for HttpBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
@@ -245,7 +244,7 @@ impl Access for HttpBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

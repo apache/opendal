@@ -132,7 +132,7 @@ impl oio::Read for ChunkedReader {
 /// The underlying reader is either a StreamingReader or a ChunkedReader.
 ///
 /// - If chunk is None, BufferStream will use StreamingReader to iterate
-/// data in streaming way.
+///   data in streaming way.
 /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
 pub struct BufferStream {
     state: State,
@@ -189,7 +189,6 @@ impl Stream for BufferStream {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::sync::Arc;
 
     use bytes::Buf;
@@ -201,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_trait() -> Result<()> {
-        let acc = Operator::via_map(Scheme::Memory, HashMap::default())?.into_inner();
+        let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
             "test".to_string(),
@@ -217,7 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_buffer_stream() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),

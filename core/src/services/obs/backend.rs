@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -26,6 +26,8 @@ use log::debug;
 use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::ObsCore;
 use super::error::parse_error;
@@ -35,21 +37,26 @@ use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
 
-/// Huawei-Cloud Object Storage Service (OBS) support
-#[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
-pub struct ObsBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
-    access_key_id: Option<String>,
-    secret_access_key: Option<String>,
-    bucket: Option<String>,
-    http_client: Option<HttpClient>,
+/// Config for Huawei-Cloud Object Storage Service (OBS) support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct ObsConfig {
+    /// Root for obs.
+    pub root: Option<String>,
+    /// Endpoint for obs.
+    pub endpoint: Option<String>,
+    /// Access key id for obs.
+    pub access_key_id: Option<String>,
+    /// Secret access key for obs.
+    pub secret_access_key: Option<String>,
+    /// Bucket for obs.
+    pub bucket: Option<String>,
 }
 
-impl Debug for ObsBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
+impl Debug for ObsConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObsConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("access_key_id", &"<redacted>")
@@ -59,13 +66,38 @@ impl Debug for ObsBuilder {
     }
 }
 
+impl Configurator for ObsConfig {
+    fn into_builder(self) -> impl Builder {
+        ObsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+/// Huawei-Cloud Object Storage Service (OBS) support
+#[doc = include_str!("docs.md")]
+#[derive(Default, Clone)]
+pub struct ObsBuilder {
+    config: ObsConfig,
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for ObsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("ObsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
+}
+
 impl ObsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
-            self.root = Some(root.to_string())
+            self.config.root = Some(root.to_string())
         }
 
         self
@@ -79,9 +111,9 @@ impl ObsBuilder {
     /// - `https://obs.cn-north-4.myhuaweicloud.com`
     /// - `obs.cn-north-4.myhuaweicloud.com` (https by default)
     /// - `https://custom.obs.com` (port should not be set)
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -90,9 +122,9 @@ impl ObsBuilder {
     /// Set access_key_id of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, access_key_id: &str) -> &mut Self {
+    pub fn access_key_id(mut self, access_key_id: &str) -> Self {
         if !access_key_id.is_empty() {
-            self.access_key_id = Some(access_key_id.to_string());
+            self.config.access_key_id = Some(access_key_id.to_string());
         }
 
         self
@@ -101,9 +133,9 @@ impl ObsBuilder {
     /// Set secret_access_key of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_access_key(&mut self, secret_access_key: &str) -> &mut Self {
+    pub fn secret_access_key(mut self, secret_access_key: &str) -> Self {
         if !secret_access_key.is_empty() {
-            self.secret_access_key = Some(secret_access_key.to_string());
+            self.config.secret_access_key = Some(secret_access_key.to_string());
         }
 
         self
@@ -111,9 +143,9 @@ impl ObsBuilder {
 
     /// Set bucket of this backend.
     /// The param is required.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
-            self.bucket = Some(bucket.to_string());
+            self.config.bucket = Some(bucket.to_string());
         }
 
         self
@@ -125,7 +157,7 @@ impl ObsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -133,28 +165,15 @@ impl ObsBuilder {
 
 impl Builder for ObsBuilder {
     const SCHEME: Scheme = Scheme::Obs;
-    type Accessor = ObsBackend;
+    type Config = ObsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = ObsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("access_key_id").map(|v| builder.access_key_id(v));
-        map.get("secret_access_key")
-            .map(|v| builder.secret_access_key(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let bucket = match &self.bucket {
+        let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
@@ -163,7 +182,7 @@ impl Builder for ObsBuilder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        let uri = match &self.endpoint {
+        let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                     .with_context("service", Scheme::Obs)
@@ -188,7 +207,7 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -201,11 +220,11 @@ impl Builder for ObsBuilder {
         // Load cfg from env first.
         cfg = cfg.from_env();
 
-        if let Some(v) = self.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v);
         }
 
-        if let Some(v) = self.secret_access_key.take() {
+        if let Some(v) = self.config.secret_access_key {
             cfg.secret_access_key = Some(v);
         }
 
@@ -254,7 +273,7 @@ impl Access for ObsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
@@ -302,7 +321,7 @@ impl Access for ObsBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

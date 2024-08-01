@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str;
 
@@ -37,24 +36,31 @@ use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Config for Libsqlservices support.
-#[derive(Default, Deserialize)]
+/// Config for Libsql services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LibsqlConfig {
-    connection_string: Option<String>,
-    auth_token: Option<String>,
+    /// Connection string for libsql service.
+    pub connection_string: Option<String>,
+    /// Authentication token for libsql service.
+    pub auth_token: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    /// Table name for libsql service.
+    pub table: Option<String>,
+    /// Key field name for libsql service.
+    pub key_field: Option<String>,
+    /// Value field name for libsql service.
+    pub value_field: Option<String>,
+    /// Root for libsql service.
+    pub root: Option<String>,
 }
 
 impl Debug for LibsqlConfig {
@@ -71,6 +77,12 @@ impl Debug for LibsqlConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for LibsqlConfig {
+    fn into_builder(self) -> impl Builder {
+        LibsqlBuilder { config: self }
     }
 }
 
@@ -103,7 +115,7 @@ impl LibsqlBuilder {
     /// - `http://example.com/db`
     /// - `https://example.com/db`
     /// - `libsql://example.com/db`
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -113,7 +125,7 @@ impl LibsqlBuilder {
     /// set the authentication token for libsql service.
     ///
     /// default: no authentication token
-    pub fn auth_token(&mut self, auth_token: &str) -> &mut Self {
+    pub fn auth_token(mut self, auth_token: &str) -> Self {
         if !auth_token.is_empty() {
             self.config.auth_token = Some(auth_token.to_owned());
         }
@@ -123,7 +135,7 @@ impl LibsqlBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -131,7 +143,7 @@ impl LibsqlBuilder {
     }
 
     /// Set the table name of the libsql service to read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -141,7 +153,7 @@ impl LibsqlBuilder {
     /// Set the key field name of the libsql service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -151,7 +163,7 @@ impl LibsqlBuilder {
     /// Set the value field name of the libsql service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -161,16 +173,9 @@ impl LibsqlBuilder {
 
 impl Builder for LibsqlBuilder {
     const SCHEME: Scheme = Scheme::Libsql;
-    type Accessor = LibsqlBackend;
+    type Config = LibsqlConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = LibsqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        LibsqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = self.get_connection_string()?;
 
         let table = match self.config.table.clone() {

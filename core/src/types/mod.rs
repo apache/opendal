@@ -57,6 +57,7 @@ pub use operator::OperatorInfo;
 
 mod builder;
 pub use builder::Builder;
+pub use builder::Configurator;
 
 mod error;
 pub use error::Error;
@@ -70,5 +71,4 @@ mod capability;
 pub use capability::Capability;
 
 mod context;
-pub(crate) use context::ReadContext;
-pub(crate) use context::ReadGenerator;
+pub(crate) use context::*;

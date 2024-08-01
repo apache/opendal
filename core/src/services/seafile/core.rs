@@ -293,36 +293,6 @@ impl SeafileCore {
         }
     }
 
-    /// create dir
-    pub async fn create_dir(&self, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
-        let path = format!("/{}", &path[..path.len() - 1]);
-        let path = percent_encode_path(&path);
-
-        let auth_info = self.get_auth_info().await?;
-
-        let req = Request::post(format!(
-            "{}/api2/repos/{}/dir/?p={}",
-            self.endpoint, auth_info.repo_id, path,
-        ));
-
-        let body = "operation=mkdir".to_string();
-
-        let req = req
-            .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(Buffer::from(Bytes::from(body)))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(req).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     /// delete file or dir
     pub async fn delete(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);

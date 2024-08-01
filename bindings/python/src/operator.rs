@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
@@ -78,17 +77,16 @@ impl Operator {
     /// Open a file-like reader for the given path.
     pub fn open(&self, path: String, mode: String) -> PyResult<File> {
         let this = self.0.clone();
-        let capability = self.capability()?;
         if mode == "rb" {
             let r = this
                 .reader(&path)
                 .map_err(format_pyerr)?
                 .into_std_read(..)
                 .map_err(format_pyerr)?;
-            Ok(File::new_reader(r, capability))
+            Ok(File::new_reader(r))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w, capability))
+            Ok(File::new_writer(w))
         } else {
             Err(UnsupportedError::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
@@ -104,19 +102,19 @@ impl Operator {
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&Bound<PyDict>>) -> PyResult<()> {
-        let opwrite = build_opwrite(kwargs)?;
-        let mut write = self.0.write_with(path, bs).append(opwrite.append());
-        if let Some(chunk) = opwrite.chunk() {
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+        let kwargs = kwargs.unwrap_or_default();
+        let mut write = self.0.write_with(path, bs).append(kwargs.append);
+        if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
         }
-        if let Some(content_type) = opwrite.content_type() {
+        if let Some(content_type) = &kwargs.content_type {
             write = write.content_type(content_type);
         }
-        if let Some(content_disposition) = opwrite.content_disposition() {
+        if let Some(content_disposition) = &kwargs.content_disposition {
             write = write.content_disposition(content_disposition);
         }
-        if let Some(cache_control) = opwrite.cache_control() {
+        if let Some(cache_control) = &kwargs.cache_control {
             write = write.cache_control(cache_control);
         }
 
@@ -249,7 +247,6 @@ impl AsyncOperator {
         mode: String,
     ) -> PyResult<Bound<PyAny>> {
         let this = self.0.clone();
-        let capability = self.capability()?;
 
         future_into_py(py, async move {
             if mode == "rb" {
@@ -260,10 +257,10 @@ impl AsyncOperator {
                     .into_futures_async_read(..)
                     .await
                     .map_err(format_pyerr)?;
-                Ok(AsyncFile::new_reader(r, capability))
+                Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_writer(w, capability))
+                Ok(AsyncFile::new_writer(w))
             } else {
                 Err(UnsupportedError::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"
@@ -288,23 +285,23 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         bs: &Bound<PyBytes>,
-        kwargs: Option<&Bound<PyDict>>,
+        kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<PyAny>> {
-        let opwrite = build_opwrite(kwargs)?;
+        let kwargs = kwargs.unwrap_or_default();
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs).append(opwrite.append());
-            if let Some(buffer) = opwrite.chunk() {
+            let mut write = this.write_with(&path, bs).append(kwargs.append);
+            if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }
-            if let Some(content_type) = opwrite.content_type() {
+            if let Some(content_type) = &kwargs.content_type {
                 write = write.content_type(content_type);
             }
-            if let Some(content_disposition) = opwrite.content_disposition() {
+            if let Some(content_disposition) = &kwargs.content_disposition {
                 write = write.content_disposition(content_disposition);
             }
-            if let Some(cache_control) = opwrite.cache_control() {
+            if let Some(cache_control) = &kwargs.cache_control {
                 write = write.cache_control(cache_control);
             }
             write.await.map_err(format_pyerr)
@@ -497,55 +494,6 @@ impl AsyncOperator {
             )
         }
     }
-}
-
-/// recognize OpWrite-equivalent options passed as python dict
-pub(crate) fn build_opwrite(kwargs: Option<&Bound<PyDict>>) -> PyResult<ocore::raw::OpWrite> {
-    use ocore::raw::OpWrite;
-    let mut op = OpWrite::new();
-
-    let dict = if let Some(kwargs) = kwargs {
-        kwargs
-    } else {
-        return Ok(op);
-    };
-
-    if let Some(append) = dict.get_item("append")? {
-        let v = append
-            .extract::<bool>()
-            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
-        op = op.with_append(v);
-    }
-
-    if let Some(chunk) = dict.get_item("chunk")? {
-        let v = chunk
-            .extract::<usize>()
-            .map_err(|err| PyValueError::new_err(format!("chunk must be usize, got {}", err)))?;
-        op = op.with_chunk(v);
-    }
-
-    if let Some(content_type) = dict.get_item("content_type")? {
-        let v = content_type.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_type must be str, got {}", err))
-        })?;
-        op = op.with_content_type(v.as_str());
-    }
-
-    if let Some(content_disposition) = dict.get_item("content_disposition")? {
-        let v = content_disposition.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
-        })?;
-        op = op.with_content_disposition(v.as_str());
-    }
-
-    if let Some(cache_control) = dict.get_item("cache_control")? {
-        let v = cache_control.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("cache_control must be str, got {}", err))
-        })?;
-        op = op.with_cache_control(v.as_str());
-    }
-
-    Ok(op)
 }
 
 #[pyclass(module = "opendal")]

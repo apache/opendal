@@ -2,17 +2,17 @@ crate	Apache-2.0	BSD-3-Clause	MIT	Unicode-DFS-2016
 anyhow@1.0.86	X		X	
 arc-swap@1.7.1	X		X	
 bitflags@1.3.2	X		X	
-bitflags@2.5.0	X		X	
+bitflags@2.6.0	X		X	
 heck@0.5.0	X		X	
 libc@0.2.155	X		X	
-log@0.4.21	X		X	
-proc-macro2@1.0.85	X		X	
+log@0.4.22	X		X	
+proc-macro2@1.0.86	X		X	
 quote@1.0.36	X		X	
-snafu@0.8.3	X		X	
-snafu-derive@0.8.3	X		X	
-syn@2.0.66	X		X	
-thiserror@1.0.61	X		X	
-thiserror-impl@1.0.61	X		X	
+snafu@0.8.4	X		X	
+snafu-derive@0.8.4	X		X	
+syn@2.0.72	X		X	
+thiserror@1.0.63	X		X	
+thiserror-impl@1.0.63	X		X	
 unicode-ident@1.0.12	X		X	X
 vhost@0.11.0	X	X		
 vhost-user-backend@0.14.0	X			

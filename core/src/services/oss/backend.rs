@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -29,6 +28,8 @@ use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -40,31 +41,39 @@ use crate::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
-/// Aliyun Object Storage Service (OSS) support
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct OssBuilder {
-    root: Option<String>,
+/// Config for Aliyun Object Storage Service (OSS) support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct OssConfig {
+    /// Root for oss.
+    pub root: Option<String>,
 
-    endpoint: Option<String>,
-    presign_endpoint: Option<String>,
-    bucket: String,
+    /// Endpoint for oss.
+    pub endpoint: Option<String>,
+    /// Presign endpoint for oss.
+    pub presign_endpoint: Option<String>,
+    /// Bucket for oss.
+    pub bucket: String,
 
     // OSS features
-    server_side_encryption: Option<String>,
-    server_side_encryption_key_id: Option<String>,
-    allow_anonymous: bool,
+    /// Server side encryption for oss.
+    pub server_side_encryption: Option<String>,
+    /// Server side encryption key id for oss.
+    pub server_side_encryption_key_id: Option<String>,
+    /// Allow anonymous for oss.
+    pub allow_anonymous: bool,
 
     // authenticate options
-    access_key_id: Option<String>,
-    access_key_secret: Option<String>,
-
-    http_client: Option<HttpClient>,
+    /// Access key id for oss.
+    pub access_key_id: Option<String>,
+    /// Access key secret for oss.
+    pub access_key_secret: Option<String>,
     /// batch_max_operations
-    batch_max_operations: Option<usize>,
+    pub batch_max_operations: Option<usize>,
 }
 
-impl Debug for OssBuilder {
+impl Debug for OssConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
         d.field("root", &self.root)
@@ -76,12 +85,38 @@ impl Debug for OssBuilder {
     }
 }
 
+impl Configurator for OssConfig {
+    fn into_builder(self) -> impl Builder {
+        OssBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+/// Aliyun Object Storage Service (OSS) support
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct OssBuilder {
+    config: OssConfig,
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for OssBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("OssBuilder");
+
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
+}
+
 impl OssBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -91,23 +126,23 @@ impl OssBuilder {
     }
 
     /// Set bucket name of this backend.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
-        self.bucket = bucket.to_string();
+    pub fn bucket(mut self, bucket: &str) -> Self {
+        self.config.bucket = bucket.to_string();
 
         self
     }
 
     /// Set endpoint of this backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string())
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
 
         self
     }
 
-    /// Set a endpoint for generating presigned urls.
+    /// Set an endpoint for generating presigned urls.
     ///
     /// You can offer a public endpoint like <https://oss-cn-beijing.aliyuncs.com> to return a presinged url for
     /// public accessors, along with an internal endpoint like <https://oss-cn-beijing-internal.aliyuncs.com>
@@ -115,10 +150,10 @@ impl OssBuilder {
     ///
     /// - If presign_endpoint is set, we will use presign_endpoint on generating presigned urls.
     /// - if not, we will use endpoint as default.
-    pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn presign_endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
+            self.config.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
 
         self
@@ -128,9 +163,9 @@ impl OssBuilder {
     ///
     /// - If access_key_id is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
-            self.access_key_id = Some(v.to_string())
+            self.config.access_key_id = Some(v.to_string())
         }
 
         self
@@ -140,9 +175,9 @@ impl OssBuilder {
     ///
     /// - If access_key_secret is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_secret(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_secret(mut self, v: &str) -> Self {
         if !v.is_empty() {
-            self.access_key_secret = Some(v.to_string())
+            self.config.access_key_secret = Some(v.to_string())
         }
 
         self
@@ -154,7 +189,7 @@ impl OssBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -174,7 +209,11 @@ impl OssBuilder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = format!("{bucket}.{host}");
+                let full_host = if let Some(port) = uri.port_u16() {
+                    format!("{bucket}.{host}:{port}")
+                } else {
+                    format!("{bucket}.{host}")
+                };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
                         "http" | "https" => format!("{scheme_str}://{full_host}"),
@@ -214,9 +253,9 @@ impl OssBuilder {
     ///        or not specify the specific CMK ID for OSS-managed KMS key.
     ///     3. Include the `x-oss-server-side-encryption` parameter in the request and set its value to KMS.
     ///     4. If a specific CMK ID is specified, include the `x-oss-server-side-encryption-key-id` parameter in the request, and set its value to the specified CMK ID.
-    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption(mut self, v: &str) -> Self {
         if !v.is_empty() {
-            self.server_side_encryption = Some(v.to_string())
+            self.config.server_side_encryption = Some(v.to_string())
         }
         self
     }
@@ -226,93 +265,61 @@ impl OssBuilder {
     /// # Notes
     ///
     /// This option only takes effect when server_side_encryption equals to KMS.
-    pub fn server_side_encryption_key_id(&mut self, v: &str) -> &mut Self {
+    pub fn server_side_encryption_key_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
-            self.server_side_encryption_key_id = Some(v.to_string())
+            self.config.server_side_encryption_key_id = Some(v.to_string())
         }
         self
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
-        self.batch_max_operations = Some(batch_max_operations);
+    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
+        self.config.batch_max_operations = Some(batch_max_operations);
 
         self
     }
 
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(&mut self) -> &mut Self {
-        self.allow_anonymous = true;
+    pub fn allow_anonymous(mut self) -> Self {
+        self.config.allow_anonymous = true;
         self
     }
 }
 
 impl Builder for OssBuilder {
     const SCHEME: Scheme = Scheme::Oss;
-    type Accessor = OssBackend;
+    type Config = OssConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = OssBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("presign_endpoint")
-            .map(|v| builder.presign_endpoint(v));
-        map.get("access_key_id").map(|v| builder.access_key_id(v));
-        map.get("access_key_secret")
-            .map(|v| builder.access_key_secret(v));
-        map.get("server_side_encryption")
-            .map(|v| builder.server_side_encryption(v));
-        map.get("server_side_encryption_key_id")
-            .map(|v| builder.server_side_encryption_key_id(v));
-        map.get("batch_max_operations")
-            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
-        map.get("allow_anonymous")
-            .filter(|v| *v == "on" || *v == "true")
-            .map(|_| builder.allow_anonymous());
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.clone().unwrap_or_default());
+        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
+        let bucket = match self.config.bucket.is_empty() {
+            false => Ok(&self.config.bucket),
             true => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
                     .with_context("service", Scheme::Oss),
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Oss)
-            })?
-        };
-
         // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
-        let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
+        let (endpoint, host) = self.parse_endpoint(&self.config.endpoint, bucket)?;
         debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
 
-        let presign_endpoint = if self.presign_endpoint.is_some() {
-            self.parse_endpoint(&self.presign_endpoint, bucket)?.0
+        let presign_endpoint = if self.config.presign_endpoint.is_some() {
+            self.parse_endpoint(&self.config.presign_endpoint, bucket)?
+                .0
         } else {
             endpoint.clone()
         };
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
-        let server_side_encryption = match &self.server_side_encryption {
+        let server_side_encryption = match &self.config.server_side_encryption {
             None => None,
             Some(v) => Some(
                 build_header_value(v)
@@ -320,7 +327,7 @@ impl Builder for OssBuilder {
             ),
         };
 
-        let server_side_encryption_key_id = match &self.server_side_encryption_key_id {
+        let server_side_encryption_key_id = match &self.config.server_side_encryption_key_id {
             None => None,
             Some(v) => Some(
                 build_header_value(v)
@@ -332,22 +339,31 @@ impl Builder for OssBuilder {
         // Load cfg from env first.
         cfg = cfg.from_env();
 
-        if let Some(v) = self.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v);
         }
 
-        if let Some(v) = self.access_key_secret.take() {
+        if let Some(v) = self.config.access_key_secret {
             cfg.access_key_secret = Some(v);
         }
+
+        let client = if let Some(client) = self.http_client {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Oss)
+            })?
+        };
 
         let loader = AliyunLoader::new(client.client(), cfg);
 
         let signer = AliyunOssSigner::new(bucket);
 
         let batch_max_operations = self
+            .config
             .batch_max_operations
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-        debug!("Backend build finished");
 
         Ok(OssBackend {
             core: Arc::new(OssCore {
@@ -356,7 +372,7 @@ impl Builder for OssBuilder {
                 endpoint,
                 host,
                 presign_endpoint,
-                allow_anonymous: self.allow_anonymous,
+                allow_anonymous: self.config.allow_anonymous,
                 signer,
                 loader,
                 client,
@@ -382,7 +398,7 @@ impl Access for OssBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.core.root)
@@ -416,6 +432,7 @@ impl Access for OssBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -436,25 +453,33 @@ impl Access for OssBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self
-            .core
-            .oss_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.oss_head_object(path, &args).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta =
+                    self.core
+                        .parse_metadata(path, constants::X_OSS_META_PREFIX, resp.headers())?;
+
+                if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
+                    meta.set_version(v);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.oss_get_object(path, args.range(), &args).await?;
+        let resp = self.core.oss_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -486,8 +511,8 @@ impl Access for OssBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.oss_delete_object(path).await?;
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.oss_delete_object(path, &args).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
@@ -519,14 +544,8 @@ impl Access for OssBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .oss_head_object_request(path, true, v.if_match(), v.if_none_match())?
-            }
-            PresignOperation::Read(v) => {
-                self.core
-                    .oss_get_object_request(path, BytesRange::default(), true, v)?
-            }
+            PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v)?,
+            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v)?,
             PresignOperation::Write(v) => {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)?

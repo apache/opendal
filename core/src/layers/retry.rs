@@ -626,7 +626,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 }
 
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
@@ -694,7 +694,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         { || self.inner.as_mut().unwrap().write(bs.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -756,7 +756,6 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -774,13 +773,9 @@ mod tests {
 
     impl Builder for MockBuilder {
         const SCHEME: Scheme = Scheme::Custom("mock");
-        type Accessor = MockService;
+        type Config = ();
 
-        fn from_map(_: HashMap<String, String>) -> Self {
-            Self::default()
-        }
-
-        fn build(&mut self) -> Result<Self::Accessor> {
+        fn build(self) -> Result<impl Access> {
             Ok(MockService {
                 attempt: self.attempt.clone(),
             })
@@ -800,7 +795,7 @@ mod tests {
         type BlockingWriter = ();
         type BlockingLister = ();
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
@@ -813,7 +808,7 @@ mod tests {
                 ..Default::default()
             });
 
-            am
+            am.into()
         }
 
         async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
@@ -938,8 +933,8 @@ mod tests {
     struct MockWriter {}
 
     impl oio::Write for MockWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<usize> {
-            Ok(bs.len())
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
         }
 
         async fn close(&mut self) -> Result<()> {

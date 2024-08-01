@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -29,6 +28,7 @@ use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -38,7 +38,7 @@ use crate::*;
 const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
 /// Config for Etcd services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct EtcdConfig {
@@ -101,6 +101,12 @@ impl Debug for EtcdConfig {
     }
 }
 
+impl Configurator for EtcdConfig {
+    fn into_builder(self) -> impl Builder {
+        EtcdBuilder { config: self }
+    }
+}
+
 /// [Etcd](https://etcd.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
@@ -121,7 +127,7 @@ impl EtcdBuilder {
     /// set the network address of etcd service.
     ///
     /// default: "http://127.0.0.1:2379"
-    pub fn endpoints(&mut self, endpoints: &str) -> &mut Self {
+    pub fn endpoints(mut self, endpoints: &str) -> Self {
         if !endpoints.is_empty() {
             self.config.endpoints = Some(endpoints.to_owned());
         }
@@ -131,7 +137,7 @@ impl EtcdBuilder {
     /// set the username for etcd
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -141,7 +147,7 @@ impl EtcdBuilder {
     /// set the password for etcd
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -151,7 +157,7 @@ impl EtcdBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -161,7 +167,7 @@ impl EtcdBuilder {
     /// Set the certificate authority file path.
     ///
     /// default is None
-    pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
+    pub fn ca_path(mut self, ca_path: &str) -> Self {
         if !ca_path.is_empty() {
             self.config.ca_path = Some(ca_path.to_string())
         }
@@ -171,7 +177,7 @@ impl EtcdBuilder {
     /// Set the certificate file path.
     ///
     /// default is None
-    pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
+    pub fn cert_path(mut self, cert_path: &str) -> Self {
         if !cert_path.is_empty() {
             self.config.cert_path = Some(cert_path.to_string())
         }
@@ -181,7 +187,7 @@ impl EtcdBuilder {
     /// Set the key file path.
     ///
     /// default is None
-    pub fn key_path(&mut self, key_path: &str) -> &mut Self {
+    pub fn key_path(mut self, key_path: &str) -> Self {
         if !key_path.is_empty() {
             self.config.key_path = Some(key_path.to_string())
         }
@@ -191,16 +197,9 @@ impl EtcdBuilder {
 
 impl Builder for EtcdBuilder {
     const SCHEME: Scheme = Scheme::Etcd;
-    type Accessor = EtcdBackend;
+    type Config = EtcdConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        EtcdBuilder {
-            config: EtcdConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let endpoints = self
             .config
             .endpoints

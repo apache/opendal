@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,6 +22,7 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::core::*;
@@ -30,7 +30,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for icloud services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct IcloudConfig {
@@ -53,6 +53,7 @@ pub struct IcloudConfig {
     ///
     /// token must be valid.
     pub trust_token: Option<String>,
+    /// ds_web_auth_token must be set in Session
     pub ds_web_auth_token: Option<String>,
     /// enable the china origin
     /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".
@@ -67,6 +68,15 @@ impl Debug for IcloudConfig {
         d.field("root", &self.root);
         d.field("is_china_mainland", &self.is_china_mainland);
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for IcloudConfig {
+    fn into_builder(self) -> impl Builder {
+        IcloudBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -98,7 +108,7 @@ impl IcloudBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -111,7 +121,7 @@ impl IcloudBuilder {
     /// Your Apple id
     ///
     /// It is required. your Apple login email, e.g. `example@gmail.com`
-    pub fn apple_id(&mut self, apple_id: &str) -> &mut Self {
+    pub fn apple_id(mut self, apple_id: &str) -> Self {
         self.config.apple_id = if apple_id.is_empty() {
             None
         } else {
@@ -124,7 +134,7 @@ impl IcloudBuilder {
     /// Your Apple id password
     ///
     /// It is required. your icloud login password, e.g. `password`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -137,7 +147,7 @@ impl IcloudBuilder {
     /// Trust token and ds_web_auth_token is used for temporary access to the icloudDrive API.
     ///
     /// Authenticate using session token
-    pub fn trust_token(&mut self, trust_token: &str) -> &mut Self {
+    pub fn trust_token(mut self, trust_token: &str) -> Self {
         self.config.trust_token = if trust_token.is_empty() {
             None
         } else {
@@ -150,7 +160,7 @@ impl IcloudBuilder {
     /// ds_web_auth_token must be set in Session
     ///
     /// Avoid Two Factor Authentication
-    pub fn ds_web_auth_token(&mut self, ds_web_auth_token: &str) -> &mut Self {
+    pub fn ds_web_auth_token(mut self, ds_web_auth_token: &str) -> Self {
         self.config.ds_web_auth_token = if ds_web_auth_token.is_empty() {
             None
         } else {
@@ -164,7 +174,7 @@ impl IcloudBuilder {
     ///
     /// If in china mainland, we will connect to `https://www.icloud.com.cn`.
     /// Otherwise, we will connect to `https://www.icloud.com`.
-    pub fn is_china_mainland(&mut self, is_china_mainland: bool) -> &mut Self {
+    pub fn is_china_mainland(mut self, is_china_mainland: bool) -> Self {
         self.config.is_china_mainland = is_china_mainland;
         self
     }
@@ -175,7 +185,7 @@ impl IcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -183,19 +193,10 @@ impl IcloudBuilder {
 
 impl Builder for IcloudBuilder {
     const SCHEME: Scheme = Scheme::Icloud;
-    type Accessor = IcloudBackend;
+    type Config = IcloudConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = IcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        IcloudBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
 
         let apple_id = match &self.config.apple_id {
             Some(apple_id) => Ok(apple_id.clone()),
@@ -227,7 +228,7 @@ impl Builder for IcloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -273,7 +274,7 @@ impl Access for IcloudBackend {
     type Lister = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Icloud)
             .set_root(&self.core.root)
@@ -282,7 +283,7 @@ impl Access for IcloudBackend {
                 read: true,
                 ..Default::default()
             });
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

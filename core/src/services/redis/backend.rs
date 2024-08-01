@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
@@ -33,6 +32,7 @@ use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -43,36 +43,36 @@ const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// Config for Redis services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct RedisConfig {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
     ///
     /// default is "tcp://127.0.0.1:6379"
-    endpoint: Option<String>,
+    pub endpoint: Option<String>,
     /// network address of the Redis cluster service. Can be "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381", e.g.
     ///
     /// default is None
-    cluster_endpoints: Option<String>,
+    pub cluster_endpoints: Option<String>,
     /// the username to connect redis service.
     ///
     /// default is None
-    username: Option<String>,
+    pub username: Option<String>,
     /// the password for authentication
     ///
     /// default is None
-    password: Option<String>,
+    pub password: Option<String>,
     /// the working directory of the Redis service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
     /// the number of DBs redis can take is unlimited
     ///
     /// default is db 0
-    db: i64,
+    pub db: i64,
     /// The default ttl for put operations.
-    default_ttl: Option<Duration>,
+    pub default_ttl: Option<Duration>,
 }
 
 impl Debug for RedisConfig {
@@ -95,6 +95,12 @@ impl Debug for RedisConfig {
         }
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl Configurator for RedisConfig {
+    fn into_builder(self) -> impl Builder {
+        RedisBuilder { config: self }
     }
 }
 
@@ -122,7 +128,7 @@ impl RedisBuilder {
     /// - "tcp" or "redis": unsecured redis connections
     /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_owned());
         }
@@ -137,7 +143,7 @@ impl RedisBuilder {
     /// - "tcp" or "redis": unsecured redis connections
     /// - "rediss": secured redis connections
     /// - "unix" or "redis+unix": unix socket connection
-    pub fn cluster_endpoints(&mut self, cluster_endpoints: &str) -> &mut Self {
+    pub fn cluster_endpoints(mut self, cluster_endpoints: &str) -> Self {
         if !cluster_endpoints.is_empty() {
             self.config.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
@@ -147,7 +153,7 @@ impl RedisBuilder {
     /// set the username for redis
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -157,7 +163,7 @@ impl RedisBuilder {
     /// set the password for redis
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -167,7 +173,7 @@ impl RedisBuilder {
     /// set the db used in redis
     ///
     /// default: 0
-    pub fn db(&mut self, db: i64) -> &mut Self {
+    pub fn db(mut self, db: i64) -> Self {
         self.config.db = db;
         self
     }
@@ -175,7 +181,7 @@ impl RedisBuilder {
     /// Set the default ttl for redis services.
     ///
     /// If set, we will specify `EX` for write operations.
-    pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = Some(ttl);
         self
     }
@@ -183,7 +189,7 @@ impl RedisBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -193,16 +199,9 @@ impl RedisBuilder {
 
 impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
-    type Accessor = RedisBackend;
+    type Config = RedisConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RedisConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        RedisBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let root = normalize_root(
             self.config
                 .root
@@ -292,6 +291,7 @@ impl RedisBuilder {
                     host,
                     port,
                     insecure: false,
+                    tls_params: None,
                 }
             }
             Some("unix") | Some("redis+unix") => {
@@ -402,11 +402,11 @@ impl kv::Adapter for Adapter {
         match self.default_ttl {
             Some(ttl) => match conn {
                 RedisConnection::Normal(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
                 RedisConnection::Cluster(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs() as usize)
+                    .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
             },

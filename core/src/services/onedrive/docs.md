@@ -33,9 +33,9 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Onedrive::default();
-
-    builder.access_token("xxx").root("/path/to/root");
+    let mut builder = Onedrive::default()
+        .access_token("xxx")
+        .root("/path/to/root");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

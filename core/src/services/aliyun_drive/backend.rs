@@ -27,6 +27,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::core::*;
@@ -34,12 +35,11 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
-use super::writer::AliyunDriveWriters;
 use crate::raw::*;
 use crate::*;
 
 /// Aliyun Drive services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AliyunDriveConfig {
@@ -88,6 +88,15 @@ impl Debug for AliyunDriveConfig {
     }
 }
 
+impl Configurator for AliyunDriveConfig {
+    fn into_builder(self) -> impl Builder {
+        AliyunDriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AliyunDriveBuilder {
@@ -109,7 +118,7 @@ impl AliyunDriveBuilder {
     /// Set the root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -120,35 +129,35 @@ impl AliyunDriveBuilder {
     }
 
     /// Set access_token of this backend.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
 
         self
     }
 
     /// Set client_id of this backend.
-    pub fn client_id(&mut self, client_id: &str) -> &mut Self {
+    pub fn client_id(mut self, client_id: &str) -> Self {
         self.config.client_id = Some(client_id.to_string());
 
         self
     }
 
     /// Set client_secret of this backend.
-    pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
         self.config.client_secret = Some(client_secret.to_string());
 
         self
     }
 
     /// Set refresh_token of this backend.
-    pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
         self.config.refresh_token = Some(refresh_token.to_string());
 
         self
     }
 
     /// Set drive_type of this backend.
-    pub fn drive_type(&mut self, drive_type: &str) -> &mut Self {
+    pub fn drive_type(mut self, drive_type: &str) -> Self {
         self.config.drive_type = drive_type.to_string();
 
         self
@@ -160,7 +169,7 @@ impl AliyunDriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -168,26 +177,15 @@ impl AliyunDriveBuilder {
 
 impl Builder for AliyunDriveBuilder {
     const SCHEME: Scheme = Scheme::AliyunDrive;
+    type Config = AliyunDriveConfig;
 
-    type Accessor = AliyunDriveBackend;
-
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = AliyunDriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        AliyunDriveBuilder {
-            config,
-
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -253,13 +251,13 @@ pub struct AliyunDriveBackend {
 
 impl Access for AliyunDriveBackend {
     type Reader = HttpBody;
-    type Writer = AliyunDriveWriters;
+    type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::AliyunDrive)
             .set_root(&self.core.root)
@@ -272,7 +270,11 @@ impl Access for AliyunDriveBackend {
                 // The min multipart size of AliyunDrive is 100 KiB.
                 write_multi_min_size: Some(100 * 1024),
                 // The max multipart size of AliyunDrive is 5 GiB.
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
                 delete: true,
                 copy: true,
                 rename: true,
@@ -281,7 +283,7 @@ impl Access for AliyunDriveBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -447,7 +449,6 @@ impl Access for AliyunDriveBackend {
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
                 Some(AliyunDriveParent {
                     file_id: file.file_id,
-                    name: file.name,
                     path: path.to_string(),
                     updated_at: file.updated_at,
                 })
@@ -474,13 +475,9 @@ impl Access for AliyunDriveBackend {
             }
         };
 
-        let executor = args.executor().cloned();
-
         let writer =
             AliyunDriveWriter::new(self.core.clone(), &parent_file_id, get_basename(path), args);
 
-        let w = oio::MultipartWriter::new(writer, executor, 1);
-
-        Ok((RpWrite::default(), w))
+        Ok((RpWrite::default(), writer))
     }
 }

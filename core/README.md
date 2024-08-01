@@ -115,7 +115,8 @@ OpenDAL supports the following storage [layers](https://docs.rs/opendal/latest/o
 | [`DtraceLayer`]           | [probe]                | Support User Statically-Defined Tracing(aka USDT) on Linux                            |
 | [`LoggingLayer`]          | [log]                  | Add log for every operations.                                                         |
 | [`MetricsLayer`]          | [metrics]              | Add metrics for every operations.                                                     |
-| [`MinitraceLayer`]        | [minitrace]            | Add minitrace for every operations.                                                   |
+| [`MimeGuessLayer`]        | [mime_guess]           | Add `Content-Type` automatically based on the file extension in the operation path.   |
+| [`FastraceLayer`]         | [fastrace]             | Add fastrace for every operations.                                                    |
 | [`OtelTraceLayer`]        | [opentelemetry::trace] | Add opentelemetry::trace for every operations.                                        |
 | [`PrometheusClientLayer`] | [prometheus_client]    | Add prometheus metrics for every operations.                                          |
 | [`PrometheusLayer`]       | [prometheus]           | Add prometheus metrics for every operations.                                          | 
@@ -139,8 +140,10 @@ OpenDAL supports the following storage [layers](https://docs.rs/opendal/latest/o
 [log]: https://github.com/rust-lang/log
 [`MetricsLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.MetricsLayer.html
 [metrics]: https://github.com/metrics-rs/metrics
-[`MinitraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.MinitraceLayer.html
-[minitrace]: https://github.com/tikv/minitrace-rust
+[`MimeGuessLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.MimeGuessLayer.html
+[mime_guess]: https://github.com/abonander/mime_guess
+[`FastraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.FastraceLayer.html
+[fastrace]: https://github.com/fastracelabs/fastrace
 [`OtelTraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.OtelTraceLayer.html
 [opentelemetry::trace]: https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html
 [`PrometheusClientLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.PrometheusClientLayer.html

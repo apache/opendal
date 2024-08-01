@@ -19,3 +19,4 @@ mod backend;
 mod error;
 
 pub use backend::CloudflareKvBuilder as CloudflareKv;
+pub use backend::CloudflareKvConfig;

@@ -164,7 +164,10 @@ impl oio::MultipartWrite for OssWriter {
 
 impl oio::AppendWrite for OssWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.oss_head_object(&self.path, None, None).await?;
+        let resp = self
+            .core
+            .oss_head_object(&self.path, &OpStat::new())
+            .await?;
 
         let status = resp.status();
         match status {

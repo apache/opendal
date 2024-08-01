@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-
 use super::operator_functions::*;
 use crate::raw::*;
 use crate::*;
@@ -39,11 +37,7 @@ use crate::*;
 ///
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
+///     let builder = Fs::default().root("/tmp");
 ///
 ///     // Build an `BlockingOperator` to start operating the storage.
 ///     let _: BlockingOperator = Operator::new(builder)?.finish().blocking();
@@ -66,9 +60,7 @@ use crate::*;
 ///
 /// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default();
-///     builder.bucket("test");
-///     builder.region("us-east-1");
+///     let mut builder = S3::default().bucket("test").region("us-east-1");
 ///
 ///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
 ///     let _: BlockingOperator = Operator::new(builder)?
@@ -630,8 +622,8 @@ impl BlockingOperator {
         FunctionWrite(OperatorFunction::new(
             self.inner().clone(),
             path,
-            (OpWrite::default(), bs),
-            |inner, path, (args, mut bs)| {
+            (OpWrite::default(), OpWriter::default(), bs),
+            |inner, path, (args, options, bs)| {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -641,13 +633,10 @@ impl BlockingOperator {
                     );
                 }
 
-                let (_, mut w) = inner.blocking_write(&path, args)?;
-                while !bs.is_empty() {
-                    let n = w.write(bs.clone())?;
-                    bs.advance(n);
-                }
+                let context = WriteContext::new(inner, path, args, options);
+                let mut w = BlockingWriter::new(context)?;
+                w.write(bs)?;
                 w.close()?;
-
                 Ok(())
             },
         ))
@@ -703,8 +692,8 @@ impl BlockingOperator {
         FunctionWriter(OperatorFunction::new(
             self.inner().clone(),
             path,
-            OpWrite::default(),
-            |inner, path, args| {
+            (OpWrite::default(), OpWriter::default()),
+            |inner, path, (args, options)| {
                 let path = normalize_path(&path);
 
                 if !validate_path(&path, EntryMode::FILE) {
@@ -716,7 +705,9 @@ impl BlockingOperator {
                     );
                 }
 
-                BlockingWriter::create(inner.clone(), &path, args)
+                let context = WriteContext::new(inner, path, args, options);
+                let w = BlockingWriter::new(context)?;
+                Ok(w)
             },
         ))
     }

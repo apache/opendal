@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -24,6 +23,7 @@ use std::sync::Arc;
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 use tokio_postgres::Config;
 
@@ -32,7 +32,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for PostgreSQL services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct PostgresqlConfig {
@@ -43,13 +43,13 @@ pub struct PostgresqlConfig {
     /// Default to `/` if not set.
     pub root: Option<String>,
     /// the connection string of postgres server
-    connection_string: Option<String>,
+    pub connection_string: Option<String>,
     /// the table of postgresql
-    table: Option<String>,
+    pub table: Option<String>,
     /// the key field of postgresql
-    key_field: Option<String>,
+    pub key_field: Option<String>,
     /// the value field of postgresql
-    value_field: Option<String>,
+    pub value_field: Option<String>,
 }
 
 impl Debug for PostgresqlConfig {
@@ -65,6 +65,12 @@ impl Debug for PostgresqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for PostgresqlConfig {
+    fn into_builder(self) -> impl Builder {
+        PostgresqlBuilder { config: self }
     }
 }
 
@@ -115,7 +121,7 @@ impl PostgresqlBuilder {
     /// If connection_string has been specified, other parameters will be ignored.
     ///
     /// For more information, please visit <https://docs.rs/postgres/latest/postgres/config/struct.Config.html>
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -125,7 +131,7 @@ impl PostgresqlBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -133,7 +139,7 @@ impl PostgresqlBuilder {
     }
 
     /// Set the table name of the postgresql service to read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -143,7 +149,7 @@ impl PostgresqlBuilder {
     /// Set the key field name of the postgresql service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -153,7 +159,7 @@ impl PostgresqlBuilder {
     /// Set the value field name of the postgresql service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -163,16 +169,9 @@ impl PostgresqlBuilder {
 
 impl Builder for PostgresqlBuilder {
     const SCHEME: Scheme = Scheme::Postgresql;
-    type Accessor = PostgresqlBackend;
+    type Config = PostgresqlConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = PostgresqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        PostgresqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

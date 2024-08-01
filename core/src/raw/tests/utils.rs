@@ -67,7 +67,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::via_map(scheme, cfg).expect("must succeed");
+    let op = Operator::via_iter(scheme, cfg).expect("must succeed");
 
     #[cfg(feature = "layers-chaos")]
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };
@@ -79,8 +79,11 @@ pub fn init_test_service() -> Result<Option<Operator>> {
 
     // Enable blocking layer if needed.
     if !op.info().full_capability().blocking {
-        let _guard = TEST_RUNTIME.enter();
-        op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
+        // Don't enable blocking layer for compfs
+        if op.info().scheme() != Scheme::Compfs {
+            let _guard = TEST_RUNTIME.enter();
+            op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
+        }
     }
 
     Ok(Some(op))

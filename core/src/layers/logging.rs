@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use bytes::Buf;
 use futures::FutureExt;
@@ -221,7 +222,7 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> started",
@@ -1072,21 +1073,20 @@ impl<W> LoggingWriter<W> {
 }
 
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        match self.inner.write(bs.clone()).await {
-            Ok(n) => {
-                self.written += n as u64;
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len();
+        match self.inner.write(bs).await {
+            Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
+                    "service={} operation={} path={} written={}B -> data write {}B",
                     self.ctx.scheme,
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    bs.len(),
-                    n,
+                    size,
                 );
-                Ok(n)
+                Ok(())
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1170,21 +1170,19 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         match self.inner.write(bs.clone()) {
-            Ok(n) => {
-                self.written += n as u64;
+            Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
+                    "service={} operation={} path={} written={}B -> data write {}B",
                     self.ctx.scheme,
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
                     bs.len(),
-                    n
                 );
-                Ok(n)
+                Ok(())
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {

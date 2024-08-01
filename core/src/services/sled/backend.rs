@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -35,14 +35,16 @@ use crate::*;
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
 /// Config for Sled services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SledConfig {
     /// That path to the sled data directory.
-    datadir: Option<String>,
-    root: Option<String>,
-    tree: Option<String>,
+    pub datadir: Option<String>,
+    /// The root for sled.
+    pub root: Option<String>,
+    /// The tree for sled.
+    pub tree: Option<String>,
 }
 
 impl Debug for SledConfig {
@@ -52,6 +54,12 @@ impl Debug for SledConfig {
             .field("root", &self.root)
             .field("tree", &self.tree)
             .finish()
+    }
+}
+
+impl Configurator for SledConfig {
+    fn into_builder(self) -> impl Builder {
+        SledBuilder { config: self }
     }
 }
 
@@ -72,19 +80,19 @@ impl Debug for SledBuilder {
 
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the root for sled.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
 
     /// Set the tree for sled.
-    pub fn tree(&mut self, tree: &str) -> &mut Self {
+    pub fn tree(mut self, tree: &str) -> Self {
         self.config.tree = Some(tree.into());
         self
     }
@@ -92,17 +100,10 @@ impl SledBuilder {
 
 impl Builder for SledBuilder {
     const SCHEME: Scheme = Scheme::Sled;
-    type Accessor = SledBackend;
+    type Config = SledConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SledBuilder {
-            config: SledConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Sled)
         })?;
@@ -118,7 +119,6 @@ impl Builder for SledBuilder {
         let tree_name = self
             .config
             .tree
-            .take()
             .unwrap_or_else(|| DEFAULT_TREE_ID.to_string());
 
         let tree = db.open_tree(&tree_name).map_err(|e| {

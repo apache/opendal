@@ -21,12 +21,12 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub async fn hello_world() -> String {
-    let mut cfg = S3::default();
-    cfg.endpoint("http://127.0.0.1:9000");
-    cfg.access_key_id("minioadmin");
-    cfg.secret_access_key("minioadmin");
-    cfg.bucket("test");
-    cfg.region("us-east-1");
+    let cfg = S3::default()
+        .endpoint("http://127.0.0.1:9000")
+        .access_key_id("minioadmin")
+        .secret_access_key("minioadmin")
+        .bucket("test")
+        .region("us-east-1");
 
     let op = Operator::new(cfg).unwrap().finish();
     op.write(

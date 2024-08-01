@@ -45,25 +45,25 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create azdls backend builder.
-    let mut builder = Azdls::default();
-    // Set the root for azdls, all operations will happen under this root.
-    //
-    // NOTE: the root must be absolute path.
-    builder.root("/path/to/dir");
-    // Set the filesystem name, this is required.
-    builder.filesystem("test");
-    // Set the endpoint, this is required.
-    //
-    // For examples:
-    // - "https://accountname.dfs.core.windows.net"
-    builder.endpoint("https://accountname.dfs.core.windows.net");
-    // Set the account_name and account_key.
-    //
-    // OpenDAL will try load credential from the env.
-    // If credential not set and no valid credential in env, OpenDAL will
-    // send request without signing like anonymous user.
-    builder.account_name("account_name");
-    builder.account_key("account_key");
+    let mut builder = Azdls::default()
+        // Set the root for azdls, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/path/to/dir")
+        // Set the filesystem name, this is required.
+        .filesystem("test")
+        // Set the endpoint, this is required.
+        //
+        // For examples:
+        // - "https://accountname.dfs.core.windows.net"
+        .endpoint("https://accountname.dfs.core.windows.net")
+        // Set the account_name and account_key.
+        //
+        // OpenDAL will try load credential from the env.
+        // If credential not set and no valid credential in env, OpenDAL will
+        // send request without signing like anonymous user.
+        .account_name("account_name")
+        .account_key("account_key");
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder)?.finish();

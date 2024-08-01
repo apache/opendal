@@ -24,11 +24,21 @@ license = "Apache-2.0"
 name = "unftp-sbe-opendal"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.0.0"
+version = "0.0.3"
 
 [dependencies]
 async-trait = "0.1.80"
 libunftp = "0.20.0"
-opendal = { version = "0.47.0", path = "../../core" }
+opendal = { version = "0.48.0", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
+
+[dev-dependencies]
+anyhow = "1"
+opendal = { version = "0.48.0", path = "../../core", features = [
+  "services-s3",
+] }
+tokio = { version = "1.38.0", default-features = false, features = [
+  "io-util",
+  "rt-multi-thread",
+] }

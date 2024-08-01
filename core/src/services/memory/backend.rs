@@ -16,24 +16,30 @@
 // under the License.
 
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use serde::Deserialize;
+use serde::Serialize;
 
-use self::raw::ConfigDeserializer;
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
 use crate::*;
 
-///Config for memory.
-#[derive(Default, Deserialize)]
+/// Config for memory.
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemoryConfig {
-    ///root of the backend.
+    /// root of the backend.
     pub root: Option<String>,
+}
+
+impl Configurator for MemoryConfig {
+    fn into_builder(self) -> impl Builder {
+        MemoryBuilder { config: self }
+    }
 }
 
 /// In memory service support. (BTreeMap Based)
@@ -45,7 +51,7 @@ pub struct MemoryBuilder {
 
 impl MemoryBuilder {
     /// Set the root for BTreeMap.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
@@ -53,16 +59,9 @@ impl MemoryBuilder {
 
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
-    type Accessor = MemoryBackend;
+    type Config = MemoryConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        MemoryBuilder {
-            config: MemoryConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
@@ -158,7 +157,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

@@ -48,11 +48,7 @@ use crate::*;
 /// use opendal::Operator;
 /// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
+///     let mut builder = Fs::default().root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
 ///     let _: Operator = Operator::new(builder)?.finish();
@@ -1083,8 +1079,11 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpWrite::default().merge_executor(self.default_executor.clone()),
-            |inner, path, args| async move {
+            (
+                OpWrite::default().merge_executor(self.default_executor.clone()),
+                OpWriter::default(),
+            ),
+            |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -1094,7 +1093,9 @@ impl Operator {
                     );
                 }
 
-                Writer::create(inner, &path, args).await
+                let context = WriteContext::new(inner, path, args, options);
+                let w = Writer::new(context).await?;
+                Ok(w)
             },
         )
     }
@@ -1229,9 +1230,10 @@ impl Operator {
             path,
             (
                 OpWrite::default().merge_executor(self.default_executor.clone()),
+                OpWriter::default(),
                 bs,
             ),
-            |inner, path, (args, bs)| async move {
+            |inner, path, (args, options, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -1241,11 +1243,10 @@ impl Operator {
                     );
                 }
 
-                let (_, w) = inner.write(&path, args).await?;
-                let mut w = Writer::new(w);
-                w.write(bs.clone()).await?;
+                let context = WriteContext::new(inner, path, args, options);
+                let mut w = Writer::new(context).await?;
+                w.write(bs).await?;
                 w.close().await?;
-
                 Ok(())
             },
         )

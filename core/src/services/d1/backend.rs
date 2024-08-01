@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -24,6 +23,7 @@ use http::header;
 use http::Request;
 use http::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::error::parse_error;
@@ -34,7 +34,7 @@ use crate::ErrorKind;
 use crate::*;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct D1Config {
@@ -66,6 +66,15 @@ impl Debug for D1Config {
     }
 }
 
+impl Configurator for D1Config {
+    fn into_builder(self) -> impl Builder {
+        D1Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct D1Builder {
@@ -86,7 +95,7 @@ impl D1Builder {
     /// Set api token for the cloudflare d1 service.
     ///
     /// create a api token from [here](https://dash.cloudflare.com/profile/api-tokens)
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }
@@ -97,7 +106,7 @@ impl D1Builder {
     ///
     /// get the account identifier from Workers & Pages -> Overview -> Account ID
     /// If not specified, it will return an error when building.
-    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+    pub fn account_id(mut self, account_id: &str) -> Self {
         if !account_id.is_empty() {
             self.config.account_id = Some(account_id.to_string());
         }
@@ -108,7 +117,7 @@ impl D1Builder {
     ///
     /// get the database identifier from Workers & Pages -> D1 -> [Your Database] -> Database ID
     /// If not specified, it will return an error when building.
-    pub fn database_id(&mut self, database_id: &str) -> &mut Self {
+    pub fn database_id(mut self, database_id: &str) -> Self {
         if !database_id.is_empty() {
             self.config.database_id = Some(database_id.to_string());
         }
@@ -118,7 +127,7 @@ impl D1Builder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -128,7 +137,7 @@ impl D1Builder {
     /// Set the table name of the d1 service to read/write.
     ///
     /// If not specified, it will return an error when building.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_owned());
         }
@@ -138,7 +147,7 @@ impl D1Builder {
     /// Set the key field name of the d1 service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -148,7 +157,7 @@ impl D1Builder {
     /// Set the value field name of the d1 service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -158,24 +167,17 @@ impl D1Builder {
 
 impl Builder for D1Builder {
     const SCHEME: Scheme = Scheme::D1;
-    type Accessor = D1Backend;
+    type Config = D1Config;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        Self {
-            config: D1Config::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-            ..Default::default()
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let mut authorization = None;
-        let config = &self.config;
-        if let Some(token) = &config.token {
-            authorization = Some(format_authorization_by_bearer(token)?)
+        let config = self.config;
+
+        if let Some(token) = config.token {
+            authorization = Some(format_authorization_by_bearer(&token)?)
         }
 
-        let Some(account_id) = config.account_id.clone() else {
+        let Some(account_id) = config.account_id else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "account_id is required",
@@ -189,7 +191,7 @@ impl Builder for D1Builder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

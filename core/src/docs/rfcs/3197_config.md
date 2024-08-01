@@ -33,7 +33,7 @@ let mut builder = services::S3::default();
 // Credential.
 builder.access_key_id(&cfg.access_key_id);
 builder.secret_access_key(&cfg.secret_access_key);
-builder.security_token(&cfg.security_token);
+builder.session_token(&cfg.session_token);
 builder.role_arn(&cfg.role_arn);
 builder.external_id(&cfg.external_id);
 
@@ -180,7 +180,7 @@ pub struct S3Config {
 pub struct S3Builder {
     config: S3Config,
     
-    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
     http_client: Option<HttpClient>,
 }
 ```

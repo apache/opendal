@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,6 +26,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -36,8 +36,8 @@ use super::writer::YandexDiskWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze YandexDisk services support.
-#[derive(Default, Deserialize)]
+/// Config for YandexDisk services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct YandexDiskConfig {
@@ -56,6 +56,15 @@ impl Debug for YandexDiskConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl Configurator for YandexDiskConfig {
+    fn into_builder(self) -> impl Builder {
+        YandexDiskBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -81,7 +90,7 @@ impl YandexDiskBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -95,7 +104,7 @@ impl YandexDiskBuilder {
     /// The valid token will looks like `y0_XXXXXXqihqIWAADLWwAAAAD3IXXXXXX0gtVeSPeIKM0oITMGhXXXXXX`.
     /// We can fetch the debug token from <https://yandex.com/dev/disk/poligon>.
     /// To use it in production, please register an app at <https://oauth.yandex.com> instead.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = access_token.to_string();
 
         self
@@ -107,7 +116,7 @@ impl YandexDiskBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -115,31 +124,10 @@ impl YandexDiskBuilder {
 
 impl Builder for YandexDiskBuilder {
     const SCHEME: Scheme = Scheme::YandexDisk;
-    type Accessor = YandexDiskBackend;
-
-    /// Converts a HashMap into an YandexDiskBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of YandexDiskBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an YandexDiskBuilder instance with the deserialized config.
-        YandexDiskBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = YandexDiskConfig;
 
     /// Builds the backend and returns the result of YandexDiskBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -154,7 +142,7 @@ impl Builder for YandexDiskBuilder {
             );
         }
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -187,7 +175,7 @@ impl Access for YandexDiskBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::YandexDisk)
             .set_root(&self.core.root)
@@ -211,7 +199,7 @@ impl Access for YandexDiskBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

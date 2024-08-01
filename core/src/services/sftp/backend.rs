@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -30,6 +30,7 @@ use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
@@ -44,7 +45,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for Sftp Service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SftpConfig {
@@ -68,6 +69,12 @@ impl Debug for SftpConfig {
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for SftpConfig {
+    fn into_builder(self) -> impl Builder {
+        SftpBuilder { config: self }
     }
 }
 
@@ -97,7 +104,7 @@ impl Debug for SftpBuilder {
 impl SftpBuilder {
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -109,7 +116,7 @@ impl SftpBuilder {
 
     /// set root path for sftp backend.
     /// It uses the default directory set by the remote `sftp-server` as default.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -120,7 +127,7 @@ impl SftpBuilder {
     }
 
     /// set user for sftp backend.
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         self.config.user = if user.is_empty() {
             None
         } else {
@@ -131,7 +138,7 @@ impl SftpBuilder {
     }
 
     /// set key path for sftp backend.
-    pub fn key(&mut self, key: &str) -> &mut Self {
+    pub fn key(mut self, key: &str) -> Self {
         self.config.key = if key.is_empty() {
             None
         } else {
@@ -146,7 +153,7 @@ impl SftpBuilder {
     /// - Strict (default)
     /// - Accept
     /// - Add
-    pub fn known_hosts_strategy(&mut self, strategy: &str) -> &mut Self {
+    pub fn known_hosts_strategy(mut self, strategy: &str) -> Self {
         self.config.known_hosts_strategy = if strategy.is_empty() {
             None
         } else {
@@ -158,7 +165,7 @@ impl SftpBuilder {
 
     /// set enable_copy for sftp backend.
     /// It requires the server supports copy-file extension.
-    pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
+    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
         self.config.enable_copy = enable_copy;
 
         self
@@ -167,9 +174,9 @@ impl SftpBuilder {
 
 impl Builder for SftpBuilder {
     const SCHEME: Scheme = Scheme::Sftp;
-    type Accessor = SftpBackend;
+    type Config = SftpConfig;
 
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("sftp backend build started: {:?}", &self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
@@ -216,13 +223,6 @@ impl Builder for SftpBuilder {
 
             client: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SftpBuilder {
-            config: SftpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 
@@ -351,7 +351,7 @@ impl Access for SftpBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_root(self.root.as_str())
             .set_scheme(Scheme::Sftp)
@@ -375,7 +375,7 @@ impl Access for SftpBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -452,7 +452,7 @@ impl Access for SftpBackend {
         if op.append() {
             option.append(true);
         } else {
-            option.write(true);
+            option.write(true).truncate(true);
         }
 
         let file = option.open(path).await.map_err(parse_sftp_error)?;

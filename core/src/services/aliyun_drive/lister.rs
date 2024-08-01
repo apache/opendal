@@ -39,7 +39,6 @@ pub struct AliyunDriveLister {
 
 pub struct AliyunDriveParent {
     pub file_id: String,
-    pub name: String,
     pub path: String,
     pub updated_at: String,
 }

@@ -90,8 +90,8 @@ pub struct Lister {
 /// use opendal::Entry;
 /// use opendal::Result;
 ///
-/// assert_eq!(256, size_of::<(String, Result<opendal::raw::RpStat>)>());
-/// assert_eq!(256, size_of::<Option<Entry>>());
+/// assert_eq!(304, size_of::<(String, Result<opendal::raw::RpStat>)>());
+/// assert_eq!(304, size_of::<Option<Entry>>());
 /// ```
 ///
 /// So let's ignore this lint:
@@ -155,7 +155,7 @@ impl Stream for Lister {
 
         // Trying to pull more tasks if there are more space.
         if self.tasks.has_remaining() {
-            // Building future is we have a lister available.
+            // Building future if we have a lister available.
             if let Some(mut lister) = self.lister.take() {
                 let fut = async move {
                     let res = lister.next_dyn().await;
@@ -298,9 +298,7 @@ mod tests {
     async fn test_invalid_lister() -> Result<()> {
         let _ = tracing_subscriber::fmt().try_init();
 
-        let mut builder = Azblob::default();
-
-        builder
+        let builder = Azblob::default()
             .container("container")
             .account_name("account_name")
             .account_key("account_key")

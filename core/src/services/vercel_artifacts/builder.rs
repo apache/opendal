@@ -15,27 +15,66 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::backend::VercelArtifactsBackend;
+use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
+
+/// Config for Vercel Cache support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct VercelArtifactsConfig {
+    /// The access token for Vercel.
+    pub access_token: Option<String>,
+}
+
+impl Debug for VercelArtifactsConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelArtifactsConfig")
+            .field("access_token", &"<redacted>")
+            .finish()
+    }
+}
+
+impl Configurator for VercelArtifactsConfig {
+    fn into_builder(self) -> impl Builder {
+        VercelArtifactsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
 
 /// [Vercel Cache](https://vercel.com/docs/concepts/monorepos/remote-caching) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct VercelArtifactsBuilder {
-    access_token: Option<String>,
+    config: VercelArtifactsConfig,
     http_client: Option<HttpClient>,
+}
+
+impl Debug for VercelArtifactsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("VercelArtifactsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
 }
 
 impl VercelArtifactsBuilder {
     /// set the bearer access token for Vercel
     ///
     /// default: no access token, which leads to failure
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
-        self.access_token = Some(access_token.to_string());
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
         self
     }
 
@@ -45,7 +84,7 @@ impl VercelArtifactsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
     }
@@ -53,17 +92,10 @@ impl VercelArtifactsBuilder {
 
 impl Builder for VercelArtifactsBuilder {
     const SCHEME: Scheme = Scheme::VercelArtifacts;
+    type Config = VercelArtifactsConfig;
 
-    type Accessor = VercelArtifactsBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-        map.get("access_token").map(|v| builder.access_token(v));
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let client = if let Some(client) = self.http_client.take() {
+    fn build(self) -> Result<impl Access> {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -72,7 +104,7 @@ impl Builder for VercelArtifactsBuilder {
             })?
         };
 
-        match self.access_token.clone() {
+        match self.config.access_token.clone() {
             Some(access_token) => Ok(VercelArtifactsBackend {
                 access_token,
                 client,

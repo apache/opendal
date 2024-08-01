@@ -47,8 +47,7 @@ async fn main() -> Result<()> {
         },
     };
 
-    let mut builder = Fs::default();
-    builder.root("/tmp");
+    let builder = Fs::default().root("/tmp");
 
     let op = Operator::new(builder)?.finish();
 

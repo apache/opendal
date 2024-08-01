@@ -17,85 +17,197 @@
  * under the License.
  */
 
+// Package opendal provides a Go binding for Apache OpenDAL (Open Data Access Layer).
+//
+// OpenDAL is a data access layer that allows users to easily interact with various
+// storage services using a unified API. This Go binding enables Go developers to
+// leverage OpenDAL's capabilities without the need for CGO.
+//
+// Key features:
+//   - Unified interface for multiple storage backends (e.g., S3, Azure Blob, local filesystem)
+//   - Native Go implementation using purego and libffi
+//   - No CGO dependency, ensuring better portability and easier cross-compilation
+//   - Supports common operations like read, write, delete, list, and metadata retrieval
+//
+// Basic usage:
+//
+//	import (
+//		"github.com/apache/opendal/bindings/go
+//		"github.com/apache/opendal-go-services/memory
+//	)
+//
+//	func main() {
+//		op, err := opendal.NewOperator(memory.Scheme, opendal.OperatorOptions{
+//			"root": "/path/to/root",
+//		})
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		defer op.Close()
+//
+//		// Perform operations using the operator
+//		err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//	}
+//
+// This package aims to provide a seamless experience for Go developers working with
+// various storage systems, combining the flexibility of OpenDAL with the performance
+// and simplicity of native Go code.
 package opendal
 
-/*
-#include "opendal.h"
-*/
-import "C"
 import (
-	"errors"
-	"fmt"
-	"unsafe"
+	"context"
 )
 
-var (
-	errInvalidScheme = errors.New("invalid scheme")
-	errValueEmpty    = errors.New("value is empty")
-)
+// Scheme defines the interface for storage scheme implementations.
+//
+// A Scheme represents a specific storage backend (e.g., S3, filesystem, memory)
+// and provides methods to identify and initialize the scheme.
+//
+// Implementations of this interface should be thread-safe, especially the LoadOnce method.
+type Scheme interface {
+	// Name returns the unique identifier of the scheme.
+	Name() string
 
-type Options map[string]string
+	// Path returns the filesystem path where the scheme's shared library (.so) is located.
+	Path() string
 
+	// LoadOnce initializes the scheme. It ensures that initialization occurs only once,
+	// even if called multiple times. Subsequent calls after the first should be no-ops.
+	//
+	// Returns an error if initialization fails.
+	LoadOnce() error
+}
+
+// OperatorOptions contains configuration parameters for creating an Operator.
+//
+// This struct allows users to specify various settings and credentials
+// required for connecting to and interacting with different storage backends.
+//
+// Fields in this struct vary depending on the storage scheme being used.
+// Refer to the documentation of specific storage backends for details on
+// required and optional fields.
+//
+// Example usage:
+//
+//	options := opendal.OperatorOptions{
+//		"root": "/path/to/root",
+//		"endpoint": "https://example.com",
+//		"access_key_id": "your_access_key",
+//		"secret_access_key": "your_secret_key",
+//	}
+type OperatorOptions map[string]string
+
+// Operator is the entry point for all public APIs in OpenDAL.
+//
+// Operator provides a unified interface for interacting with various storage services.
+// It encapsulates the underlying storage operations and presents a consistent API
+// regardless of the storage backend.
+//
+// # Usage
+//
+// Create an Operator using NewOperator, perform operations, and always remember
+// to Close the operator when finished to release resources.
+//
+// # Example
+//
+//	func main() {
+//		// Create a new operator for the memory backend
+//		op, err := opendal.NewOperator(memory.Scheme, opendal.OperatorOptions{})
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		defer op.Close() // Ensure the operator is closed when done
+//
+//		// Perform operations using the operator
+//		err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//
+//		data, err := op.Read("example.txt")
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		fmt.Println(string(data))
+//	}
+//
+// Note: Always use defer op.Close() to ensure proper resource cleanup.
+//
+// # Available Operations
+//
+// Operator provides methods for common storage operations including:
+//   - Read: Read data from a path
+//   - Write: Write data to a path
+//   - Stat: Get metadata for a path
+//   - Delete: Remove a file or directory
+//   - List: Enumerate entries in a directory
+//   - and more...
+//
+// Refer to the individual method documentation for detailed usage information.
 type Operator struct {
-	inner *C.opendal_operator
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	inner *opendalOperator
 }
 
-func NewOperator(scheme string, opt Options) (*Operator, error) {
-	if len(scheme) == 0 {
-		return nil, errInvalidScheme
+// NewOperator creates and initializes a new Operator for the specified storage scheme.
+//
+// Parameters:
+//   - scheme: The storage scheme (e.g., "memory", "s3", "fs").
+//   - options: Configuration options for the operator.
+//
+// Returns:
+//   - *Operator: A new Operator instance.
+//   - error: An error if initialization fails, or nil if successful.
+//
+// Note: Remember to call Close() on the returned Operator when it's no longer needed.
+func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) {
+	err = scheme.LoadOnce()
+	if err != nil {
+		return
 	}
-	opts := C.opendal_operator_options_new()
-	defer C.opendal_operator_options_free(opts)
-	for k, v := range opt {
-		C.opendal_operator_options_set(opts, C.CString(k), C.CString(v))
+
+	ctx, cancel, err := contextWithFFIs(scheme.Path())
+	if err != nil {
+		return
 	}
-	ret := C.opendal_operator_new(C.CString(scheme), opts)
-	if ret.error != nil {
-		defer C.opendal_error_free(ret.error)
-		code, message := parseError(ret.error)
-		return nil, errors.New(fmt.Sprintf("create operator failed, error code: %d, error message: %s", code, message))
+
+	options := getFFI[operatorOptionsNew](ctx, symOperatorOptionsNew)()
+	setOptions := getFFI[operatorOptionsSet](ctx, symOperatorOptionSet)
+	optionsFree := getFFI[operatorOptionsFree](ctx, symOperatorOptionsFree)
+
+	for key, value := range opts {
+		setOptions(options, key, value)
 	}
-	return &Operator{
-		inner: ret.op,
-	}, nil
+	defer optionsFree(options)
+
+	inner, err := getFFI[operatorNew](ctx, symOperatorNew)(scheme, options)
+	if err != nil {
+		cancel()
+		return
+	}
+
+	op = &Operator{
+		inner:  inner,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	return
 }
 
-func (o *Operator) Write(key string, value []byte) error {
-	if len(value) == 0 {
-		return errValueEmpty
-	}
-	bytes := C.opendal_bytes{data: (*C.uchar)(unsafe.Pointer(&value[0])), len: C.ulong(len(value))}
-	ret := C.opendal_operator_write(o.inner, C.CString(key), bytes)
-	if ret != nil {
-		defer C.opendal_error_free(ret)
-		code, message := parseError(ret)
-		return errors.New(fmt.Sprintf("write failed, error code: %d, error message: %s", code, message))
-	}
-	return nil
-}
-
-func (o *Operator) Read(key string) ([]byte, error) {
-	ret := C.opendal_operator_read(o.inner, C.CString(key))
-	if ret.error != nil {
-		defer C.opendal_error_free(ret.error)
-		code, message := parseError(ret.error)
-		return nil, errors.New(fmt.Sprintf("read failed, error code: %d, error message: %s", code, message))
-	}
-	return C.GoBytes(unsafe.Pointer(ret.data.data), C.int(ret.data.len)), nil
-}
-
-func (o *Operator) Close() error {
-	C.opendal_operator_free(o.inner)
-	return nil
-}
-
-func decodeBytes(bs C.opendal_bytes) []byte {
-	return C.GoBytes(unsafe.Pointer(bs.data), C.int(bs.len))
-}
-
-func parseError(err *C.opendal_error) (int, string) {
-	code := int(err.code)
-	message := string(decodeBytes(err.message))
-
-	return code, message
+// Close releases all resources associated with the Operator.
+//
+// It's important to call this method when the Operator is no longer needed
+// to ensure proper cleanup of underlying resources.
+//
+// Note: It's recommended to use defer op.Close() immediately after creating an Operator.
+func (op *Operator) Close() {
+	free := getFFI[operatorFree]
+	free(op.ctx, symOperatorFree)(op.inner)
+	op.cancel()
 }

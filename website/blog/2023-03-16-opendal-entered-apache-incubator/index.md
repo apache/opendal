@@ -65,7 +65,7 @@ Then, [RisingWave](https://github.com/risingwavelabs/risingwave) and [Vector](ht
 
 ### Sky's the Limit
 
-OpenDAL has established a small community and formed a product matrix. In addition to the [Rust - opendal](https://crates.io/crates/opendal), it also provides [Python - opendal](https://pypi.org/project/opendal/) and [Nodejs - opendal](https://www.npmjs.com/package/opendal) bindings.
+OpenDAL has established a small community and formed a product matrix. In addition to the [Rust - opendal](https://crates.io/crates/opendal), it also provides [Python - opendal](https://pypi.org/project/opendal/) and [Node.js - opendal](https://www.npmjs.com/package/opendal) bindings.
 
 OpenDAL has released 99 versions since its open source, with 700+ GitHub stars, 349K downloads, and 48 developers. The project has been actively updated. We sincerely thank every contributor for their efforts and dedication.
 

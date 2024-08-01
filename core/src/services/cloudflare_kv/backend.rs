@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -24,6 +23,7 @@ use http::header;
 use http::Request;
 use http::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
@@ -31,18 +31,18 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
-/// Cloudflare Kv Service Support.
-#[derive(Default, Deserialize, Clone)]
+/// Cloudflare KV Service Support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CloudflareKvConfig {
     /// The token used to authenticate with CloudFlare.
-    token: Option<String>,
+    pub token: Option<String>,
     /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
-    account_id: Option<String>,
+    pub account_id: Option<String>,
     /// The namespace ID. Used as URI path parameter.
-    namespace_id: Option<String>,
+    pub namespace_id: Option<String>,
 
     /// Root within this backend.
-    root: Option<String>,
+    pub root: Option<String>,
 }
 
 impl Debug for CloudflareKvConfig {
@@ -58,6 +58,15 @@ impl Debug for CloudflareKvConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for CloudflareKvConfig {
+    fn into_builder(self) -> impl Builder {
+        CloudflareKvBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -80,7 +89,7 @@ impl Debug for CloudflareKvBuilder {
 
 impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string())
         }
@@ -88,7 +97,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the account ID used to authenticate with CloudFlare.
-    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+    pub fn account_id(mut self, account_id: &str) -> Self {
         if !account_id.is_empty() {
             self.config.account_id = Some(account_id.to_string())
         }
@@ -96,7 +105,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the namespace ID.
-    pub fn namespace_id(&mut self, namespace_id: &str) -> &mut Self {
+    pub fn namespace_id(mut self, namespace_id: &str) -> Self {
         if !namespace_id.is_empty() {
             self.config.namespace_id = Some(namespace_id.to_string())
         }
@@ -104,7 +113,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the root within this backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -114,20 +123,9 @@ impl CloudflareKvBuilder {
 
 impl Builder for CloudflareKvBuilder {
     const SCHEME: Scheme = Scheme::CloudflareKv;
+    type Config = CloudflareKvConfig;
 
-    type Accessor = CloudflareKvBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let authorization = match &self.config.token {
             Some(token) => format_authorization_by_bearer(token)?,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
@@ -147,7 +145,7 @@ impl Builder for CloudflareKvBuilder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -169,7 +167,7 @@ impl Builder for CloudflareKvBuilder {
             account_id, namespace_id
         );
 
-        Ok(kv::Backend::new(Adapter {
+        Ok(CloudflareKvBackend::new(Adapter {
             authorization,
             account_id,
             namespace_id,

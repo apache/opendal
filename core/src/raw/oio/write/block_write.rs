@@ -17,8 +17,10 @@
 
 use std::sync::Arc;
 
-use futures::{select, Future};
-use futures::{FutureExt, TryFutureExt};
+use futures::select;
+use futures::Future;
+use futures::FutureExt;
+use futures::TryFutureExt;
 use uuid::Uuid;
 
 use crate::raw::*;
@@ -162,10 +164,10 @@ impl<W> oio::Write for BlockWriter<W>
 where
     W: BlockWrite,
 {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         if !self.started && self.cache.is_none() {
-            let size = self.fill_cache(bs);
-            return Ok(size);
+            self.fill_cache(bs);
+            return Ok(());
         }
 
         // The block upload process has been started.
@@ -181,8 +183,8 @@ where
             })
             .await?;
         self.cache = None;
-        let size = self.fill_cache(bs);
-        Ok(size)
+        self.fill_cache(bs);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

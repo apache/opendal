@@ -50,7 +50,7 @@ let content_length = om.content_length().await;
 let etag = om.etag().await;
 ```
 
-During the whole lifetime of the coresbonding `Object` or `ObjectMetadataer`, we make sure that at most one `stat` call is sent. After this change, users will never get an `ObjectMetadata` anymore.
+During the whole lifetime of the corresponding `Object` or `ObjectMetadataer`, we make sure that at most one `stat` call is sent. After this change, users will never get an `ObjectMetadata` anymore.
 
 # Reference-level explanation
 

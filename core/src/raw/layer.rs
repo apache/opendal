@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use futures::Future;
 
@@ -139,7 +140,7 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
 
     fn inner(&self) -> &Self::Inner;
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.inner().info()
     }
 
@@ -246,7 +247,7 @@ impl<L: LayeredAccess> Access for L {
     type Lister = L::Lister;
     type BlockingLister = L::BlockingLister;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         (self as &L).metadata()
     }
 
@@ -358,10 +359,10 @@ mod tests {
         type Lister = ();
         type BlockingLister = ();
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.set_scheme(Scheme::Custom("test"));
-            am
+            am.into()
         }
 
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {

@@ -18,7 +18,7 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
 )]
-#![cfg_attr(docs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Apache OpenDAL™ is a data access layer that allows users to easily and
 //! efficiently retrieve data from various storage services in a unified way.
@@ -47,8 +47,7 @@
 //!
 //! fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default();
-//!     builder.bucket("test");
+//!     let mut builder = services::S3::default().bucket("test");
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?.finish();
@@ -73,8 +72,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default();
-//!     builder.bucket("test");
+//!     let mut builder = services::S3::default().bucket("test");
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?
@@ -107,8 +105,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default();
-//!     builder.bucket("test");
+//!     let mut builder = services::S3::default().bucket("test");
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?
@@ -135,7 +132,7 @@ mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
-#[cfg(docs)]
+#[cfg(docsrs)]
 pub mod docs;
 pub mod layers;
 pub mod raw;
@@ -154,8 +151,8 @@ mod tests {
     #[test]
     fn assert_size() {
         assert_eq!(40, size_of::<Operator>());
-        assert_eq!(256, size_of::<Entry>());
-        assert_eq!(232, size_of::<Metadata>());
+        assert_eq!(304, size_of::<Entry>());
+        assert_eq!(280, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }
@@ -176,6 +173,6 @@ mod tests {
     /// This is used to make sure our public API implement Send + Sync
     #[test]
     fn test_trait() {
-        let _: Box<dyn AssertSendSync> = Box::new(Writer::new(Box::new(())));
+        let _: Box<dyn AssertSendSync> = Box::new(Capability::default());
     }
 }

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::FutureExt;
 use tracing::Span;
@@ -140,7 +141,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug")]
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 
@@ -286,7 +287,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.write(bs)
     }
 
@@ -312,7 +313,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 

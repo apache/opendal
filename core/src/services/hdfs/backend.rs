@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
@@ -26,6 +25,7 @@ use std::sync::Arc;
 use futures::AsyncWriteExt;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
 use super::lister::HdfsLister;
@@ -37,7 +37,7 @@ use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
 /// Config for Hdfs services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsConfig {
@@ -71,6 +71,12 @@ impl Debug for HdfsConfig {
     }
 }
 
+impl Configurator for HdfsConfig {
+    fn into_builder(self) -> impl Builder {
+        HdfsBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsBuilder {
@@ -89,7 +95,7 @@ impl HdfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -105,7 +111,7 @@ impl HdfsBuilder {
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn name_node(&mut self, name_node: &str) -> &mut Self {
+    pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
@@ -117,7 +123,7 @@ impl HdfsBuilder {
     /// Set kerberos_ticket_cache_path of this backend
     ///
     /// This should be configured when kerberos is enabled.
-    pub fn kerberos_ticket_cache_path(&mut self, kerberos_ticket_cache_path: &str) -> &mut Self {
+    pub fn kerberos_ticket_cache_path(mut self, kerberos_ticket_cache_path: &str) -> Self {
         if !kerberos_ticket_cache_path.is_empty() {
             self.config.kerberos_ticket_cache_path = Some(kerberos_ticket_cache_path.to_string())
         }
@@ -125,7 +131,7 @@ impl HdfsBuilder {
     }
 
     /// Set user of this backend
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         if !user.is_empty() {
             self.config.user = Some(user.to_string())
         }
@@ -135,7 +141,7 @@ impl HdfsBuilder {
     /// Enable append capacity of this backend.
     ///
     /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+    pub fn enable_append(mut self, enable_append: bool) -> Self {
         self.config.enable_append = enable_append;
         self
     }
@@ -145,8 +151,8 @@ impl HdfsBuilder {
     /// # Notes
     ///
     /// - When append is enabled, we will not use atomic write
-    /// to avoid data loss and performance issue.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+    ///   to avoid data loss and performance issue.
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         self.config.atomic_write_dir = if dir.is_empty() {
             None
         } else {
@@ -158,18 +164,9 @@ impl HdfsBuilder {
 
 impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
-    type Accessor = HdfsBackend;
+    type Config = HdfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsBuilder instance with the deserialized config.
-        HdfsBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.config.name_node {
@@ -180,7 +177,7 @@ impl Builder for HdfsBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let mut builder = hdrs::ClientBuilder::new(name_node);
@@ -202,7 +199,7 @@ impl Builder for HdfsBuilder {
             }
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir.take();
+        let atomic_write_dir = self.config.atomic_write_dir;
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
@@ -213,7 +210,6 @@ impl Builder for HdfsBuilder {
             }
         }
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HdfsBackend {
             root,
             atomic_write_dir,
@@ -252,7 +248,7 @@ impl Access for HdfsBackend {
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
@@ -275,7 +271,7 @@ impl Access for HdfsBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

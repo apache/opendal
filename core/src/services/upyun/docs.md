@@ -34,16 +34,15 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Upyun::default();
-
-    // set the storage bucket for OpenDAL
-    builder.root("/");
-    // set the bucket for OpenDAL
-    builder.bucket("test");
-    // set the operator for OpenDAL
-    builder.operator("xxxxxxxxxx");
-    // set the password name for OpenDAL
-    builder.password("opendal");
+    let mut builder = Upyun::default()
+        // set the storage bucket for OpenDAL
+        .root("/")
+        // set the bucket for OpenDAL
+        .bucket("test")
+        // set the operator for OpenDAL
+        .operator("xxxxxxxxxx")
+        // set the password name for OpenDAL
+        .password("opendal");
 
     let op: Operator = Operator::new(builder)?.finish();
 

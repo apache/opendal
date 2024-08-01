@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -29,17 +29,23 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
-#[derive(Default, Deserialize, Clone)]
+/// Config for Rocksdb Service.
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-/// Config for Rocksdb Service.
 pub struct RocksdbConfig {
     /// The path to the rocksdb data directory.
-    datadir: Option<String>,
+    pub datadir: Option<String>,
     /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
-    root: Option<String>,
+    pub root: Option<String>,
+}
+
+impl Configurator for RocksdbConfig {
+    fn into_builder(self) -> impl Builder {
+        RocksdbBuilder { config: self }
+    }
 }
 
 /// RocksDB service support.
@@ -51,7 +57,7 @@ pub struct RocksdbBuilder {
 
 impl RocksdbBuilder {
     /// Set the path to the rocksdb data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
@@ -59,7 +65,7 @@ impl RocksdbBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -69,16 +75,10 @@ impl RocksdbBuilder {
 
 impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
-    type Accessor = RocksdbBackend;
+    type Config = RocksdbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = RocksdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        RocksdbBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Rocksdb)
         })?;

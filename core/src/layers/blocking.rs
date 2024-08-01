@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -42,9 +44,7 @@ use crate::*;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default();
-///     builder.bucket("test");
-///     builder.region("us-east-1");
+///     let mut builder = S3::default().bucket("test").region("us-east-1");
 ///
 ///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
 ///     let _: BlockingOperator = Operator::new(builder)?
@@ -77,9 +77,7 @@ use crate::*;
 ///
 /// fn blocking_fn() -> Result<BlockingOperator> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default();
-///     builder.bucket("test");
-///     builder.region("us-east-1");
+///     let mut builder = S3::default().bucket("test").region("us-east-1");
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
 ///     let _guard = handle.enter();
@@ -97,7 +95,7 @@ use crate::*;
 /// In a pure blocking context, we can create a runtime and use it to create the `BlockingLayer`.
 ///
 /// > The following code uses a global statically created runtime as an example, please manage the
-/// runtime on demand.
+/// > runtime on demand.
 ///
 /// ```rust,no_run
 /// use once_cell::sync::Lazy;
@@ -117,9 +115,7 @@ use crate::*;
 ///
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default();
-///     builder.bucket("test");
-///     builder.region("us-east-1");
+///     let mut builder = S3::default().bucket("test").region("us-east-1");
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
 ///     let _guard = RUNTIME.enter();
@@ -178,10 +174,10 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.inner.info();
+    fn metadata(&self) -> Arc<AccessorInfo> {
+        let mut meta = self.inner.info().as_ref().clone();
         meta.full_capability_mut().blocking = true;
-        meta
+        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -288,7 +284,7 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.handle.block_on(self.inner.write(bs))
     }
 

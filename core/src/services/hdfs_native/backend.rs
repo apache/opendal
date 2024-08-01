@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,6 +22,7 @@ use std::sync::Arc;
 use hdfs_native::WriteOptions;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 // use uuid::Uuid;
 use super::error::parse_hdfs_error;
@@ -36,7 +36,7 @@ use crate::*;
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 
 /// Config for HdfsNative services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HdfsNativeConfig {
@@ -58,6 +58,12 @@ impl Debug for HdfsNativeConfig {
     }
 }
 
+impl Configurator for HdfsNativeConfig {
+    fn into_builder(self) -> impl Builder {
+        HdfsNativeBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsNativeBuilder {
@@ -76,7 +82,7 @@ impl HdfsNativeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -92,7 +98,7 @@ impl HdfsNativeBuilder {
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn url(&mut self, url: &str) -> &mut Self {
+    pub fn url(mut self, url: &str) -> Self {
         if !url.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.url = Some(url.trim_end_matches('/').to_string())
@@ -104,7 +110,7 @@ impl HdfsNativeBuilder {
     /// Enable append capacity of this backend.
     ///
     /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(&mut self, enable_append: bool) -> &mut Self {
+    pub fn enable_append(mut self, enable_append: bool) -> Self {
         self.config.enable_append = enable_append;
         self
     }
@@ -112,18 +118,9 @@ impl HdfsNativeBuilder {
 
 impl Builder for HdfsNativeBuilder {
     const SCHEME: Scheme = Scheme::HdfsNative;
-    type Accessor = HdfsNativeBackend;
+    type Config = HdfsNativeConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = HdfsNativeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an HdfsNativeBuilder instance with the deserialized config.
-        HdfsNativeBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let url = match &self.config.url {
@@ -134,14 +131,13 @@ impl Builder for HdfsNativeBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let client = hdfs_native::Client::new(url).map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),
@@ -178,7 +174,7 @@ impl Access for HdfsNativeBackend {
     type Lister = Option<HdfsNativeLister>;
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::HdfsNative)
             .set_root(&self.root)
@@ -192,7 +188,7 @@ impl Access for HdfsNativeBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

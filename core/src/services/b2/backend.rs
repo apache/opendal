@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -26,6 +25,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -41,7 +41,7 @@ use crate::services::b2::core::ListFileNamesResponse;
 use crate::*;
 
 /// Config for backblaze b2 services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct B2Config {
@@ -82,6 +82,15 @@ impl Debug for B2Config {
     }
 }
 
+impl Configurator for B2Config {
+    fn into_builder(self) -> impl Builder {
+        B2Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -104,7 +113,7 @@ impl B2Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -115,7 +124,7 @@ impl B2Builder {
     }
 
     /// application_key_id of this backend.
-    pub fn application_key_id(&mut self, application_key_id: &str) -> &mut Self {
+    pub fn application_key_id(mut self, application_key_id: &str) -> Self {
         self.config.application_key_id = if application_key_id.is_empty() {
             None
         } else {
@@ -126,7 +135,7 @@ impl B2Builder {
     }
 
     /// application_key of this backend.
-    pub fn application_key(&mut self, application_key: &str) -> &mut Self {
+    pub fn application_key(mut self, application_key: &str) -> Self {
         self.config.application_key = if application_key.is_empty() {
             None
         } else {
@@ -138,7 +147,7 @@ impl B2Builder {
 
     /// Set bucket name of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -146,7 +155,7 @@ impl B2Builder {
 
     /// Set bucket id of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -158,7 +167,7 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -166,31 +175,10 @@ impl B2Builder {
 
 impl Builder for B2Builder {
     const SCHEME: Scheme = Scheme::B2;
-    type Accessor = B2Backend;
-
-    /// Converts a HashMap into an B2Builder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of B2Builder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = B2Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an B2Builder instance with the deserialized config.
-        B2Builder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -232,7 +220,7 @@ impl Builder for B2Builder {
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -274,7 +262,7 @@ impl Access for B2Backend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::B2)
             .set_root(&self.core.root)
@@ -316,7 +304,7 @@ impl Access for B2Backend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info

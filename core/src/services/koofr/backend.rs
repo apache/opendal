@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -38,8 +38,8 @@ use super::writer::KoofrWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Koofr services support.
-#[derive(Default, Deserialize)]
+/// Config for Koofr services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct KoofrConfig {
@@ -66,6 +66,15 @@ impl Debug for KoofrConfig {
     }
 }
 
+impl Configurator for KoofrConfig {
+    fn into_builder(self) -> impl Builder {
+        KoofrBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [Koofr](https://app.koofr.net/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -88,7 +97,7 @@ impl KoofrBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -101,7 +110,7 @@ impl KoofrBuilder {
     /// endpoint.
     ///
     /// It is required. e.g. `https://api.koofr.net/`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = endpoint.to_string();
 
         self
@@ -110,7 +119,7 @@ impl KoofrBuilder {
     /// email.
     ///
     /// It is required. e.g. `test@example.com`
-    pub fn email(&mut self, email: &str) -> &mut Self {
+    pub fn email(mut self, email: &str) -> Self {
         self.config.email = email.to_string();
 
         self
@@ -126,7 +135,7 @@ impl KoofrBuilder {
     /// This is not user's Koofr account password.
     /// Please use the application password instead.
     /// Please also remind users of this.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -142,7 +151,7 @@ impl KoofrBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -150,31 +159,10 @@ impl KoofrBuilder {
 
 impl Builder for KoofrBuilder {
     const SCHEME: Scheme = Scheme::Koofr;
-    type Accessor = KoofrBackend;
-
-    /// Converts a HashMap into an KoofrBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of KoofrBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = KoofrConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an KoofrBuilder instance with the deserialized config.
-        KoofrBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = KoofrConfig;
 
     /// Builds the backend and returns the result of KoofrBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -203,7 +191,7 @@ impl Builder for KoofrBuilder {
                 .with_context("service", Scheme::Koofr)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -242,7 +230,7 @@ impl Access for KoofrBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Koofr)
             .set_root(&self.core.root)
@@ -267,7 +255,7 @@ impl Access for KoofrBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

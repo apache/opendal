@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,19 +23,18 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
-use super::core::parse_info;
-use super::core::UpyunCore;
+use super::core::*;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
-use crate::services::upyun::core::UpyunSigner;
 use crate::*;
 
-/// Config for backblaze upyun services support.
-#[derive(Default, Deserialize)]
+/// Config for upyun services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct UpyunConfig {
@@ -64,6 +62,15 @@ impl Debug for UpyunConfig {
     }
 }
 
+impl Configurator for UpyunConfig {
+    fn into_builder(self) -> impl Builder {
+        UpyunBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [upyun](https://www.upyun.com/products/file-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -86,7 +93,7 @@ impl UpyunBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -99,7 +106,7 @@ impl UpyunBuilder {
     /// bucket of this backend.
     ///
     /// It is required. e.g. `test`
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -108,7 +115,7 @@ impl UpyunBuilder {
     /// operator of this backend.
     ///
     /// It is required. e.g. `test`
-    pub fn operator(&mut self, operator: &str) -> &mut Self {
+    pub fn operator(mut self, operator: &str) -> Self {
         self.config.operator = if operator.is_empty() {
             None
         } else {
@@ -121,7 +128,7 @@ impl UpyunBuilder {
     /// password of this backend.
     ///
     /// It is required. e.g. `asecret`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -137,7 +144,7 @@ impl UpyunBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -145,31 +152,10 @@ impl UpyunBuilder {
 
 impl Builder for UpyunBuilder {
     const SCHEME: Scheme = Scheme::Upyun;
-    type Accessor = UpyunBackend;
-
-    /// Converts a HashMap into an UpyunBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of UpyunBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = UpyunConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an UpyunBuilder instance with the deserialized config.
-        UpyunBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = UpyunConfig;
 
     /// Builds the backend and returns the result of UpyunBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -198,7 +184,7 @@ impl Builder for UpyunBuilder {
                 .with_context("service", Scheme::Upyun)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -216,7 +202,6 @@ impl Builder for UpyunBuilder {
             core: Arc::new(UpyunCore {
                 root,
                 operator,
-                password,
                 bucket: self.config.bucket.clone(),
                 signer,
                 client,
@@ -239,7 +224,7 @@ impl Access for UpyunBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Upyun)
             .set_root(&self.core.root)
@@ -270,7 +255,7 @@ impl Access for UpyunBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

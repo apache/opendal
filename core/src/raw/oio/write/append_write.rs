@@ -80,7 +80,7 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let offset = match self.offset {
             Some(offset) => offset,
             None => {
@@ -91,12 +91,10 @@ where
         };
 
         let size = bs.len();
-        self.inner
-            .append(offset, size as u64, Buffer::from(bs.to_bytes()))
-            .await?;
+        self.inner.append(offset, size as u64, bs).await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);
-        Ok(size)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

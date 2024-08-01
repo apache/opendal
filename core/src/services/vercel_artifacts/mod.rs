@@ -21,3 +21,4 @@ mod error;
 mod writer;
 
 pub use builder::VercelArtifactsBuilder as VercelArtifacts;
+pub use builder::VercelArtifactsConfig;

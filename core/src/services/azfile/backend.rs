@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,6 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::AzfileCore;
 use super::error::parse_error;
@@ -40,14 +40,20 @@ use crate::*;
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 /// Azure File services support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzfileConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    share_name: String,
-    account_name: Option<String>,
-    account_key: Option<String>,
-    sas_token: Option<String>,
+    /// The root path for azfile.
+    pub root: Option<String>,
+    /// The endpoint for azfile.
+    pub endpoint: Option<String>,
+    /// The share name for azfile.
+    pub share_name: String,
+    /// The account name for azfile.
+    pub account_name: Option<String>,
+    /// The account key for azfile.
+    pub account_key: Option<String>,
+    /// The sas token for azfile.
+    pub sas_token: Option<String>,
 }
 
 impl Debug for AzfileConfig {
@@ -69,6 +75,15 @@ impl Debug for AzfileConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for AzfileConfig {
+    fn into_builder(self) -> impl Builder {
+        AzfileBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -94,7 +109,7 @@ impl AzfileBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -103,7 +118,7 @@ impl AzfileBuilder {
     }
 
     /// Set endpoint of this backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -116,7 +131,7 @@ impl AzfileBuilder {
     ///
     /// - If account_name is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_name(&mut self, account_name: &str) -> &mut Self {
+    pub fn account_name(mut self, account_name: &str) -> Self {
         if !account_name.is_empty() {
             self.config.account_name = Some(account_name.to_string());
         }
@@ -128,7 +143,7 @@ impl AzfileBuilder {
     ///
     /// - If account_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_key(&mut self, account_key: &str) -> &mut Self {
+    pub fn account_key(mut self, account_key: &str) -> Self {
         if !account_key.is_empty() {
             self.config.account_key = Some(account_key.to_string());
         }
@@ -140,7 +155,7 @@ impl AzfileBuilder {
     ///
     /// # Notes
     /// You can find more about from: <https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service>
-    pub fn share_name(&mut self, share_name: &str) -> &mut Self {
+    pub fn share_name(mut self, share_name: &str) -> Self {
         if !share_name.is_empty() {
             self.config.share_name = share_name.to_string();
         }
@@ -154,7 +169,7 @@ impl AzfileBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -162,22 +177,12 @@ impl AzfileBuilder {
 
 impl Builder for AzfileBuilder {
     const SCHEME: Scheme = Scheme::Azfile;
-    type Accessor = AzfileBackend;
+    type Config = AzfileConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzfileConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzfileBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = match &self.config.endpoint {
@@ -188,7 +193,7 @@ impl Builder for AzfileBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -220,10 +225,7 @@ impl Builder for AzfileBuilder {
         };
 
         let cred_loader = AzureStorageLoader::new(config_loader);
-
         let signer = AzureStorageSigner::new();
-
-        debug!("backend build finished: {:?}", &self);
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
                 root,
@@ -272,7 +274,7 @@ impl Access for AzfileBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azfile)
             .set_root(&self.core.root)
@@ -291,7 +293,7 @@ impl Access for AzfileBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -398,7 +400,6 @@ impl Access for AzfileBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -418,25 +419,5 @@ mod tests {
             let account_name = infer_account_name_from_endpoint(endpoint);
             assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
         }
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azfile_builder = AzfileBuilder::default();
-        azfile_builder.endpoint("https://account.file.core.windows.net/");
-        azfile_builder.account_key("account-key");
-        let azfile = azfile_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azfile.core.endpoint,
-            "https://account.file.core.windows.net"
-        );
-
-        assert_eq!(
-            azfile_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
     }
 }

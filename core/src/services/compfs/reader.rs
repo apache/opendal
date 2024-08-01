@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use compio::{buf::buf_try, io::AsyncReadAt};
+use compio::buf::buf_try;
+use compio::io::AsyncReadAt;
 
 use super::core::CompfsCore;
 use crate::raw::*;
@@ -27,31 +28,43 @@ use crate::*;
 pub struct CompfsReader {
     core: Arc<CompfsCore>,
     file: compio::fs::File,
-    range: BytesRange,
+    offset: u64,
+    end: Option<u64>,
 }
 
 impl CompfsReader {
     pub(super) fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
-        Self { core, file, range }
+        Self {
+            core,
+            file,
+            offset: range.offset(),
+            end: range.size().map(|v| v + range.offset()),
+        }
     }
 }
 
 impl oio::Read for CompfsReader {
     async fn read(&mut self) -> Result<Buffer> {
-        let mut bs = self.core.buf_pool.get();
+        let pos = self.offset;
+        if let Some(end) = self.end {
+            if end >= pos {
+                return Ok(Buffer::new());
+            }
+        }
 
-        let pos = self.range.offset();
-        let len = self.range.size().expect("range size is always Some");
-        bs.reserve(len as _);
+        let mut bs = self.core.buf_pool.get();
+        // reserve 64KB buffer by default, we should allow user to configure this or make it adaptive.
+        bs.reserve(64 * 1024);
         let f = self.file.clone();
-        let mut bs = self
+        let (n, mut bs) = self
             .core
             .exec(move || async move {
-                let (_, bs) = buf_try!(@try f.read_at(bs, pos).await);
-                Ok(bs)
+                let (n, bs) = buf_try!(@try f.read_at(bs, pos).await);
+                Ok((n, bs))
             })
             .await?;
-        let frozen = bs.split().freeze();
+        let frozen = bs.split_to(n).freeze();
+        self.offset += frozen.len() as u64;
         self.core.buf_pool.put(bs);
         Ok(Buffer::from(frozen))
     }

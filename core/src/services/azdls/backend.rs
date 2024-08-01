@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,6 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -47,13 +47,18 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 /// Azure Data Lake Storage Gen2 Support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AzdlsConfig {
-    root: Option<String>,
-    filesystem: String,
-    endpoint: Option<String>,
-    account_name: Option<String>,
-    account_key: Option<String>,
+    /// Root of this backend.
+    pub root: Option<String>,
+    /// Filesystem name of this backend.
+    pub filesystem: String,
+    /// Endpoint of this backend.
+    pub endpoint: Option<String>,
+    /// Account name of this backend.
+    pub account_name: Option<String>,
+    /// Account key of this backend.
+    pub account_key: Option<String>,
 }
 
 impl Debug for AzdlsConfig {
@@ -72,6 +77,15 @@ impl Debug for AzdlsConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl Configurator for AzdlsConfig {
+    fn into_builder(self) -> impl Builder {
+        AzdlsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -97,7 +111,7 @@ impl AzdlsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -106,7 +120,7 @@ impl AzdlsBuilder {
     }
 
     /// Set filesystem name of this backend.
-    pub fn filesystem(&mut self, filesystem: &str) -> &mut Self {
+    pub fn filesystem(mut self, filesystem: &str) -> Self {
         self.config.filesystem = filesystem.to_string();
 
         self
@@ -118,7 +132,7 @@ impl AzdlsBuilder {
     ///
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -131,7 +145,7 @@ impl AzdlsBuilder {
     ///
     /// - If account_name is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_name(&mut self, account_name: &str) -> &mut Self {
+    pub fn account_name(mut self, account_name: &str) -> Self {
         if !account_name.is_empty() {
             self.config.account_name = Some(account_name.to_string());
         }
@@ -143,7 +157,7 @@ impl AzdlsBuilder {
     ///
     /// - If account_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_key(&mut self, account_key: &str) -> &mut Self {
+    pub fn account_key(mut self, account_key: &str) -> Self {
         if !account_key.is_empty() {
             self.config.account_key = Some(account_key.to_string());
         }
@@ -157,20 +171,20 @@ impl AzdlsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
 }
 
 impl Builder for AzdlsBuilder {
-    type Accessor = AzdlsBackend;
     const SCHEME: Scheme = Scheme::Azdls;
+    type Config = AzdlsConfig;
 
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
@@ -190,7 +204,7 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -212,8 +226,6 @@ impl Builder for AzdlsBuilder {
 
         let cred_loader = AzureStorageLoader::new(config_loader);
         let signer = AzureStorageSigner::new();
-
-        debug!("backend build finished: {:?}", &self);
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 filesystem: self.config.filesystem.clone(),
@@ -224,16 +236,6 @@ impl Builder for AzdlsBuilder {
                 signer,
             }),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzdlsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzdlsBuilder {
-            config,
-            http_client: None,
-        }
     }
 }
 
@@ -251,7 +253,7 @@ impl Access for AzdlsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azdls)
             .set_root(&self.core.root)
@@ -272,7 +274,7 @@ impl Access for AzdlsBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -428,9 +430,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::AzdlsBuilder;
-    use crate::services::azdls::backend::infer_storage_name_from_endpoint;
-    use crate::Builder;
+    use super::infer_storage_name_from_endpoint;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -444,47 +444,5 @@ mod tests {
         let endpoint = "https://account.dfs.core.windows.net/";
         let storage_name = infer_storage_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azdls_builder = AzdlsBuilder::default();
-        azdls_builder.endpoint("https://storagesample.dfs.core.chinacloudapi.cn");
-        azdls_builder.account_key("account-key");
-        azdls_builder.filesystem("filesystem");
-        let azdls = azdls_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azdls.core.endpoint,
-            "https://storagesample.dfs.core.chinacloudapi.cn"
-        );
-
-        assert_eq!(azdls.core.filesystem, "filesystem".to_string());
-
-        assert_eq!(
-            azdls_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-    }
-
-    #[test]
-    fn test_no_key_wont_infer_account_name() {
-        let mut azdls_builder = AzdlsBuilder::default();
-        azdls_builder.endpoint("https://storagesample.dfs.core.windows.net");
-        azdls_builder.filesystem("filesystem");
-        let azdls = azdls_builder
-            .build()
-            .expect("build Azdls should be succeeded.");
-
-        assert_eq!(
-            azdls.core.endpoint,
-            "https://storagesample.dfs.core.windows.net"
-        );
-
-        assert_eq!(azdls.core.filesystem, "filesystem".to_string());
-
-        assert_eq!(azdls_builder.config.account_key, None);
     }
 }

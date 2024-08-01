@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,6 +22,7 @@ use std::sync::Arc;
 use http::Response;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::AlluxioCore;
 use super::error::parse_error;
@@ -33,7 +33,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for alluxio services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AlluxioConfig {
@@ -60,6 +60,15 @@ impl Debug for AlluxioConfig {
     }
 }
 
+impl Configurator for AlluxioConfig {
+    fn into_builder(self) -> impl Builder {
+        AlluxioBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [Alluxio](https://www.alluxio.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -82,7 +91,7 @@ impl AlluxioBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -95,7 +104,7 @@ impl AlluxioBuilder {
     /// endpoint of this backend.
     ///
     /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:39999/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
@@ -110,7 +119,7 @@ impl AlluxioBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -118,31 +127,10 @@ impl AlluxioBuilder {
 
 impl Builder for AlluxioBuilder {
     const SCHEME: Scheme = Scheme::Alluxio;
-    type Accessor = AlluxioBackend;
-
-    /// Converts a HashMap into an AlluxioBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of AlluxioBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = AlluxioConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an AlluxioBuilder instance with the deserialized config.
-        AlluxioBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = AlluxioConfig;
 
     /// Builds the backend and returns the result of AlluxioBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -156,7 +144,7 @@ impl Builder for AlluxioBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -188,7 +176,7 @@ impl Access for AlluxioBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Alluxio)
             .set_root(&self.core.root)
@@ -212,7 +200,7 @@ impl Access for AlluxioBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -264,6 +252,8 @@ impl Access for AlluxioBackend {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -272,21 +262,18 @@ mod test {
         map.insert("root".to_string(), "/".to_string());
         map.insert("endpoint".to_string(), "http://127.0.0.1:39999".to_string());
 
-        let builder = AlluxioBuilder::from_map(map);
+        let builder = AlluxioConfig::from_iter(map).unwrap();
 
-        assert_eq!(builder.config.root, Some("/".to_string()));
-        assert_eq!(
-            builder.config.endpoint,
-            Some("http://127.0.0.1:39999".to_string())
-        );
+        assert_eq!(builder.root, Some("/".to_string()));
+        assert_eq!(builder.endpoint, Some("http://127.0.0.1:39999".to_string()));
     }
 
     #[test]
     fn test_builder_build() {
-        let mut builder = AlluxioBuilder::default();
-        builder.root("/root").endpoint("http://127.0.0.1:39999");
-
-        let builder = builder.build();
+        let builder = AlluxioBuilder::default()
+            .root("/root")
+            .endpoint("http://127.0.0.1:39999")
+            .build();
 
         assert!(builder.is_ok());
     }

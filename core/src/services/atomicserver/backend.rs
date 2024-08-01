@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -36,7 +35,7 @@ use crate::*;
 /// Atomicserver service support.
 
 /// Config for Atomicserver services support
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct AtomicserverConfig {
@@ -63,6 +62,12 @@ impl Debug for AtomicserverConfig {
     }
 }
 
+impl Configurator for AtomicserverConfig {
+    fn into_builder(self) -> impl Builder {
+        AtomicserverBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AtomicserverBuilder {
@@ -79,19 +84,19 @@ impl Debug for AtomicserverBuilder {
 
 impl AtomicserverBuilder {
     /// Set the root for Atomicserver.
-    pub fn root(&mut self, path: &str) -> &mut Self {
+    pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
         self
     }
 
     /// Set the server address for Atomicserver.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = Some(endpoint.into());
         self
     }
 
     /// Set the private key for agent used for Atomicserver.
-    pub fn private_key(&mut self, private_key: &str) -> &mut Self {
+    pub fn private_key(mut self, private_key: &str) -> Self {
         self.config.private_key = Some(private_key.into());
         self
     }
@@ -100,13 +105,13 @@ impl AtomicserverBuilder {
     /// For example, if the subject URL for the agent being used
     /// is ${endpoint}/agents/lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=
     /// Then the required public key is `lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=`
-    pub fn public_key(&mut self, public_key: &str) -> &mut Self {
+    pub fn public_key(mut self, public_key: &str) -> Self {
         self.config.public_key = Some(public_key.into());
         self
     }
 
     /// Set the parent resource id (url) that Atomicserver uses to store resources under.
-    pub fn parent_resource_id(&mut self, parent_resource_id: &str) -> &mut Self {
+    pub fn parent_resource_id(mut self, parent_resource_id: &str) -> Self {
         self.config.parent_resource_id = Some(parent_resource_id.into());
         self
     }
@@ -114,18 +119,9 @@ impl AtomicserverBuilder {
 
 impl Builder for AtomicserverBuilder {
     const SCHEME: Scheme = Scheme::Atomicserver;
-    type Accessor = AtomicserverBackend;
+    type Config = AtomicserverConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = AtomicserverConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an AtomicserverBuilder instance with the deserialized config.
-        AtomicserverBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let root = normalize_root(
             self.config
                 .root

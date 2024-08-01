@@ -183,8 +183,6 @@ jobs:
       run:
         working-directory: "bindings/nodejs"
 
-
-
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -223,6 +221,9 @@ jobs:
         settings:
           - target: x86_64-apple-darwin
             build: |
+              rustup target add x86_64-apple-darwin;
+              export NAPI_TARGET=x86_64-apple-darwin;
+              
               pnpm build
               strip -x *.node
           - target: aarch64-apple-darwin

@@ -42,6 +42,11 @@ use object_store::{GetOptions, UploadPart};
 use opendal::{Buffer, Metakey};
 use opendal::{Operator, Writer};
 use tokio::sync::Mutex;
+use opendal::{Operator, OperatorInfo};
+use std::fmt::{Debug, Display, Formatter};
+use std::future::IntoFuture;
+use std::ops::Range;
+use std::sync::Arc;
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -70,7 +75,7 @@ use tokio::sync::Mutex;
 ///         ]
 ///         .into_iter()
 ///         .collect(),
-///     );
+///     ).unwrap();
 ///
 ///     // Create a new operator
 ///     let operator = Operator::new(builder).unwrap().finish();
@@ -95,24 +100,37 @@ use tokio::sync::Mutex;
 /// }
 /// ```
 pub struct OpendalStore {
+    info: Arc<OperatorInfo>,
     inner: Operator,
 }
 
 impl OpendalStore {
     /// Create OpendalStore by given Operator.
     pub fn new(op: Operator) -> Self {
-        Self { inner: op }
+        Self {
+            info: op.info().into(),
+            inner: op,
+        }
+    }
+
+    /// The metakey that requested by object_store, should align with its meta.
+    #[inline]
+    fn metakey() -> flagset::FlagSet<Metakey> {
+        Metakey::Mode
+            | Metakey::LastModified
+            | Metakey::ContentLength
+            | Metakey::Etag
+            | Metakey::Version
     }
 }
 
 impl Debug for OpendalStore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let info = self.inner.info();
         f.debug_struct("OpendalStore")
-            .field("scheme", &info.scheme())
-            .field("name", &info.name())
-            .field("root", &info.root())
-            .field("capability", &info.full_capability())
+            .field("scheme", &self.info.scheme())
+            .field("name", &self.info.name())
+            .field("root", &self.info.root())
+            .field("capability", &self.info.full_capability())
             .finish()
     }
 }
@@ -298,7 +316,7 @@ impl ObjectStore for OpendalStore {
             let stream = self
                 .inner
                 .lister_with(&path)
-                .metakey(Metakey::ContentLength | Metakey::LastModified)
+                .metakey(Self::metakey())
                 .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
@@ -328,7 +346,7 @@ impl ObjectStore for OpendalStore {
                 self.inner
                     .lister_with(&path)
                     .start_after(offset.as_ref())
-                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -340,7 +358,7 @@ impl ObjectStore for OpendalStore {
             } else {
                 self.inner
                     .lister_with(&path)
-                    .metakey(Metakey::ContentLength | Metakey::LastModified)
+                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -362,7 +380,7 @@ impl ObjectStore for OpendalStore {
         let mut stream = self
             .inner
             .lister_with(&path)
-            .metakey(Metakey::Mode | Metakey::ContentLength | Metakey::LastModified)
+            .metakey(Self::metakey())
             .into_future()
             .into_send()
             .await

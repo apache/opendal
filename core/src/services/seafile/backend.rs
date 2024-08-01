@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,21 +23,22 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::core::SeafileCore;
+use super::core::SeafileSigner;
 use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
-use crate::services::seafile::core::SeafileSigner;
 use crate::*;
 
-/// Config for backblaze seafile services support.
-#[derive(Default, Deserialize)]
+/// Config for seafile services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SeafileConfig {
@@ -71,6 +71,15 @@ impl Debug for SeafileConfig {
     }
 }
 
+impl Configurator for SeafileConfig {
+    fn into_builder(self) -> impl Builder {
+        SeafileBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [seafile](https://www.seafile.com) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -93,7 +102,7 @@ impl SeafileBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -106,7 +115,7 @@ impl SeafileBuilder {
     /// endpoint of this backend.
     ///
     /// It is required. e.g. `http://127.0.0.1:80`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -119,7 +128,7 @@ impl SeafileBuilder {
     /// username of this backend.
     ///
     /// It is required. e.g. `me@example.com`
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         self.config.username = if username.is_empty() {
             None
         } else {
@@ -132,7 +141,7 @@ impl SeafileBuilder {
     /// password of this backend.
     ///
     /// It is required. e.g. `asecret`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -145,7 +154,7 @@ impl SeafileBuilder {
     /// Set repo name of this backend.
     ///
     /// It is required. e.g. `myrepo`
-    pub fn repo_name(&mut self, repo_name: &str) -> &mut Self {
+    pub fn repo_name(mut self, repo_name: &str) -> Self {
         self.config.repo_name = repo_name.to_string();
 
         self
@@ -157,7 +166,7 @@ impl SeafileBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -165,31 +174,10 @@ impl SeafileBuilder {
 
 impl Builder for SeafileBuilder {
     const SCHEME: Scheme = Scheme::Seafile;
-    type Accessor = SeafileBackend;
-
-    /// Converts a HashMap into an SeafileBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of SeafileBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = SeafileConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an SeafileBuilder instance with the deserialized config.
-        SeafileBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = SeafileConfig;
 
     /// Builds the backend and returns the result of SeafileBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -225,7 +213,7 @@ impl Builder for SeafileBuilder {
                 .with_context("service", Scheme::Seafile)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -262,7 +250,7 @@ impl Access for SeafileBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Seafile)
             .set_root(&self.core.root)
@@ -281,7 +269,7 @@ impl Access for SeafileBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

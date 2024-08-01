@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -29,6 +28,7 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json;
 
 use super::core::*;
@@ -43,29 +43,29 @@ const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GcsConfig {
     /// root URI, all operations happens under `root`
-    root: Option<String>,
+    pub root: Option<String>,
     /// bucket name
-    bucket: String,
+    pub bucket: String,
     /// endpoint URI of GCS service,
     /// default is `https://storage.googleapis.com`
-    endpoint: Option<String>,
+    pub endpoint: Option<String>,
     /// Scope for gcs.
-    scope: Option<String>,
+    pub scope: Option<String>,
     /// Service Account for gcs.
-    service_account: Option<String>,
+    pub service_account: Option<String>,
     /// Credentials string for GCS service OAuth2 authentication.
-    credential: Option<String>,
+    pub credential: Option<String>,
     /// Local path to credentials file for GCS service OAuth2 authentication.
-    credential_path: Option<String>,
+    pub credential_path: Option<String>,
     /// The predefined acl for GCS.
-    predefined_acl: Option<String>,
+    pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
-    default_storage_class: Option<String>,
+    pub default_storage_class: Option<String>,
 }
 
 impl Debug for GcsConfig {
@@ -79,6 +79,16 @@ impl Debug for GcsConfig {
     }
 }
 
+impl Configurator for GcsConfig {
+    fn into_builder(self) -> impl Builder {
+        GcsBuilder {
+            config: self,
+            http_client: None,
+            customized_token_loader: None,
+        }
+    }
+}
+
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -86,7 +96,7 @@ pub struct GcsBuilder {
     config: GcsConfig,
 
     http_client: Option<HttpClient>,
-    customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl Debug for GcsBuilder {
@@ -100,7 +110,7 @@ impl Debug for GcsBuilder {
 
 impl GcsBuilder {
     /// set the working directory root of backend
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string())
         }
@@ -109,7 +119,7 @@ impl GcsBuilder {
     }
 
     /// set the container's name
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
         self
     }
@@ -125,7 +135,7 @@ impl GcsBuilder {
     /// - full-control: `https://www.googleapis.com/auth/devstorage.full_control`
     ///
     /// Reference: [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication)
-    pub fn scope(&mut self, scope: &str) -> &mut Self {
+    pub fn scope(mut self, scope: &str) -> Self {
         if !scope.is_empty() {
             self.config.scope = Some(scope.to_string())
         };
@@ -136,7 +146,7 @@ impl GcsBuilder {
     ///
     /// service account will be used for fetch token from vm metadata.
     /// If not set, we will try to fetch with `default` service account.
-    pub fn service_account(&mut self, service_account: &str) -> &mut Self {
+    pub fn service_account(mut self, service_account: &str) -> Self {
         if !service_account.is_empty() {
             self.config.service_account = Some(service_account.to_string())
         };
@@ -144,7 +154,7 @@ impl GcsBuilder {
     }
 
     /// set the endpoint GCS service uses
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string())
         };
@@ -158,7 +168,7 @@ impl GcsBuilder {
     /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
     ///
     /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
-    pub fn credential(&mut self, credential: &str) -> &mut Self {
+    pub fn credential(mut self, credential: &str) -> Self {
         if !credential.is_empty() {
             self.config.credential = Some(credential.to_string())
         };
@@ -171,7 +181,7 @@ impl GcsBuilder {
     /// we will use one of `credential` and `credential_path` to complete the OAuth2 authentication.
     ///
     /// Reference: [Google Cloud Storage Authentication](https://cloud.google.com/docs/authentication).
-    pub fn credential_path(&mut self, path: &str) -> &mut Self {
+    pub fn credential_path(mut self, path: &str) -> Self {
         if !path.is_empty() {
             self.config.credential_path = Some(path.to_string())
         };
@@ -184,14 +194,14 @@ impl GcsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
 
-    /// Specify the customed token loader used by this service.
-    pub fn customed_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
-        self.customed_token_loader = Some(token_load);
+    /// Specify the customized token loader used by this service.
+    pub fn customized_token_loader(mut self, token_load: Box<dyn GoogleTokenLoad>) -> Self {
+        self.customized_token_loader = Some(token_load);
         self
     }
 
@@ -204,7 +214,7 @@ impl GcsBuilder {
     /// - `private`
     /// - `projectPrivate`
     /// - `publicRead`
-    pub fn predefined_acl(&mut self, acl: &str) -> &mut Self {
+    pub fn predefined_acl(mut self, acl: &str) -> Self {
         if !acl.is_empty() {
             self.config.predefined_acl = Some(acl.to_string())
         };
@@ -218,7 +228,7 @@ impl GcsBuilder {
     /// - `NEARLINE`
     /// - `COLDLINE`
     /// - `ARCHIVE`
-    pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
+    pub fn default_storage_class(mut self, class: &str) -> Self {
         if !class.is_empty() {
             self.config.default_storage_class = Some(class.to_string())
         };
@@ -228,22 +238,12 @@ impl GcsBuilder {
 
 impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
-    type Accessor = GcsBackend;
+    type Config = GcsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = GcsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        GcsBuilder {
-            config,
-            ..GcsBuilder::default()
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint and bucket name
@@ -258,7 +258,7 @@ impl Builder for GcsBuilder {
 
         // TODO: server side encryption
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -300,8 +300,8 @@ impl Builder for GcsBuilder {
         if let Ok(Some(cred)) = cred_loader.load() {
             token_loader = token_loader.with_credentials(cred)
         }
-        if let Some(loader) = self.customed_token_loader.take() {
-            token_loader = token_loader.with_customed_token_loader(loader)
+        if let Some(loader) = self.customized_token_loader {
+            token_loader = token_loader.with_customized_token_loader(loader)
         }
 
         let signer = GoogleSigner::new("storage");
@@ -338,7 +338,7 @@ impl Access for GcsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.core.root)
@@ -357,12 +357,18 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
-                // The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
-                // Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
-                // It's recommended that you use at least 8 MiB for the chunk size.
+                // The min multipart size of Gcs is 5 MiB.
                 //
-                // Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-                write_multi_align_size: Some(256 * 1024 * 1024),
+                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of Gcs is 5 GiB.
+                //
+                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 copy: true,
@@ -381,14 +387,14 @@ impl Access for GcsBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let slc = resp.into_body();
@@ -427,7 +433,7 @@ impl Access for GcsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -436,7 +442,7 @@ impl Access for GcsBackend {
         let concurrent = args.concurrent();
         let executor = args.executor().cloned();
         let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::RangeWriter::new(w, executor, concurrent);
+        let w = oio::MultipartWriter::new(w, executor, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -448,7 +454,7 @@ impl Access for GcsBackend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 
@@ -470,7 +476,7 @@ impl Access for GcsBackend {
         if resp.status().is_success() {
             Ok(RpCopy::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 
@@ -544,7 +550,7 @@ impl Access for GcsBackend {
                 if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
                     batched_result.push((path, Ok(RpDelete::default().into())));
                 } else {
-                    batched_result.push((path, Err(parse_error(resp).await?)));
+                    batched_result.push((path, Err(parse_error(resp))));
                 }
             }
 
@@ -552,7 +558,7 @@ impl Access for GcsBackend {
         } else {
             // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
             // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 }

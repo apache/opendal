@@ -33,8 +33,8 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Foundationdb::default();
-    builder.config_path("/etc/foundationdb/foundationdb.conf");
+    let mut builder = Foundationdb::default()
+        .config_path("/etc/foundationdb/foundationdb.conf");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

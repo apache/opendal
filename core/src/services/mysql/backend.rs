@@ -15,29 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
 use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
 /// Config for Mysql services support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MysqlConfig {
-    connection_string: Option<String>,
+    /// The connection string for mysql.
+    pub connection_string: Option<String>,
 
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
+    /// The table name for mysql.
+    pub table: Option<String>,
+    /// The key field name for mysql.
+    pub key_field: Option<String>,
+    /// The value field name for mysql.
+    pub value_field: Option<String>,
+    /// The root for mysql.
+    pub root: Option<String>,
 }
 
 impl Debug for MysqlConfig {
@@ -53,6 +58,12 @@ impl Debug for MysqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for MysqlConfig {
+    fn into_builder(self) -> impl Builder {
+        MysqlBuilder { config: self }
     }
 }
 
@@ -85,7 +96,7 @@ impl MysqlBuilder {
     /// - `mysql://user:password@localhost:3306/db`
     ///
     /// For more information, please refer to [mysql client](https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html)
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -95,7 +106,7 @@ impl MysqlBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -103,7 +114,7 @@ impl MysqlBuilder {
     }
 
     /// Set the table name of the mysql service to read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -113,7 +124,7 @@ impl MysqlBuilder {
     /// Set the key field name of the mysql service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -123,7 +134,7 @@ impl MysqlBuilder {
     /// Set the value field name of the mysql service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -133,16 +144,9 @@ impl MysqlBuilder {
 
 impl Builder for MysqlBuilder {
     const SCHEME: Scheme = Scheme::Mysql;
-    type Accessor = MySqlBackend;
+    type Config = MysqlConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MysqlConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        MysqlBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {

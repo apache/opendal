@@ -15,22 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
+use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct OnedriveConfig {
@@ -45,6 +45,15 @@ impl Debug for OnedriveConfig {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl Configurator for OnedriveConfig {
+    fn into_builder(self) -> impl Builder {
+        OnedriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -68,13 +77,13 @@ impl OnedriveBuilder {
     /// set the bearer access token for OneDrive
     ///
     /// default: no access token, which leads to failure
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
         self
     }
 
     /// Set root path of OneDrive folder.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = Some(root.to_string());
         self
     }
@@ -85,7 +94,7 @@ impl OnedriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
     }
@@ -93,26 +102,13 @@ impl OnedriveBuilder {
 
 impl Builder for OnedriveBuilder {
     const SCHEME: Scheme = Scheme::Onedrive;
+    type Config = OnedriveConfig;
 
-    type Accessor = OnedriveBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = OnedriveConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an OnedriveBuilder instance with the deserialized config.
-        OnedriveBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {

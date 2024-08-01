@@ -30,8 +30,8 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Sled::default();
-    builder.datadir("/tmp/opendal/sled");
+    let mut builder = Sled::default()
+        .datadir("/tmp/opendal/sled");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
@@ -34,7 +34,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Configuration for Huggingface service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HuggingfaceConfig {
@@ -86,6 +86,12 @@ impl Debug for HuggingfaceConfig {
     }
 }
 
+impl Configurator for HuggingfaceConfig {
+    fn into_builder(self) -> impl Builder {
+        HuggingfaceBuilder { config: self }
+    }
+}
+
 /// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
@@ -111,7 +117,7 @@ impl HuggingfaceBuilder {
     ///
     /// Currently, only models and datasets are supported.
     /// [Reference](https://huggingface.co/docs/hub/repositories)
-    pub fn repo_type(&mut self, repo_type: &str) -> &mut Self {
+    pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
             self.config.repo_type = Some(repo_type.to_string());
         }
@@ -127,7 +133,7 @@ impl HuggingfaceBuilder {
     ///
     /// Dataset's repo id looks like:
     /// - databricks/databricks-dolly-15k
-    pub fn repo_id(&mut self, repo_id: &str) -> &mut Self {
+    pub fn repo_id(mut self, repo_id: &str) -> Self {
         if !repo_id.is_empty() {
             self.config.repo_id = Some(repo_id.to_string());
         }
@@ -141,7 +147,7 @@ impl HuggingfaceBuilder {
     /// For example, revision can be:
     /// - main
     /// - 1d0c4eb
-    pub fn revision(&mut self, revision: &str) -> &mut Self {
+    pub fn revision(mut self, revision: &str) -> Self {
         if !revision.is_empty() {
             self.config.revision = Some(revision.to_string());
         }
@@ -151,7 +157,7 @@ impl HuggingfaceBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_string());
         }
@@ -161,7 +167,7 @@ impl HuggingfaceBuilder {
     /// Set the token of this backend.
     ///
     /// This is optional.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }
@@ -171,17 +177,10 @@ impl HuggingfaceBuilder {
 
 impl Builder for HuggingfaceBuilder {
     const SCHEME: Scheme = Scheme::Huggingface;
-    type Accessor = HuggingfaceBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        HuggingfaceBuilder { config }
-    }
+    type Config = HuggingfaceConfig;
 
     /// Build a HuggingfaceBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let repo_type = match self.config.repo_type.as_deref() {
@@ -215,14 +214,13 @@ impl Builder for HuggingfaceBuilder {
         };
         debug!("backend use revision: {}", &revision);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root: {}", &root);
 
         let token = self.config.token.as_ref().cloned();
 
         let client = HttpClient::new()?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
                 repo_type,
@@ -250,7 +248,7 @@ impl Access for HuggingfaceBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
@@ -263,7 +261,7 @@ impl Access for HuggingfaceBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

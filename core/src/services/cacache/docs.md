@@ -30,8 +30,7 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Cacache::default();
-    builder.datadir("/tmp/opendal/cacache");
+    let mut builder = Cacache::default().datadir("/tmp/opendal/cacache");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

@@ -37,21 +37,29 @@ pub use azblob::AzblobConfig;
 mod azdls;
 #[cfg(feature = "services-azdls")]
 pub use azdls::Azdls;
+#[cfg(feature = "services-azdls")]
+pub use azdls::AzdlsConfig;
 
 #[cfg(feature = "services-cloudflare-kv")]
 mod cloudflare_kv;
 #[cfg(feature = "services-cloudflare-kv")]
 pub use self::cloudflare_kv::CloudflareKv;
+#[cfg(feature = "services-cloudflare-kv")]
+pub use self::cloudflare_kv::CloudflareKvConfig;
 
 #[cfg(feature = "services-cos")]
 mod cos;
 #[cfg(feature = "services-cos")]
 pub use cos::Cos;
+#[cfg(feature = "services-cos")]
+pub use cos::CosConfig;
 
 #[cfg(feature = "services-dashmap")]
 mod dashmap;
 #[cfg(feature = "services-dashmap")]
 pub use self::dashmap::Dashmap;
+#[cfg(feature = "services-dashmap")]
+pub use self::dashmap::DashmapConfig;
 
 #[cfg(feature = "services-etcd")]
 mod etcd;
@@ -64,6 +72,8 @@ pub use self::etcd::EtcdConfig;
 mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::Fs;
+#[cfg(feature = "services-fs")]
+pub use fs::FsConfig;
 
 #[cfg(feature = "services-ftp")]
 mod ftp;
@@ -83,9 +93,13 @@ pub use gcs::GcsConfig;
 mod ghac;
 #[cfg(feature = "services-ghac")]
 pub use ghac::Ghac;
+#[cfg(feature = "services-ghac")]
+pub use ghac::GhacConfig;
 
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
+#[cfg(feature = "services-gridfs")]
+pub use gridfs::GridFsConfig;
 #[cfg(feature = "services-gridfs")]
 pub use gridfs::Gridfs;
 
@@ -114,16 +128,22 @@ pub use huggingface::HuggingfaceConfig;
 mod ipfs;
 #[cfg(feature = "services-ipfs")]
 pub use self::ipfs::Ipfs;
+#[cfg(feature = "services-ipfs")]
+pub use self::ipfs::IpfsConfig;
 
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::Ipmfs;
+#[cfg(feature = "services-ipmfs")]
+pub use ipmfs::IpmfsConfig;
 
 #[cfg(feature = "services-icloud")]
 mod icloud;
 #[cfg(feature = "services-icloud")]
 pub use icloud::Icloud;
+#[cfg(feature = "services-icloud")]
+pub use icloud::IcloudConfig;
 
 #[cfg(feature = "services-libsql")]
 mod libsql;
@@ -150,6 +170,8 @@ pub use self::memory::MemoryConfig;
 mod mini_moka;
 #[cfg(feature = "services-mini-moka")]
 pub use self::mini_moka::MiniMoka;
+#[cfg(feature = "services-mini-moka")]
+pub use self::mini_moka::MiniMokaConfig;
 
 #[cfg(feature = "services-moka")]
 mod moka;
@@ -162,21 +184,29 @@ pub use self::moka::MokaConfig;
 mod obs;
 #[cfg(feature = "services-obs")]
 pub use obs::Obs;
+#[cfg(feature = "services-obs")]
+pub use obs::ObsConfig;
 
 #[cfg(feature = "services-oss")]
 mod oss;
 #[cfg(feature = "services-oss")]
 pub use oss::Oss;
+#[cfg(feature = "services-oss")]
+pub use oss::OssConfig;
 
 #[cfg(feature = "services-cacache")]
 mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::Cacache;
+#[cfg(feature = "services-cacache")]
+pub use self::cacache::CacacheConfig;
 
 #[cfg(feature = "services-persy")]
 mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::Persy;
+#[cfg(feature = "services-persy")]
+pub use self::persy::PersyConfig;
 
 #[cfg(feature = "services-redis")]
 mod redis;
@@ -217,6 +247,8 @@ pub use self::sled::SledConfig;
 mod supabase;
 #[cfg(feature = "services-supabase")]
 pub use supabase::Supabase;
+#[cfg(feature = "services-supabase")]
+pub use supabase::SupabaseConfig;
 
 #[cfg(feature = "services-webdav")]
 mod webdav;
@@ -227,6 +259,10 @@ pub use webdav::WebdavConfig;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
+#[cfg(feature = "services-webhdfs")]
+pub use webhdfs::Webhdfs;
+#[cfg(feature = "services-webhdfs")]
+pub use webhdfs::WebhdfsConfig;
 
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
@@ -239,6 +275,8 @@ pub use onedrive::OnedriveConfig;
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::Gdrive;
+#[cfg(feature = "services-gdrive")]
+pub use gdrive::GdriveConfig;
 
 #[cfg(feature = "services-github")]
 mod github;
@@ -253,18 +291,20 @@ mod dropbox;
 pub use dropbox::Dropbox;
 #[cfg(feature = "services-dropbox")]
 pub use dropbox::DropboxConfig;
-#[cfg(feature = "services-webhdfs")]
-pub use webhdfs::Webhdfs;
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::VercelArtifacts;
+#[cfg(feature = "services-vercel-artifacts")]
+pub use vercel_artifacts::VercelArtifactsConfig;
 
 #[cfg(feature = "services-redb")]
 mod redb;
 #[cfg(feature = "services-redb")]
 pub use self::redb::Redb;
+#[cfg(feature = "services-redb")]
+pub use self::redb::RedbConfig;
 
 #[cfg(feature = "services-tikv")]
 mod tikv;
@@ -319,6 +359,8 @@ pub use self::d1::D1;
 mod azfile;
 #[cfg(feature = "services-azfile")]
 pub use self::azfile::Azfile;
+#[cfg(feature = "services-azfile")]
+pub use self::azfile::AzfileConfig;
 
 #[cfg(feature = "services-mongodb")]
 mod mongodb;
@@ -331,11 +373,15 @@ pub use self::mongodb::MongodbConfig;
 mod dbfs;
 #[cfg(feature = "services-dbfs")]
 pub use self::dbfs::Dbfs;
+#[cfg(feature = "services-dbfs")]
+pub use self::dbfs::DbfsConfig;
 
 #[cfg(feature = "services-swift")]
 mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::Swift;
+#[cfg(feature = "services-swift")]
+pub use self::swift::SwiftConfig;
 
 #[cfg(feature = "services-alluxio")]
 mod alluxio;
@@ -418,3 +464,12 @@ pub use surrealdb::SurrealdbConfig;
 mod compfs;
 #[cfg(feature = "services-compfs")]
 pub use compfs::Compfs;
+#[cfg(feature = "services-compfs")]
+pub use compfs::CompfsConfig;
+
+#[cfg(feature = "services-monoiofs")]
+mod monoiofs;
+#[cfg(feature = "services-monoiofs")]
+pub use monoiofs::Monoiofs;
+#[cfg(feature = "services-monoiofs")]
+pub use monoiofs::MonoiofsConfig;

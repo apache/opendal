@@ -18,8 +18,6 @@
 #[macro_use]
 extern crate napi_derive;
 
-mod capability;
-
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
@@ -30,13 +28,18 @@ use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 
+mod capability;
+
 #[napi]
 pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {
+    /// @see For the full list of scheme, see https://docs.rs/opendal/latest/opendal/services/index.html
+    /// And the options,
+    /// please refer to the documentation of the corresponding service for the corresponding parameters.
+    /// Note that the current options key is snake_case.
     #[napi(constructor)]
-    /// @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {
@@ -72,7 +75,7 @@ impl Operator {
     /// ### Notes
     /// Use stat if you:
     ///
-    /// - Want detect the outside changes of path.
+    /// - Want to detect the outside changes of a path.
     /// - Don’t want to read from cached metadata.
     ///
     /// You may want to use `metadata` if you are working with entries returned by `Lister`. It’s highly possible that metadata you want has already been cached.
@@ -109,7 +112,7 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     ///
-    /// We will send a `list` request to path and return any errors we met.
+    /// We will send a `list` request to the given path and return any errors we met.
     ///
     /// ### Example
     /// ```javascript
@@ -142,7 +145,7 @@ impl Operator {
         self.0.blocking().is_exist(&path).map_err(format_napi_error)
     }
 
-    /// Create dir with given path.
+    /// Create dir with a given path.
     ///
     /// ### Example
     /// ```javascript
@@ -153,7 +156,7 @@ impl Operator {
         self.0.create_dir(&path).await.map_err(format_napi_error)
     }
 
-    /// Create dir with given path synchronously.
+    /// Create dir with a given path synchronously.
     ///
     /// ### Example
     /// ```javascript
@@ -226,83 +229,149 @@ impl Operator {
         })
     }
 
-    /// Write bytes into path.
+    //noinspection DuplicatedCode
+    /// Write bytes into a path.
     ///
     /// ### Example
     /// ```javascript
     /// await op.write("path/to/file", Buffer.from("hello world"));
     /// // or
     /// await op.write("path/to/file", "hello world");
+    /// // or
+    /// await op.write("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
     /// ```
     #[napi]
-    pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
+    pub async fn write(
+        &self,
+        path: String,
+        content: Either<Buffer, String>,
+        options: Option<WriteOptions>,
+    ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        self.0.write(&path, c).await.map_err(format_napi_error)
+        let mut writer = self.0.write_with(&path, c);
+        if let Some(options) = options {
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
+        }
+        writer.await.map_err(format_napi_error)
     }
 
-    /// Write multiple bytes into path.
+    //noinspection DuplicatedCode
+    /// Write multiple bytes into a path.
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String) -> Result<Writer> {
-        let w = self.0.writer(&path).await.map_err(format_napi_error)?;
+    pub async fn writer(&self, path: String, options: Option<WriterOptions>) -> Result<Writer> {
+        let mut writer = self.0.writer_with(&path);
+        if let Some(options) = options {
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
+        }
+        let w = writer.await.map_err(format_napi_error)?;
         Ok(Writer(w))
     }
 
-    /// Write multiple bytes into path synchronously.
+    /// Write multiple bytes into a path synchronously.
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub fn writer_sync(&self, path: String) -> Result<BlockingWriter> {
-        let w = self.0.blocking().writer(&path).map_err(format_napi_error)?;
+    pub fn writer_sync(
+        &self,
+        path: String,
+        options: Option<WriterOptions>,
+    ) -> Result<BlockingWriter> {
+        let mut writer = self.0.blocking().writer_with(&path);
+        if let Some(options) = options {
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
+        }
+        let w = writer.call().map_err(format_napi_error)?;
         Ok(BlockingWriter(w))
     }
 
-    /// Write bytes into path synchronously.
+    //noinspection DuplicatedCode
+    /// Write bytes into a path synchronously.
     ///
     /// ### Example
     /// ```javascript
     /// op.writeSync("path/to/file", Buffer.from("hello world"));
     /// // or
     /// op.writeSync("path/to/file", "hello world");
-    /// ```
-    #[napi]
-    pub fn write_sync(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
-        let c = match content {
-            Either::A(buf) => buf.as_ref().to_owned(),
-            Either::B(s) => s.into_bytes(),
-        };
-        self.0.blocking().write(&path, c).map_err(format_napi_error)
-    }
-
-    /// Append bytes into path.
-    ///
-    /// ### Notes
-    ///
-    /// - It always appends content to the end of the file.
-    /// - It will create file if the path not exists.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// await op.append("path/to/file", Buffer.from("hello world"));
     /// // or
-    /// await op.append("path/to/file", "hello world");
+    /// op.writeSync("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
     /// ```
     #[napi]
-    pub async fn append(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
+    pub fn write_sync(
+        &self,
+        path: String,
+        content: Either<Buffer, String>,
+        options: Option<WriteOptions>,
+    ) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-
-        self.0
-            .write_with(&path, c)
-            .append(true)
-            .await
-            .map_err(format_napi_error)
+        let mut writer = self.0.blocking().write_with(&path, c);
+        if let Some(options) = options {
+            if let Some(append) = options.append {
+                writer = writer.append(append);
+            }
+            if let Some(chunk) = options.chunk {
+                writer = writer.chunk(chunk.get_u64().1 as usize);
+            }
+            if let Some(ref content_type) = options.content_type {
+                writer = writer.content_type(content_type);
+            }
+            if let Some(ref content_disposition) = options.content_disposition {
+                writer = writer.content_disposition(content_disposition);
+            }
+            if let Some(ref cache_control) = options.cache_control {
+                writer = writer.cache_control(cache_control);
+            }
+        }
+        writer.call().map_err(format_napi_error)
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -412,7 +481,7 @@ impl Operator {
         self.0.remove_all(&path).await.map_err(format_napi_error)
     }
 
-    /// List given path.
+    /// List the given path.
     ///
     /// This function will return an array of entries.
     ///
@@ -462,9 +531,9 @@ impl Operator {
             .collect())
     }
 
-    /// List given path synchronously.
+    /// List the given path synchronously.
     ///
-    /// This function will return a array of entries.
+    /// This function will return an array of entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
     ///
@@ -514,7 +583,7 @@ impl Operator {
 
     /// Get a presigned request for read.
     ///
-    /// Unit of expires is seconds.
+    /// Unit of `expires` is seconds.
     ///
     /// ### Example
     ///
@@ -535,9 +604,9 @@ impl Operator {
         Ok(PresignedRequest::new(res))
     }
 
-    /// Get a presigned request for write.
+    /// Get a presigned request for `write`.
     ///
-    /// Unit of expires is seconds.
+    /// Unit of `expires` is seconds.
     ///
     /// ### Example
     ///
@@ -560,7 +629,7 @@ impl Operator {
 
     /// Get a presigned request for stat.
     ///
-    /// Unit of expires is seconds.
+    /// Unit of `expires` is seconds.
     ///
     /// ### Example
     ///
@@ -582,7 +651,7 @@ impl Operator {
     }
 }
 
-/// Entry returned by Lister or BlockingLister to represent a path and it's relative metadata.
+/// Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata.
 #[napi]
 pub struct Entry(opendal::Entry);
 
@@ -658,7 +727,7 @@ pub struct ListOptions {
     pub recursive: Option<bool>,
 }
 
-/// BlockingReader is designed to read data from given path in an blocking
+/// BlockingReader is designed to read data from a given path in a blocking
 /// manner.
 #[napi]
 pub struct BlockingReader {
@@ -675,7 +744,7 @@ impl BlockingReader {
     }
 }
 
-/// Reader is designed to read data from given path in an asynchronous
+/// Reader is designed to read data from a given path in an asynchronous
 /// manner.
 #[napi]
 pub struct Reader {
@@ -697,7 +766,7 @@ impl Reader {
     }
 }
 
-/// BlockingWriter is designed to write data into given path in an blocking
+/// BlockingWriter is designed to write data into a given path in a blocking
 /// manner.
 #[napi]
 pub struct BlockingWriter(opendal::BlockingWriter);
@@ -744,7 +813,7 @@ impl BlockingWriter {
     }
 }
 
-/// Writer is designed to write data into given path in an asynchronous
+/// Writer is designed to write data into a given path in an asynchronous
 /// manner.
 #[napi]
 pub struct Writer(opendal::Writer);
@@ -790,7 +859,71 @@ impl Writer {
     }
 }
 
-/// Lister is designed to list entries at given path in an asynchronous
+#[napi(object)]
+#[derive(Default)]
+pub struct WriteOptions {
+    /// Append bytes into a path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path does not exist.
+    pub append: Option<bool>,
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// A service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub chunk: Option<BigInt>,
+
+    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
+    pub content_type: Option<String>,
+
+    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
+    pub content_disposition: Option<String>,
+
+    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
+    pub cache_control: Option<String>,
+}
+
+#[napi(object)]
+#[derive(Default)]
+pub struct WriterOptions {
+    /// Append bytes into a path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path does not exist.
+    pub append: Option<bool>,
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// A service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub chunk: Option<BigInt>,
+
+    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
+    pub content_type: Option<String>,
+
+    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
+    pub content_disposition: Option<String>,
+
+    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
+    pub cache_control: Option<String>,
+}
+
+/// Lister is designed to list entries at a given path in an asynchronous
 /// manner.
 #[napi]
 pub struct Lister(opendal::Lister);
@@ -802,7 +935,7 @@ impl Lister {
     /// > &mut self in async napi methods should be marked as unsafe
     ///
     /// napi will make sure the function is safe, and we didn't do unsafe
-    /// thing internally.
+    /// things internally.
     #[napi]
     pub async unsafe fn next(&mut self) -> Result<Option<Entry>> {
         Ok(self
@@ -814,14 +947,15 @@ impl Lister {
     }
 }
 
-/// BlockingLister is designed to list entries at given path in a blocking
+/// BlockingLister is designed to list entries at a given path in a blocking
 /// manner.
 #[napi]
 pub struct BlockingLister(opendal::BlockingLister);
 
 /// Method `next` can be confused for the standard trait method `std::iter::Iterator::next`.
-/// But in JavaScript, it is also customary to use the next method directly to obtain the next element.
-/// Therefore, disable this clippy. It can be removed after a complete implementation of Generator.
+/// But in JavaScript, it is also customary to use the next method directly to get the next element.
+/// Therefore, disable this clippy.
+/// It can be removed after a complete implementation of `Generator`.
 /// FYI: <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator>
 #[napi]
 #[allow(clippy::should_implement_trait)]
@@ -903,10 +1037,12 @@ impl NodeLayer for opendal::layers::RetryLayer {
 /// # Notes
 ///
 /// This layer will retry failed operations when [`Error::is_temporary`]
-/// returns true. If operation still failed, this layer will set error to
+/// returns true.
+/// If the operation still failed, this layer will set error to
 /// `Persistent` which means error has been retried.
 ///
-/// `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
+/// `write` and `blocking_write` don't support retry so far,
+/// visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
 ///
 /// # Examples
 ///
@@ -938,7 +1074,7 @@ impl RetryLayer {
 
     /// Set jitter of current backoff.
     ///
-    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
+    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)`
     /// to current delay.
     #[napi(setter)]
     pub fn jitter(&mut self, v: bool) {
@@ -947,7 +1083,7 @@ impl RetryLayer {
 
     /// Set max_times of current backoff.
     ///
-    /// Backoff will return `None` if max times is reaching.
+    /// Backoff will return `None` if max times are reached.
     #[napi(setter)]
     pub fn max_times(&mut self, v: u32) {
         self.max_times = Some(v);
@@ -957,7 +1093,7 @@ impl RetryLayer {
     ///
     /// # Panics
     ///
-    /// This function will panic if input factor smaller than `1.0`.
+    /// This function will panic if the input factor is smaller than `1.0`.
     #[napi(setter)]
     pub fn factor(&mut self, v: f64) {
         self.factor = Some(v);
@@ -965,7 +1101,7 @@ impl RetryLayer {
 
     /// Set max_delay of current backoff.
     ///
-    /// Delay will not increasing if current delay is larger than max_delay.
+    /// Delay will not increase if the current delay is larger than max_delay.
     ///
     /// # Notes
     ///

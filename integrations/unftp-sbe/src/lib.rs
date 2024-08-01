@@ -15,6 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! `unftp-sbe-opendal` is an [unftp](https://crates.io/crates/unftp) `StorageBackend` implementation using opendal.
+//!
+//! This crate can help you to access ANY storage services with the same ftp API.
+//!
+//! # Example
+//!
+//! This example demonstrates how to use `unftp-sbe-opendal` with the `S3` service.
+//!
+//! ```no_run
+//! use anyhow::Result;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//! use opendal::services;
+//! use unftp_sbe_opendal::OpendalStorage;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     // Create any service desired
+//!     let op = opendal::Operator::from_map::<services::S3>(
+//!         [
+//!             ("bucket".to_string(), "my_bucket".to_string()),
+//!             ("access_key".to_string(), "my_access_key".to_string()),
+//!             ("secret_key".to_string(), "my_secret_key".to_string()),
+//!             ("endpoint".to_string(), "my_endpoint".to_string()),
+//!             ("region".to_string(), "my_region".to_string()),
+//!         ]
+//!             .into_iter()
+//!             .collect(),
+//!     )?.finish();
+//!
+//!     // Wrap the operator with `OpendalStorage`
+//!     let backend = OpendalStorage::new(op);
+//!
+//!     // Build the actual unftp server
+//!     let server = libunftp::ServerBuilder::new(Box::new(move || backend.clone())).build()?;
+//!
+//!     // Start the server
+//!     server.listen("0.0.0.0:0").await?;
+//!
+//!     Ok(())
+//! }
+//! ```
+
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
@@ -36,6 +79,7 @@ impl OpendalStorage {
 }
 
 /// A wrapper around [`opendal::Metadata`] to implement [`libunftp::storage::Metadata`].
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OpendalMetadata(opendal::Metadata);
 
 impl storage::Metadata for OpendalMetadata {

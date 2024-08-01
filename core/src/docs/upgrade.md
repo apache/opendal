@@ -1,3 +1,106 @@
+# Upgrade to v0.48
+
+## Public API
+
+### Typo in `customized_credential_load`
+
+Since v0.48, the `customed_credential_load` function has been renamed to `customized_credential_load` to fix the typo of `customized`.
+
+```diff
+- builder.customed_credential_load(v);
++ builder.customized_credential_load(v);
+```
+
+### S3 service rename `security_token` to `session_token`
+
+[In 2014 Amazon switched](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/) from `AWS_SECURITY_TOKEN` to `AWS_SESSION_TOKEN`. To be consistent with the naming of AWS STS, we have renamed the `security_token` field to `session_token` in the S3 service.
+
+```diff
+- builder.security_token(v);
++ builder.session_token(v);
+```
+
+### Operator `from_iter` and `via_iter` replaces `from_map` and `via_map`
+
+Since v0.48, Operator's new APIs `from_iter` and `via_iter` methods have deprecated the `from_map` and `via_map` methods.
+
+```diff
+- Operator::from_map::<Fs>(map)?.finish();
++ Operator::from_iter::<Fs>(map)?.finish();
+```
+
+New API `from_iter` and `via_iter` should cover all use cases of `from_map` and `via_map`.
+
+### Service builder now takes ownership
+
+Since v0.48, all service builder now takes ownership `self` instead of `&mut self`. This change will allow users to configure the service in a more flexible way.
+
+```diff
+- let mut builder = S3::default();
+- builder.bucket("test");
+- builder.root("/path/to/root");
++ let builder = S3::default().bucket("test").root("/path/to/root");
+  let op = Operator::new(builder)?.finish();
+```
+
+## Raw API
+
+### `oio::Write::write` will write the whole buffer
+
+Starting from version 0.48, `oio::Write::write` now writes the entire buffer. This update aligns the API more closely with `oio::Read::read` and simplifies the implementation of concurrent writing.
+
+```diff
+  trait Write {
+-     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>>;
++     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>>;
+  }
+```
+
+`write` will now return `Result<()>` instead of `Result<usize>`. The number of bytes written can be obtained from the buffer's length.
+
+### `Access::metadata()` will return `Arc<AccessInfo>`
+
+Starting from version 0.48, `Access::metadata()` will return `Arc<AccessInfo>` instead of `AccessInfo`. This change is intended to improve performance and reduce memory usage.
+
+```diff
+  trait Access {
+-     fn metadata(&self) -> AccessInfo;
++     fn metadata(&self) -> Arc<AccessInfo>;
+  }
+```
+
+### `MinitraceLayer` renamed to `FastraceLayer`
+
+The `MinitraceLayer` has been renamed to `FastraceLayer` to respond to the [transition from `minitrace` to `fastrace`](https://github.com/tikv/minitrace-rust/issues/229).
+
+```diff
+- use opendal::layers::MinitraceLayer;
++ use opendal::layers::FastraceLayer;
+```
+
+### Use `Configurator` to replace `Builder::from_config`
+
+Since v0.48, the `Builder::from_config` and `Builder::from_map` method has been replaced by the `Configurator` trait. The `Configurator` trait provides a more flexible and extensible way to configure OpenDAL.
+
+Service implementers should update their code to use the `Configurator` trait instead:
+
+```rust
+impl Configurator for MemoryConfig {
+    fn into_builder(self) -> impl Builder {
+        MemoryBuilder { config: self }
+    }
+}
+
+impl Builder for MemoryBuilder {
+    const SCHEME: Scheme = Scheme::Memory;
+    type Config = MemoryConfig;
+
+    fn build(self) -> Result<impl Access> {
+        ...
+    }
+}
+```
+
 # Upgrade to v0.47
 
 ## Public API
@@ -55,7 +158,7 @@ Additionally, we have removed all `reqwest`-related feature flags:
 
 ### Range Based Read
 
-Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO. 
+Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO.
 
 `opendal::Reader` now have APIs like:
 
@@ -358,7 +461,7 @@ There are no public API changes.
 
 OpenDAL add the `Write::sink` API to enable streaming writing. This is a breaking change for users who depend on the raw API.
 
-For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`. 
+For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`.
 
 More details could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
 

@@ -24,8 +24,7 @@ use opendal::Operator;
 
 #[tokio::test]
 async fn test() -> Result<()> {
-    let mut builder = Fs::default();
-    builder.root("/tmp");
+    let builder = Fs::default().root("/tmp");
 
     let op = Operator::new(builder)?.finish();
 

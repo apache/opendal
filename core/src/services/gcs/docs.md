@@ -37,7 +37,7 @@ OpenDAL supports the following authentication options:
 4. Fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
     - Only works when running inside Google Cloud.
     - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
-5. A custom `TokenLoader` via `GcsBuilder.customed_token_loader()`
+5. A custom `TokenLoader` via `GcsBuilder.customized_token_loader()`
 
 Notes:
 
@@ -57,19 +57,18 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Gcs::default();
-
-    // set the storage bucket for OpenDAL
-    builder.bucket("test");
-    // set the working directory root for GCS
-    // all operations will happen within it
-    builder.root("/path/to/dir");
-    // set the credentials with service account
-    builder.credential("service account JSON in base64");
-    // set the predefined ACL for GCS
-    builder.predefined_acl("publicRead");
-    // set the default storage class for GCS
-    builder.default_storage_class("STANDARD");
+    let mut builder = Gcs::default()
+       // set the storage bucket for OpenDAL
+       .bucket("test")
+       // set the working directory root for GCS
+       // all operations will happen within it
+       .root("/path/to/dir")
+       // set the credentials with service account
+       .credential("service account JSON in base64")
+       // set the predefined ACL for GCS
+       .predefined_acl("publicRead")
+       // set the default storage class for GCS
+       .default_storage_class("STANDARD");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

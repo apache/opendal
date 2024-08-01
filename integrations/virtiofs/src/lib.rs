@@ -16,5 +16,7 @@
 // under the License.
 
 mod error;
+mod filesystem;
+mod filesystem_message;
 mod virtiofs;
 mod virtiofs_util;

@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{Operator, Result};
 use std::time::SystemTime;
+
+use opendal::Operator;
+use opendal::Result;
 
 async fn example(op: Operator) -> Result<()> {
     let mut w = op.writer_with("test.txt").concurrent(4).await?;

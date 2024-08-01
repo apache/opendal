@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::parse_info;
 use super::core::ChainsafeCore;
@@ -36,8 +36,8 @@ use super::writer::ChainsafeWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Chainsafe services support.
-#[derive(Default, Deserialize)]
+/// Config for Chainsafe services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct ChainsafeConfig {
@@ -64,6 +64,15 @@ impl Debug for ChainsafeConfig {
     }
 }
 
+impl Configurator for ChainsafeConfig {
+    fn into_builder(self) -> impl Builder {
+        ChainsafeBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [chainsafe](https://storage.chainsafe.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -86,7 +95,7 @@ impl ChainsafeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -99,7 +108,7 @@ impl ChainsafeBuilder {
     /// api_key of this backend.
     ///
     /// required.
-    pub fn api_key(&mut self, api_key: &str) -> &mut Self {
+    pub fn api_key(mut self, api_key: &str) -> Self {
         self.config.api_key = if api_key.is_empty() {
             None
         } else {
@@ -110,7 +119,7 @@ impl ChainsafeBuilder {
     }
 
     /// Set bucket_id name of this backend.
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -122,7 +131,7 @@ impl ChainsafeBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -130,31 +139,10 @@ impl ChainsafeBuilder {
 
 impl Builder for ChainsafeBuilder {
     const SCHEME: Scheme = Scheme::Chainsafe;
-    type Accessor = ChainsafeBackend;
-
-    /// Converts a HashMap into an ChainsafeBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of ChainsafeBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = ChainsafeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an ChainsafeBuilder instance with the deserialized config.
-        ChainsafeBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = ChainsafeConfig;
 
     /// Builds the backend and returns the result of ChainsafeBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -176,7 +164,7 @@ impl Builder for ChainsafeBuilder {
                 .with_context("service", Scheme::Chainsafe)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -210,7 +198,7 @@ impl Access for ChainsafeBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Chainsafe)
             .set_root(&self.core.root)
@@ -230,7 +218,7 @@ impl Access for ChainsafeBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

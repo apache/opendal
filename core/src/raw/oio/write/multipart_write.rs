@@ -69,7 +69,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     ///
     /// - the total size of data is unknown.
     /// - the total size of data is known, but the size of current write
-    /// is less then the total size.
+    ///   is less then the total size.
     fn initiate_part(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_part will write a part of the data and returns the result
@@ -203,14 +203,14 @@ impl<W> oio::Write for MultipartWriter<W>
 where
     W: MultipartWrite,
 {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
                 // Fill cache with the first write.
                 if self.cache.is_none() {
-                    let size = self.fill_cache(bs);
-                    return Ok(size);
+                    self.fill_cache(bs);
+                    return Ok(());
                 }
 
                 let upload_id = self.w.initiate_part().await?;
@@ -234,8 +234,8 @@ where
             .await?;
         self.cache = None;
         self.next_part_number += 1;
-        let size = self.fill_cache(bs);
-        Ok(size)
+        self.fill_cache(bs);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -309,7 +309,8 @@ mod tests {
     use rand::Rng;
     use rand::RngCore;
     use tokio::sync::Mutex;
-    use tokio::time::{sleep, timeout};
+    use tokio::time::sleep;
+    use tokio::time::timeout;
 
     use super::*;
     use crate::raw::oio::Write;

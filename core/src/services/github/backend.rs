@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::core::Entry;
 use super::core::GithubCore;
@@ -35,8 +35,8 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::*;
 
-/// Config for backblaze Github services support.
-#[derive(Default, Deserialize)]
+/// Config for GitHub services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GithubConfig {
@@ -44,17 +44,17 @@ pub struct GithubConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
-    /// Github access_token.
+    /// GitHub access_token.
     ///
     /// optional.
     /// If not provided, the backend will only support read operations for public repositories.
     /// And rate limit will be limited to 60 requests per hour.
     pub token: Option<String>,
-    /// Github repo owner.
+    /// GitHub repo owner.
     ///
     /// required.
     pub owner: String,
-    /// Github repo name.
+    /// GitHub repo name.
     ///
     /// required.
     pub repo: String,
@@ -72,12 +72,20 @@ impl Debug for GithubConfig {
     }
 }
 
+impl Configurator for GithubConfig {
+    fn into_builder(self) -> impl Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
 /// [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GithubBuilder {
     config: GithubConfig,
-
     http_client: Option<HttpClient>,
 }
 
@@ -94,7 +102,7 @@ impl GithubBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -107,21 +115,21 @@ impl GithubBuilder {
     /// Github access_token.
     ///
     /// required.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         self.config.token = Some(token.to_string());
 
         self
     }
 
     /// Set Github repo owner.
-    pub fn owner(&mut self, owner: &str) -> &mut Self {
+    pub fn owner(mut self, owner: &str) -> Self {
         self.config.owner = owner.to_string();
 
         self
     }
 
     /// Set Github repo name.
-    pub fn repo(&mut self, repo: &str) -> &mut Self {
+    pub fn repo(mut self, repo: &str) -> Self {
         self.config.repo = repo.to_string();
 
         self
@@ -133,7 +141,7 @@ impl GithubBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -141,31 +149,10 @@ impl GithubBuilder {
 
 impl Builder for GithubBuilder {
     const SCHEME: Scheme = Scheme::Github;
-    type Accessor = GithubBackend;
-
-    /// Converts a HashMap into an GithubBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of GithubBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = GithubConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an GithubBuilder instance with the deserialized config.
-        GithubBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = GithubConfig;
 
     /// Builds the backend and returns the result of GithubBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -189,7 +176,7 @@ impl Builder for GithubBuilder {
 
         debug!("backend use repo {}", &self.config.repo);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -229,7 +216,7 @@ impl Access for GithubBackend {
 
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Github)
             .set_root(&self.core.root)
@@ -251,7 +238,7 @@ impl Access for GithubBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

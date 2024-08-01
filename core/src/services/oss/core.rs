@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -28,6 +29,7 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
+use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -41,12 +43,16 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
 
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+
+    pub const OSS_QUERY_VERSION_ID: &str = "versionId";
+
+    pub const X_OSS_META_PREFIX: &str = "x-oss-meta-";
 }
 
 pub struct OssCore {
@@ -154,6 +160,88 @@ impl OssCore {
         }
         req
     }
+
+    fn insert_metadata_headers(
+        &self,
+        mut req: http::request::Builder,
+        size: Option<u64>,
+        args: &OpWrite,
+    ) -> Result<http::request::Builder> {
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                if !self.check_user_metadata_key(key) {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "the format of the user metadata key is invalid, please refer the document",
+                    ));
+                }
+                req = req.header(format!("{}{}", constants::X_OSS_META_PREFIX, key), value)
+            }
+        }
+
+        Ok(req)
+    }
+
+    // According to https://help.aliyun.com/zh/oss/developer-reference/putobject
+    // there are some limits in user defined metadata key
+    fn check_user_metadata_key(&self, key: &str) -> bool {
+        key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    }
+
+    /// parse_metadata will parse http headers(including standards http headers
+    /// and user defined metadata header) into Metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_metadata_prefix` is the prefix of user defined metadata key
+    ///
+    /// # Notes
+    ///
+    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+    pub fn parse_metadata(
+        &self,
+        path: &str,
+        user_metadata_prefix: &str,
+        headers: &HeaderMap,
+    ) -> Result<Metadata> {
+        let mut m = parse_into_metadata(path, headers)?;
+
+        let data: HashMap<String, String> = headers
+            .iter()
+            .filter_map(|(key, _)| {
+                if key.as_str().starts_with(user_metadata_prefix) {
+                    if let Ok(Some(value)) = parse_header_to_str(headers, key) {
+                        let key_str = key.to_string();
+                        let stripped_key = key_str
+                            .strip_prefix(user_metadata_prefix)
+                            .expect("strip prefix must succeed");
+                        return Some((stripped_key.to_string(), value.to_string()));
+                    }
+                }
+                None
+            })
+            .collect();
+        if !data.is_empty() {
+            m.with_user_metadata(data);
+        }
+
+        Ok(m)
+    }
 }
 
 impl OssCore {
@@ -172,19 +260,7 @@ impl OssCore {
 
         let mut req = Request::put(&url);
 
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
+        req = self.insert_metadata_headers(req, size, args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -212,19 +288,7 @@ impl OssCore {
 
         let mut req = Request::post(&url);
 
-        req = req.header(CONTENT_LENGTH, size);
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
+        req = self.insert_metadata_headers(req, Some(size), args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -236,12 +300,12 @@ impl OssCore {
     pub fn oss_get_object_request(
         &self,
         path: &str,
-        range: BytesRange,
         is_presign: bool,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
+        let range = args.range();
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         // Add query arguments to the URL based on response overrides
@@ -251,6 +315,13 @@ impl OssCore {
                 "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
             ))
         }
 
@@ -280,10 +351,25 @@ impl OssCore {
         Ok(req)
     }
 
-    fn oss_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
+    fn oss_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
+
         let req = Request::delete(&url);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -295,18 +381,31 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::OSS_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match)
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -358,37 +457,14 @@ impl OssCore {
         Ok(req)
     }
 
-    pub async fn oss_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-        args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
-        let mut req = self.oss_get_object_request(path, range, false, args)?;
+    pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
+        let mut req = self.oss_get_object_request(path, false, args)?;
         self.sign(&mut req).await?;
         self.client.fetch(req).await
     }
 
-    pub async fn oss_head_object(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_head_object_request(path, false, if_match, if_none_match)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
-    pub async fn oss_put_object(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
+    pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+        let mut req = self.oss_head_object_request(path, false, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -431,8 +507,8 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.oss_delete_object_request(path)?;
+    pub async fn oss_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+        let mut req = self.oss_delete_object_request(path, args)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -566,7 +642,7 @@ impl OssCore {
         self.send(req).await
     }
 
-    /// Abort an on-going multipart upload.
+    /// Abort an ongoing multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
     pub async fn oss_abort_multipart_upload(
         &self,
@@ -808,7 +884,6 @@ mod tests {
         <ETag>"8C315065167132444177411FDA14****"</ETag>
     </Part>
 </CompleteMultipartUpload>"#
-                .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
         )
     }
 

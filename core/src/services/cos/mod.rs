@@ -17,6 +17,7 @@
 
 mod backend;
 pub use backend::CosBuilder as Cos;
+pub use backend::CosConfig;
 
 mod core;
 mod error;

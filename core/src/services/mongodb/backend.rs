@@ -22,16 +22,16 @@ use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
-use mongodb::options::UpdateOptions;
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::ConfigDeserializer;
+use crate::raw::Access;
 use crate::*;
 
 /// Config for Mongodb service support.
-#[derive(Default, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MongodbConfig {
@@ -59,6 +59,12 @@ impl Debug for MongodbConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl Configurator for MongodbConfig {
+    fn into_builder(self) -> impl Builder {
+        MongodbBuilder { config: self }
     }
 }
 
@@ -97,7 +103,7 @@ impl MongodbBuilder {
     /// - ... (any other options you wish to highlight)
     ///
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
@@ -106,7 +112,7 @@ impl MongodbBuilder {
     /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         if !root.is_empty() {
             self.config.root = Some(root.to_owned());
         }
@@ -114,7 +120,7 @@ impl MongodbBuilder {
     }
 
     /// Set the database name of the MongoDB service to read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
         }
@@ -122,7 +128,7 @@ impl MongodbBuilder {
     }
 
     /// Set the collection name of the MongoDB service to read/write.
-    pub fn collection(&mut self, collection: &str) -> &mut Self {
+    pub fn collection(mut self, collection: &str) -> Self {
         if !collection.is_empty() {
             self.config.collection = Some(collection.to_string());
         }
@@ -132,7 +138,7 @@ impl MongodbBuilder {
     /// Set the key field name of the MongoDB service to read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -142,7 +148,7 @@ impl MongodbBuilder {
     /// Set the value field name of the MongoDB service to read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -152,16 +158,9 @@ impl MongodbBuilder {
 
 impl Builder for MongodbBuilder {
     const SCHEME: Scheme = Scheme::Mongodb;
+    type Config = MongodbConfig;
 
-    type Accessor = MongodbBackend;
-
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let config = MongodbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        MongodbBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {
@@ -265,7 +264,7 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! {self.key_field.as_str():path};
         let result = collection
-            .find_one(filter, None)
+            .find_one(filter)
             .await
             .map_err(parse_mongodb_error)?;
         match result {
@@ -283,9 +282,9 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! { self.key_field.as_str(): path };
         let update = doc! { "$set": { self.value_field.as_str(): Binary { subtype: mongodb::bson::spec::BinarySubtype::Generic, bytes: value.to_vec() } } };
-        let update_options = UpdateOptions::builder().upsert(true).build();
         collection
-            .update_one(filter, update, update_options)
+            .update_one(filter, update)
+            .upsert(true)
             .await
             .map_err(parse_mongodb_error)?;
 
@@ -296,7 +295,7 @@ impl kv::Adapter for Adapter {
         let collection = self.get_collection().await?;
         let filter = doc! {self.key_field.as_str():path};
         collection
-            .delete_one(filter, None)
+            .delete_one(filter)
             .await
             .map_err(parse_mongodb_error)?;
         Ok(())

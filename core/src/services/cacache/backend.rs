@@ -15,16 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
 use cacache;
 use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::adapters::kv;
-use crate::raw::ConfigDeserializer;
+use crate::raw::Access;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -32,10 +32,16 @@ use crate::Scheme;
 use crate::*;
 
 /// cacache service support.
-#[derive(Default, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
-    datadir: Option<String>,
+    pub datadir: Option<String>,
+}
+
+impl Configurator for CacacheConfig {
+    fn into_builder(self) -> impl Builder {
+        CacacheBuilder { config: self }
+    }
 }
 
 /// cacache service support.
@@ -47,7 +53,7 @@ pub struct CacacheBuilder {
 
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
@@ -55,17 +61,10 @@ impl CacacheBuilder {
 
 impl Builder for CacacheBuilder {
     const SCHEME: Scheme = Scheme::Cacache;
-    type Accessor = CacacheBackend;
+    type Config = CacacheConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CacacheConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Cacache)
         })?;

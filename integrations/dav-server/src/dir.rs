@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::{DavDirEntry, DavMetaData};
+use dav_server::fs::{DavDirEntry, DavMetaData, FsResult};
 use futures::StreamExt;
 use futures::{FutureExt, Stream};
 use opendal::Operator;
@@ -41,14 +41,15 @@ impl OpendalStream {
 }
 
 impl Stream for OpendalStream {
-    type Item = Box<dyn DavDirEntry>;
+    type Item = FsResult<Box<dyn DavDirEntry>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let dav_stream = self.get_mut();
         match ready!(dav_stream.lister.poll_next_unpin(cx)) {
             Some(entry) => {
-                let webdav_entry = OpendalDirEntry::new(dav_stream.op.clone(), entry.unwrap());
-                Ready(Some(Box::new(webdav_entry) as Box<dyn DavDirEntry>))
+                let entry = entry.map_err(convert_error)?;
+                let webdav_entry = OpendalDirEntry::new(dav_stream.op.clone(), entry);
+                Ready(Some(Ok(Box::new(webdav_entry) as Box<dyn DavDirEntry>)))
             }
             None => Ready(None),
         }

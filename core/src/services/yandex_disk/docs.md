@@ -32,12 +32,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = YandexDisk::default();
-
-    // set the storage bucket for OpenDAL
-    builder.root("/");
-    // set the access_token for OpenDAL
-    builder.access_token("test");
+    let mut builder = YandexDisk::default()
+        // set the storage bucket for OpenDAL
+        .root("/")
+        // set the access_token for OpenDAL
+        .access_token("test");
 
     let op: Operator = Operator::new(builder)?.finish();
 

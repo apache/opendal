@@ -350,7 +350,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
         Self::io_timeout(self.timeout, WriteOperation::Write.into_static(), fut).await
     }
@@ -400,7 +400,7 @@ mod tests {
         type BlockingWriter = ();
         type BlockingLister = ();
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
@@ -408,7 +408,7 @@ mod tests {
                 ..Default::default()
             });
 
-            am
+            am.into()
         }
 
         /// This function will build a reader that always return pending.

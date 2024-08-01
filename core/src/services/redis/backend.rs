@@ -439,10 +439,10 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match conn {
             RedisConnection::Normal(mut conn) => {
-                conn.append(key, value).await.map_err(format_redis_error)?;
+                () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
             RedisConnection::Cluster(mut conn) => {
-                conn.append(key, value).await.map_err(format_redis_error)?;
+                () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
         }
         Ok(())

@@ -31,7 +31,7 @@ rust-version = "1.75"
 
 [dependencies]
 anyhow = "1"
-bytes = "1.5.0"
+bytes = "1.7.0"
 chrono = "0.4.34"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 env_logger = "0.11.2"

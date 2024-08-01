@@ -184,7 +184,8 @@ impl ObjectStore for OpendalStore {
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         let writer = self
             .inner
-            .writer(location.as_ref())
+            .writer_with(location.as_ref())
+            .concurrent(8)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
@@ -432,6 +433,13 @@ impl ObjectStore for OpendalStore {
 }
 
 /// `MultipartUpload`'s impl based on `Writer` in opendal
+///
+/// # Notes
+///
+/// OpenDAL writer can handle concurrent internally we don't generate real `UploadPart` like existing
+/// implementation do. Instead, we just write the part and notify the next task to be written.
+///
+/// The lock here doesn't really involve the write process, it's just for the notify mechanism.
 struct OpendalMultipartUpload {
     writer: Arc<Mutex<Writer>>,
     location: Path,
@@ -453,12 +461,16 @@ impl MultipartUpload for OpendalMultipartUpload {
     fn put_part(&mut self, data: PutPayload) -> UploadPart {
         let writer = self.writer.clone();
         let location = self.location.clone();
+
+        // Generate next notify which will be notified after the current part is written.
         let next_notify = Arc::new(Notify::new());
+        // Fetch the notify for current part to wait for it to be written.
         let current_notify = self.next_notify.replace(next_notify.clone());
 
         async move {
-            // Wait for the previous part to be written
+            // current_notify == None means that it's the first part, we don't need to wait.
             if let Some(notify) = current_notify {
+                // Wait for the previous part to be written
                 notify.notified().await;
             }
 

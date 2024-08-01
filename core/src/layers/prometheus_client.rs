@@ -37,7 +37,7 @@ use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
-/// Add [prometheus](https://docs.rs/prometheus) for every operations.
+/// Add [prometheus-client](https://docs.rs/prometheus-client) for every operations.
 ///
 /// # Examples
 ///

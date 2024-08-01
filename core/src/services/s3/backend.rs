@@ -1237,7 +1237,7 @@ impl Access for S3Backend {
                 // set the error kind and mark temporary if retryable
                 let (kind, retryable) =
                     parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, &format!("{i:?}"));
+                let mut err: Error = Error::new(kind, format!("{i:?}"));
                 if retryable {
                     err = err.set_temporary();
                 }

@@ -33,7 +33,7 @@ use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add [log](https://docs.rs/log/) for every operations.
+/// Add [log](https://docs.rs/log/) for every operation.
 ///
 /// # Logging
 ///

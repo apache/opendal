@@ -28,7 +28,7 @@ use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add [fastrace](https://docs.rs/fastrace/) for every operations.
+/// Add [fastrace](https://docs.rs/fastrace/) for every operation.
 ///
 /// # Examples
 ///

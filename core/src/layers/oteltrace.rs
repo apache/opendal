@@ -31,7 +31,7 @@ use opentelemetry::KeyValue;
 use crate::raw::*;
 use crate::*;
 
-/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operations.
+/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
 ///
 /// Examples
 ///

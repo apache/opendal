@@ -37,7 +37,7 @@ use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
 
-/// Add [prometheus](https://docs.rs/prometheus) for every operations.
+/// Add [prometheus-client](https://docs.rs/prometheus-client) for every operation.
 ///
 /// # Examples
 ///
@@ -88,7 +88,7 @@ pub struct PrometheusClientLayer {
 
 impl PrometheusClientLayer {
     /// Create PrometheusClientLayer while registering itself to this registry. Please keep in caution
-    /// that do NOT call this method multiple times with a same registry. If you want initialize multiple
+    /// that do NOT call this method multiple times with a same registry. If you want to initialize multiple
     /// [`PrometheusClientLayer`] with a single registry, you should use [`Arc::clone`] instead.
     pub fn new(registry: &mut Registry) -> Self {
         let metrics = PrometheusClientMetricDefinitions::register(registry);

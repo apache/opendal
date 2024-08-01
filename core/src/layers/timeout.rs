@@ -25,7 +25,7 @@ use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add timeout for every operations to avoid slow or unexpected hang operations.
+/// Add timeout for every operation to avoid slow or unexpected hang operations.
 ///
 /// For example, a dead connection could hang a databases sql query. TimeoutLayer
 /// will break this connection and returns an error so users can handle it by

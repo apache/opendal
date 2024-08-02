@@ -31,7 +31,7 @@
     </parent>
 
     <groupId>org.apache.opendal</groupId>
-    <artifactId>opendal-java</artifactId>
+    <artifactId>opendal</artifactId>
     <version>0.46.4</version>
 
     <name>Apache OpenDAL™</name>

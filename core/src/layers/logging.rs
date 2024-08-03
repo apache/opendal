@@ -82,19 +82,22 @@ use crate::*;
 /// ```shell
 /// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct LoggingLayer {
     error_level: Option<Level>,
     failure_level: Option<Level>,
     backtrace_output: bool,
+    notify: Arc<DefaultLoggingInterceptor>,
 }
 
 impl Default for LoggingLayer {
     fn default() -> Self {
         Self {
+            // FIXME(yingwen): Remove
             error_level: Some(Level::Warn),
             failure_level: Some(Level::Error),
             backtrace_output: false,
+            notify: Arc::new(DefaultLoggingInterceptor::default()),
         }
     }
 }
@@ -162,6 +165,7 @@ impl<A: Access> Layer<A> for LoggingLayer {
                 failure_level: self.failure_level,
                 backtrace_output: self.backtrace_output,
             },
+            notify: self.notify.clone(),
         }
     }
 }
@@ -200,11 +204,95 @@ impl LoggingContext {
     }
 }
 
+/// LoggingInterceptor is used to intercept the log.
+pub trait LoggingInterceptor: Debug {
+    /// Everytime there is a log, this function will be called.
+    // TODO(yingwen): docuement inputs.
+    fn log(
+        &self,
+        scheme: Scheme,
+        operation: &'static str,
+        path: &str,
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+
+/// The DefaultLoggingInterceptor will log the message by the standard logging macro.
+#[derive(Debug, Default)]
+pub struct DefaultLoggingInterceptor {
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
+    backtrace_output: bool,
+}
+
+impl LoggingInterceptor for DefaultLoggingInterceptor {
+    fn log(
+        &self,
+        scheme: Scheme,
+        operation: &'static str,
+        path: &str,
+        message: &str,
+        err: Option<&Error>,
+    ) {
+        let Some(err) = err else {
+            debug!(
+                target: LOGGING_TARGET,
+                "service={} operation={} path={} -> {}",
+                scheme,
+                operation,
+                path,
+                message,
+            );
+            return;
+        };
+
+        if let Some(lvl) = self.error_level(err) {
+            log!(
+                target: LOGGING_TARGET,
+                lvl,
+                "service={} operation={} path={} -> {}",
+                scheme,
+                operation,
+                path,
+                self.error_print(&err)
+            )
+        }
+    }
+}
+
+impl DefaultLoggingInterceptor {
+    #[inline]
+    fn error_level(&self, err: &Error) -> Option<Level> {
+        if err.kind() == ErrorKind::Unexpected {
+            self.failure_level
+        } else {
+            self.error_level
+        }
+    }
+
+    /// Print error with backtrace if it's unexpected error.
+    #[inline]
+    fn error_print(&self, err: &Error) -> String {
+        // Don't print backtrace if it's not unexpected error.
+        if err.kind() != ErrorKind::Unexpected {
+            return format!("{err}");
+        }
+
+        if self.backtrace_output {
+            format!("{err:?}")
+        } else {
+            format!("{err}")
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LoggingAccessor<A: Access> {
     inner: A,
 
     ctx: LoggingContext,
+    notify: Arc<DefaultLoggingInterceptor>,
 }
 
 static LOGGING_TARGET: &str = "opendal::services";
@@ -223,19 +311,33 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
     }
 
     fn metadata(&self) -> Arc<AccessorInfo> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} -> started",
+        self.notify.log(
             self.ctx.scheme,
-            Operation::Info
+            Operation::Info.into_static(),
+            "",
+            "started",
+            None,
         );
+        // debug!(
+        //     target: LOGGING_TARGET,
+        //     "service={} operation={} -> started",
+        //     self.ctx.scheme,
+        //     Operation::Info
+        // );
         let result = self.inner.info();
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} -> finished: {:?}",
+        // debug!(
+        //     target: LOGGING_TARGET,
+        //     "service={} operation={} -> finished: {:?}",
+        //     self.ctx.scheme,
+        //     Operation::Info,
+        //     result
+        // );
+        self.notify.log(
             self.ctx.scheme,
-            Operation::Info,
-            result
+            Operation::Info.into_static(),
+            "",
+            &format!("finished: {:?}", result),
+            None,
         );
 
         result

@@ -15,3 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! parquet_opendal provides parquet IO utils.
+//!
+//! ```no_run
+//! use parquet::arrow::async_writer::AsyncFileWriter;
+//! use parquet::OpendalAsyncWriter;
+//! use opendal::services::S3;
+//! use opendal::{Builder, Operator};
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let builder = S3::from_map(
+//!         vec![
+//!             ("access_key".to_string(), "my_access_key".to_string()),
+//!             ("secret_key".to_string(), "my_secret_key".to_string()),
+//!             ("endpoint".to_string(), "my_endpoint".to_string()),
+//!             ("region".to_string(), "my_region".to_string()),
+//!         ]
+//!         .into_iter()
+//!         .collect(),
+//!     ).unwrap();
+//!
+//!     // Create a new operator
+//!     let operator = Operator::new(builder).unwrap().finish();
+//!     let path = "/path/to/file.parquet";
+//!     // Create a new object store
+//!     let mut writer = Arc::new(OpendalAsyncWriter::new(operator.writer(path)));
+//! }
+//! ```
+
+mod async_writer;
+
+pub use async_writer::OpendalAsyncWriter;

@@ -84,18 +84,13 @@ use crate::*;
 /// ```
 #[derive(Debug)]
 pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
+    // TODO(yingwen): optional
     notify: Arc<I>,
 }
 
 impl<I> Clone for LoggingLayer<I> {
     fn clone(&self) -> Self {
         Self {
-            error_level: self.error_level,
-            failure_level: self.failure_level,
-            backtrace_output: self.backtrace_output,
             notify: self.notify.clone(),
         }
     }
@@ -104,16 +99,122 @@ impl<I> Clone for LoggingLayer<I> {
 impl Default for LoggingLayer {
     fn default() -> Self {
         Self {
-            // FIXME(yingwen): Remove
-            error_level: Some(Level::Warn),
-            failure_level: Some(Level::Error),
-            backtrace_output: false,
             notify: Arc::new(DefaultLoggingInterceptor::default()),
         }
     }
 }
 
 impl LoggingLayer {
+    pub fn with_notify<I: LoggingInterceptor>(self, notify: I) -> LoggingLayer<I> {
+        LoggingLayer {
+            notify: Arc::new(notify),
+        }
+    }
+}
+
+impl<A: Access, I: LoggingInterceptor> Layer<A> for LoggingLayer<I> {
+    type LayeredAccess = LoggingAccessor<A, I>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let meta = inner.info();
+        LoggingAccessor {
+            inner,
+
+            ctx: LoggingContext {
+                scheme: meta.scheme(),
+                notify: self.notify.clone(),
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct LoggingContext<I> {
+    scheme: Scheme,
+    notify: Arc<I>,
+}
+
+impl<I> Clone for LoggingContext<I> {
+    fn clone(&self) -> Self {
+        Self {
+            scheme: self.scheme,
+            notify: self.notify.clone(),
+        }
+    }
+}
+
+/// LoggingInterceptor is used to intercept the log.
+pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
+    /// Everytime there is a log, this function will be called.
+    // TODO(yingwen): docuement inputs.
+    fn log(
+        &self,
+        scheme: Scheme,
+        operation: &'static str,
+        path: &str,
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+
+/// The DefaultLoggingInterceptor will log the message by the standard logging macro.
+#[derive(Debug)]
+pub struct DefaultLoggingInterceptor {
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
+    backtrace_output: bool,
+}
+
+impl Default for DefaultLoggingInterceptor {
+    fn default() -> Self {
+        Self {
+            error_level: Some(Level::Warn),
+            failure_level: Some(Level::Error),
+            backtrace_output: false,
+        }
+    }
+}
+
+impl LoggingInterceptor for DefaultLoggingInterceptor {
+    fn log(
+        &self,
+        scheme: Scheme,
+        operation: &'static str,
+        path: &str,
+        message: &str,
+        err: Option<&Error>,
+    ) {
+        // TODO(yingwen): Use trace for reader/writer
+        // ReadOperation::Read/ReadOperation::BlockingRead/WriteOperation::Write/WriteOperation::Abort/WriteOperation::BlockingWrite
+        let Some(err) = err else {
+            debug!(
+                target: LOGGING_TARGET,
+                "service={} operation={} path={} {}",
+                scheme,
+                operation,
+                path,
+                message,
+            );
+            return;
+        };
+
+        if let Some(lvl) = self.error_level(err) {
+            // TODO(yingwen): don't print message if no message
+            log!(
+                target: LOGGING_TARGET,
+                lvl,
+                "service={} operation={} path={} {} {}",
+                scheme,
+                operation,
+                path,
+                message,
+                self.error_print(&err)
+            )
+        }
+    }
+}
+
+impl DefaultLoggingInterceptor {
     /// Setting the log level while expected error happened.
     ///
     /// For example: accessor returns NotFound.
@@ -160,136 +261,7 @@ impl LoggingLayer {
         self.backtrace_output = enable;
         self
     }
-}
 
-impl<A: Access, I: LoggingInterceptor> Layer<A> for LoggingLayer<I> {
-    type LayeredAccess = LoggingAccessor<A, I>;
-
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let meta = inner.info();
-        LoggingAccessor {
-            inner,
-
-            ctx: LoggingContext {
-                scheme: meta.scheme(),
-                error_level: self.error_level,
-                failure_level: self.failure_level,
-                backtrace_output: self.backtrace_output,
-                notify: self.notify.clone(),
-            },
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct LoggingContext<I> {
-    scheme: Scheme,
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
-    notify: Arc<I>,
-}
-
-impl<I> Clone for LoggingContext<I> {
-    fn clone(&self) -> Self {
-        Self {
-            scheme: self.scheme,
-            error_level: self.error_level,
-            failure_level: self.failure_level,
-            backtrace_output: self.backtrace_output,
-            notify: self.notify.clone(),
-        }
-    }
-}
-
-impl<I> LoggingContext<I> {
-    #[inline]
-    fn error_level(&self, err: &Error) -> Option<Level> {
-        if err.kind() == ErrorKind::Unexpected {
-            self.failure_level
-        } else {
-            self.error_level
-        }
-    }
-
-    /// Print error with backtrace if it's unexpected error.
-    #[inline]
-    fn error_print(&self, err: &Error) -> String {
-        // Don't print backtrace if it's not unexpected error.
-        if err.kind() != ErrorKind::Unexpected {
-            return format!("{err}");
-        }
-
-        if self.backtrace_output {
-            format!("{err:?}")
-        } else {
-            format!("{err}")
-        }
-    }
-}
-
-/// LoggingInterceptor is used to intercept the log.
-pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
-    /// Everytime there is a log, this function will be called.
-    // TODO(yingwen): docuement inputs.
-    fn log(
-        &self,
-        scheme: Scheme,
-        operation: &'static str,
-        path: &str,
-        message: &str,
-        err: Option<&Error>,
-    );
-}
-
-/// The DefaultLoggingInterceptor will log the message by the standard logging macro.
-#[derive(Debug, Default)]
-pub struct DefaultLoggingInterceptor {
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
-}
-
-impl LoggingInterceptor for DefaultLoggingInterceptor {
-    fn log(
-        &self,
-        scheme: Scheme,
-        operation: &'static str,
-        path: &str,
-        message: &str,
-        err: Option<&Error>,
-    ) {
-        // TODO(yingwen): Use trace for reader/writer
-        // ReadOperation::Read/ReadOperation::BlockingRead/WriteOperation::Write/WriteOperation::Abort/WriteOperation::BlockingWrite
-        let Some(err) = err else {
-            debug!(
-                target: LOGGING_TARGET,
-                "service={} operation={} path={} {}",
-                scheme,
-                operation,
-                path,
-                message,
-            );
-            return;
-        };
-
-        if let Some(lvl) = self.error_level(err) {
-            // TODO(yingwen): don't print message if no message
-            log!(
-                target: LOGGING_TARGET,
-                lvl,
-                "service={} operation={} path={} {} {}",
-                scheme,
-                operation,
-                path,
-                message,
-                self.error_print(&err)
-            )
-        }
-    }
-}
-
-impl DefaultLoggingInterceptor {
     #[inline]
     fn error_level(&self, err: &Error) -> Option<Level> {
         if err.kind() == ErrorKind::Unexpected {

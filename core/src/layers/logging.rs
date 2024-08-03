@@ -82,12 +82,23 @@ use crate::*;
 /// ```shell
 /// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
-#[derive(Debug, Clone)]
-pub struct LoggingLayer {
+#[derive(Debug)]
+pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
     error_level: Option<Level>,
     failure_level: Option<Level>,
     backtrace_output: bool,
-    notify: Arc<DefaultLoggingInterceptor>,
+    notify: Arc<I>,
+}
+
+impl<I> Clone for LoggingLayer<I> {
+    fn clone(&self) -> Self {
+        Self {
+            error_level: self.error_level,
+            failure_level: self.failure_level,
+            backtrace_output: self.backtrace_output,
+            notify: self.notify.clone(),
+        }
+    }
 }
 
 impl Default for LoggingLayer {
@@ -151,8 +162,8 @@ impl LoggingLayer {
     }
 }
 
-impl<A: Access> Layer<A> for LoggingLayer {
-    type LayeredAccess = LoggingAccessor<A>;
+impl<A: Access, I: LoggingInterceptor> Layer<A> for LoggingLayer<I> {
+    type LayeredAccess = LoggingAccessor<A, I>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let meta = inner.info();
@@ -170,13 +181,25 @@ impl<A: Access> Layer<A> for LoggingLayer {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct LoggingContext<I> {
     scheme: Scheme,
     error_level: Option<Level>,
     failure_level: Option<Level>,
     backtrace_output: bool,
     notify: Arc<I>,
+}
+
+impl<I> Clone for LoggingContext<I> {
+    fn clone(&self) -> Self {
+        Self {
+            scheme: self.scheme,
+            error_level: self.error_level,
+            failure_level: self.failure_level,
+            backtrace_output: self.backtrace_output,
+            notify: self.notify.clone(),
+        }
+    }
 }
 
 impl<I> LoggingContext<I> {
@@ -206,7 +229,7 @@ impl<I> LoggingContext<I> {
 }
 
 /// LoggingInterceptor is used to intercept the log.
-pub trait LoggingInterceptor: Debug {
+pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     /// Everytime there is a log, this function will be called.
     // TODO(yingwen): docuement inputs.
     fn log(
@@ -293,22 +316,22 @@ impl DefaultLoggingInterceptor {
 }
 
 #[derive(Clone, Debug)]
-pub struct LoggingAccessor<A: Access> {
+pub struct LoggingAccessor<A: Access, I: LoggingInterceptor> {
     inner: A,
 
-    ctx: LoggingContext<DefaultLoggingInterceptor>,
+    ctx: LoggingContext<I>,
 }
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-impl<A: Access> LayeredAccess for LoggingAccessor<A> {
+impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type Inner = A;
-    type Reader = LoggingReader<A::Reader>;
-    type BlockingReader = LoggingReader<A::BlockingReader>;
-    type Writer = LoggingWriter<A::Writer>;
-    type BlockingWriter = LoggingWriter<A::BlockingWriter>;
-    type Lister = LoggingLister<A::Lister>;
-    type BlockingLister = LoggingLister<A::BlockingLister>;
+    type Reader = LoggingReader<A::Reader, I>;
+    type BlockingReader = LoggingReader<A::BlockingReader, I>;
+    type Writer = LoggingWriter<A::Writer, I>;
+    type BlockingWriter = LoggingWriter<A::BlockingWriter, I>;
+    type Lister = LoggingLister<A::Lister, I>;
+    type BlockingLister = LoggingLister<A::BlockingLister, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -562,6 +585,7 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
                 self.ctx.notify.log(
                     self.ctx.scheme,
                     Operation::Copy.into_static(),
+                    "",
                     &format!("from={from} to={to} -> finished"),
                     None,
                 );
@@ -1404,7 +1428,7 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
                     Operation::BlockingList.into_static(),
                     path,
                     "-> got dir",
-                    Some(&rp),
+                    None,
                 );
                 let li = LoggingLister::new(self.ctx.clone(), path, Operation::BlockingList, v);
                 (rp, li)
@@ -1434,7 +1458,7 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
 }
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-pub struct LoggingReader<R, I> {
+pub struct LoggingReader<R, I: LoggingInterceptor> {
     ctx: LoggingContext<I>,
     path: String,
     op: Operation,
@@ -1443,7 +1467,7 @@ pub struct LoggingReader<R, I> {
     inner: R,
 }
 
-impl<R, I> LoggingReader<R, I> {
+impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
     fn new(ctx: LoggingContext<I>, op: Operation, path: &str, reader: R) -> Self {
         Self {
             ctx,
@@ -1479,7 +1503,7 @@ impl<R, I: LoggingInterceptor> Drop for LoggingReader<R, I> {
     }
 }
 
-impl<R: oio::Read> oio::Read for LoggingReader<R> {
+impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         match self.inner.read().await {
             Ok(bs) => {
@@ -1533,7 +1557,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
+impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingReader<R, I> {
     fn read(&mut self) -> Result<Buffer> {
         match self.inner.read() {
             Ok(bs) => {
@@ -1748,7 +1772,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 }
 
-impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
+impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for LoggingWriter<W, I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         match self.inner.write(bs.clone()) {
             Ok(_) => {
@@ -1841,7 +1865,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
     }
 }
 
-pub struct LoggingLister<P, I> {
+pub struct LoggingLister<P, I: LoggingInterceptor> {
     ctx: LoggingContext<I>,
     path: String,
     op: Operation,
@@ -1850,7 +1874,7 @@ pub struct LoggingLister<P, I> {
     inner: P,
 }
 
-impl<P, I> LoggingLister<P, I> {
+impl<P, I: LoggingInterceptor> LoggingLister<P, I> {
     fn new(ctx: LoggingContext<I>, path: &str, op: Operation, inner: P) -> Self {
         Self {
             ctx,
@@ -1862,7 +1886,7 @@ impl<P, I> LoggingLister<P, I> {
     }
 }
 
-impl<P, I> Drop for LoggingLister<P, I> {
+impl<P, I: LoggingInterceptor> Drop for LoggingLister<P, I> {
     fn drop(&mut self) {
         if self.finished {
             // debug!(
@@ -1898,7 +1922,7 @@ impl<P, I> Drop for LoggingLister<P, I> {
     }
 }
 
-impl<P: oio::List> oio::List for LoggingLister<P> {
+impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let res = self.inner.next().await;
 
@@ -1963,7 +1987,7 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
     }
 }
 
-impl<P: oio::BlockingList> oio::BlockingList for LoggingLister<P> {
+impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingLister<P, I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let res = self.inner.next();
 

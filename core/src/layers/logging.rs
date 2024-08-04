@@ -243,16 +243,29 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
         };
 
         if let Some(lvl) = self.error_level(err) {
-            log!(
-                target: LOGGING_TARGET,
-                lvl,
-                "service={} operation={} path={} {} {}",
-                scheme,
-                operation,
-                path,
-                message,
-                self.error_print(&err)
-            )
+            if self.print_backtrace(err) {
+                log!(
+                    target: LOGGING_TARGET,
+                    lvl,
+                    "service={} operation={} path={} {} {:?}",
+                    scheme,
+                    operation,
+                    path,
+                    message,
+                    err,
+                )
+            } else {
+                log!(
+                    target: LOGGING_TARGET,
+                    lvl,
+                    "service={} operation={} path={} {} {}",
+                    scheme,
+                    operation,
+                    path,
+                    message,
+                    err,
+                )
+            }
         }
     }
 }
@@ -324,20 +337,16 @@ impl DefaultLoggingInterceptor {
         }
     }
 
-    // TODO(yingwen): avoid two format.
-    /// Print error with backtrace if it's unexpected error.
+    /// Returns true if the error is unexpected and we need to
+    /// print the backtrace.
     #[inline]
-    fn error_print(&self, err: &Error) -> String {
+    fn print_backtrace(&self, err: &Error) -> bool {
         // Don't print backtrace if it's not unexpected error.
         if err.kind() != ErrorKind::Unexpected {
-            return format!("{err}");
+            return false;
         }
 
-        if self.backtrace_output {
-            format!("{err:?}")
-        } else {
-            format!("{err}")
-        }
+        self.backtrace_output
     }
 }
 

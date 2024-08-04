@@ -34,6 +34,7 @@ pub use immutable_index::ImmutableIndexLayer;
 
 mod logging;
 pub use logging::DefaultLoggingInterceptor;
+pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
 
 mod timeout;

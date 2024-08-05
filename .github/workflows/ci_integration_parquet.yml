@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Integration Object Store CI
+name: Integration Parquet CI
 
 on:
   push:

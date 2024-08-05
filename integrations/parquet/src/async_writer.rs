@@ -104,8 +104,12 @@ impl AsyncFileWriter for AsyncWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
+    use arrow::array::{ArrayRef, Int64Array, RecordBatch};
     use opendal::{services, Operator};
+    use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, AsyncArrowWriter};
 
     #[tokio::test]
     async fn test_basic() {
@@ -135,5 +139,34 @@ mod tests {
 
         let exist = op.is_exist(path).await.unwrap();
         assert!(!exist);
+    }
+
+    #[tokio::test]
+    async fn test_async_writer() {
+        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "/path/to/file.parquet";
+
+        let writer = AsyncWriter::new(
+            operator
+                .writer_with(path)
+                .chunk(32 * 1024 * 1024)
+                .concurrent(8)
+                .await
+                .unwrap(),
+        );
+
+        let col = Arc::new(Int64Array::from_iter_values([1, 2, 3])) as ArrayRef;
+        let to_write = RecordBatch::try_from_iter([("col", col)]).unwrap();
+        let mut writer = AsyncArrowWriter::try_new(writer, to_write.schema(), None).unwrap();
+        writer.write(&to_write).await.unwrap();
+        writer.close().await.unwrap();
+
+        let buffer = operator.read(path).await.unwrap().to_bytes();
+        let mut reader = ParquetRecordBatchReaderBuilder::try_new(buffer)
+            .unwrap()
+            .build()
+            .unwrap();
+        let read = reader.next().unwrap().unwrap();
+        assert_eq!(to_write, read);
     }
 }

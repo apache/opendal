@@ -28,7 +28,7 @@ rust-version = "1.75"
 version = "0.0.1"
 
 [features]
-default = ["arrow"]
+default = []
 arrow = ["dep:arrow"]
 
 [dependencies]

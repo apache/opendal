@@ -1181,7 +1181,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
             }
             Err(err) => {
                 self.ctx
-                    .log(self.op.into_static(), &self.path, "->", Some(&err));
+                    .log(self.op.into_static(), &self.path, "->", Some(err));
             }
         };
 
@@ -1209,7 +1209,7 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
             }
             Err(err) => {
                 self.ctx
-                    .log(self.op.into_static(), &self.path, "->", Some(&err));
+                    .log(self.op.into_static(), &self.path, "->", Some(err));
             }
         };
 

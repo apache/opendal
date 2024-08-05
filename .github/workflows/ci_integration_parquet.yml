@@ -45,3 +45,7 @@ jobs:
       - name: Cargo clippy
         working-directory: integrations/parquet
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo test
+        working-directory: integrations/parquet
+        run: cargo test

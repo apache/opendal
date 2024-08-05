@@ -39,9 +39,17 @@ serde = { version = "1.0.203", features = ["derive"] }
 env_logger = "0.11.2"
 opendal = { version = "0.48.0", path = "../../core", features = [
   "services-fs",
+  "tests",
 ] }
 tokio = { version = "1.38.0", features = [
   "macros",
   "rt-multi-thread",
   "signal",
 ] }
+libtest-mimic = "0.7.3"
+powershell_script = "1.1.0"
+
+[[test]]
+harness = false
+name = "behavior"
+path = "tests/behavior/main.rs"

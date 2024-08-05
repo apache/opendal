@@ -243,7 +243,7 @@ impl GcsBuilder {
     ///
     /// This is typically only done for testing purposes against storage emulators.
     pub fn no_authentication(mut self) -> Self {
-        self.no_authentication = true;
+        self.config.no_authentication = true;
         self
     }
 }
@@ -329,6 +329,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
+                no_authentication: self.config.no_authentication,
             }),
         };
 

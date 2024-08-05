@@ -91,14 +91,18 @@ impl GcsCore {
         }
     }
 
-    fn load_credential(&self) -> Result<GoogleCredential> {
+    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
+        if self.no_authentication {
+            return Ok(None);
+        }
+
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
+            Ok(Some(cred))
         } else {
             Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -126,11 +130,13 @@ impl GcsCore {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential()?;
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)?;
+        if let Some(cred) = self.load_credential()? {
+            self.signer
+                .sign_query(req, duration, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.

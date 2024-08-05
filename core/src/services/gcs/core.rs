@@ -57,6 +57,8 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub no_authentication: bool,
 }
 
 impl Debug for GcsCore {

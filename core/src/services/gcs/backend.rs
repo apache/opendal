@@ -66,6 +66,10 @@ pub struct GcsConfig {
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
     pub default_storage_class: Option<String>,
+    /// Explicitly disable authentication
+    ///
+    /// Used for testing purposes against storage emulators.
+    pub no_authentication: bool,
 }
 
 impl Debug for GcsConfig {
@@ -232,6 +236,14 @@ impl GcsBuilder {
         if !class.is_empty() {
             self.config.default_storage_class = Some(class.to_string())
         };
+        self
+    }
+
+    /// Explicitly disable authentication.
+    ///
+    /// This is typically only done for testing purposes against storage emulators.
+    pub fn no_authentication(mut self) -> Self {
+        self.no_authentication = true;
         self
     }
 }

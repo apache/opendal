@@ -367,7 +367,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, f);
+        let rd = FsLister::new(&self.core.root, path, f);
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -537,7 +537,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, f);
+        let rd = FsLister::new(&self.core.root, path, f);
 
         Ok((RpList::default(), Some(rd)))
     }

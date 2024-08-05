@@ -68,7 +68,7 @@ impl oio::PageList for S3Lister {
                 &ctx.token,
                 self.delimiter,
                 self.limit,
-                // State after should only be set for the first page.
+                // start after should only be set for the first page.
                 if ctx.token.is_empty() {
                     self.start_after.clone()
                 } else {
@@ -90,7 +90,7 @@ impl oio::PageList for S3Lister {
         //
         // - Check `is_truncated`
         // - Check `next_continuation_token`
-        // - Check the length of `common_prefixes` and `contents` (very rarely case)
+        // - Check the length of `common_prefixes` and `contents` (very rare case)
         ctx.done = if let Some(is_truncated) = output.is_truncated {
             !is_truncated
         } else if let Some(next_continuation_token) = output.next_continuation_token.as_ref() {
@@ -100,6 +100,7 @@ impl oio::PageList for S3Lister {
         };
         ctx.token = output.next_continuation_token.clone().unwrap_or_default();
 
+        let mut prefix_existing = false;
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
@@ -107,13 +108,13 @@ impl oio::PageList for S3Lister {
             );
 
             ctx.entries.push_back(de);
+            prefix_existing = true;
         }
 
         for object in output.contents {
             let path = build_rel_path(&self.core.root, &object.key);
 
-            // s3 could return the dir itself in contents.
-            if path == self.path || path.is_empty() {
+            if path.is_empty() {
                 continue;
             }
 
@@ -125,12 +126,25 @@ impl oio::PageList for S3Lister {
             }
             meta.set_content_length(object.size);
 
-            // object.last_modified provides more precious time that contains
+            // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
+            if path == self.path {
+                ctx.path_added = true;
+            }
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
+
+            prefix_existing = true;
+        }
+
+        // if the path is dir, but hasn't created yet and exists only as the prefix of a key,
+        // add it manually
+        if prefix_existing && self.path.ends_with("/") && !ctx.path_added {
+            let entry = oio::Entry::new(self.path.as_str(), Metadata::new(EntryMode::DIR));
+            ctx.entries.push_front(entry);
+            ctx.path_added = true;
         }
 
         Ok(())

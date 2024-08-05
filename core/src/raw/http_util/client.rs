@@ -122,7 +122,7 @@ impl HttpClient {
         // Get content length from header so that we can check it.
         //
         // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit it's content length.
+        // - If response contains content_encoding, we should omit its content length.
         let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {

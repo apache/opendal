@@ -27,10 +27,6 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
 version = "0.0.1"
 
-[features]
-default = []
-arrow = ["dep:arrow"]
-
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
@@ -40,7 +36,6 @@ parquet = { version = "52.0", default-features = false, features = [
   "async",
   "arrow",
 ] }
-arrow = { version = "52.0", optional = true }
 
 [dev-dependencies]
 opendal = { version = "0.48.0", path = "../../core", features = [
@@ -55,4 +50,3 @@ arrow = { version = "52.0" }
 [[example]]
 name = "async_writer"
 path = "examples/async_writer.rs"
-required-features = ["arrow"]

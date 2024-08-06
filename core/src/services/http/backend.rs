@@ -242,6 +242,10 @@ impl Access for HttpBackend {
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
+                presign: !self.has_authorization(),
+                presign_read: !self.has_authorization(),
+                presign_stat: !self.has_authorization(),
+
                 ..Default::default()
             });
 
@@ -285,9 +289,41 @@ impl Access for HttpBackend {
             }
         }
     }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        if self.has_authorization() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Http doesn't support presigned request on backend with authorization",
+            ));
+        }
+
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.http_head_request(path, v)?,
+            PresignOperation::Read(v) => self.http_get_request(path, BytesRange::default(), v)?,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "Http doesn't support presigned write",
+                ))
+            }
+        };
+
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
+    }
 }
 
 impl HttpBackend {
+    pub fn has_authorization(&self) -> bool {
+        self.authorization.is_some()
+    }
+
     pub fn http_get_request(
         &self,
         path: &str,

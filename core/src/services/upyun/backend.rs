@@ -63,7 +63,8 @@ impl Debug for UpyunConfig {
 }
 
 impl Configurator for UpyunConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = UpyunBuilder;
+    fn into_builder(self) -> Self::Builder {
         UpyunBuilder {
             config: self,
             http_client: None,

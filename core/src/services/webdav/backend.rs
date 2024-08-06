@@ -65,7 +65,8 @@ impl Debug for WebdavConfig {
 }
 
 impl Configurator for WebdavConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = WebdavBuilder;
+    fn into_builder(self) -> Self::Builder {
         WebdavBuilder {
             config: self,
             http_client: None,

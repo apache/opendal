@@ -62,7 +62,8 @@ impl Debug for MysqlConfig {
 }
 
 impl Configurator for MysqlConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MysqlBuilder;
+    fn into_builder(self) -> Self::Builder {
         MysqlBuilder { config: self }
     }
 }

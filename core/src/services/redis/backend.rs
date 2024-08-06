@@ -99,7 +99,8 @@ impl Debug for RedisConfig {
 }
 
 impl Configurator for RedisConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = RedisBuilder;
+    fn into_builder(self) -> Self::Builder {
         RedisBuilder { config: self }
     }
 }

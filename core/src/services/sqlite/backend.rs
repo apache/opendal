@@ -77,7 +77,8 @@ impl Debug for SqliteConfig {
 }
 
 impl Configurator for SqliteConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SqliteBuilder;
+    fn into_builder(self) -> Self::Builder {
         SqliteBuilder { config: self }
     }
 }

@@ -69,7 +69,8 @@ impl Debug for PostgresqlConfig {
 }
 
 impl Configurator for PostgresqlConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = PostgresqlBuilder;
+    fn into_builder(self) -> Self::Builder {
         PostgresqlBuilder { config: self }
     }
 }

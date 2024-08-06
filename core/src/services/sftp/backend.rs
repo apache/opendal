@@ -73,7 +73,8 @@ impl Debug for SftpConfig {
 }
 
 impl Configurator for SftpConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SftpBuilder;
+    fn into_builder(self) -> Self::Builder {
         SftpBuilder { config: self }
     }
 }

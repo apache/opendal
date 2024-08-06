@@ -45,7 +45,8 @@ impl Debug for VercelArtifactsConfig {
 }
 
 impl Configurator for VercelArtifactsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = VercelArtifactsBuilder;
+    fn into_builder(self) -> Self::Builder {
         VercelArtifactsBuilder {
             config: self,
             http_client: None,

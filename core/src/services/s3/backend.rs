@@ -226,7 +226,8 @@ impl Debug for S3Config {
 }
 
 impl Configurator for S3Config {
-    fn into_builder(self) -> impl Builder {
+    type Builder = S3Builder;
+    fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
             customized_credential_load: None,

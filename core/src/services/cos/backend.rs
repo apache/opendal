@@ -67,7 +67,8 @@ impl Debug for CosConfig {
 }
 
 impl Configurator for CosConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = CosBuilder;
+    fn into_builder(self) -> Self::Builder {
         CosBuilder {
             config: self,
             http_client: None,

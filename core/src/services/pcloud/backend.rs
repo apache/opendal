@@ -65,7 +65,8 @@ impl Debug for PcloudConfig {
 }
 
 impl Configurator for PcloudConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = PcloudBuilder;
+    fn into_builder(self) -> Self::Builder {
         PcloudBuilder {
             config: self,
             http_client: None,

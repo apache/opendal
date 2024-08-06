@@ -81,7 +81,8 @@ impl Debug for LibsqlConfig {
 }
 
 impl Configurator for LibsqlConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = LibsqlBuilder;
+    fn into_builder(self) -> Self::Builder {
         LibsqlBuilder { config: self }
     }
 }

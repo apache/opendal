@@ -61,7 +61,8 @@ impl Debug for AlluxioConfig {
 }
 
 impl Configurator for AlluxioConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AlluxioBuilder;
+    fn into_builder(self) -> Self::Builder {
         AlluxioBuilder {
             config: self,
             http_client: None,

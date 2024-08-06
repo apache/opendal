@@ -37,7 +37,8 @@ pub struct MemoryConfig {
 }
 
 impl Configurator for MemoryConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MemoryBuilder;
+    fn into_builder(self) -> Self::Builder {
         MemoryBuilder { config: self }
     }
 }

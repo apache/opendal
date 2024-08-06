@@ -242,6 +242,10 @@ impl Access for HttpBackend {
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
+                presign: !self.has_authorization(),
+                presign_read: !self.has_authorization(),
+                presign_stat: !self.has_authorization(),
+
                 ..Default::default()
             });
 
@@ -285,15 +289,47 @@ impl Access for HttpBackend {
             }
         }
     }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        if self.has_authorization() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Http doesn't support presigned request on backend with authorization",
+            ));
+        }
+
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.http_head_request(path, v)?,
+            PresignOperation::Read(v) => self.http_get_request(path, BytesRange::default(), v)?,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "Http doesn't support presigned write",
+                ))
+            }
+        };
+
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
+    }
 }
 
 impl HttpBackend {
-    pub async fn http_get(
+    pub fn has_authorization(&self) -> bool {
+        self.authorization.is_some()
+    }
+
+    pub fn http_get_request(
         &self,
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -316,12 +352,20 @@ impl HttpBackend {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        req.body(Buffer::new()).map_err(new_request_build_error)
+    }
 
+    pub async fn http_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let req = self.http_get_request(path, range, args)?;
         self.client.fetch(req).await
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -340,8 +384,11 @@ impl HttpBackend {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        req.body(Buffer::new()).map_err(new_request_build_error)
+    }
 
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+        let req = self.http_head_request(path, args)?;
         self.client.send(req).await
     }
 }

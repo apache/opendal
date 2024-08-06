@@ -370,7 +370,6 @@ impl Access for FsBackend {
         };
 
         let rd = FsLister::new(&self.core.root, path, f, arg);
-
         Ok((RpList::default(), Some(rd)))
     }
 

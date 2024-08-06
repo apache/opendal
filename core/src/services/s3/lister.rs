@@ -80,7 +80,6 @@ impl oio::PageList for S3Lister {
         if resp.status() != http::StatusCode::OK {
             return Err(parse_error(resp));
         }
-
         let bs = resp.into_body();
 
         let output: ListObjectsOutput =
@@ -100,7 +99,6 @@ impl oio::PageList for S3Lister {
         };
         ctx.token = output.next_continuation_token.clone().unwrap_or_default();
 
-        let mut prefix_existing = false;
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
@@ -108,14 +106,12 @@ impl oio::PageList for S3Lister {
             );
 
             ctx.entries.push_back(de);
-            prefix_existing = true;
         }
 
         for object in output.contents {
-            let path = build_rel_path(&self.core.root, &object.key);
-
+            let mut path = build_rel_path(&self.core.root, &object.key);
             if path.is_empty() {
-                continue;
+                path = "/".to_string();
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
@@ -130,21 +126,8 @@ impl oio::PageList for S3Lister {
             // nanosecond, let's trim them.
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            if path == self.path {
-                ctx.path_added = true;
-            }
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
-
-            prefix_existing = true;
-        }
-
-        // if the path is dir, but hasn't created yet and exists only as the prefix of a key,
-        // add it manually
-        if prefix_existing && self.path.ends_with("/") && !ctx.path_added {
-            let entry = oio::Entry::new(self.path.as_str(), Metadata::new(EntryMode::DIR));
-            ctx.entries.push_front(entry);
-            ctx.path_added = true;
         }
 
         Ok(())

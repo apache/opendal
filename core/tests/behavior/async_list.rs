@@ -23,7 +23,6 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
-
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
@@ -370,17 +369,21 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let parent = format!("{}/", uuid::Uuid::new_v4());
+    op.create_dir(&parent)
+        .await
+        .expect("create dir must succeed");
+
     let dir = format!("{parent}{}/", uuid::Uuid::new_v4());
+    op.create_dir(&dir).await.expect("create must succeed");
 
     let file_name = uuid::Uuid::new_v4().to_string();
     let file_path = format!("{dir}{file_name}");
-    let dir_name = format!("{}/", uuid::Uuid::new_v4());
-    let dir_path = format!("{dir}{dir_name}");
-
-    op.create_dir(&dir).await.expect("create must succeed");
     op.write(&file_path, "test_list_nested_dir")
         .await
         .expect("create must succeed");
+
+    let dir_name = format!("{}/", uuid::Uuid::new_v4());
+    let dir_path = format!("{dir}{dir_name}");
     op.create_dir(&dir_path).await.expect("create must succeed");
 
     let obs = op.list(&parent).await?;
@@ -504,6 +507,8 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
+    op.create_dir("/").await?;
+
     let w = op.lister_with("").recursive(true).await?;
     let actual = w
         .try_collect::<Vec<_>>()

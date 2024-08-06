@@ -80,6 +80,40 @@ use crate::*;
 /// ```shell
 /// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
+///
+/// # Logging Interceptor
+///
+/// You can implement your own logging interceptor to customize the logging behavior.
+///
+/// ```no_run
+/// use crate::layers::LoggingInterceptor;
+/// use crate::layers::LoggingLayer;
+/// use crate::services;
+/// use crate::Error;
+/// use crate::Operator;
+/// use crate::Scheme;
+///
+/// #[derive(Debug, Clone)]
+/// struct MyLoggingInterceptor;
+///
+/// impl LoggingInterceptor for MyLoggingInterceptor {
+///     fn log(
+///         &self,
+///         scheme: Scheme,
+///         operation: &'static str,
+///         path: &str,
+///         message: &str,
+///         err: Option<&Error>,
+///     ) {
+///         // log something
+///     }
+/// }
+///
+/// let _ = Operator::new(services::Memory::default())
+///     .expect("must init")
+///     .layer(LoggingLayer::new(MyLoggingInterceptor))
+///     .finish();
+/// ```
 #[derive(Debug)]
 pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
     notify: Arc<I>,
@@ -103,38 +137,6 @@ impl Default for LoggingLayer {
 
 impl LoggingLayer {
     /// Create the layer with specific logging interceptor.
-    ///
-    /// ```no_run
-    /// use crate::layers::LoggingInterceptor;
-    /// use crate::layers::LoggingLayer;
-    /// use crate::services;
-    /// use crate::Error;
-    /// use crate::Operator;
-    /// use crate::Scheme;
-    ///
-    /// #[derive(Debug, Clone)]
-    /// struct MyLoggingInterceptor;
-    ///
-    /// impl LoggingInterceptor for MyLoggingInterceptor {
-    ///     fn log(
-    ///         &self,
-    ///         scheme: Scheme,
-    ///         operation: &'static str,
-    ///         path: &str,
-    ///         message: &str,
-    ///         err: Option<&Error>,
-    ///     ) {
-    ///         // log something
-    ///     }
-    /// }
-    ///
-    /// let _ = Operator::new(services::Memory::default())
-    ///     .expect("must init")
-    ///     .layer(LoggingLayer::new(MyLoggingInterceptor))
-    ///     .finish();
-    /// ```
-    ///
-    /// This allows customize the log format.
     pub fn new<I: LoggingInterceptor>(notify: I) -> LoggingLayer<I> {
         LoggingLayer {
             notify: Arc::new(notify),
@@ -191,6 +193,12 @@ pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     ///         current operation doesn't have a path argument.
     /// - message: The log message.
     /// - err: The error to log.
+    ///
+    /// # Note
+    ///
+    /// Users should avoid calling resource-intensive operations such as I/O or network
+    /// functions here, especially anything that takes longer than 10ms. Otherwise, Opendal
+    /// could perform unexpectedly slow.
     fn log(
         &self,
         scheme: Scheme,

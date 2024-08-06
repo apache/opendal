@@ -58,7 +58,7 @@ pub struct GcsCore {
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
 
-    pub no_authentication: bool,
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsCore {
@@ -92,7 +92,7 @@ impl GcsCore {
     }
 
     fn load_credential(&self) -> Result<Option<GoogleCredential>> {
-        if self.no_authentication {
+        if self.allow_anonymous {
             return Ok(None);
         }
 
@@ -112,7 +112,7 @@ impl GcsCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if self.no_authentication {
+        if self.allow_anonymous {
             return Ok(());
         }
         let cred = self.load_token().await?;

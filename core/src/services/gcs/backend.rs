@@ -69,7 +69,7 @@ pub struct GcsConfig {
     /// Explicitly disable authentication
     ///
     /// Used for testing purposes against storage emulators.
-    pub no_authentication: bool,
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsConfig {
@@ -242,8 +242,8 @@ impl GcsBuilder {
     /// Explicitly disable authentication.
     ///
     /// This is typically only done for testing purposes against storage emulators.
-    pub fn no_authentication(mut self) -> Self {
-        self.config.no_authentication = true;
+    pub fn allow_anonymous(mut self) -> Self {
+        self.config.allow_anonymous = true;
         self
     }
 }
@@ -329,7 +329,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
-                no_authentication: self.config.no_authentication,
+                allow_anonymous: self.config.no_authentication,
             }),
         };
 

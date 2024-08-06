@@ -43,7 +43,8 @@ pub struct RocksdbConfig {
 }
 
 impl Configurator for RocksdbConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = RocksdbBuilder;
+    fn into_builder(self) -> Self::Builder {
         RocksdbBuilder { config: self }
     }
 }

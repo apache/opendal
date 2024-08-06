@@ -34,7 +34,8 @@ pub struct DashmapConfig {
 }
 
 impl Configurator for DashmapConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = DashmapBuilder;
+    fn into_builder(self) -> Self::Builder {
         DashmapBuilder { config: self }
     }
 }

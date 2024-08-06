@@ -80,7 +80,8 @@ impl Debug for GcsConfig {
 }
 
 impl Configurator for GcsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GcsBuilder;
+    fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
             http_client: None,

@@ -86,7 +86,8 @@ Service implementers should update their code to use the `Configurator` trait in
 
 ```rust
 impl Configurator for MemoryConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MemoryBuilder;
+    fn into_builder(self) -> Self::Builder {
         MemoryBuilder { config: self }
     }
 }

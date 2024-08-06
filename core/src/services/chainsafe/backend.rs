@@ -65,7 +65,8 @@ impl Debug for ChainsafeConfig {
 }
 
 impl Configurator for ChainsafeConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = ChainsafeBuilder;
+    fn into_builder(self) -> Self::Builder {
         ChainsafeBuilder {
             config: self,
             http_client: None,

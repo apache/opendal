@@ -49,7 +49,8 @@ impl Debug for OnedriveConfig {
 }
 
 impl Configurator for OnedriveConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = OnedriveBuilder;
+    fn into_builder(self) -> Self::Builder {
         OnedriveBuilder {
             config: self,
             http_client: None,

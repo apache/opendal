@@ -87,7 +87,8 @@ impl Debug for HuggingfaceConfig {
 }
 
 impl Configurator for HuggingfaceConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = HuggingfaceBuilder;
+    fn into_builder(self) -> Self::Builder {
         HuggingfaceBuilder { config: self }
     }
 }

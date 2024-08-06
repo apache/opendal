@@ -67,7 +67,8 @@ impl Debug for MokaConfig {
 }
 
 impl Configurator for MokaConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MokaBuilder;
+    fn into_builder(self) -> Self::Builder {
         MokaBuilder { config: self }
     }
 }

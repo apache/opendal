@@ -63,7 +63,8 @@ impl Debug for GdriveConfig {
 }
 
 impl Configurator for GdriveConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GdriveBuilder;
+    fn into_builder(self) -> Self::Builder {
         GdriveBuilder {
             config: self,
             http_client: None,

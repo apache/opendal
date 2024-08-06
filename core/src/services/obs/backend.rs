@@ -67,7 +67,8 @@ impl Debug for ObsConfig {
 }
 
 impl Configurator for ObsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = ObsBuilder;
+    fn into_builder(self) -> Self::Builder {
         ObsBuilder {
             config: self,
             http_client: None,

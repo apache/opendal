@@ -61,7 +61,8 @@ impl Debug for HttpConfig {
 }
 
 impl Configurator for HttpConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = HttpBuilder;
+    fn into_builder(self) -> Self::Builder {
         HttpBuilder {
             config: self,
             http_client: None,

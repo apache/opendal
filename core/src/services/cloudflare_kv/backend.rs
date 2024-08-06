@@ -62,7 +62,8 @@ impl Debug for CloudflareKvConfig {
 }
 
 impl Configurator for CloudflareKvConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = CloudflareKvBuilder;
+    fn into_builder(self) -> Self::Builder {
         CloudflareKvBuilder {
             config: self,
             http_client: None,

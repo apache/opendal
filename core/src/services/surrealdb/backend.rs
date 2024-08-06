@@ -74,7 +74,8 @@ impl Debug for SurrealdbConfig {
 }
 
 impl Configurator for SurrealdbConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SurrealdbBuilder;
+    fn into_builder(self) -> Self::Builder {
         SurrealdbBuilder { config: self }
     }
 }

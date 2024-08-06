@@ -39,7 +39,7 @@ use crate::Scheme;
 ///
 /// `typed_kv::Adapter` is the typed version of `kv::Adapter`. It's more
 /// efficient if the underlying kv service can store data with its type. For
-/// example, we can store `Bytes` along with it's metadata so that we don't
+/// example, we can store `Bytes` along with its metadata so that we don't
 /// need to serialize/deserialize it when we get it from the service.
 ///
 /// Ideally, we should use `typed_kv::Adapter` instead of `kv::Adapter` for

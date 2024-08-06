@@ -315,6 +315,10 @@ impl Builder for GcsBuilder {
             cred_loader = cred_loader.with_disable_well_known_location();
         }
 
+        if self.config.disable_config_load {
+            cred_loader = cred_loader.with_disable_env();
+        }
+
         let scope = if let Some(scope) = &self.config.scope {
             scope
         } else {
@@ -330,6 +334,10 @@ impl Builder for GcsBuilder {
         }
         if let Some(loader) = self.customized_token_loader {
             token_loader = token_loader.with_customized_token_loader(loader)
+        }
+
+        if self.config.disable_vm_metadata {
+            token_loader = token_loader.with_disable_vm_metadata(true);
         }
 
         let signer = GoogleSigner::new("storage");

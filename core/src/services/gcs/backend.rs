@@ -69,6 +69,11 @@ pub struct GcsConfig {
     /// Explicitly allow anonymous access, such as for publicly available buckets
     /// which do not require authentication.
     pub allow_anonymous: bool,
+    /// Disable attempting to load credentials from the GCE metadata server when
+    /// running within Google Cloud.
+    pub disable_vm_metadata: bool,
+    /// Disable loading configuration from the environment.
+    pub disable_config_load: bool,
 }
 
 impl Debug for GcsConfig {
@@ -205,6 +210,18 @@ impl GcsBuilder {
     /// Specify the customized token loader used by this service.
     pub fn customized_token_loader(mut self, token_load: Box<dyn GoogleTokenLoad>) -> Self {
         self.customized_token_loader = Some(token_load);
+        self
+    }
+
+    /// Disable attempting to load credentials from the GCE metadata server.
+    pub fn disable_vm_metadata(mut self) -> Self {
+        self.config.disable_vm_metadata = true;
+        self
+    }
+
+    /// Disable loading configuration from the environment.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
         self
     }
 

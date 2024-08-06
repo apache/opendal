@@ -66,9 +66,8 @@ pub struct GcsConfig {
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
     pub default_storage_class: Option<String>,
-    /// Explicitly disable authentication
-    ///
-    /// Used for testing purposes against storage emulators.
+    /// Explicitly allow anonymous access, such as for publicly available buckets
+    /// which do not require authentication.
     pub allow_anonymous: bool,
 }
 
@@ -329,7 +328,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
-                allow_anonymous: self.config.no_authentication,
+                allow_anonymous: self.config.allow_anonymous,
             }),
         };
 

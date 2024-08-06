@@ -288,12 +288,12 @@ impl Access for HttpBackend {
 }
 
 impl HttpBackend {
-    pub async fn http_get(
+    pub fn http_get_request(
         &self,
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -316,12 +316,20 @@ impl HttpBackend {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        req.body(Buffer::new()).map_err(new_request_build_error)
+    }
 
+    pub async fn http_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let req = self.http_get_request(path, range, args)?;
         self.client.fetch(req).await
     }
 
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -340,8 +348,11 @@ impl HttpBackend {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        req.body(Buffer::new()).map_err(new_request_build_error)
+    }
 
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+        let req = self.http_head_request(path, args)?;
         self.client.send(req).await
     }
 }

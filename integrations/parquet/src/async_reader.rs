@@ -19,7 +19,6 @@ use std::cmp::{max, min};
 use std::ops::Range;
 use std::sync::Arc;
 
-use bytes::Buf;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use opendal::Reader;
@@ -81,7 +80,7 @@ const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
 ///         .await
 ///         .unwrap();
 ///     let content_len = operator.stat(path).await.unwrap().content_length();
-///     let reader = AsyncReader::new(reader, content_len).with_footer_size(512 * 1024);
+///     let reader = AsyncReader::new(reader, content_len).with_prefetch_footer_size(512 * 1024);
 ///     let mut stream = ParquetRecordBatchStreamBuilder::new(reader)
 ///         .await
 ///         .unwrap()
@@ -93,29 +92,29 @@ const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
 /// ```
 pub struct AsyncReader {
     inner: Reader,
-    content_len: u64,
+    content_length: u64,
     // The prefetch size for fetching file footer.
-    footer_size: usize,
+    prefetch_footer_size: usize,
 }
 
-fn set_footer_size(footer_size: usize, content_size: u64) -> usize {
+fn set_prefetch_footer_size(footer_size: usize, content_size: u64) -> usize {
     let footer_size = max(footer_size, FOOTER_SIZE);
     min(footer_size as u64, content_size) as usize
 }
 
 impl AsyncReader {
     /// Create a [`AsyncReader`] by given [`Reader`].
-    pub fn new(reader: Reader, content_len: u64) -> Self {
+    pub fn new(reader: Reader, content_length: u64) -> Self {
         Self {
             inner: reader,
-            content_len,
-            footer_size: set_footer_size(PREFETCH_FOOTER_SIZE, content_len),
+            content_length,
+            prefetch_footer_size: set_prefetch_footer_size(PREFETCH_FOOTER_SIZE, content_length),
         }
     }
 
     /// Set prefetch size for fetching file footer.
-    pub fn with_footer_size(mut self, footer_size: usize) -> Self {
-        self.footer_size = set_footer_size(footer_size, self.content_len);
+    pub fn with_prefetch_footer_size(mut self, footer_size: usize) -> Self {
+        self.prefetch_footer_size = set_prefetch_footer_size(footer_size, self.content_length);
         self
     }
 }
@@ -157,35 +156,40 @@ impl AsyncFileReader for AsyncReader {
 
     fn get_metadata(&mut self) -> BoxFuture<'_, ParquetResult<std::sync::Arc<ParquetMetaData>>> {
         async move {
-            let prefetched_footer = self
+            let prefetched_footer_content = self
                 .inner
-                .read(self.content_len - self.footer_size as u64..self.content_len)
+                .read(self.content_length - self.prefetch_footer_size as u64..self.content_length)
                 .await
                 .map_err(|err| ParquetError::External(Box::new(err)))?;
-            let prefetched_footer_len = prefetched_footer.len();
-            let footer_len =
-                &prefetched_footer.slice((prefetched_footer_len - 8)..prefetched_footer_len);
+            let prefetched_footer_length = prefetched_footer_content.len();
 
-            // Safety: checked above.
-            let buf: [u8; 8] = footer_len.chunk().try_into().unwrap();
-            let metadata_len = decode_footer(&buf)?;
+            // Decode the metadata length from the last 8 bytes of the file.
+            let metadata_length = {
+                let buf = &prefetched_footer_content
+                    .slice((prefetched_footer_length - FOOTER_SIZE)..prefetched_footer_length);
+                // Safety: checked above.
+                let buf: [u8; 8] = buf.to_vec().try_into().unwrap();
+                decode_footer(&buf)?
+            };
 
-            let buf = if prefetched_footer_len >= metadata_len + FOOTER_SIZE {
-                prefetched_footer.slice(
-                    (prefetched_footer_len - metadata_len - FOOTER_SIZE)
-                        ..(prefetched_footer_len - FOOTER_SIZE),
+            // Try to read the metadata from the `prefetched_footer_content`.
+            // Otherwise, fetch exact metadata from the remote.
+            let buf = if prefetched_footer_length >= metadata_length + FOOTER_SIZE {
+                prefetched_footer_content.slice(
+                    (prefetched_footer_length - metadata_length - FOOTER_SIZE)
+                        ..(prefetched_footer_length - FOOTER_SIZE),
                 )
             } else {
                 self.inner
                     .read(
-                        self.content_len - metadata_len as u64 - FOOTER_SIZE as u64
-                            ..self.content_len - FOOTER_SIZE as u64,
+                        self.content_length - metadata_length as u64 - FOOTER_SIZE as u64
+                            ..self.content_length - FOOTER_SIZE as u64,
                     )
                     .await
                     .map_err(|err| ParquetError::External(Box::new(err)))?
             };
 
-            Ok(Arc::new(decode_metadata(buf.chunk())?))
+            Ok(Arc::new(decode_metadata(&buf.to_vec())?))
         }
         .boxed()
     }
@@ -208,27 +212,27 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_async_reader_with_footer_size() {
+    async fn test_async_reader_with_prefetch_footer_size() {
         let operator = Operator::new(services::Memory::default()).unwrap().finish();
         let path = "/path/to/file.parquet";
 
         let reader = AsyncReader::new(operator.reader(path).await.unwrap(), 1024);
-        assert_eq!(reader.footer_size, 1024);
-        assert_eq!(reader.content_len, 1024);
+        assert_eq!(reader.prefetch_footer_size, 1024);
+        assert_eq!(reader.content_length, 1024);
 
         let reader = AsyncReader::new(operator.reader(path).await.unwrap(), 1024 * 1024);
-        assert_eq!(reader.footer_size, PREFETCH_FOOTER_SIZE);
-        assert_eq!(reader.content_len, 1024 * 1024);
+        assert_eq!(reader.prefetch_footer_size, PREFETCH_FOOTER_SIZE);
+        assert_eq!(reader.content_length, 1024 * 1024);
 
         let reader = AsyncReader::new(operator.reader(path).await.unwrap(), 1024 * 1024)
-            .with_footer_size(2048 * 1024);
-        assert_eq!(reader.footer_size, 1024 * 1024);
-        assert_eq!(reader.content_len, 1024 * 1024);
+            .with_prefetch_footer_size(2048 * 1024);
+        assert_eq!(reader.prefetch_footer_size, 1024 * 1024);
+        assert_eq!(reader.content_length, 1024 * 1024);
 
-        let reader =
-            AsyncReader::new(operator.reader(path).await.unwrap(), 1024 * 1024).with_footer_size(1);
-        assert_eq!(reader.footer_size, 8);
-        assert_eq!(reader.content_len, 1024 * 1024);
+        let reader = AsyncReader::new(operator.reader(path).await.unwrap(), 1024 * 1024)
+            .with_prefetch_footer_size(1);
+        assert_eq!(reader.prefetch_footer_size, 8);
+        assert_eq!(reader.content_length, 1024 * 1024);
     }
 
     fn gen_fixed_string(size: usize) -> String {
@@ -329,7 +333,7 @@ mod tests {
             let content_len = operator.stat(path).await.unwrap().content_length();
             let mut reader = AsyncReader::new(reader, content_len);
             if let Some(footer_size) = case.prefetch {
-                reader = reader.with_footer_size(footer_size);
+                reader = reader.with_prefetch_footer_size(footer_size);
             }
             let mut stream = ParquetRecordBatchStreamBuilder::new(reader)
                 .await

@@ -67,7 +67,7 @@
 //!         .await
 //!         .unwrap();
 //!     let content_len = operator.stat(path).await.unwrap().content_length();
-//!     let reader = AsyncReader::new(reader, content_len).with_footer_size(512 * 1024);
+//!     let reader = AsyncReader::new(reader, content_len).with_prefetch_footer_size(512 * 1024);
 //!     let mut stream = ParquetRecordBatchStreamBuilder::new(reader)
 //!         .await
 //!         .unwrap()

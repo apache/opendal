@@ -317,7 +317,9 @@ impl Builder for GcsBuilder {
         }
 
         if self.config.disable_config_load {
-            cred_loader = cred_loader.with_disable_env();
+            cred_loader = cred_loader
+                .with_disable_env()
+                .with_disable_well_known_location();
         }
 
         let scope = if let Some(scope) = &self.config.scope {

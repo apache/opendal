@@ -28,8 +28,6 @@ use log::log;
 use log::trace;
 use log::Level;
 
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -988,7 +986,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
-                    ReadOperation::Read,
+                    Operation::ReaderRead,
                     self.path,
                     self.read.load(Ordering::Relaxed),
                     bs.remaining()
@@ -1002,7 +1000,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         lvl,
                         "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
-                        ReadOperation::Read,
+                        Operation::ReaderRead,
                         self.path,
                         self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
@@ -1024,7 +1022,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> read returns {}B",
                     self.ctx.scheme,
-                    ReadOperation::BlockingRead,
+                    Operation::BlockingReaderRead,
                     self.path,
                     self.read.load(Ordering::Relaxed),
                     bs.remaining()
@@ -1038,7 +1036,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                         lvl,
                         "service={} operation={} path={} read={} -> read failed: {}",
                         self.ctx.scheme,
-                        ReadOperation::BlockingRead,
+                        Operation::BlockingReaderRead,
                         self.path,
                         self.read.load(Ordering::Relaxed),
                         self.ctx.error_print(&err),
@@ -1081,7 +1079,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={}B -> data write {}B",
                     self.ctx.scheme,
-                    WriteOperation::Write,
+                    Operation::WriterWrite,
                     self.path,
                     self.written,
                     size,
@@ -1095,7 +1093,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::Write,
+                        Operation::WriterWrite,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),
@@ -1113,7 +1111,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={}B -> abort writer",
                     self.ctx.scheme,
-                    WriteOperation::Abort,
+                    Operation::WriterAbort,
                     self.path,
                     self.written,
                 );
@@ -1126,7 +1124,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={}B -> abort writer failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::Abort,
+                        Operation::WriterAbort,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),
@@ -1157,7 +1155,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::Close,
+                        Operation::WriterClose,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),
@@ -1177,7 +1175,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={}B -> data write {}B",
                     self.ctx.scheme,
-                    WriteOperation::BlockingWrite,
+                    Operation::BlockingWriterWrite,
                     self.path,
                     self.written,
                     bs.len(),
@@ -1191,7 +1189,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::BlockingWrite,
+                        Operation::BlockingWriterWrite,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),
@@ -1222,7 +1220,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::BlockingClose,
+                        Operation::BlockingWriterClose,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),

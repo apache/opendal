@@ -31,8 +31,6 @@ use prometheus_client::metrics::histogram;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
@@ -622,19 +620,19 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             Ok(bs) => {
                 self.metrics.observe_bytes_total(
                     self.scheme,
-                    ReadOperation::Read.into_static(),
+                    Operation::ReaderRead.into_static(),
                     bs.remaining(),
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    ReadOperation::Read.into_static(),
+                    Operation::ReaderRead.into_static(),
                     start.elapsed(),
                 );
                 Ok(bs)
             }
             Err(e) => {
                 self.metrics
-                    .increment_errors_total(ReadOperation::Read.into_static(), e.kind());
+                    .increment_errors_total(Operation::ReaderRead.into_static(), e.kind());
                 Err(e)
             }
         }
@@ -649,19 +647,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             .map(|bs| {
                 self.metrics.observe_bytes_total(
                     self.scheme,
-                    ReadOperation::BlockingRead.into_static(),
+                    Operation::BlockingReaderRead.into_static(),
                     bs.remaining(),
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    ReadOperation::BlockingRead.into_static(),
+                    Operation::BlockingReaderRead.into_static(),
                     start.elapsed(),
                 );
                 bs
             })
             .map_err(|e| {
                 self.metrics
-                    .increment_errors_total(ReadOperation::BlockingRead.into_static(), e.kind());
+                    .increment_errors_total(Operation::BlockingReaderRead.into_static(), e.kind());
                 e
             })
     }
@@ -678,18 +676,18 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.metrics.observe_bytes_total(
                     self.scheme,
-                    WriteOperation::Write.into_static(),
+                    Operation::WriterWrite.into_static(),
                     size,
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    WriteOperation::Write.into_static(),
+                    Operation::WriterWrite.into_static(),
                     start.elapsed(),
                 );
             })
             .map_err(|err| {
                 self.metrics
-                    .increment_errors_total(WriteOperation::Write.into_static(), err.kind());
+                    .increment_errors_total(Operation::WriterWrite.into_static(), err.kind());
                 err
             })
     }
@@ -703,13 +701,13 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    WriteOperation::Abort.into_static(),
+                    Operation::WriterAbort.into_static(),
                     start.elapsed(),
                 );
             })
             .map_err(|err| {
                 self.metrics
-                    .increment_errors_total(WriteOperation::Abort.into_static(), err.kind());
+                    .increment_errors_total(Operation::WriterAbort.into_static(), err.kind());
                 err
             })
     }
@@ -723,13 +721,13 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    WriteOperation::Close.into_static(),
+                    Operation::WriterClose.into_static(),
                     start.elapsed(),
                 );
             })
             .map_err(|err| {
                 self.metrics
-                    .increment_errors_total(WriteOperation::Close.into_static(), err.kind());
+                    .increment_errors_total(Operation::WriterClose.into_static(), err.kind());
                 err
             })
     }
@@ -745,18 +743,18 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.metrics.observe_bytes_total(
                     self.scheme,
-                    WriteOperation::BlockingWrite.into_static(),
+                    Operation::BlockingWriterWrite.into_static(),
                     size,
                 );
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    WriteOperation::BlockingWrite.into_static(),
+                    Operation::BlockingWriterWrite.into_static(),
                     start.elapsed(),
                 );
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(
-                    WriteOperation::BlockingWrite.into_static(),
+                    Operation::BlockingWriterWrite.into_static(),
                     err.kind(),
                 );
                 err
@@ -771,13 +769,13 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.metrics.observe_request_duration(
                     self.scheme,
-                    WriteOperation::BlockingClose.into_static(),
+                    Operation::BlockingWriterClose.into_static(),
                     start.elapsed(),
                 );
             })
             .map_err(|err| {
                 self.metrics.increment_errors_total(
-                    WriteOperation::BlockingClose.into_static(),
+                    Operation::BlockingWriterClose.into_static(),
                     err.kind(),
                 );
                 err

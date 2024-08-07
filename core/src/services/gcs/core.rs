@@ -112,9 +112,6 @@ impl GcsCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if self.allow_anonymous {
-            return Ok(());
-        }
         let cred = self.load_token().await?;
 
         self.signer

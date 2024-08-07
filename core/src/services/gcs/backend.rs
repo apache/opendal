@@ -255,9 +255,10 @@ impl GcsBuilder {
         self
     }
 
-    /// Explicitly disable authentication.
+    /// Allow anonymous requests.
     ///
-    /// This is typically only done for testing purposes against storage emulators.
+    /// This is typically used for buckets which are open to the public or GCS
+    /// storage emulators.
     pub fn allow_anonymous(mut self) -> Self {
         self.config.allow_anonymous = true;
         self

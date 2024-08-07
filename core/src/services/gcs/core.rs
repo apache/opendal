@@ -92,23 +92,23 @@ impl GcsCore {
     }
 
     fn load_credential(&self) -> Result<Option<GoogleCredential>> {
-        if self.allow_anonymous {
-            return Ok(None);
-        }
-
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {

@@ -19,7 +19,6 @@ mod api;
 pub use api::BlockingWrite;
 pub use api::BlockingWriter;
 pub use api::Write;
-pub use api::WriteOperation;
 pub use api::Writer;
 
 mod multipart_write;

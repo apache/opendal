@@ -21,9 +21,6 @@ use std::sync::Arc;
 
 use futures::TryFutureExt;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -358,7 +355,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(ReadOperation::Read)
+                err.with_operation(Operation::ReaderRead)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("range", self.range.to_string())
@@ -376,7 +373,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(ReadOperation::BlockingRead)
+                err.with_operation(Operation::BlockingReaderRead)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("range", self.range.to_string())
@@ -395,7 +392,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
                 self.processed += size as u64;
             })
             .map_err(|err| {
-                err.with_operation(WriteOperation::Write)
+                err.with_operation(Operation::WriterWrite)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
@@ -405,7 +402,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await.map_err(|err| {
-            err.with_operation(WriteOperation::Close)
+            err.with_operation(Operation::WriterClose)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("written", self.processed.to_string())
@@ -414,7 +411,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
-            err.with_operation(WriteOperation::Abort)
+            err.with_operation(Operation::WriterAbort)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("processed", self.processed.to_string())
@@ -431,7 +428,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
                 self.processed += size as u64;
             })
             .map_err(|err| {
-                err.with_operation(WriteOperation::BlockingWrite)
+                err.with_operation(Operation::BlockingWriterWrite)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
@@ -441,7 +438,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
 
     fn close(&mut self) -> Result<()> {
         self.inner.close().map_err(|err| {
-            err.with_operation(WriteOperation::BlockingClose)
+            err.with_operation(Operation::BlockingWriterClose)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("written", self.processed.to_string())
@@ -459,7 +456,7 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(ListOperation::Next)
+                err.with_operation(Operation::ListerNext)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())
@@ -476,7 +473,7 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(ListOperation::BlockingNext)
+                err.with_operation(Operation::BlockingListerNext)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())

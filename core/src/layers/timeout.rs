@@ -19,9 +19,6 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -345,31 +342,31 @@ impl<R> TimeoutWrapper<R> {
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::ReaderRead.into_static(), fut).await
     }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, WriteOperation::Write.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterWrite.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, WriteOperation::Close.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterClose.into_static(), fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, WriteOperation::Abort.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterAbort.into_static(), fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, ListOperation::Next.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::ListerNext.into_static(), fut).await
     }
 }
 

@@ -66,8 +66,8 @@ pub struct GcsConfig {
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
     pub default_storage_class: Option<String>,
-    /// Explicitly allow anonymous access, such as for publicly available buckets
-    /// which do not require authentication.
+    /// Allow opendal to send requests without signing when credentials are not
+    /// loaded.
     pub allow_anonymous: bool,
     /// Disable attempting to load credentials from the GCE metadata server when
     /// running within Google Cloud.

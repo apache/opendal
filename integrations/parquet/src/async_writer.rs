@@ -76,7 +76,7 @@ pub struct AsyncWriter {
 }
 
 impl AsyncWriter {
-    /// Create a [`OpendalAsyncWriter`] by given [`Writer`].
+    /// Create a [`AsyncWriter`] by given [`Writer`].
     pub fn new(writer: Writer) -> Self {
         Self { inner: writer }
     }

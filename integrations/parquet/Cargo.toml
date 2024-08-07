@@ -50,3 +50,7 @@ arrow = { version = "52.0" }
 [[example]]
 name = "async_writer"
 path = "examples/async_writer.rs"
+
+[[example]]
+name = "async_reader"
+path = "examples/async_reader.rs"

@@ -362,6 +362,7 @@ impl Builder for GcsBuilder {
                 client,
                 signer,
                 token_loader,
+                token: self.config.token,
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),

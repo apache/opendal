@@ -57,6 +57,8 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsCore {
@@ -89,23 +91,30 @@ impl GcsCore {
         }
     }
 
-    fn load_credential(&self) -> Result<GoogleCredential> {
+    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+        if self.allow_anonymous {
+            return Ok(());
+        }
         let cred = self.load_token().await?;
 
         self.signer
@@ -124,11 +133,13 @@ impl GcsCore {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential()?;
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)?;
+        if let Some(cred) = self.load_credential()? {
+            self.signer
+                .sign_query(req, duration, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.

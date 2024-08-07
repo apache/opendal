@@ -74,6 +74,8 @@ pub struct GcsConfig {
     pub disable_vm_metadata: bool,
     /// Disable loading configuration from the environment.
     pub disable_config_load: bool,
+    /// A Google Cloud OAuth2 token.
+    pub token: String,
 }
 
 impl Debug for GcsConfig {
@@ -211,6 +213,12 @@ impl GcsBuilder {
     /// Specify the customized token loader used by this service.
     pub fn customized_token_loader(mut self, token_load: Box<dyn GoogleTokenLoad>) -> Self {
         self.customized_token_loader = Some(token_load);
+        self
+    }
+
+    /// Provide the OAuth2 token to use.
+    pub fn token(mut self, token: String) -> Self {
+        self.config.token = token;
         self
     }
 

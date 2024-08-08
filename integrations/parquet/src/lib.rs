@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! parquet_opendal provides parquet IO utils.
-//!
-//! AsyncWriter implements AsyncFileWriter trait by using opendal.
+//! parquet_opendal provides parquet IO utilities.
 //!
 //! ```no_run
 //! use std::sync::Arc;

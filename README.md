@@ -61,7 +61,6 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [Swift Binding]: bindings/swift/README.md
 [Zig Binding]: bindings/zig/README.md
 
-
 ## For *ANY* methods
 
 | Name  | Description                                                        | Release                   |
@@ -89,6 +88,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | [fuse3_opendal]        | Access data via integrations to [fuse3]                  | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
 | [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend]     | [![virtiofs image]][virtiofs crate]         | [![Docs Release]][virtiofs release docs] [![Docs Dev]][virtiofs dev docs]         |
 | [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal. | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
+| [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities         | [![parquet image]][parquet crate] | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs] |
 
 [dav-server-opendalfs]: integrations/dav-server/README.md
 [dav-server-rs]: https://github.com/messense/dav-server-rs
@@ -124,6 +124,12 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [unftp-sbe crate]: https://crates.io/crates/unftp-sbe-opendal
 [unftp-sbe release docs]: https://docs.rs/unftp-sbe-opendal/
 [unftp-sbe dev docs]: https://opendal.apache.org/docs/unftp-sbe-opendal/unftp_sbe_opendal/
+
+[parquet_opendal]: integrations/parquet/README.md
+[parquet image]: https://img.shields.io/crates/v/parquet-opendal.svg
+[parquet crate]: https://crates.io/crates/parquet-opendal
+[parquet release docs]: https://docs.rs/parquet-opendal/
+[parquet dev docs]: https://opendal.apache.org/docs/parquet-opendal/parquet_opendal/
 
 ## For *ANY* services
 
@@ -252,6 +258,6 @@ For more details, see the [Apache Product Name Usage Guide](https://www.apache.o
 
 ## License and Trademarks
 
-Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

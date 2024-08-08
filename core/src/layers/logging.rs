@@ -174,11 +174,12 @@ impl<I> Clone for LoggingContext<I> {
 }
 
 impl<I: LoggingInterceptor> LoggingContext<I> {
-    fn log(&self, operation: &'static str, path: &str, message: &str, err: Option<&Error>) {
+    fn log(&self, operation: Operation, path: &str, message: &str, err: Option<&Error>) {
         self.notify.log(self.scheme, operation, path, message, err)
     }
 }
 
+// TODO(yingwen): Update example.
 /// LoggingInterceptor is used to intercept the log.
 pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     /// Everytime there is a log, this function will be called.
@@ -200,7 +201,7 @@ pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     fn log(
         &self,
         scheme: Scheme,
-        operation: &'static str,
+        operation: Operation,
         path: &str,
         message: &str,
         err: Option<&Error>,
@@ -229,7 +230,7 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
     fn log(
         &self,
         scheme: Scheme,
-        operation: &'static str,
+        operation: Operation,
         path: &str,
         message: &str,
         err: Option<&Error>,
@@ -324,12 +325,12 @@ impl DefaultLoggingInterceptor {
         self
     }
 
-    fn operation_level(&self, operation: &str) -> Level {
+    fn operation_level(&self, operation: Operation) -> Level {
         match operation {
-            "ReadOperation::Read"
-            | "ReadOperation::BlockingRead"
-            | "WriteOperation::Write"
-            | "WriteOperation::BlockingWrite" => Level::Trace,
+            Operation::ReaderRead
+            | Operation::BlockingReaderRead
+            | Operation::WriterWrite
+            | Operation::BlockingWriterWrite => Level::Trace,
             _ => Level::Debug,
         }
     }
@@ -379,11 +380,10 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn metadata(&self) -> Arc<AccessorInfo> {
-        self.ctx
-            .log(Operation::Info.into_static(), "", "-> started", None);
+        self.ctx.log(Operation::Info, "", "-> started", None);
         let result = self.inner.info();
         self.ctx.log(
-            Operation::Info.into_static(),
+            Operation::Info,
             "",
             &format!("-> finished: {:?}", result),
             None,
@@ -393,77 +393,62 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.ctx
-            .log(Operation::CreateDir.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::CreateDir, path, "-> started", None);
 
         self.inner
             .create_dir(path, args)
             .await
             .map(|v| {
-                self.ctx.log(
-                    Operation::CreateDir.into_static(),
-                    path,
-                    "-> finished",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::CreateDir, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::CreateDir.into_static(), path, "->", Some(&err));
+                self.ctx.log(Operation::CreateDir, path, "->", Some(&err));
                 err
             })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.ctx
-            .log(Operation::Read.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::Read, path, "-> started", None);
 
         self.inner
             .read(path, args)
             .await
             .map(|(rp, r)| {
-                self.ctx
-                    .log(Operation::Read.into_static(), path, "-> got reader", None);
+                self.ctx.log(Operation::Read, path, "-> got reader", None);
                 (
                     rp,
                     LoggingReader::new(self.ctx.clone(), Operation::Read, path, r),
                 )
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::Read.into_static(), path, "->", Some(&err));
+                self.ctx.log(Operation::Read, path, "->", Some(&err));
                 err
             })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.ctx
-            .log(Operation::Write.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::Write, path, "-> started", None);
 
         self.inner
             .write(path, args)
             .await
             .map(|(rp, w)| {
-                self.ctx.log(
-                    Operation::Write.into_static(),
-                    path,
-                    "-> start writing",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::Write, path, "-> start writing", None);
                 let w = LoggingWriter::new(self.ctx.clone(), Operation::Write, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::Write.into_static(), path, "->", Some(&err));
+                self.ctx.log(Operation::Write, path, "->", Some(&err));
                 err
             })
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.ctx.log(
-            Operation::Copy.into_static(),
+            Operation::Copy,
             "",
             &format!("from={from} to={to} -> started"),
             None,
@@ -474,7 +459,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .await
             .map(|v| {
                 self.ctx.log(
-                    Operation::Copy.into_static(),
+                    Operation::Copy,
                     "",
                     &format!("from={from} to={to} -> finished"),
                     None,
@@ -483,7 +468,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
             .map_err(|err| {
                 self.ctx.log(
-                    Operation::Copy.into_static(),
+                    Operation::Copy,
                     "",
                     &format!("from={from} to={to} ->"),
                     Some(&err),
@@ -494,7 +479,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.ctx.log(
-            Operation::Rename.into_static(),
+            Operation::Rename,
             "",
             &format!("from={from} to={to} -> started"),
             None,
@@ -505,7 +490,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .await
             .map(|v| {
                 self.ctx.log(
-                    Operation::Rename.into_static(),
+                    Operation::Rename,
                     "",
                     &format!("from={from} to={to} -> finished"),
                     None,
@@ -514,7 +499,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
             .map_err(|err| {
                 self.ctx.log(
-                    Operation::Rename.into_static(),
+                    Operation::Rename,
                     "",
                     &format!("from={from} to={to} ->"),
                     Some(&err),
@@ -524,38 +509,32 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.ctx
-            .log(Operation::Stat.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::Stat, path, "-> started", None);
 
         self.inner
             .stat(path, args)
             .await
             .map(|v| {
-                self.ctx
-                    .log(Operation::Stat.into_static(), path, "-> finished", None);
+                self.ctx.log(Operation::Stat, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::Stat.into_static(), path, "->", Some(&err));
+                self.ctx.log(Operation::Stat, path, "->", Some(&err));
                 err
             })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.ctx
-            .log(Operation::Delete.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::Delete, path, "-> started", None);
 
         self.inner
             .delete(path, args.clone())
             .inspect(|v| match v {
                 Ok(_) => {
-                    self.ctx
-                        .log(Operation::Delete.into_static(), path, "-> finished", None);
+                    self.ctx.log(Operation::Delete, path, "-> finished", None);
                 }
                 Err(err) => {
-                    self.ctx
-                        .log(Operation::Delete.into_static(), path, "->", Some(err));
+                    self.ctx.log(Operation::Delete, path, "->", Some(err));
                 }
             })
             .await
@@ -566,18 +545,13 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .list(path, args)
             .map(|v| match v {
                 Ok((rp, v)) => {
-                    self.ctx.log(
-                        Operation::List.into_static(),
-                        path,
-                        "-> start listing dir",
-                        None,
-                    );
+                    self.ctx
+                        .log(Operation::List, path, "-> start listing dir", None);
                     let streamer = LoggingLister::new(self.ctx.clone(), path, Operation::List, v);
                     Ok((rp, streamer))
                 }
                 Err(err) => {
-                    self.ctx
-                        .log(Operation::List.into_static(), path, "->", Some(&err));
+                    self.ctx.log(Operation::List, path, "->", Some(&err));
                     Err(err)
                 }
             })
@@ -585,20 +559,17 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.ctx
-            .log(Operation::Presign.into_static(), path, "-> started", None);
+        self.ctx.log(Operation::Presign, path, "-> started", None);
 
         self.inner
             .presign(path, args)
             .await
             .map(|v| {
-                self.ctx
-                    .log(Operation::Presign.into_static(), path, "-> finished", None);
+                self.ctx.log(Operation::Presign, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::Presign.into_static(), path, "->", Some(&err));
+                self.ctx.log(Operation::Presign, path, "->", Some(&err));
                 err
             })
     }
@@ -607,7 +578,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
 
         self.ctx.log(
-            Operation::Batch.into_static(),
+            Operation::Batch,
             "",
             &format!("op={op} count={count} -> started"),
             None,
@@ -617,7 +588,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .batch(args)
             .map_ok(|v| {
                 self.ctx.log(
-                    Operation::Batch.into_static(),
+                    Operation::Batch,
                     "",
                     &format!(
                         "op={op} count={count} -> finished: {}, succeed: {}, failed: {}",
@@ -631,7 +602,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
             .map_err(|err| {
                 self.ctx.log(
-                    Operation::Batch.into_static(),
+                    Operation::Batch,
                     "",
                     &format!("op={op} count={count} ->"),
                     Some(&err),
@@ -642,100 +613,64 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.ctx.log(
-            Operation::BlockingCreateDir.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingCreateDir, path, "-> started", None);
 
         self.inner
             .blocking_create_dir(path, args)
             .map(|v| {
-                self.ctx.log(
-                    Operation::BlockingCreateDir.into_static(),
-                    path,
-                    "-> finished",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingCreateDir, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingCreateDir.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingCreateDir, path, "->", Some(&err));
                 err
             })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.ctx.log(
-            Operation::BlockingRead.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingRead, path, "-> started", None);
 
         self.inner
             .blocking_read(path, args.clone())
             .map(|(rp, r)| {
-                self.ctx.log(
-                    Operation::BlockingRead.into_static(),
-                    path,
-                    "-> got reader",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingRead, path, "-> got reader", None);
                 let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
                 (rp, r)
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingRead.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingRead, path, "->", Some(&err));
                 err
             })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.ctx.log(
-            Operation::BlockingWrite.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingWrite, path, "-> started", None);
 
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| {
-                self.ctx.log(
-                    Operation::BlockingWrite.into_static(),
-                    path,
-                    "-> start writing",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingWrite, path, "-> start writing", None);
                 let w = LoggingWriter::new(self.ctx.clone(), Operation::BlockingWrite, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingWrite.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingWrite, path, "->", Some(&err));
                 err
             })
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.ctx.log(
-            Operation::BlockingCopy.into_static(),
+            Operation::BlockingCopy,
             "",
             &format!("from={from} to={to} -> started"),
             None,
@@ -745,7 +680,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .blocking_copy(from, to, args)
             .map(|v| {
                 self.ctx.log(
-                    Operation::BlockingCopy.into_static(),
+                    Operation::BlockingCopy,
                     "",
                     &format!("from={from} to={to} -> finished"),
                     None,
@@ -754,7 +689,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
             .map_err(|err| {
                 self.ctx.log(
-                    Operation::BlockingCopy.into_static(),
+                    Operation::BlockingCopy,
                     "",
                     &format!("from={from} to={to} ->"),
                     Some(&err),
@@ -765,7 +700,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.ctx.log(
-            Operation::BlockingRename.into_static(),
+            Operation::BlockingRename,
             "",
             &format!("from={from} to={to} -> started"),
             None,
@@ -775,7 +710,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .blocking_rename(from, to, args)
             .map(|v| {
                 self.ctx.log(
-                    Operation::BlockingRename.into_static(),
+                    Operation::BlockingRename,
                     "",
                     &format!("from={from} to={to} -> finished"),
                     None,
@@ -784,7 +719,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
             .map_err(|err| {
                 self.ctx.log(
-                    Operation::BlockingRename.into_static(),
+                    Operation::BlockingRename,
                     "",
                     &format!("from={from} to={to} ->"),
                     Some(&err),
@@ -794,92 +729,56 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.ctx.log(
-            Operation::BlockingStat.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingStat, path, "-> started", None);
 
         self.inner
             .blocking_stat(path, args)
             .map(|v| {
-                self.ctx.log(
-                    Operation::BlockingStat.into_static(),
-                    path,
-                    "-> finished",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingStat, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingStat.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingStat, path, "->", Some(&err));
                 err
             })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.ctx.log(
-            Operation::BlockingDelete.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingDelete, path, "-> started", None);
 
         self.inner
             .blocking_delete(path, args)
             .map(|v| {
-                self.ctx.log(
-                    Operation::BlockingDelete.into_static(),
-                    path,
-                    "-> finished",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingDelete, path, "-> finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingDelete.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingDelete, path, "->", Some(&err));
                 err
             })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.ctx.log(
-            Operation::BlockingList.into_static(),
-            path,
-            "-> started",
-            None,
-        );
+        self.ctx
+            .log(Operation::BlockingList, path, "-> started", None);
 
         self.inner
             .blocking_list(path, args)
             .map(|(rp, v)| {
-                self.ctx.log(
-                    Operation::BlockingList.into_static(),
-                    path,
-                    "-> got dir",
-                    None,
-                );
+                self.ctx
+                    .log(Operation::BlockingList, path, "-> got dir", None);
                 let li = LoggingLister::new(self.ctx.clone(), path, Operation::BlockingList, v);
                 (rp, li)
             })
             .map_err(|err| {
-                self.ctx.log(
-                    Operation::BlockingList.into_static(),
-                    path,
-                    "->",
-                    Some(&err),
-                );
+                self.ctx
+                    .log(Operation::BlockingList, path, "->", Some(&err));
                 err
             })
     }
@@ -911,7 +810,7 @@ impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
 impl<R, I: LoggingInterceptor> Drop for LoggingReader<R, I> {
     fn drop(&mut self) {
         self.ctx.log(
-            self.op.into_static(),
+            self.op,
             &self.path,
             &format!(
                 "read={} -> data read finished",
@@ -929,7 +828,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 self.ctx.log(
-                    Operation::ReaderRead.into_static(),
+                    Operation::ReaderRead,
                     &self.path,
                     &format!(
                         "read={} -> read returns {}B",
@@ -942,7 +841,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::ReaderRead.into_static(),
+                    Operation::ReaderRead,
                     &self.path,
                     &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
                     Some(&err),
@@ -960,7 +859,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 self.ctx.log(
-                    Operation::BlockingReaderRead.into_static(),
+                    Operation::BlockingReaderRead,
                     &self.path,
                     &format!(
                         "read={} -> read returns {}B",
@@ -973,7 +872,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::BlockingReaderRead.into_static(),
+                    Operation::BlockingReaderRead,
                     &self.path,
                     &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
                     Some(&err),
@@ -1012,7 +911,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         match self.inner.write(bs).await {
             Ok(_) => {
                 self.ctx.log(
-                    Operation::WriterWrite.into_static(),
+                    Operation::WriterWrite,
                     &self.path,
                     &format!("written={}B -> data write {}B", self.written, size),
                     None,
@@ -1021,7 +920,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::WriterWrite.into_static(),
+                    Operation::WriterWrite,
                     &self.path,
                     &format!("written={}B -> data write failed:", self.written),
                     Some(&err),
@@ -1035,7 +934,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         match self.inner.abort().await {
             Ok(_) => {
                 self.ctx.log(
-                    Operation::WriterAbort.into_static(),
+                    Operation::WriterAbort,
                     &self.path,
                     &format!("written={}B -> abort writer", self.written),
                     None,
@@ -1044,7 +943,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::WriterAbort.into_static(),
+                    Operation::WriterAbort,
                     &self.path,
                     &format!("written={}B -> abort writer failed:", self.written),
                     Some(&err),
@@ -1058,7 +957,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         match self.inner.close().await {
             Ok(_) => {
                 self.ctx.log(
-                    self.op.into_static(),
+                    self.op,
                     &self.path,
                     &format!("written={}B -> data written finished", self.written),
                     None,
@@ -1067,7 +966,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::WriterClose.into_static(),
+                    Operation::WriterClose,
                     &self.path,
                     &format!("written={}B -> data close failed:", self.written),
                     Some(&err),
@@ -1083,7 +982,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
         match self.inner.write(bs.clone()) {
             Ok(_) => {
                 self.ctx.log(
-                    Operation::BlockingWriterWrite.into_static(),
+                    Operation::BlockingWriterWrite,
                     &self.path,
                     &format!("written={}B -> data write {}B", self.written, bs.len()),
                     None,
@@ -1092,7 +991,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::BlockingWriterWrite.into_static(),
+                    Operation::BlockingWriterWrite,
                     &self.path,
                     &format!("written={}B -> data write failed:", self.written),
                     Some(&err),
@@ -1106,7 +1005,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
         match self.inner.close() {
             Ok(_) => {
                 self.ctx.log(
-                    self.op.into_static(),
+                    self.op,
                     &self.path,
                     &format!("written={}B -> data written finished", self.written),
                     None,
@@ -1115,7 +1014,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             }
             Err(err) => {
                 self.ctx.log(
-                    Operation::BlockingWriterClose.into_static(),
+                    Operation::BlockingWriterClose,
                     &self.path,
                     &format!("written={}B -> data close failed:", self.written),
                     Some(&err),
@@ -1150,15 +1049,11 @@ impl<P, I: LoggingInterceptor> LoggingLister<P, I> {
 impl<P, I: LoggingInterceptor> Drop for LoggingLister<P, I> {
     fn drop(&mut self) {
         if self.finished {
-            self.ctx.log(
-                self.op.into_static(),
-                &self.path,
-                "-> all entries read finished",
-                None,
-            );
+            self.ctx
+                .log(self.op, &self.path, "-> all entries read finished", None);
         } else {
             self.ctx.log(
-                self.op.into_static(),
+                self.op,
                 &self.path,
                 "-> partial entries read finished",
                 None,
@@ -1174,20 +1069,18 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
         match &res {
             Ok(Some(de)) => {
                 self.ctx.log(
-                    self.op.into_static(),
+                    self.op,
                     &self.path,
                     &format!("-> listed entry: {}", de.path()),
                     None,
                 );
             }
             Ok(None) => {
-                self.ctx
-                    .log(self.op.into_static(), &self.path, "-> finished", None);
+                self.ctx.log(self.op, &self.path, "-> finished", None);
                 self.finished = true;
             }
             Err(err) => {
-                self.ctx
-                    .log(self.op.into_static(), &self.path, "->", Some(err));
+                self.ctx.log(self.op, &self.path, "->", Some(err));
             }
         };
 
@@ -1202,20 +1095,18 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
         match &res {
             Ok(Some(des)) => {
                 self.ctx.log(
-                    self.op.into_static(),
+                    self.op,
                     &self.path,
                     &format!("-> listed entry: {}", des.path()),
                     None,
                 );
             }
             Ok(None) => {
-                self.ctx
-                    .log(self.op.into_static(), &self.path, "-> finished", None);
+                self.ctx.log(self.op, &self.path, "-> finished", None);
                 self.finished = true;
             }
             Err(err) => {
-                self.ctx
-                    .log(self.op.into_static(), &self.path, "->", Some(err));
+                self.ctx.log(self.op, &self.path, "->", Some(err));
             }
         };
 

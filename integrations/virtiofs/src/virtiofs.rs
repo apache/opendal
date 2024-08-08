@@ -96,10 +96,8 @@ impl VhostUserFsThread {
         if event_idx {
             match vring_state.needs_notification() {
                 Ok(needs_notification) => {
-                    if needs_notification {
-                        if vring_state.signal_used_queue().is_err() {
-                            warn!("Failed to signal used queue.");
-                        };
+                    if needs_notification && vring_state.signal_used_queue().is_err() {
+                        warn!("Failed to signal used queue.");
                     }
                 }
                 Err(_) => {
@@ -108,10 +106,8 @@ impl VhostUserFsThread {
                     };
                 }
             }
-        } else {
-            if vring_state.signal_used_queue().is_err() {
-                warn!("Failed to signal used queue.");
-            };
+        } else if vring_state.signal_used_queue().is_err() {
+            warn!("Failed to signal used queue.");
         }
     }
 
@@ -228,12 +224,11 @@ impl VhostUserBackend for VhostUserFsBackend {
     /// Get available vhost protocol features.
     fn protocol_features(&self) -> VhostUserProtocolFeatures {
         // Align to the virtiofsd's protocol features here.
-        let protocol_features = VhostUserProtocolFeatures::MQ
+        VhostUserProtocolFeatures::MQ
             | VhostUserProtocolFeatures::BACKEND_REQ
             | VhostUserProtocolFeatures::BACKEND_SEND_FD
             | VhostUserProtocolFeatures::REPLY_ACK
-            | VhostUserProtocolFeatures::CONFIGURE_MEM_SLOTS;
-        protocol_features
+            | VhostUserProtocolFeatures::CONFIGURE_MEM_SLOTS
     }
 
     /// Enable or disabled the virtio EVENT_IDX feature.

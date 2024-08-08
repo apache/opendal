@@ -79,7 +79,8 @@ impl Debug for AzfileConfig {
 }
 
 impl Configurator for AzfileConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AzfileBuilder;
+    fn into_builder(self) -> Self::Builder {
         AzfileBuilder {
             config: self,
             http_client: None,

@@ -64,7 +64,8 @@ impl Debug for TikvConfig {
 }
 
 impl Configurator for TikvConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = TikvBuilder;
+    fn into_builder(self) -> Self::Builder {
         TikvBuilder { config: self }
     }
 }

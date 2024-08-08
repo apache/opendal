@@ -22,9 +22,6 @@ use std::sync::Arc;
 use fastrace::prelude::*;
 use futures::FutureExt;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -301,7 +298,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
 impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
     fn read(&mut self) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingReaderRead.into_static());
         self.inner.read()
     }
 }
@@ -309,19 +306,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
 impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterWrite.into_static());
         self.inner.write(bs)
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterAbort.into_static());
         self.inner.abort()
     }
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterClose.into_static());
         self.inner.close()
     }
 }
@@ -329,13 +326,15 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
 impl<R: oio::BlockingWrite> oio::BlockingWrite for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
+        let _span =
+            LocalSpan::enter_with_local_parent(Operation::BlockingWriterWrite.into_static());
         self.inner.write(bs)
     }
 
     fn close(&mut self) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingClose.into_static());
+        let _span =
+            LocalSpan::enter_with_local_parent(Operation::BlockingWriterClose.into_static());
         self.inner.close()
     }
 }
@@ -350,7 +349,7 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ListOperation::BlockingNext.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingListerNext.into_static());
         self.inner.next()
     }
 }

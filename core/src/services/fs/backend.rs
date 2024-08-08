@@ -46,7 +46,8 @@ pub struct FsConfig {
 }
 
 impl Configurator for FsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = FsBuilder;
+    fn into_builder(self) -> Self::Builder {
         FsBuilder { config: self }
     }
 }

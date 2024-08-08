@@ -81,7 +81,8 @@ impl Debug for AzdlsConfig {
 }
 
 impl Configurator for AzdlsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AzdlsBuilder;
+    fn into_builder(self) -> Self::Builder {
         AzdlsBuilder {
             config: self,
             http_client: None,

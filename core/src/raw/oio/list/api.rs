@@ -15,48 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::future::Future;
 use std::ops::DerefMut;
 
 use crate::raw::oio::Entry;
 use crate::raw::*;
 use crate::*;
-
-/// PageOperation is the name for APIs of lister.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum ListOperation {
-    /// Operation for [`List::next`]
-    Next,
-    /// Operation for [`BlockingList::next`]
-    BlockingNext,
-}
-
-impl ListOperation {
-    /// Convert self into static str.
-    pub fn into_static(self) -> &'static str {
-        self.into()
-    }
-}
-
-impl Display for ListOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.into_static())
-    }
-}
-
-impl From<ListOperation> for &'static str {
-    fn from(v: ListOperation) -> &'static str {
-        use ListOperation::*;
-
-        match v {
-            Next => "List::next",
-            BlockingNext => "List::next",
-        }
-    }
-}
 
 /// The boxed version of [`List`]
 pub type Lister = Box<dyn ListDyn>;

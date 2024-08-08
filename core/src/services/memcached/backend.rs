@@ -50,7 +50,8 @@ pub struct MemcachedConfig {
 }
 
 impl Configurator for MemcachedConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MemcachedBuilder;
+    fn into_builder(self) -> Self::Builder {
         MemcachedBuilder { config: self }
     }
 }

@@ -1,0 +1,56 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[package]
+description = "parquet Integration for Apache OpenDAL"
+name = "parquet_opendal"
+
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.75"
+version = "0.0.1"
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1"
+futures = "0.3"
+opendal = { version = "0.48.0", path = "../../core" }
+parquet = { version = "52.0", default-features = false, features = [
+  "async",
+  "arrow",
+] }
+
+[dev-dependencies]
+opendal = { version = "0.48.0", path = "../../core", features = [
+  "services-memory",
+  "services-s3",
+] }
+rand = "0.8.5"
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+arrow = { version = "52.0" }
+
+
+[[example]]
+name = "async_writer"
+path = "examples/async_writer.rs"
+
+[[example]]
+name = "async_reader"
+path = "examples/async_reader.rs"

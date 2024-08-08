@@ -62,7 +62,8 @@ impl Debug for GridFsConfig {
 }
 
 impl Configurator for GridFsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GridFsBuilder;
+    fn into_builder(self) -> Self::Builder {
         GridFsBuilder { config: self }
     }
 }

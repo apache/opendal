@@ -64,7 +64,8 @@ impl Debug for SwiftConfig {
 }
 
 impl Configurator for SwiftConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SwiftBuilder;
+    fn into_builder(self) -> Self::Builder {
         SwiftBuilder { config: self }
     }
 }

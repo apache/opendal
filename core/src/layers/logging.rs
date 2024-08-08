@@ -26,8 +26,6 @@ use futures::TryFutureExt;
 use log::log;
 use log::Level;
 
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -931,7 +929,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 self.ctx.log(
-                    ReadOperation::Read.into_static(),
+                    Operation::ReaderRead.into_static(),
                     &self.path,
                     &format!(
                         "read={} -> read returns {}B",
@@ -944,7 +942,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    ReadOperation::Read.into_static(),
+                    Operation::ReaderRead.into_static(),
                     &self.path,
                     &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
                     Some(&err),
@@ -962,7 +960,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
                 self.ctx.log(
-                    ReadOperation::BlockingRead.into_static(),
+                    Operation::BlockingReaderRead.into_static(),
                     &self.path,
                     &format!(
                         "read={} -> read returns {}B",
@@ -975,7 +973,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
             }
             Err(err) => {
                 self.ctx.log(
-                    ReadOperation::BlockingRead.into_static(),
+                    Operation::BlockingReaderRead.into_static(),
                     &self.path,
                     &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
                     Some(&err),
@@ -1014,7 +1012,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         match self.inner.write(bs).await {
             Ok(_) => {
                 self.ctx.log(
-                    WriteOperation::Write.into_static(),
+                    Operation::WriterWrite.into_static(),
                     &self.path,
                     &format!("written={}B -> data write {}B", self.written, size),
                     None,
@@ -1023,7 +1021,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    WriteOperation::Write.into_static(),
+                    Operation::WriterWrite.into_static(),
                     &self.path,
                     &format!("written={}B -> data write failed:", self.written),
                     Some(&err),
@@ -1037,7 +1035,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         match self.inner.abort().await {
             Ok(_) => {
                 self.ctx.log(
-                    WriteOperation::Abort.into_static(),
+                    Operation::WriterAbort.into_static(),
                     &self.path,
                     &format!("written={}B -> abort writer", self.written),
                     None,
@@ -1046,7 +1044,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    WriteOperation::Abort.into_static(),
+                    Operation::WriterAbort.into_static(),
                     &self.path,
                     &format!("written={}B -> abort writer failed:", self.written),
                     Some(&err),
@@ -1069,7 +1067,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             }
             Err(err) => {
                 self.ctx.log(
-                    WriteOperation::Close.into_static(),
+                    Operation::WriterClose.into_static(),
                     &self.path,
                     &format!("written={}B -> data close failed:", self.written),
                     Some(&err),
@@ -1085,7 +1083,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
         match self.inner.write(bs.clone()) {
             Ok(_) => {
                 self.ctx.log(
-                    WriteOperation::BlockingWrite.into_static(),
+                    Operation::BlockingWriterWrite.into_static(),
                     &self.path,
                     &format!("written={}B -> data write {}B", self.written, bs.len()),
                     None,
@@ -1094,7 +1092,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             }
             Err(err) => {
                 self.ctx.log(
-                    WriteOperation::BlockingWrite.into_static(),
+                    Operation::BlockingWriterWrite.into_static(),
                     &self.path,
                     &format!("written={}B -> data write failed:", self.written),
                     Some(&err),
@@ -1117,7 +1115,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             }
             Err(err) => {
                 self.ctx.log(
-                    WriteOperation::BlockingClose.into_static(),
+                    Operation::BlockingWriterClose.into_static(),
                     &self.path,
                     &format!("written={}B -> data close failed:", self.written),
                     Some(&err),

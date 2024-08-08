@@ -48,7 +48,8 @@ pub struct MiniMokaConfig {
 }
 
 impl Configurator for MiniMokaConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MiniMokaBuilder;
+    fn into_builder(self) -> Self::Builder {
         MiniMokaBuilder { config: self }
     }
 }

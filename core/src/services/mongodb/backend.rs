@@ -63,7 +63,8 @@ impl Debug for MongodbConfig {
 }
 
 impl Configurator for MongodbConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MongodbBuilder;
+    fn into_builder(self) -> Self::Builder {
         MongodbBuilder { config: self }
     }
 }

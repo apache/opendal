@@ -59,7 +59,8 @@ impl Debug for DbfsConfig {
 }
 
 impl Configurator for DbfsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = DbfsBuilder;
+    fn into_builder(self) -> Self::Builder {
         DbfsBuilder { config: self }
     }
 }

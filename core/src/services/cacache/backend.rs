@@ -39,7 +39,8 @@ pub struct CacacheConfig {
 }
 
 impl Configurator for CacacheConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = CacacheBuilder;
+    fn into_builder(self) -> Self::Builder {
         CacacheBuilder { config: self }
     }
 }

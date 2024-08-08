@@ -35,7 +35,8 @@ pub struct IpmfsConfig {
 }
 
 impl Configurator for IpmfsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = IpmfsBuilder;
+    fn into_builder(self) -> Self::Builder {
         IpmfsBuilder {
             config: self,
             http_client: None,

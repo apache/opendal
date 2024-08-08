@@ -73,7 +73,8 @@ impl Debug for GithubConfig {
 }
 
 impl Configurator for GithubConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GithubBuilder;
+    fn into_builder(self) -> Self::Builder {
         GithubBuilder {
             config: self,
             http_client: None,

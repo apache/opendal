@@ -145,3 +145,17 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
+  test_integration_cloudfilter:
+    name: integration_cloudfilter / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.integration_cloudfilter
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).integration_cloudfilter }}
+    uses: ./.github/workflows/test_behavior_integration_cloudfilter.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

@@ -10,7 +10,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 ## For *ANY* languages
 
 | Name              | Release                                          | Docs                                                                              |
-|-------------------|--------------------------------------------------|-----------------------------------------------------------------------------------|
+| ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- |
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
 | [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
 | [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
@@ -64,7 +64,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 ## For *ANY* methods
 
 | Name  | Description                                                        | Release                   |
-|-------|--------------------------------------------------------------------|---------------------------|
+| ----- | ------------------------------------------------------------------ | ------------------------- |
 | [oay] | Access data via API Gateway                                        | [![oay image]][oay crate] |
 | [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
 | [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
@@ -81,14 +81,14 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 
 ## For *ANY* integrations
 
-| Name                   | Description                                              | Release                                     | Docs                                                                              |
-|------------------------|----------------------------------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------|
-| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.          | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
-| [object_store_opendal] | an [object_store] implementation using opendal.          | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
-| [fuse3_opendal]        | Access data via integrations to [fuse3]                  | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
-| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend]     | [![virtiofs image]][virtiofs crate]         | [![Docs Release]][virtiofs release docs] [![Docs Dev]][virtiofs dev docs]         |
-| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal. | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
-| [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities         | [![parquet image]][parquet crate] | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs] |
+| Name                   | Description                                                                   | Release                                     | Docs                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
+| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.                               | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
+| [object_store_opendal] | an [object_store] implementation using opendal.                               | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
+| [fuse3_opendal]        | Access data via integrations to [fuse3]                                       | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
+| [virtiofs_opendal]     | Access data via integrations to [vhost-user-backend]                          | [![virtiofs image]][virtiofs crate]         | [![Docs Release]][virtiofs release docs] [![Docs Dev]][virtiofs dev docs]         |
+| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal.                      | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
+| [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities | [![parquet image]][parquet crate]           | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs]           |
 
 [dav-server-opendalfs]: integrations/dav-server/README.md
 [dav-server-rs]: https://github.com/messense/dav-server-rs
@@ -134,7 +134,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 ## For *ANY* services
 
 | Type                           | Services                                                                                                                                 |
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |

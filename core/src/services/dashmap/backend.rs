@@ -50,7 +50,12 @@ pub struct DashmapBuilder {
 impl DashmapBuilder {
     /// Set the root for dashmap.
     pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
         self
     }
 }
@@ -60,10 +65,14 @@ impl Builder for DashmapBuilder {
     type Config = DashmapConfig;
 
     fn build(self) -> Result<impl Access> {
-        Ok(DashmapBackend::new(Adapter {
+        let mut backend = DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 

@@ -30,6 +30,8 @@ version = "0.0.0"
 [dependencies]
 anyhow = { version = "1.0.86", features = ["std"] }
 libc = "0.2.139"
+log = "0.4.22"
+opendal = { version = "0.48.0", path = "../../core" }
 snafu = "0.8.3"
 vhost = "0.11.0"
 vhost-user-backend = "0.14.0"

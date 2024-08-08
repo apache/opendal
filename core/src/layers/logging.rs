@@ -174,8 +174,21 @@ impl<I> Clone for LoggingContext<I> {
 }
 
 impl<I: LoggingInterceptor> LoggingContext<I> {
+    fn log_with_context(
+        &self,
+        operation: Operation,
+        path: &str,
+        context: &str,
+        message: &str,
+        err: Option<&Error>,
+    ) {
+        self.notify
+            .log(self.scheme, operation, path, context, message, err)
+    }
+
     fn log(&self, operation: Operation, path: &str, message: &str, err: Option<&Error>) {
-        self.notify.log(self.scheme, operation, path, message, err)
+        self.notify
+            .log(self.scheme, operation, path, "", message, err)
     }
 }
 
@@ -190,6 +203,7 @@ pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     /// - operation: The operation to log.
     /// - path: The path argument to the operator, maybe empty if the
     ///         current operation doesn't have a path argument.
+    /// - context: Additional context of the log.
     /// - message: The log message.
     /// - err: The error to log.
     ///
@@ -203,11 +217,13 @@ pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
         scheme: Scheme,
         operation: Operation,
         path: &str,
+        context: &str,
         message: &str,
         err: Option<&Error>,
     );
 }
 
+// TODO(yingwen): Remove fields.
 /// The DefaultLoggingInterceptor will log the message by the standard logging macro.
 #[derive(Debug)]
 pub struct DefaultLoggingInterceptor {
@@ -232,6 +248,7 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
         scheme: Scheme,
         operation: Operation,
         path: &str,
+        context: &str,
         message: &str,
         err: Option<&Error>,
     ) {
@@ -240,10 +257,11 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
             log!(
                 target: LOGGING_TARGET,
                 lvl,
-                "service={} operation={} path={} {}",
+                "service={} operation={} path={} {} -> {}",
                 scheme,
                 operation,
                 path,
+                context,
                 message,
             );
             return;
@@ -254,10 +272,11 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                 log!(
                     target: LOGGING_TARGET,
                     lvl,
-                    "service={} operation={} path={} {} {:?}",
+                    "service={} operation={} path={} {} -> {} {:?}",
                     scheme,
                     operation,
                     path,
+                    context,
                     message,
                     err,
                 )
@@ -265,10 +284,11 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                 log!(
                     target: LOGGING_TARGET,
                     lvl,
-                    "service={} operation={} path={} {} {}",
+                    "service={} operation={} path={} {} -> {} {}",
                     scheme,
                     operation,
                     path,
+                    context,
                     message,
                     err,
                 )
@@ -380,12 +400,12 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn metadata(&self) -> Arc<AccessorInfo> {
-        self.ctx.log(Operation::Info, "", "-> started", None);
+        self.ctx.log(Operation::Info, "", "started", None);
         let result = self.inner.info();
         self.ctx.log(
             Operation::Info,
             "",
-            &format!("-> finished: {:?}", result),
+            &format!("finished: {:?}", result),
             None,
         );
 
@@ -393,64 +413,63 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.ctx.log(Operation::CreateDir, path, "-> started", None);
+        self.ctx.log(Operation::CreateDir, path, "started", None);
 
         self.inner
             .create_dir(path, args)
             .await
             .map(|v| {
-                self.ctx
-                    .log(Operation::CreateDir, path, "-> finished", None);
+                self.ctx.log(Operation::CreateDir, path, "finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(Operation::CreateDir, path, "->", Some(&err));
+                self.ctx.log(Operation::CreateDir, path, "", Some(&err));
                 err
             })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.ctx.log(Operation::Read, path, "-> started", None);
+        self.ctx.log(Operation::Read, path, "started", None);
 
         self.inner
             .read(path, args)
             .await
             .map(|(rp, r)| {
-                self.ctx.log(Operation::Read, path, "-> got reader", None);
+                self.ctx.log(Operation::Read, path, "got reader", None);
                 (
                     rp,
                     LoggingReader::new(self.ctx.clone(), Operation::Read, path, r),
                 )
             })
             .map_err(|err| {
-                self.ctx.log(Operation::Read, path, "->", Some(&err));
+                self.ctx.log(Operation::Read, path, "", Some(&err));
                 err
             })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.ctx.log(Operation::Write, path, "-> started", None);
+        self.ctx.log(Operation::Write, path, "started", None);
 
         self.inner
             .write(path, args)
             .await
             .map(|(rp, w)| {
-                self.ctx
-                    .log(Operation::Write, path, "-> start writing", None);
+                self.ctx.log(Operation::Write, path, "start writing", None);
                 let w = LoggingWriter::new(self.ctx.clone(), Operation::Write, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                self.ctx.log(Operation::Write, path, "->", Some(&err));
+                self.ctx.log(Operation::Write, path, "", Some(&err));
                 err
             })
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.ctx.log(
+        self.ctx.log_with_context(
             Operation::Copy,
             "",
-            &format!("from={from} to={to} -> started"),
+            &format!("from={from} to={to}"),
+            "started",
             None,
         );
 
@@ -458,19 +477,21 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .copy(from, to, args)
             .await
             .map(|v| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Copy,
                     "",
-                    &format!("from={from} to={to} -> finished"),
+                    &format!("from={from} to={to}"),
+                    "finished",
                     None,
                 );
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Copy,
                     "",
-                    &format!("from={from} to={to} ->"),
+                    &format!("from={from} to={to}"),
+                    "",
                     Some(&err),
                 );
                 err
@@ -478,10 +499,11 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.ctx.log(
+        self.ctx.log_with_context(
             Operation::Rename,
             "",
-            &format!("from={from} to={to} -> started"),
+            &format!("from={from} to={to}"),
+            "started",
             None,
         );
 
@@ -489,19 +511,21 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .rename(from, to, args)
             .await
             .map(|v| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Rename,
                     "",
-                    &format!("from={from} to={to} -> finished"),
+                    &format!("from={from} to={to}"),
+                    "finished",
                     None,
                 );
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Rename,
                     "",
-                    &format!("from={from} to={to} ->"),
+                    &format!("from={from} to={to}"),
+                    "",
                     Some(&err),
                 );
                 err
@@ -509,32 +533,32 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.ctx.log(Operation::Stat, path, "-> started", None);
+        self.ctx.log(Operation::Stat, path, "started", None);
 
         self.inner
             .stat(path, args)
             .await
             .map(|v| {
-                self.ctx.log(Operation::Stat, path, "-> finished", None);
+                self.ctx.log(Operation::Stat, path, "finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(Operation::Stat, path, "->", Some(&err));
+                self.ctx.log(Operation::Stat, path, "", Some(&err));
                 err
             })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.ctx.log(Operation::Delete, path, "-> started", None);
+        self.ctx.log(Operation::Delete, path, "started", None);
 
         self.inner
             .delete(path, args.clone())
             .inspect(|v| match v {
                 Ok(_) => {
-                    self.ctx.log(Operation::Delete, path, "-> finished", None);
+                    self.ctx.log(Operation::Delete, path, "finished", None);
                 }
                 Err(err) => {
-                    self.ctx.log(Operation::Delete, path, "->", Some(err));
+                    self.ctx.log(Operation::Delete, path, "", Some(err));
                 }
             })
             .await
@@ -546,12 +570,12 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|v| match v {
                 Ok((rp, v)) => {
                     self.ctx
-                        .log(Operation::List, path, "-> start listing dir", None);
+                        .log(Operation::List, path, "start listing dir", None);
                     let streamer = LoggingLister::new(self.ctx.clone(), path, Operation::List, v);
                     Ok((rp, streamer))
                 }
                 Err(err) => {
-                    self.ctx.log(Operation::List, path, "->", Some(&err));
+                    self.ctx.log(Operation::List, path, "", Some(&err));
                     Err(err)
                 }
             })
@@ -559,17 +583,17 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.ctx.log(Operation::Presign, path, "-> started", None);
+        self.ctx.log(Operation::Presign, path, "started", None);
 
         self.inner
             .presign(path, args)
             .await
             .map(|v| {
-                self.ctx.log(Operation::Presign, path, "-> finished", None);
+                self.ctx.log(Operation::Presign, path, "finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx.log(Operation::Presign, path, "->", Some(&err));
+                self.ctx.log(Operation::Presign, path, "", Some(&err));
                 err
             })
     }
@@ -577,21 +601,23 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
 
-        self.ctx.log(
+        self.ctx.log_with_context(
             Operation::Batch,
             "",
             &format!("op={op} count={count} -> started"),
+            "started",
             None,
         );
 
         self.inner
             .batch(args)
             .map_ok(|v| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Batch,
                     "",
+                    &format!("op={op} count={count}"),
                     &format!(
-                        "op={op} count={count} -> finished: {}, succeed: {}, failed: {}",
+                        "finished: {}, succeed: {}, failed: {}",
                         v.results().len(),
                         v.results().iter().filter(|(_, v)| v.is_ok()).count(),
                         v.results().iter().filter(|(_, v)| v.is_err()).count(),
@@ -601,10 +627,11 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::Batch,
                     "",
-                    &format!("op={op} count={count} ->"),
+                    &format!("op={op} count={count}"),
+                    "",
                     Some(&err),
                 );
                 err
@@ -614,84 +641,84 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.ctx
-            .log(Operation::BlockingCreateDir, path, "-> started", None);
+            .log(Operation::BlockingCreateDir, path, "started", None);
 
         self.inner
             .blocking_create_dir(path, args)
             .map(|v| {
                 self.ctx
-                    .log(Operation::BlockingCreateDir, path, "-> finished", None);
+                    .log(Operation::BlockingCreateDir, path, "finished", None);
                 v
             })
             .map_err(|err| {
                 self.ctx
-                    .log(Operation::BlockingCreateDir, path, "->", Some(&err));
+                    .log(Operation::BlockingCreateDir, path, "", Some(&err));
                 err
             })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.ctx
-            .log(Operation::BlockingRead, path, "-> started", None);
+        self.ctx.log(Operation::BlockingRead, path, "started", None);
 
         self.inner
             .blocking_read(path, args.clone())
             .map(|(rp, r)| {
                 self.ctx
-                    .log(Operation::BlockingRead, path, "-> got reader", None);
+                    .log(Operation::BlockingRead, path, "got reader", None);
                 let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
                 (rp, r)
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::BlockingRead, path, "->", Some(&err));
+                self.ctx.log(Operation::BlockingRead, path, "", Some(&err));
                 err
             })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.ctx
-            .log(Operation::BlockingWrite, path, "-> started", None);
+            .log(Operation::BlockingWrite, path, "started", None);
 
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| {
                 self.ctx
-                    .log(Operation::BlockingWrite, path, "-> start writing", None);
+                    .log(Operation::BlockingWrite, path, "start writing", None);
                 let w = LoggingWriter::new(self.ctx.clone(), Operation::BlockingWrite, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::BlockingWrite, path, "->", Some(&err));
+                self.ctx.log(Operation::BlockingWrite, path, "", Some(&err));
                 err
             })
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.ctx.log(
+        self.ctx.log_with_context(
             Operation::BlockingCopy,
             "",
-            &format!("from={from} to={to} -> started"),
+            &format!("from={from} to={to}"),
+            "started",
             None,
         );
 
         self.inner
             .blocking_copy(from, to, args)
             .map(|v| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingCopy,
                     "",
-                    &format!("from={from} to={to} -> finished"),
+                    &format!("from={from} to={to}"),
+                    "finished",
                     None,
                 );
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingCopy,
                     "",
-                    &format!("from={from} to={to} ->"),
+                    &format!("from={from} to={to}"),
+                    "",
                     Some(&err),
                 );
                 err
@@ -699,29 +726,32 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.ctx.log(
+        self.ctx.log_with_context(
             Operation::BlockingRename,
             "",
-            &format!("from={from} to={to} -> started"),
+            &format!("from={from} to={to}"),
+            "started",
             None,
         );
 
         self.inner
             .blocking_rename(from, to, args)
             .map(|v| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingRename,
                     "",
-                    &format!("from={from} to={to} -> finished"),
+                    &format!("from={from} to={to}"),
+                    "finished",
                     None,
                 );
                 v
             })
             .map_err(|err| {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingRename,
                     "",
-                    &format!("from={from} to={to} ->"),
+                    &format!("from={from} to={to}"),
+                    "",
                     Some(&err),
                 );
                 err
@@ -729,56 +759,51 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.ctx
-            .log(Operation::BlockingStat, path, "-> started", None);
+        self.ctx.log(Operation::BlockingStat, path, "started", None);
 
         self.inner
             .blocking_stat(path, args)
             .map(|v| {
                 self.ctx
-                    .log(Operation::BlockingStat, path, "-> finished", None);
+                    .log(Operation::BlockingStat, path, "finished", None);
                 v
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::BlockingStat, path, "->", Some(&err));
+                self.ctx.log(Operation::BlockingStat, path, "", Some(&err));
                 err
             })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.ctx
-            .log(Operation::BlockingDelete, path, "-> started", None);
+            .log(Operation::BlockingDelete, path, "started", None);
 
         self.inner
             .blocking_delete(path, args)
             .map(|v| {
                 self.ctx
-                    .log(Operation::BlockingDelete, path, "-> finished", None);
+                    .log(Operation::BlockingDelete, path, "finished", None);
                 v
             })
             .map_err(|err| {
                 self.ctx
-                    .log(Operation::BlockingDelete, path, "->", Some(&err));
+                    .log(Operation::BlockingDelete, path, "", Some(&err));
                 err
             })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.ctx
-            .log(Operation::BlockingList, path, "-> started", None);
+        self.ctx.log(Operation::BlockingList, path, "started", None);
 
         self.inner
             .blocking_list(path, args)
             .map(|(rp, v)| {
-                self.ctx
-                    .log(Operation::BlockingList, path, "-> got dir", None);
+                self.ctx.log(Operation::BlockingList, path, "got dir", None);
                 let li = LoggingLister::new(self.ctx.clone(), path, Operation::BlockingList, v);
                 (rp, li)
             })
             .map_err(|err| {
-                self.ctx
-                    .log(Operation::BlockingList, path, "->", Some(&err));
+                self.ctx.log(Operation::BlockingList, path, "", Some(&err));
                 err
             })
     }
@@ -809,13 +834,11 @@ impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
 
 impl<R, I: LoggingInterceptor> Drop for LoggingReader<R, I> {
     fn drop(&mut self) {
-        self.ctx.log(
+        self.ctx.log_with_context(
             self.op,
             &self.path,
-            &format!(
-                "read={} -> data read finished",
-                self.read.load(Ordering::Relaxed)
-            ),
+            &format!("read={}", self.read.load(Ordering::Relaxed)),
+            "data read finished",
             None,
         );
     }
@@ -827,23 +850,21 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::ReaderRead,
                     &self.path,
-                    &format!(
-                        "read={} -> read returns {}B",
-                        self.read.load(Ordering::Relaxed),
-                        bs.remaining()
-                    ),
+                    &format!("read={}", self.read.load(Ordering::Relaxed),),
+                    &format!("read returns {}B", bs.remaining()),
                     None,
                 );
                 Ok(bs)
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::ReaderRead,
                     &self.path,
-                    &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
+                    &format!("read={}", self.read.load(Ordering::Relaxed)),
+                    "read failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -858,23 +879,21 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
             Ok(bs) => {
                 self.read
                     .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingReaderRead,
                     &self.path,
-                    &format!(
-                        "read={} -> read returns {}B",
-                        self.read.load(Ordering::Relaxed),
-                        bs.remaining()
-                    ),
+                    &format!("read={}", self.read.load(Ordering::Relaxed),),
+                    &format!("read returns {}B", bs.remaining()),
                     None,
                 );
                 Ok(bs)
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingReaderRead,
                     &self.path,
-                    &format!("read={} -> read failed:", self.read.load(Ordering::Relaxed)),
+                    &format!("read={}", self.read.load(Ordering::Relaxed)),
+                    "read failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -910,19 +929,21 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         let size = bs.len();
         match self.inner.write(bs).await {
             Ok(_) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::WriterWrite,
                     &self.path,
-                    &format!("written={}B -> data write {}B", self.written, size),
+                    &format!("written={}B", self.written),
+                    &format!("data write {}B", size),
                     None,
                 );
                 Ok(())
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::WriterWrite,
                     &self.path,
-                    &format!("written={}B -> data write failed:", self.written),
+                    &format!("written={}B", self.written),
+                    "data write failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -933,19 +954,21 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     async fn abort(&mut self) -> Result<()> {
         match self.inner.abort().await {
             Ok(_) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::WriterAbort,
                     &self.path,
-                    &format!("written={}B -> abort writer", self.written),
+                    &format!("written={}B", self.written),
+                    "abort writer",
                     None,
                 );
                 Ok(())
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::WriterAbort,
                     &self.path,
-                    &format!("written={}B -> abort writer failed:", self.written),
+                    &format!("written={}B", self.written),
+                    "abort writer failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -956,19 +979,21 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     async fn close(&mut self) -> Result<()> {
         match self.inner.close().await {
             Ok(_) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     self.op,
                     &self.path,
-                    &format!("written={}B -> data written finished", self.written),
+                    &format!("written={}B", self.written),
+                    "data written finished",
                     None,
                 );
                 Ok(())
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::WriterClose,
                     &self.path,
-                    &format!("written={}B -> data close failed:", self.written),
+                    &format!("written={}B", self.written),
+                    "data close failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -981,19 +1006,21 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
     fn write(&mut self, bs: Buffer) -> Result<()> {
         match self.inner.write(bs.clone()) {
             Ok(_) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingWriterWrite,
                     &self.path,
-                    &format!("written={}B -> data write {}B", self.written, bs.len()),
+                    &format!("written={}B", self.written),
+                    &format!("data write {}B", bs.len()),
                     None,
                 );
                 Ok(())
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingWriterWrite,
                     &self.path,
-                    &format!("written={}B -> data write failed:", self.written),
+                    &format!("written={}B", self.written),
+                    "data write failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -1004,19 +1031,21 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
     fn close(&mut self) -> Result<()> {
         match self.inner.close() {
             Ok(_) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     self.op,
                     &self.path,
-                    &format!("written={}B -> data written finished", self.written),
+                    &format!("written={}B", self.written),
+                    "data written finished",
                     None,
                 );
                 Ok(())
             }
             Err(err) => {
-                self.ctx.log(
+                self.ctx.log_with_context(
                     Operation::BlockingWriterClose,
                     &self.path,
-                    &format!("written={}B -> data close failed:", self.written),
+                    &format!("written={}B", self.written),
+                    "data close failed:",
                     Some(&err),
                 );
                 Err(err)
@@ -1050,14 +1079,10 @@ impl<P, I: LoggingInterceptor> Drop for LoggingLister<P, I> {
     fn drop(&mut self) {
         if self.finished {
             self.ctx
-                .log(self.op, &self.path, "-> all entries read finished", None);
+                .log(self.op, &self.path, "all entries read finished", None);
         } else {
-            self.ctx.log(
-                self.op,
-                &self.path,
-                "-> partial entries read finished",
-                None,
-            );
+            self.ctx
+                .log(self.op, &self.path, "partial entries read finished", None);
         }
     }
 }
@@ -1071,16 +1096,16 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
                 self.ctx.log(
                     self.op,
                     &self.path,
-                    &format!("-> listed entry: {}", de.path()),
+                    &format!("listed entry: {}", de.path()),
                     None,
                 );
             }
             Ok(None) => {
-                self.ctx.log(self.op, &self.path, "-> finished", None);
+                self.ctx.log(self.op, &self.path, "finished", None);
                 self.finished = true;
             }
             Err(err) => {
-                self.ctx.log(self.op, &self.path, "->", Some(err));
+                self.ctx.log(self.op, &self.path, "", Some(err));
             }
         };
 
@@ -1097,16 +1122,16 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
                 self.ctx.log(
                     self.op,
                     &self.path,
-                    &format!("-> listed entry: {}", des.path()),
+                    &format!("listed entry: {}", des.path()),
                     None,
                 );
             }
             Ok(None) => {
-                self.ctx.log(self.op, &self.path, "-> finished", None);
+                self.ctx.log(self.op, &self.path, "finished", None);
                 self.finished = true;
             }
             Err(err) => {
-                self.ctx.log(self.op, &self.path, "->", Some(err));
+                self.ctx.log(self.op, &self.path, "", Some(err));
             }
         };
 

@@ -86,6 +86,7 @@ use crate::*;
 /// ```no_run
 /// use crate::layers::LoggingInterceptor;
 /// use crate::layers::LoggingLayer;
+/// use crate::raw::Operation;
 /// use crate::services;
 /// use crate::Error;
 /// use crate::Operator;
@@ -98,8 +99,9 @@ use crate::*;
 ///     fn log(
 ///         &self,
 ///         scheme: Scheme,
-///         operation: &'static str,
+///         operation: Operation,
 ///         path: &str,
+///         context: &str,
 ///         message: &str,
 ///         err: Option<&Error>,
 ///     ) {
@@ -128,7 +130,7 @@ impl<I> Clone for LoggingLayer<I> {
 impl Default for LoggingLayer {
     fn default() -> Self {
         Self {
-            notify: Arc::new(DefaultLoggingInterceptor::default()),
+            notify: Arc::new(DefaultLoggingInterceptor),
         }
     }
 }
@@ -192,7 +194,6 @@ impl<I: LoggingInterceptor> LoggingContext<I> {
     }
 }
 
-// TODO(yingwen): Update example.
 /// LoggingInterceptor is used to intercept the log.
 pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     /// Everytime there is a log, this function will be called.
@@ -223,24 +224,9 @@ pub trait LoggingInterceptor: Debug + Send + Sync + 'static {
     );
 }
 
-// TODO(yingwen): Remove fields.
 /// The DefaultLoggingInterceptor will log the message by the standard logging macro.
 #[derive(Debug)]
-pub struct DefaultLoggingInterceptor {
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
-}
-
-impl Default for DefaultLoggingInterceptor {
-    fn default() -> Self {
-        Self {
-            error_level: Some(Level::Warn),
-            failure_level: Some(Level::Error),
-            backtrace_output: false,
-        }
-    }
-}
+pub struct DefaultLoggingInterceptor;
 
 impl LoggingInterceptor for DefaultLoggingInterceptor {
     fn log(
@@ -267,84 +253,22 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
             return;
         };
 
-        if let Some(lvl) = self.error_level(err) {
-            if self.print_backtrace(err) {
-                log!(
-                    target: LOGGING_TARGET,
-                    lvl,
-                    "service={} operation={} path={} {} -> {} {:?}",
-                    scheme,
-                    operation,
-                    path,
-                    context,
-                    message,
-                    err,
-                )
-            } else {
-                log!(
-                    target: LOGGING_TARGET,
-                    lvl,
-                    "service={} operation={} path={} {} -> {} {}",
-                    scheme,
-                    operation,
-                    path,
-                    context,
-                    message,
-                    err,
-                )
-            }
-        }
+        let lvl = self.error_level(err);
+        log!(
+            target: LOGGING_TARGET,
+            lvl,
+            "service={} operation={} path={} {} -> {} {}",
+            scheme,
+            operation,
+            path,
+            context,
+            message,
+            err,
+        );
     }
 }
 
 impl DefaultLoggingInterceptor {
-    /// Setting the log level while expected error happened.
-    ///
-    /// For example: accessor returns NotFound.
-    ///
-    /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level_str) = level {
-            let level = level_str.parse().map_err(|_| {
-                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
-                    .with_context("level", level_str)
-            })?;
-            self.error_level = Some(level);
-        } else {
-            self.error_level = None;
-        }
-        Ok(self)
-    }
-
-    /// Setting the log level while unexpected failure happened.
-    ///
-    /// For example: accessor returns Unexpected network error.
-    ///
-    /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level_str) = level {
-            let level = level_str.parse().map_err(|_| {
-                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
-                    .with_context("level", level_str)
-            })?;
-            self.failure_level = Some(level);
-        } else {
-            self.failure_level = None;
-        }
-        Ok(self)
-    }
-
-    /// Setting whether to output backtrace while unexpected failure happened.
-    ///
-    /// # Notes
-    ///
-    /// - When the error is an expected error, backtrace will not be output.
-    /// - backtrace output is disable by default.
-    pub fn with_backtrace_output(mut self, enable: bool) -> Self {
-        self.backtrace_output = enable;
-        self
-    }
-
     fn operation_level(&self, operation: Operation) -> Level {
         match operation {
             Operation::ReaderRead
@@ -356,24 +280,12 @@ impl DefaultLoggingInterceptor {
     }
 
     #[inline]
-    fn error_level(&self, err: &Error) -> Option<Level> {
+    fn error_level(&self, err: &Error) -> Level {
         if err.kind() == ErrorKind::Unexpected {
-            self.failure_level
+            Level::Error
         } else {
-            self.error_level
+            Level::Warn
         }
-    }
-
-    /// Returns true if the error is unexpected and we need to
-    /// print the backtrace.
-    #[inline]
-    fn print_backtrace(&self, err: &Error) -> bool {
-        // Don't print backtrace if it's not unexpected error.
-        if err.kind() != ErrorKind::Unexpected {
-            return false;
-        }
-
-        self.backtrace_output
     }
 }
 

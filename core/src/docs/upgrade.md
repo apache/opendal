@@ -1,3 +1,40 @@
+# Upgrade to v0.49
+
+## Public API
+
+### `Configurator` now returns associated builder instead
+
+`Configurator` used to return `impl Builder`, but now it returns associated builder type directly. This will allow users to use the builder in a more flexible way.
+
+```diff
+impl Configurator for MemoryConfig {
+-    fn into_builder(self) -> impl Builder {
++    type Builder = MemoryBuilder;
++    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+```
+
+### `LoggingLayer` now accepts `LoggingInterceptor`
+
+`LoggingLayer` now accepts `LoggingInterceptor` trait instead of configuration. This change will allow users to customize the logging behavior more flexibly.
+
+```diff
+pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+```
+
+Users can now implement the log in the way they want.
+
 # Upgrade to v0.48
 
 ## Public API

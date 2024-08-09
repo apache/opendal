@@ -17,8 +17,14 @@
 
 use std::io::Write;
 use std::mem::size_of;
+use std::time::Duration;
 
+use log::debug;
+use opendal::ErrorKind;
 use opendal::Operator;
+use sharded_slab::Slab;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
 use vm_memory::ByteValued;
 
 use crate::error::*;
@@ -32,21 +38,99 @@ const KERNEL_MINOR_VERSION: u32 = 38;
 /// Minimum Minor version number supported.
 const MIN_KERNEL_MINOR_VERSION: u32 = 27;
 /// The length of the header part of the message.
-const BUFFER_HEADER_SIZE: u32 = 256;
+const BUFFER_HEADER_SIZE: u32 = 4096;
 /// The maximum length of the data part of the message, used for read/write data.
 const MAX_BUFFER_SIZE: u32 = 1 << 20;
+/// The deafult time to live of the attributes.
+const DEFAULT_TTL: Duration = Duration::from_secs(1);
+/// The default mode of the opened file.
+const DEFAULT_OPENED_FILE_MODE: u32 = 0o755;
+
+enum FileType {
+    Dir,
+    File,
+}
+
+struct OpenedFile {
+    path: String,
+    metadata: Attr,
+}
+
+impl OpenedFile {
+    fn new(file_type: FileType, path: &str, uid: u32, gid: u32) -> OpenedFile {
+        let mut attr: Attr = unsafe { std::mem::zeroed() };
+        attr.uid = uid;
+        attr.gid = gid;
+        match file_type {
+            FileType::Dir => {
+                attr.nlink = 2;
+                attr.mode = libc::S_IFDIR | DEFAULT_OPENED_FILE_MODE;
+            }
+            FileType::File => {
+                attr.nlink = 1;
+                attr.mode = libc::S_IFREG | DEFAULT_OPENED_FILE_MODE;
+            }
+        }
+        OpenedFile {
+            path: path.to_string(),
+            metadata: attr,
+        }
+    }
+}
+
+fn opendal_error2error(error: opendal::Error) -> Error {
+    match error.kind() {
+        ErrorKind::Unsupported => Error::from(libc::EOPNOTSUPP),
+        ErrorKind::IsADirectory => Error::from(libc::EISDIR),
+        ErrorKind::NotFound => Error::from(libc::ENOENT),
+        ErrorKind::PermissionDenied => Error::from(libc::EACCES),
+        ErrorKind::AlreadyExists => Error::from(libc::EEXIST),
+        ErrorKind::NotADirectory => Error::from(libc::ENOTDIR),
+        ErrorKind::RangeNotSatisfied => Error::from(libc::EINVAL),
+        ErrorKind::RateLimited => Error::from(libc::EBUSY),
+        _ => Error::from(libc::ENOENT),
+    }
+}
+
+fn opendal_metadata2opened_file(
+    path: &str,
+    metadata: &opendal::Metadata,
+    uid: u32,
+    gid: u32,
+) -> OpenedFile {
+    let file_type = match metadata.mode() {
+        opendal::EntryMode::DIR => FileType::Dir,
+        _ => FileType::File,
+    };
+    OpenedFile::new(file_type, path, uid, gid)
+}
 
 /// Filesystem is a filesystem implementation with opendal backend,
 /// and will decode and process messages from VMs.
 pub struct Filesystem {
-    // FIXME: #[allow(dead_code)] here should be removed in the future.
-    #[allow(dead_code)]
+    rt: Runtime,
     core: Operator,
+    uid: u32,
+    gid: u32,
+    opened_files: Slab<OpenedFile>,
 }
 
 impl Filesystem {
     pub fn new(core: Operator) -> Filesystem {
-        Filesystem { core }
+        let rt = Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        // Here we set the uid and gid to 1000, which is the default value.
+        Filesystem {
+            rt,
+            core,
+            uid: 1000,
+            gid: 1000,
+            opened_files: Slab::new(),
+        }
     }
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
@@ -60,6 +144,9 @@ impl Filesystem {
         if let Ok(opcode) = Opcode::try_from(in_header.opcode) {
             match opcode {
                 Opcode::Init => self.init(in_header, r, w),
+                Opcode::Destroy => self.destory(in_header, r, w),
+                Opcode::Getattr => self.getattr(in_header, r, w),
+                Opcode::Setattr => self.setattr(in_header, r, w),
             }
         } else {
             Filesystem::reply_error(in_header.unique, w)
@@ -133,5 +220,53 @@ impl Filesystem {
             ..Default::default()
         };
         Filesystem::reply_ok(Some(out), None, in_header.unique, w)
+    }
+
+    fn destory(&self, _in_header: InHeader, _r: Reader, _w: Writer) -> Result<usize> {
+        // do nothing for destory.
+        Ok(0)
+    }
+
+    fn getattr(&self, in_header: InHeader, _r: Reader, w: Writer) -> Result<usize> {
+        debug!("getattr: inode={}", in_header.nodeid);
+
+        let path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let mut metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
+            Ok(metadata) => metadata,
+            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+        };
+        metadata.metadata.ino = in_header.nodeid;
+
+        let out = AttrOut {
+            attr_valid: DEFAULT_TTL.as_secs(),
+            attr_valid_nsec: DEFAULT_TTL.subsec_nanos(),
+            attr: metadata.metadata,
+            ..Default::default()
+        };
+        Filesystem::reply_ok(Some(out), None, in_header.unique, w)
+    }
+
+    fn setattr(&self, in_header: InHeader, _r: Reader, w: Writer) -> Result<usize> {
+        debug!("setattr: inode={}", in_header.nodeid);
+
+        // do nothing for setattr.
+        self.getattr(in_header, _r, w)
+    }
+}
+
+impl Filesystem {
+    async fn do_get_metadata(&self, path: &str) -> Result<OpenedFile> {
+        let metadata = self.core.stat(path).await.map_err(opendal_error2error)?;
+        let attr = opendal_metadata2opened_file(path, &metadata, self.uid, self.gid);
+
+        Ok(attr)
     }
 }

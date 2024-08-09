@@ -86,6 +86,23 @@ impl Operation {
     pub fn into_static(self) -> &'static str {
         self.into()
     }
+
+    /// Check if given operation is oneshot or not.
+    ///
+    /// For example, `Stat` is oneshot but `ReaderRead` could happen multiple times.
+    ///
+    /// This function can be used to decide take actions based on operations like logging.
+    pub fn is_oneshot(&self) -> bool {
+        !matches!(
+            self,
+            Operation::ReaderRead
+                | Operation::WriterWrite
+                | Operation::ListerNext
+                | Operation::BlockingReaderRead
+                | Operation::BlockingWriterWrite
+                | Operation::BlockingListerNext
+        )
+    }
 }
 
 impl Display for Operation {

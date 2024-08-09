@@ -90,7 +90,8 @@ impl Builder for RocksdbBuilder {
                 .set_source(e)
         })?;
 
-        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }))
+        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) })
+            .with_root(self.config.root.as_deref().unwrap_or("/")))
     }
 }
 
@@ -186,10 +187,6 @@ impl kv::Adapter for Adapter {
             let key = String::from_utf8_lossy(&key);
             // FIXME: it's must a bug that rocksdb returns key that not start with path.
             if !key.starts_with(path) {
-                continue;
-            }
-            // List should skip the path itself.
-            if key == path {
                 continue;
             }
             res.push(key.to_string());

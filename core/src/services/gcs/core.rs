@@ -119,8 +119,8 @@ impl GcsCore {
         }
         let cred = self.load_token().await?;
 
-        if !self.token.is_empty() {
-            let header_value = format!("Bearer {}", self.token);
+        if let Some(token) = &self.token {
+            let header_value = format!("Bearer {}", token);
             req.headers_mut()
                 .insert(header::AUTHORIZATION, header_value.parse().unwrap());
         }
@@ -141,18 +141,21 @@ impl GcsCore {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        if let Some(token) = &self.token {
+            req.headers_mut().remove(HOST);
+
+            let header_value = format!("Bearer {}", token);
+            req.headers_mut()
+                .insert(header::AUTHORIZATION, header_value.parse().unwrap());
+            return Ok(());
+        }
+
         if let Some(cred) = self.load_credential()? {
             self.signer
                 .sign_query(req, duration, &cred)
                 .map_err(new_request_sign_error)?;
         } else {
             return Ok(());
-        }
-
-        if !self.token.is_empty() {
-            let header_value = format!("Bearer {}", self.token);
-            req.headers_mut()
-                .insert(header::AUTHORIZATION, header_value.parse().unwrap());
         }
 
         // Always remove host header, let users' client to set it based on HTTP

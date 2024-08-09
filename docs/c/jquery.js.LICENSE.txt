@@ -1,0 +1,18 @@
+/*!
+ PowerTip v1.3.1 (2018-04-15)
+ https://stevenbenner.github.io/jquery-powertip/
+ Copyright (c) 2018 Steven Benner (http://stevenbenner.com/).
+ Released under MIT license.
+ https://raw.github.com/stevenbenner/jquery-powertip/master/LICENSE.txt
+*/
+
+/*! SmartMenus jQuery Plugin - v1.1.0 - September 17, 2017
+ * http://www.smartmenus.org/
+ * Copyright Vasil Dinkov, Vadikom Web Ltd. http://vadikom.com; Licensed MIT */
+
+/*! jQuery UI - v1.12.1 - 2019-01-27
+* http://jqueryui.com
+* Includes: widget.js, position.js, data.js, disable-selection.js, focusable.js, form-reset-mixin.js, jquery-1-7.js, keycode.js, labels.js, scroll-parent.js, tabbable.js, unique-id.js, widgets/resizable.js, widgets/mouse.js
+* Copyright jQuery Foundation and other contributors; Licensed MIT */
+
+/*! jQuery v3.4.1 | (c) JS Foundation and other contributors | jquery.org/license */

@@ -25,12 +25,12 @@ use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
 use redis::cluster_async::ClusterConnection;
-use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
+use redis::{AsyncCommands, ProtocolVersion};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -312,6 +312,7 @@ impl RedisBuilder {
             db: self.config.db,
             username: self.config.username.clone(),
             password: self.config.password.clone(),
+            protocol: ProtocolVersion::RESP2,
         };
 
         Ok(ConnectionInfo {

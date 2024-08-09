@@ -16,7 +16,7 @@
 # under the License.
 
 name: Test Integration CloudFilter
-description: 'Test Integration CloudFilter
+description: 'Test Integration CloudFilter'
 
 runs:
   using: composite

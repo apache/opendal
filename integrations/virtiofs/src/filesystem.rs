@@ -41,7 +41,7 @@ const MIN_KERNEL_MINOR_VERSION: u32 = 27;
 const BUFFER_HEADER_SIZE: u32 = 4096;
 /// The maximum length of the data part of the message, used for read/write data.
 const MAX_BUFFER_SIZE: u32 = 1 << 20;
-/// The deafult time to live of the attributes.
+/// The default time to live of the attributes.
 const DEFAULT_TTL: Duration = Duration::from_secs(1);
 /// The default mode of the opened file.
 const DEFAULT_OPENED_FILE_MODE: u32 = 0o755;
@@ -144,7 +144,7 @@ impl Filesystem {
         if let Ok(opcode) = Opcode::try_from(in_header.opcode) {
             match opcode {
                 Opcode::Init => self.init(in_header, r, w),
-                Opcode::Destroy => self.destory(in_header, r, w),
+                Opcode::Destroy => self.destroy(in_header, r, w),
                 Opcode::Getattr => self.getattr(in_header, r, w),
                 Opcode::Setattr => self.setattr(in_header, r, w),
             }
@@ -222,8 +222,8 @@ impl Filesystem {
         Filesystem::reply_ok(Some(out), None, in_header.unique, w)
     }
 
-    fn destory(&self, _in_header: InHeader, _r: Reader, _w: Writer) -> Result<usize> {
-        // do nothing for destory.
+    fn destroy(&self, _in_header: InHeader, _r: Reader, _w: Writer) -> Result<usize> {
+        // do nothing for destroy.
         Ok(0)
     }
 

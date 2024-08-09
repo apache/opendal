@@ -22,7 +22,7 @@ runs:
   using: composite
   steps:
     - name: Setup
-      shell: pwsh
+      shell: bash
       run: |
         mkdir -p ./dynamic_test_integration_cloudfilter &&
         cat <<EOF >./dynamic_test_integration_cloudfilter/action.yml

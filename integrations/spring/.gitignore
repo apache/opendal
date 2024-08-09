@@ -1,0 +1,20 @@
+# file system
+.DS_Store
+
+# ide
+.idea/**
+!.idea/icon.svg
+!.idea/vcs.xml
+
+# Project exclude paths
+**.log
+**/target
+**/.classpath
+**/.project
+**/.factorypath
+
+# mvn
+dependency-reduced-pom.xml
+
+# log file
+logs/

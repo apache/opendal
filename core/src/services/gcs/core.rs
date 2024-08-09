@@ -77,20 +77,24 @@ static BACKOFF: Lazy<ExponentialBuilder> =
     Lazy::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
-    async fn load_token(&self) -> Result<GoogleToken> {
+    async fn load_token(&self) -> Result<Option<GoogleToken>> {
         let cred = { || self.token_loader.load() }
             .retry(&*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     fn load_credential(&self) -> Result<Option<GoogleCredential>> {
@@ -114,20 +118,22 @@ impl GcsCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if self.allow_anonymous {
-            return Ok(());
-        }
-        let cred = self.load_token().await?;
-
         if let Some(token) = &self.token {
+            req.headers_mut().remove(HOST);
+
             let header_value = format!("Bearer {}", token);
             req.headers_mut()
                 .insert(header::AUTHORIZATION, header_value.parse().unwrap());
+            return Ok(());
         }
 
-        self.signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)?;
+        if let Some(cred) = self.load_token().await? {
+            self.signer
+                .sign(req, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.

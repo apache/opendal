@@ -96,7 +96,6 @@ pub struct Reader<'a, B = ()> {
     buffer: DescriptorChainConsumer<'a, B>,
 }
 
-#[allow(dead_code)]
 impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
     pub fn new<M>(
         mem: &'a GuestMemoryMmap<B>,
@@ -174,7 +173,6 @@ pub struct Writer<'a, B = ()> {
     buffer: DescriptorChainConsumer<'a, B>,
 }
 
-#[allow(dead_code)]
 impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
     pub fn new<M>(
         mem: &'a GuestMemoryMmap<B>,

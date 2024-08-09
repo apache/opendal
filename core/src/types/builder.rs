@@ -103,7 +103,7 @@ impl Builder for () {
 /// use std::collections::HashMap;
 ///
 /// use opendal::services::S3Config;
-/// use opendal::{Configurator, Operator};///
+/// use opendal::{Configurator, Operator};
 /// use opendal::raw::HttpClient;
 ///
 /// async fn test() -> Result<()> {

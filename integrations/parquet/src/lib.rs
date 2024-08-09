@@ -15,18 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! parquet_opendal provides parquet IO utils.
-//!
-//! AsyncWriter implements AsyncFileWriter trait by using opendal.
+//! parquet_opendal provides parquet IO utilities.
 //!
 //! ```no_run
 //! use std::sync::Arc;
-//!
 //! use arrow::array::{ArrayRef, Int64Array, RecordBatch};
 //!
+//! use futures::StreamExt;
 //! use opendal::{services::S3Config, Operator};
-//! use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, AsyncArrowWriter};
-//! use parquet_opendal::AsyncWriter;
+//! use parquet::arrow::{AsyncArrowWriter, ParquetRecordBatchStreamBuilder};
+//! use parquet_opendal::{AsyncReader, AsyncWriter};
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -57,16 +55,29 @@
 //!     writer.write(&to_write).await.unwrap();
 //!     writer.close().await.unwrap();
 //!
-//!     let buffer = operator.read(path).await.unwrap().to_bytes();
-//!     let mut reader = ParquetRecordBatchReaderBuilder::try_new(buffer)
+//!     // gap: Allow the underlying reader to merge small IOs
+//!     // when the gap between multiple IO ranges is less than the threshold.
+//!     let reader = operator
+//!         .reader_with(path)
+//!         .gap(512 * 1024)
+//!         .chunk(16 * 1024 * 1024)
+//!         .concurrent(16)
+//!         .await
+//!         .unwrap();
+//!     let content_len = operator.stat(path).await.unwrap().content_length();
+//!     let reader = AsyncReader::new(reader, content_len).with_prefetch_footer_size(512 * 1024);
+//!     let mut stream = ParquetRecordBatchStreamBuilder::new(reader)
+//!         .await
 //!         .unwrap()
 //!         .build()
 //!         .unwrap();
-//!     let read = reader.next().unwrap().unwrap();
+//!     let read = stream.next().await.unwrap().unwrap();
 //!     assert_eq!(to_write, read);
 //! }
 //! ```
 
+mod async_reader;
 mod async_writer;
 
+pub use async_reader::AsyncReader;
 pub use async_writer::AsyncWriter;

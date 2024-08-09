@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ffi::CStr;
 use std::io;
 
 use anyhow::Error as AnyError;
@@ -36,6 +37,22 @@ pub enum Error {
         #[snafu(source(false))]
         source: Option<AnyError>,
     },
+}
+
+impl From<libc::c_int> for Error {
+    fn from(errno: libc::c_int) -> Error {
+        let err_str = unsafe { libc::strerror(errno) };
+        let message = if err_str.is_null() {
+            format!("errno: {}", errno)
+        } else {
+            let c_str = unsafe { CStr::from_ptr(err_str) };
+            c_str.to_string_lossy().into_owned()
+        };
+        Error::VhostUserFsError {
+            message,
+            source: None,
+        }
+    }
 }
 
 impl From<Error> for io::Error {

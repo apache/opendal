@@ -85,11 +85,6 @@ impl oio::PageList for SwiftLister {
                     content_type,
                     mut last_modified,
                 } => {
-                    // this is the pseudo directory itself; we'll skip it.
-                    if name == self.path {
-                        continue;
-                    }
-
                     let mut meta = Metadata::new(EntryMode::from_path(&name));
                     meta.set_content_length(bytes);
                     meta.set_content_md5(hash.as_str());

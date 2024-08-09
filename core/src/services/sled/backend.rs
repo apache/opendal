@@ -139,7 +139,7 @@ impl Builder for SledBuilder {
             datadir: datadir_path,
             tree,
         })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        .with_root(self.config.root.as_deref().unwrap_or("/")))
     }
 }
 
@@ -242,9 +242,6 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            if v == path {
-                continue;
-            }
 
             res.push(v);
         }

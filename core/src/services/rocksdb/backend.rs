@@ -199,10 +199,6 @@ impl kv::Adapter for Adapter {
             if !key.starts_with(path) {
                 continue;
             }
-            // List should skip the path itself.
-            if key == path {
-                continue;
-            }
             res.push(key.to_string());
         }
 

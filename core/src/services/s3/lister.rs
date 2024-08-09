@@ -68,7 +68,7 @@ impl oio::PageList for S3Lister {
                 &ctx.token,
                 self.delimiter,
                 self.limit,
-                // State after should only be set for the first page.
+                // start after should only be set for the first page.
                 if ctx.token.is_empty() {
                     self.start_after.clone()
                 } else {
@@ -80,7 +80,6 @@ impl oio::PageList for S3Lister {
         if resp.status() != http::StatusCode::OK {
             return Err(parse_error(resp));
         }
-
         let bs = resp.into_body();
 
         let output: ListObjectsOutput =
@@ -90,7 +89,7 @@ impl oio::PageList for S3Lister {
         //
         // - Check `is_truncated`
         // - Check `next_continuation_token`
-        // - Check the length of `common_prefixes` and `contents` (very rarely case)
+        // - Check the length of `common_prefixes` and `contents` (very rare case)
         ctx.done = if let Some(is_truncated) = output.is_truncated {
             !is_truncated
         } else if let Some(next_continuation_token) = output.next_continuation_token.as_ref() {
@@ -110,11 +109,9 @@ impl oio::PageList for S3Lister {
         }
 
         for object in output.contents {
-            let path = build_rel_path(&self.core.root, &object.key);
-
-            // s3 could return the dir itself in contents.
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.key);
+            if path.is_empty() {
+                path = "/".to_string();
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
@@ -125,7 +122,7 @@ impl oio::PageList for S3Lister {
             }
             meta.set_content_length(object.size);
 
-            // object.last_modified provides more precious time that contains
+            // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 

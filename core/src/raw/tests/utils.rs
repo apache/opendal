@@ -101,7 +101,6 @@ impl LoggingInterceptor for BacktraceLoggingInterceptor {
         &self,
         scheme: Scheme,
         operation: raw::Operation,
-        path: &str,
         context: &str,
         message: &str,
         err: Option<&Error>,
@@ -111,10 +110,9 @@ impl LoggingInterceptor for BacktraceLoggingInterceptor {
             log!(
                 target: "opendal::services",
                 lvl,
-                "service={} operation={} path={} {} -> {}",
+                "service={} operation={} {} -> {}",
                 scheme,
                 operation,
-                path,
                 context,
                 message,
             );
@@ -135,10 +133,9 @@ impl LoggingInterceptor for BacktraceLoggingInterceptor {
         log!(
             target: "opendal::services",
             lvl,
-            "service={} operation={} path={} {} -> {} {}",
+            "service={} operation={} {} -> {} {}",
             scheme,
             operation,
-            path,
             context,
             message,
             err_msg,

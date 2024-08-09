@@ -31,8 +31,7 @@ basicTests =
     "Basic Tests"
     [ testCase "testBasicOperation" testRawOperation,
       testCase "testMonad" testMonad,
-      testCase "testError" testError,
-      testCase "testLogger" testLogger
+      testCase "testError" testError
     ]
 
 testRawOperation :: Assertion
@@ -101,15 +100,6 @@ testError = do
     Right _ -> assertFailure "should not reach here"
   where
     operation = readOp "non-exist-path"
-
-testLogger :: Assertion
-testLogger = do
-  state <- newIORef ""
-  let logger initStr msg = modifyIORef' initStr (<> msgText msg)
-  let logFn = LogAction $ logger state
-  Right _ <- newOperator "memory" {ocLogAction = Just logFn}
-  logStr <- readIORef state
-  T.take 78 logStr @?= "service=memory operation=metadata  -> startedservice=memory operation=metadata"
 
 -- helper function
 

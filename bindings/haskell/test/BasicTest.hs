@@ -109,7 +109,7 @@ testLogger = do
   let logFn = LogAction $ logger state
   Right _ <- newOperator "memory" {ocLogAction = Just logFn}
   logStr <- readIORef state
-  T.take 77 logStr @?= "service=memory operation=metadata -> startedservice=memory operation=metadata"
+  T.take 78 logStr @?= "service=memory operation=metadata  -> startedservice=memory operation=metadata"
 
 -- helper function
 

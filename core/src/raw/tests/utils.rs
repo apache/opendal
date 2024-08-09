@@ -19,8 +19,11 @@ use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 
+use log::{log, Level};
 use once_cell::sync::Lazy;
 
+use crate::layers::LoggingInterceptor;
+use crate::raw::Operation;
 use crate::*;
 
 /// TEST_RUNTIME is the runtime used for running tests.
@@ -73,7 +76,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };
 
     let mut op = op
-        .layer(layers::LoggingLayer::default().with_backtrace_output(true))
+        .layer(layers::LoggingLayer::new(BacktraceLoggingInterceptor))
         .layer(layers::TimeoutLayer::new())
         .layer(layers::RetryLayer::new().with_max_times(4));
 
@@ -87,4 +90,67 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     }
 
     Ok(Some(op))
+}
+
+/// A logging interceptor that logs the backtrace.
+#[derive(Debug, Clone)]
+struct BacktraceLoggingInterceptor;
+
+impl LoggingInterceptor for BacktraceLoggingInterceptor {
+    fn log(
+        &self,
+        scheme: Scheme,
+        operation: raw::Operation,
+        context: &str,
+        message: &str,
+        err: Option<&Error>,
+    ) {
+        let Some(err) = err else {
+            let lvl = self.operation_level(operation);
+            log!(
+                target: "opendal::services",
+                lvl,
+                "service={} operation={} {} -> {}",
+                scheme,
+                operation,
+                context,
+                message,
+            );
+            return;
+        };
+
+        let err_msg = if err.kind() != ErrorKind::Unexpected {
+            format!("{err}")
+        } else {
+            format!("{err:?}")
+        };
+        let lvl = if err.kind() == ErrorKind::Unexpected {
+            Level::Error
+        } else {
+            Level::Warn
+        };
+
+        log!(
+            target: "opendal::services",
+            lvl,
+            "service={} operation={} {} -> {} {}",
+            scheme,
+            operation,
+            context,
+            message,
+            err_msg,
+        );
+    }
+}
+
+impl BacktraceLoggingInterceptor {
+    fn operation_level(&self, operation: Operation) -> Level {
+        match operation {
+            Operation::ReaderRead
+            | Operation::BlockingReaderRead
+            | Operation::WriterWrite
+            | Operation::BlockingWriterWrite => Level::Trace,
+            _ => Level::Debug,
+        }
+    }
 }

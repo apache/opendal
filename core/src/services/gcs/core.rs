@@ -54,7 +54,7 @@ pub struct GcsCore {
     pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
-    pub token: String,
+    pub token: Option<String>,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,

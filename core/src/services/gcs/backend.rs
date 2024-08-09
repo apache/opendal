@@ -75,7 +75,9 @@ pub struct GcsConfig {
     /// Disable loading configuration from the environment.
     pub disable_config_load: bool,
     /// A Google Cloud OAuth2 token.
-    pub token: String,
+    ///
+    /// Takes precedence over `credential` and `credential_path`.
+    pub token: Option<String>,
 }
 
 impl Debug for GcsConfig {
@@ -218,7 +220,7 @@ impl GcsBuilder {
 
     /// Provide the OAuth2 token to use.
     pub fn token(mut self, token: String) -> Self {
-        self.config.token = token;
+        self.config.token = Some(token);
         self
     }
 

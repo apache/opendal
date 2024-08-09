@@ -84,13 +84,13 @@ use crate::*;
 /// You can implement your own logging interceptor to customize the logging behavior.
 ///
 /// ```no_run
-/// use crate::layers::LoggingInterceptor;
-/// use crate::layers::LoggingLayer;
-/// use crate::raw::Operation;
-/// use crate::services;
-/// use crate::Error;
-/// use crate::Operator;
-/// use crate::Scheme;
+/// use opendal::layers::LoggingInterceptor;
+/// use opendal::layers::LoggingLayer;
+/// use opendal::raw::Operation;
+/// use opendal::services;
+/// use opendal::Error;
+/// use opendal::Operator;
+/// use opendal::Scheme;
 ///
 /// #[derive(Debug, Clone)]
 /// struct MyLoggingInterceptor;

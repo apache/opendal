@@ -18,7 +18,7 @@
 [package]
 name = "opendal-lua"
 publish = false
-version = "0.1.5"
+version = "0.1.6"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

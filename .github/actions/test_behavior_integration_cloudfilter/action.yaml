@@ -22,7 +22,7 @@ runs:
   using: composite
   steps:
     - name: Setup
-      shell: bash
+      shell: pwsh
       run: |
         mkdir -p ./dynamic_test_integration_cloudfilter &&
         cat <<EOF >./dynamic_test_integration_cloudfilter/action.yml
@@ -34,7 +34,7 @@ runs:
           # - name: Setup Test
           #   uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
           - name: Run Test CloudFilter
-            shell: bash
+            shell: pwsh
             working-directory: integrations/cloudfilter
             run: cargo test --test behavior
             env:

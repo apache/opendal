@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.49.0] - 2024-08-09
+
+### Added
+* feat(o): Add cargo-o layout by @Xuanwo in https://github.com/apache/opendal/pull/4934
+* feat: impl `put_multipart` in `object_store` by @Rachelint in https://github.com/apache/opendal/pull/4793
+* feat: introduce opendal `AsyncWriter` for parquet integrations  by @WenyXu in https://github.com/apache/opendal/pull/4958
+* feat(services/http): implement presigned request for backends without authorization by @NickCao in https://github.com/apache/opendal/pull/4970
+* feat(bindings/python): strip the library for minimum file size by @NickCao in https://github.com/apache/opendal/pull/4971
+* feat(gcs): allow unauthenticated requests by @jdockerty in https://github.com/apache/opendal/pull/4965
+* feat: introduce opendal `AsyncReader` for parquet integrations by @WenyXu in https://github.com/apache/opendal/pull/4972
+* feat(services/s3): add role_session_name in assume roles by @nerdroychan in https://github.com/apache/opendal/pull/4981
+* feat: support root path for moka and mini-moka by @meteorgan in https://github.com/apache/opendal/pull/4984
+* feat(ovfs): export VirtioFs struct by @zjregee in https://github.com/apache/opendal/pull/4983
+* feat(core)!: implement an interceptor for the logging layer by @evenyag in https://github.com/apache/opendal/pull/4961
+* feat(ovfs): support getattr and setattr by @zjregee in https://github.com/apache/opendal/pull/4987
+### Changed
+* refactor(java)!: Rename artifacts id opendal-java to opendal by @Xuanwo in https://github.com/apache/opendal/pull/4957
+* refactor(core)!: Return associated builder instead by @Xuanwo in https://github.com/apache/opendal/pull/4968
+* refactor(raw): Merge all operations into one enum by @Xuanwo in https://github.com/apache/opendal/pull/4977
+* refactor(core): Use kv based context to avoid allocations by @Xuanwo in https://github.com/apache/opendal/pull/4986
+### Fixed
+* fix(services/memory): MemoryConfig implement Debug by @0x676e67 in https://github.com/apache/opendal/pull/4942
+* fix(layers/promethues-client): doc link by @koushiro in https://github.com/apache/opendal/pull/4951
+* fix(gcs): do not skip signing with `allow_anonymous` by @jdockerty in https://github.com/apache/opendal/pull/4979
+### Docs
+* docs: nominate-committer add announcement template by @tisonkun in https://github.com/apache/opendal/pull/4954
+### CI
+* ci: Bump nextest to 0.9.72 by @Xuanwo in https://github.com/apache/opendal/pull/4932
+* ci: setup cloudfilter by @ho-229 in https://github.com/apache/opendal/pull/4936
+* ci: Try fix opendal-lua build by @Xuanwo in https://github.com/apache/opendal/pull/4952
+### Chore
+* chore(deps): bump crate-ci/typos from 1.22.9 to 1.23.6 by @dependabot in https://github.com/apache/opendal/pull/4948
+* chore(deps): bump tokio from 1.39.1 to 1.39.2 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/4949
+* chore(deps): bump bytes from 1.6.1 to 1.7.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/4947
+* chore(deps): bump tokio from 1.39.1 to 1.39.2 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/4946
+* chore(core): fix nightly lints by @xxchan in https://github.com/apache/opendal/pull/4953
+* chore(integrations/parquet): add README by @WenyXu in https://github.com/apache/opendal/pull/4980
+* chore(core): Bump redis version by @Xuanwo in https://github.com/apache/opendal/pull/4985
+* chore: Bump package versions by @Xuanwo in https://github.com/apache/opendal/pull/4989
+
 ## [v0.48.0] - 2024-07-26
 
 ### Added

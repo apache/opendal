@@ -57,6 +57,16 @@ def test_sync_reader(service_name, operator, async_operator):
         read_content = reader.read(size + 1)
         assert read_content is not None
         assert read_content == content
+        
+    read_content = b""
+    with operator.open(filename, "rb") as reader:
+        while True:
+            chunk = reader.read(size)
+            if not chunk:
+                break
+            read_content += chunk
+
+    assert read_content == content
 
     buf = bytearray(1)
     with operator.open(filename, "rb") as reader:

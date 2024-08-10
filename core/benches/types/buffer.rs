@@ -16,9 +16,9 @@
 // under the License.
 
 use bytes::Buf;
-use codspeed_criterion_compat::Criterion;
 use codspeed_criterion_compat::measurement::WallTime;
 use codspeed_criterion_compat::BenchmarkGroup;
+use codspeed_criterion_compat::Criterion;
 use opendal::Buffer;
 use rand::thread_rng;
 use size::Size;

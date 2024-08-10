@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use criterion::Criterion;
+use codspeed_criterion_compat::Criterion;
+use codspeed_criterion_compat::Throughput;
 use futures::io;
 use opendal::raw::tests::init_test_service;
 use opendal::raw::tests::TEST_RUNTIME;
@@ -47,7 +48,7 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
         let path = uuid::Uuid::new_v4().to_string();
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
-        group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
+        group.throughput(Throughput::Bytes(size.bytes() as u64));
         group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
             b.to_async(&*TEST_RUNTIME).iter(|| async {
                 let r = op.reader_with(path).await.unwrap();
@@ -84,7 +85,7 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
         for parallel in [1, 2, 4, 8, 16] {
-            group.throughput(criterion::Throughput::Bytes(parallel * size.bytes() as u64));
+            group.throughput(Throughput::Bytes(parallel * size.bytes() as u64));
             group.bench_with_input(
                 format!("{}x{}", parallel, size.to_string()),
                 &(op.clone(), &path, buf_size),

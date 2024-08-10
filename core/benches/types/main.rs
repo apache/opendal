@@ -19,8 +19,8 @@ mod buffer;
 mod concurrent_tasks;
 mod utils;
 
-use criterion::criterion_group;
-use criterion::criterion_main;
+use codspeed_criterion_compat::criterion_group;
+use codspeed_criterion_compat::criterion_main;
 
 criterion_group!(
     benches,

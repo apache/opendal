@@ -19,8 +19,8 @@ mod read;
 mod utils;
 mod write;
 
-use criterion::criterion_group;
-use criterion::criterion_main;
+use codspeed_criterion_compat::criterion_group;
+use codspeed_criterion_compat::criterion_main;
 
 criterion_group!(benches, read::bench, write::bench);
 criterion_main!(benches);

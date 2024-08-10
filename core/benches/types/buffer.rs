@@ -16,7 +16,9 @@
 // under the License.
 
 use bytes::Buf;
-use criterion::Criterion;
+use codspeed_criterion_compat::Criterion;
+use codspeed_criterion_compat::measurement::WallTime;
+use codspeed_criterion_compat::BenchmarkGroup;
 use opendal::Buffer;
 use rand::thread_rng;
 use size::Size;
@@ -83,7 +85,7 @@ pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
 }
 
 pub fn bench_non_contiguous_buffer_with_extreme(c: &mut Criterion) {
-    let mut group: criterion::BenchmarkGroup<criterion::measurement::WallTime> =
+    let mut group: BenchmarkGroup<WallTime> =
         c.benchmark_group("bench_non_contiguous_buffer_with_extreme");
 
     let mut rng = thread_rng();

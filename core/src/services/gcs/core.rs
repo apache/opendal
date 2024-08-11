@@ -79,6 +79,17 @@ static BACKOFF: Lazy<ExponentialBuilder> =
 
 impl GcsCore {
     async fn load_token(&self) -> Result<Option<GoogleToken>> {
+        if let Some(token) = &self.token {
+            if let Some(scope) = &self.scope {
+                return Ok(Some(GoogleToken::new(token, usize::MAX, scope)));
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "Scope is required when token is set",
+                ));
+            }
+        }
+
         let cred = { || self.token_loader.load() }
             .retry(&*BACKOFF)
             .await

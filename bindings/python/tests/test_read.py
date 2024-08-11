@@ -49,20 +49,27 @@ def test_sync_reader(service_name, operator, async_operator):
         assert not reader.writable()
         assert not reader.closed
 
-        read_content = reader.read()
+        read_content = bytearray()
+        while True:
+            chunk = reader.read(1024)  # Read in chunks, e.g., 1024 bytes at a time
+            if not chunk:
+                break
+            read_content.extend(chunk)
+
+        read_content = bytes(read_content)
         assert read_content is not None
         assert read_content == content
 
     with operator.open(filename, "rb") as reader:
-        read_content = reader.read(size + 1)
-        assert read_content is not None
-        assert read_content == content
-        read_content_eof = b""
+        read_content = bytearray()
         while True:
-            chunk = reader.read(size)
+            chunk = reader.read(size + 1)
             if not chunk:
                 break
-            read_content_eof += chunk
+            read_content.extend(chunk)
+
+        read_content = bytes(read_content)
+        assert read_content is not None
         assert read_content == content
 
     buf = bytearray(1)

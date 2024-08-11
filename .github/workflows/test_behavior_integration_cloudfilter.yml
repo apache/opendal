@@ -56,10 +56,9 @@ jobs:
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
     
       - name: Test Integration CloudFilter
-        uses: ./.github/actions/test_behavior_integration_cloudfilter
-        # FIXME: cloudfilter is readonly currently
-        # so behavior tests uses fs scheme with fixtures/data as root to test
-        # with:
-        #   setup: ${{ matrix.cases.setup }}
-        #   service: ${{ matrix.cases.service }}
-        #   feature: ${{ matrix.cases.feature }}
+        working-directory: integrations/cloudfilter
+        run: cargo test --test behavior
+        env:
+          OPENDAL_TEST: fs
+          OPENDAL_FS_ROOT: ../../fixtures/data
+          OPENDAL_DISABLE_RANDOM_ROOT: 'true'

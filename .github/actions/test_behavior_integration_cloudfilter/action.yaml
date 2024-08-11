@@ -41,6 +41,8 @@ runs:
               OPENDAL_TEST: fs
               OPENDAL_FS_ROOT: ../../fixtures/data
               OPENDAL_DISABLE_RANDOM_ROOT: 'true'
+              # ref: https://github.com/PowerShell/PowerShell/issues/8635
+              PSModulePath: $PSHOME/Modules
         EOF
     - name: Run
       uses: ./dynamic_test_integration_cloudfilter

@@ -341,7 +341,7 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
             jobs["components"][f"integration_cloudfilter"] = True
             jobs[f"integration_cloudfilter"] = [
                 {
-                    "os": "ubuntu-latest", "cases": [{
+                    "os": "windows-latest", "cases": [{
                         "setup": "fixture_data",
                         "service": "fs",
                         "feature": "services-fs"

@@ -18,23 +18,32 @@
 use libtest_mimic::Failed;
 
 use crate::{
-    utils::{file_hash, file_length},
+    utils::{file_content, file_length},
     ROOT_PATH,
 };
 
 pub fn test_fetch_data() -> Result<(), Failed> {
-    let files = ["normal_file.txt", "special_file  !@#$%^&()_+-=;',.txt"];
-    for file in files {
+    let files = [
+        (
+            "normal_file.txt",
+            include_str!("..\\..\\..\\..\\fixtures/data/normal_file.txt"),
+        ),
+        (
+            "special_file  !@#$%^&()_+-=;',.txt",
+            include_str!("..\\..\\..\\..\\fixtures/data/special_file  !@#$%^&()_+-=;',.txt"),
+        ),
+    ];
+    for (file, expected_content) in files {
         let path = format!("{ROOT_PATH}\\{file}");
         assert_eq!(
-            31523,
+            expected_content.len(),
             file_length(&path).expect("file length"),
             "file length",
         );
 
         assert_eq!(
-            "AA3CDBDE1C58BD7727D3A4D6E4DF6A2057EBA9C928EC8EDD1DAF670E6EC67C38",
-            file_hash(&path).expect("file hash"),
+            expected_content,
+            file_content(&path).expect("file hash"),
             "file hash",
         )
     }

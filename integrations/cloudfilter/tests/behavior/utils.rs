@@ -31,15 +31,12 @@ pub fn file_length(path: impl Display) -> anyhow::Result<usize> {
     Ok(len)
 }
 
-pub fn file_hash(path: impl Display) -> anyhow::Result<String> {
-    let hash = powershell_script::run(&format!("(Get-FileHash \"{path}\" -Algorithm SHA256).Hash"))
+pub fn file_content(path: impl Display) -> anyhow::Result<String> {
+    let content = powershell_script::run(&format!("Get-Content \"{path}\""))
         .context("run powershell")?
         .stdout()
-        .unwrap_or_default()
-        .trim()
-        .into();
-
-    Ok(hash)
+        .unwrap_or_default();
+    Ok(content)
 }
 
 pub fn list(path: impl Display, option: impl Display) -> anyhow::Result<Vec<String>> {

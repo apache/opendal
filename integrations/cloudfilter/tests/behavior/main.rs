@@ -25,8 +25,6 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     process::ExitCode,
-    thread,
-    time::Duration,
 };
 
 use cloud_filter::{
@@ -60,7 +58,6 @@ async fn main() -> ExitCode {
     }
 
     let (sync_root_id, connection) = init(op);
-    thread::sleep(Duration::from_secs(10));
 
     let tests = vec![
         Trial::test("fetch_data", fetch_data::test_fetch_data),

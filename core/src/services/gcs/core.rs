@@ -55,6 +55,7 @@ pub struct GcsCore {
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
     pub token: Option<String>,
+    pub scope: Option<String>,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,

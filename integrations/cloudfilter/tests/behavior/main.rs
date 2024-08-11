@@ -21,15 +21,24 @@ mod utils;
 
 use std::{
     fs,
+    future::Future,
     path::{Path, PathBuf},
+    pin::Pin,
     process::ExitCode,
+    thread,
+    time::Duration,
 };
 
-use cloud_filter::root::{
-    HydrationType, PopulationType, SecurityId, Session, SyncRootIdBuilder, SyncRootInfo,
+use cloud_filter::{
+    filter::AsyncBridge,
+    root::{
+        Connection, HydrationType, PopulationType, SecurityId, Session, SyncRootId,
+        SyncRootIdBuilder, SyncRootInfo,
+    },
 };
+use cloudfilter_opendal::CloudFilter;
 use libtest_mimic::{Arguments, Trial};
-use opendal::raw::tests;
+use opendal::{raw::tests, Operator};
 use tokio::runtime::Handle;
 
 const PROVIDER_NAME: &str = "ro-cloudfilter";
@@ -40,17 +49,45 @@ const ROOT_PATH: &str = "C:\\sync_root";
 async fn main() -> ExitCode {
     let args = Arguments::from_args();
 
+    env_logger::init();
+
     let Ok(Some(op)) = tests::init_test_service() else {
         return ExitCode::SUCCESS;
     };
 
-    let sync_root_id = SyncRootIdBuilder::new(PROVIDER_NAME)
-        .user_security_id(SecurityId::current_user().unwrap())
-        .build();
-
     if !Path::new(ROOT_PATH).try_exists().expect("try exists") {
         fs::create_dir(ROOT_PATH).expect("create root dir");
     }
+
+    let (sync_root_id, connection) = init(op);
+    thread::sleep(Duration::from_secs(10));
+
+    let tests = vec![
+        Trial::test("fetch_data", fetch_data::test_fetch_data),
+        Trial::test(
+            "fetch_placeholder",
+            fetch_placeholder::test_fetch_placeholder,
+        ),
+    ];
+
+    let conclusion = libtest_mimic::run(&args, tests);
+
+    drop(connection);
+    sync_root_id.unregister().unwrap();
+    fs::remove_dir_all(ROOT_PATH).expect("remove root dir");
+
+    conclusion.exit_code()
+}
+
+fn init(
+    op: Operator,
+) -> (
+    SyncRootId,
+    Connection<AsyncBridge<CloudFilter, impl Fn(Pin<Box<dyn Future<Output = ()>>>)>>,
+) {
+    let sync_root_id = SyncRootIdBuilder::new(PROVIDER_NAME)
+        .user_security_id(SecurityId::current_user().unwrap())
+        .build();
 
     if !sync_root_id.is_registered().unwrap() {
         sync_root_id
@@ -73,24 +110,10 @@ async fn main() -> ExitCode {
     let connection = Session::new()
         .connect_async(
             ROOT_PATH,
-            cloudfilter_opendal::CloudFilter::new(op, PathBuf::from(&ROOT_PATH)),
+            CloudFilter::new(op, PathBuf::from(&ROOT_PATH)),
             move |f| handle.clone().block_on(f),
         )
         .expect("create session");
 
-    let tests = vec![
-        Trial::test("fetch_data", fetch_data::test_fetch_data),
-        Trial::test(
-            "fetch_placeholder",
-            fetch_placeholder::test_fetch_placeholder,
-        ),
-    ];
-
-    let conclusion = libtest_mimic::run(&args, tests);
-
-    drop(connection);
-    sync_root_id.unregister().unwrap();
-    fs::remove_dir_all(ROOT_PATH).expect("remove root dir");
-
-    conclusion.exit_code()
+    (sync_root_id, connection)
 }

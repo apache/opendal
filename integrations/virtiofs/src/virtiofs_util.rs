@@ -47,9 +47,7 @@ struct DescriptorChainConsumer<'a, B> {
 impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
     #[cfg(test)]
     fn available_bytes(&self) -> usize {
-        self.buffers
-            .iter()
-            .fold(0, |count, vs| count + vs.len())
+        self.buffers.iter().fold(0, |count, vs| count + vs.len())
     }
 
     fn bytes_consumed(&self) -> usize {

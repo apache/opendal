@@ -310,7 +310,7 @@ mod tests {
     unsafe impl ByteValued for VirtqAvail {}
     unsafe impl ByteValued for VirtqDesc {}
 
-    // Helper function for testing, used to create a descriptor chain with the specified descriptors. 
+    // Helper function for testing, used to create a descriptor chain with the specified descriptors.
     fn create_descriptor_chain(
         memory: &GuestMemoryMmap,
         descriptor_array_addr: GuestAddress,
@@ -334,22 +334,20 @@ mod tests {
                 next: (index as u16 + 1).into(),
             };
 
-            buffers_start_addr = buffers_start_addr
-                .checked_add(size as u64)
-                .unwrap();
+            buffers_start_addr = buffers_start_addr.checked_add(size as u64).unwrap();
 
-            memory.write_obj(
-                desc,
-                descriptor_array_addr
-                        .checked_add((index * std::mem::size_of::<VirtqDesc>()) as u64)
-                        .unwrap(),
-            ).unwrap();
+            memory
+                .write_obj(
+                    desc,
+                    descriptor_array_addr
+                            .checked_add((index * std::mem::size_of::<VirtqDesc>()) as u64)
+                            .unwrap(),
+                )
+                .unwrap();
         }
 
         let avail_ring = descriptor_array_addr
-            .checked_add(
-                (descriptors_len * std::mem::size_of::<VirtqDesc>()) as u64,
-            )
+            .checked_add((descriptors_len * std::mem::size_of::<VirtqDesc>()) as u64)
             .unwrap();
         let avail = VirtqAvail {
             flags: 0.into(),

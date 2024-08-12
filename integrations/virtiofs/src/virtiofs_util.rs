@@ -49,7 +49,7 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
     fn available_bytes(&self) -> usize {
         self.buffers
             .iter()
-            .fold(0usize, |count, vs| count + vs.len())
+            .fold(0, |count, vs| count + vs.len())
     }
 
     fn bytes_consumed(&self) -> usize {
@@ -340,8 +340,8 @@ mod tests {
                 .write_obj(
                     desc,
                     descriptor_array_addr
-                            .checked_add((index * std::mem::size_of::<VirtqDesc>()) as u64)
-                            .unwrap(),
+                        .checked_add((index * std::mem::size_of::<VirtqDesc>()) as u64)
+                        .unwrap(),
                 )
                 .unwrap();
         }
@@ -386,7 +386,7 @@ mod tests {
         assert_eq!(reader.available_bytes(), 106);
         assert_eq!(reader.bytes_read(), 0);
 
-        let mut buffer = [0 as u8; 64];
+        let mut buffer = [0; 64];
         reader.read_exact(&mut buffer).unwrap();
         assert_eq!(reader.available_bytes(), 42);
         assert_eq!(reader.bytes_read(), 64);
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(writer.available_bytes(), 106);
         assert_eq!(writer.bytes_written(), 0);
 
-        let buffer = [0 as u8; 64];
+        let buffer = [0; 64];
         writer.write_all(&buffer).unwrap();
         assert_eq!(writer.available_bytes(), 42);
         assert_eq!(writer.bytes_written(), 64);

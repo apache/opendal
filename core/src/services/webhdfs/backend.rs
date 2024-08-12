@@ -176,7 +176,7 @@ impl Builder for WebhdfsBuilder {
     ///
     /// when building backend, the built backend will check if the root directory
     /// exits.
-    /// if the directory does not exits, the directory will be automatically created
+    /// if the directory does not exit, the directory will be automatically created
     fn build(self) -> Result<impl Access> {
         debug!("start building backend: {:?}", self);
 

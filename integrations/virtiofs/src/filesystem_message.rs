@@ -23,6 +23,7 @@ use crate::error::*;
 /// The corresponding value needs to be aligned with the specification.
 #[non_exhaustive]
 pub enum Opcode {
+    Lookup = 1,
     Getattr = 3,
     Setattr = 4,
     Init = 26,
@@ -34,6 +35,7 @@ impl TryFrom<u32> for Opcode {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
+            1 => Ok(Opcode::Lookup),
             3 => Ok(Opcode::Getattr),
             4 => Ok(Opcode::Setattr),
             26 => Ok(Opcode::Init),
@@ -137,6 +139,23 @@ pub struct InitOut {
     pub unused: [u32; 7],
 }
 
+/// EntryOut is used to return the file entry in the filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L737
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct EntryOut {
+    pub nodeid: u64,
+    pub generation: u64,
+    pub entry_valid: u64,
+    pub attr_valid: u64,
+    pub entry_valid_nsec: u32,
+    pub attr_valid_nsec: u32,
+    pub attr: Attr,
+}
+
 /// AttrOut is used to return the file attributes in the filesystem call.
 ///
 /// The fields of the struct need to conform to the specific format of the virtiofs message.
@@ -158,4 +177,5 @@ unsafe impl ByteValued for InHeader {}
 unsafe impl ByteValued for OutHeader {}
 unsafe impl ByteValued for InitIn {}
 unsafe impl ByteValued for InitOut {}
+unsafe impl ByteValued for EntryOut {}
 unsafe impl ByteValued for AttrOut {}

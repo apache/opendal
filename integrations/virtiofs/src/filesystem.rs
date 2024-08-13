@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::io::Read;
 use std::io::Write;
 use std::mem::size_of;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use log::debug;
@@ -51,6 +54,7 @@ enum FileType {
     File,
 }
 
+#[derive(Clone)]
 struct OpenedFile {
     path: String,
     metadata: Attr,
@@ -113,6 +117,9 @@ pub struct Filesystem {
     uid: u32,
     gid: u32,
     opened_files: Slab<OpenedFile>,
+    // Since we need to manually manage the allocation of inodes,
+    // we record the inode of each opened file here.
+    opened_files_map: Mutex<HashMap<String, u64>>,
 }
 
 impl Filesystem {
@@ -130,6 +137,7 @@ impl Filesystem {
             uid: 1000,
             gid: 1000,
             opened_files: Slab::new(),
+            opened_files_map: Mutex::new(HashMap::new()),
         }
     }
 
@@ -145,6 +153,7 @@ impl Filesystem {
             match opcode {
                 Opcode::Init => self.init(in_header, r, w),
                 Opcode::Destroy => self.destroy(in_header, r, w),
+                Opcode::Lookup => self.lookup(in_header, r, w),
                 Opcode::Getattr => self.getattr(in_header, r, w),
                 Opcode::Setattr => self.setattr(in_header, r, w),
             }
@@ -227,6 +236,46 @@ impl Filesystem {
         Ok(0)
     }
 
+    fn lookup(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
+        let name_len = in_header.len as usize - size_of::<InHeader>();
+        let mut buf = vec![0u8; name_len];
+        r.read_exact(&mut buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+        let name = String::from_utf8(buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+
+        debug!("lookup: parent inode={} name={}", in_header.nodeid, name);
+
+        let parent_path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let path = format!("{}/{}", parent_path, name);
+        let metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
+            Ok(metadata) => metadata,
+            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let out = EntryOut {
+            nodeid: metadata.metadata.ino,
+            entry_valid: DEFAULT_TTL.as_secs(),
+            attr_valid: DEFAULT_TTL.as_secs(),
+            entry_valid_nsec: DEFAULT_TTL.subsec_nanos(),
+            attr_valid_nsec: DEFAULT_TTL.subsec_nanos(),
+            attr: metadata.metadata,
+            ..Default::default()
+        };
+
+        Filesystem::reply_ok(Some(out), None, in_header.unique, w)
+    }
+
     fn getattr(&self, in_header: InHeader, _r: Reader, w: Writer) -> Result<usize> {
         debug!("getattr: inode={}", in_header.nodeid);
 
@@ -239,11 +288,10 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        let mut metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
+        let metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
             Ok(metadata) => metadata,
             Err(_) => return Filesystem::reply_error(in_header.unique, w),
         };
-        metadata.metadata.ino = in_header.nodeid;
 
         let out = AttrOut {
             attr_valid: DEFAULT_TTL.as_secs(),
@@ -265,7 +313,19 @@ impl Filesystem {
 impl Filesystem {
     async fn do_get_metadata(&self, path: &str) -> Result<OpenedFile> {
         let metadata = self.core.stat(path).await.map_err(opendal_error2error)?;
-        let attr = opendal_metadata2opened_file(path, &metadata, self.uid, self.gid);
+        let mut attr = opendal_metadata2opened_file(path, &metadata, self.uid, self.gid);
+
+        let mut opened_files_map = self.opened_files_map.lock().unwrap();
+        if let Some(inode) = opened_files_map.get(path) {
+            attr.metadata.ino = *inode;
+        } else {
+            let inode = self
+                .opened_files
+                .insert(attr.clone())
+                .expect("failed to allocate inode");
+            attr.metadata.ino = inode as u64;
+            opened_files_map.insert(path.to_string(), inode as u64);
+        }
 
         Ok(attr)
     }

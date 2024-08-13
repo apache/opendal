@@ -154,6 +154,8 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
+# Workaround for https://github.com/apache/opendal/issues/5000
+aws-lc-rs = { version = "1", features = ["bindgen"] }
 bytes = "1.5.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version

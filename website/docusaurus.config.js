@@ -42,7 +42,7 @@ const config = {
     version: (function () {
       if (websiteStaging && process.env.GITHUB_REF_TYPE === 'tag') {
         const refName = process.env.GITHUB_REF_NAME;
-        if refName.startsWith("v") {
+        if (refName.startsWith("v")) {
           const version = semver.parse(refName, {}, true);
           return `${version.major}.${version.minor}.${version.patch}`;
         }

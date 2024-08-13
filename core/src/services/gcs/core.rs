@@ -123,15 +123,6 @@ impl GcsCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if let Some(token) = &self.token {
-            req.headers_mut().remove(HOST);
-
-            let header_value = format!("Bearer {}", token);
-            req.headers_mut()
-                .insert(header::AUTHORIZATION, header_value.parse().unwrap());
-            return Ok(());
-        }
-
         if let Some(cred) = self.load_token().await? {
             self.signer
                 .sign(req, &cred)

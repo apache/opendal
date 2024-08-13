@@ -24,7 +24,6 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use http::header;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -143,15 +142,6 @@ impl GcsCore {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        if let Some(token) = &self.token {
-            req.headers_mut().remove(HOST);
-
-            let header_value = format!("Bearer {}", token);
-            req.headers_mut()
-                .insert(header::AUTHORIZATION, header_value.parse().unwrap());
-            return Ok(());
-        }
-
         if let Some(cred) = self.load_credential()? {
             self.signer
                 .sign_query(req, duration, &cred)

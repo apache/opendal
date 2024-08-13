@@ -15,25 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::*;
+use crate::Result;
+use crate::{Entry, Metadata};
+use crate::{EntryMode, Metakey};
+use flagset::FlagSet;
 use std::path::Path;
 use std::path::PathBuf;
-
-use crate::raw::*;
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Result;
 
 pub struct FsLister<P> {
     root: PathBuf,
 
     rd: P,
+
+    op: OpList,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, rd: P) -> Self {
+    pub fn new(root: &Path, rd: P, arg: OpList) -> Self {
         Self {
             root: root.to_owned(),
             rd,
+            op: arg,
         }
     }
 }
@@ -69,7 +72,8 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
 
-        Ok(Some(d))
+        let fs_meta = de.metadata().await.map_err(new_std_io_error)?;
+        fill_metadata(self.op.metakey(), d, fs_meta)
     }
 }
 
@@ -104,6 +108,25 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
             oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
 
-        Ok(Some(entry))
+        let fs_meta = de.metadata().map_err(new_std_io_error)?;
+        fill_metadata(self.op.metakey(), entry, fs_meta)
     }
+}
+
+fn fill_metadata(
+    metakey: FlagSet<Metakey>,
+    entry: oio::Entry,
+    fs_meta: std::fs::Metadata,
+) -> Result<Option<oio::Entry>> {
+    let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
+    let (p, mut meta) = entry.into_entry().into_parts();
+    if contains_metakey(Metakey::ContentLength) {
+        meta.set_content_length(fs_meta.len());
+    }
+
+    if contains_metakey(Metakey::LastModified) {
+        meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.clone().into());
+    }
+
+    Ok(Some(oio::Entry::new(&p, meta.clone())))
 }

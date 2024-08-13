@@ -53,6 +53,8 @@ pub struct GcsCore {
     pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
+    pub token: Option<String>,
+    pub scope: String,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,
@@ -76,6 +78,10 @@ static BACKOFF: Lazy<ExponentialBuilder> =
 
 impl GcsCore {
     async fn load_token(&self) -> Result<Option<GoogleToken>> {
+        if let Some(token) = &self.token {
+            return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
+        }
+
         let cred = { || self.token_loader.load() }
             .retry(&*BACKOFF)
             .await

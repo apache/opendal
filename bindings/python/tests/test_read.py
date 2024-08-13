@@ -49,7 +49,7 @@ def test_sync_reader(service_name, operator, async_operator):
         assert not reader.writable()
         assert not reader.closed
 
-        read_content = bytearray()
+        read_content = reader.read()
         while True:
             chunk = reader.read(1024)  # Read in chunks, e.g., 1024 bytes at a time
             if not chunk:

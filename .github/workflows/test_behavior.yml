@@ -145,10 +145,3 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-
-  test_integration_cloudfilter:
-    name: integration_cloudfilter / windows-latest
-    secrets: inherit
-    strategy:
-      fail-fast: false
-    uses: ./.github/workflows/test_behavior_integration_cloudfilter.yml

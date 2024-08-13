@@ -35,6 +35,7 @@ LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
 BIN = ["ofs"]
 
+
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
 
@@ -132,7 +133,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_python = True
             hint.binding_nodejs = True
             hint.bin_ofs = True
-            hint.integration_cloudfilter = True
             hint.all_service = True
 
         # language binding affected

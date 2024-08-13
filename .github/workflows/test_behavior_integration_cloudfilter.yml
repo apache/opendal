@@ -31,13 +31,10 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
-    runs-on: ${{ inputs.os }}
+    name: fs / fixture_data
+    runs-on: windows-latest
     timeout-minutes: 10
 
-    strategy:
-      matrix:
-        cases: ${{ fromJson(inputs.cases) }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain

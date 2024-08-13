@@ -29,7 +29,7 @@ version = "0.0.0"
 [dependencies]
 anyhow = "1.0.86"
 bincode = "1.3.3"
-cloud-filter = "0.0.3"
+cloud-filter = "0.0.5"
 futures = "0.3.30"
 log = "0.4.17"
 opendal = { version = "0.49.0", path = "../../core" }
@@ -39,9 +39,17 @@ serde = { version = "1.0.203", features = ["derive"] }
 env_logger = "0.11.2"
 opendal = { version = "0.49.0", path = "../../core", features = [
   "services-fs",
+  "tests",
 ] }
 tokio = { version = "1.38.0", features = [
   "macros",
   "rt-multi-thread",
   "signal",
 ] }
+libtest-mimic = "0.7.3"
+powershell_script = "1.1.0"
+
+[[test]]
+harness = false
+name = "behavior"
+path = "tests/behavior/main.rs"

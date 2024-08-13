@@ -17,7 +17,7 @@
 
 use crate::raw::*;
 use crate::Result;
-use crate::{Entry, Metadata};
+use crate::Metadata;
 use crate::{EntryMode, Metakey};
 use flagset::FlagSet;
 use std::path::Path;
@@ -125,7 +125,7 @@ fn fill_metadata(
     }
 
     if contains_metakey(Metakey::LastModified) {
-        meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.clone().into());
+        meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
     }
 
     Ok(Some(oio::Entry::new(&p, meta.clone())))

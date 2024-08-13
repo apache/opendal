@@ -42,11 +42,13 @@ const config = {
     version: (function () {
       if (websiteStaging && process.env.GITHUB_REF_TYPE === 'tag') {
         const refName = process.env.GITHUB_REF_NAME;
-        const version = semver.parse(refName, {}, true);
-        return `${version.major}.${version.minor}.${version.patch}`;
+        if refName.startsWith("v") {
+          const version = semver.parse(refName, {}, true);
+          return `${version.major}.${version.minor}.${version.patch}`;
+        }
       }
 
-      const refName = exec("git describe --tags --abbrev=0 --exclude '*rc*'").toString();
+      const refName = exec("git describe --tags --abbrev=0 --match 'v*'").toString();
       const version = semver.parse(refName, {}, true);
       return `${version.major}.${version.minor}.${version.patch}`;
     })()

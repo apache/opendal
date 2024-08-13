@@ -35,8 +35,6 @@ LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
 BIN = ["ofs"]
 
-INTEGRATION = ["cloudfilter"]
-
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
 
@@ -87,8 +85,6 @@ class Hint:
     binding_nodejs: bool = field(default=False, init=False)
     # Is bin ofs affected?
     bin_ofs: bool = field(default=False, init=False)
-    # Is integration cloudfilter affected?
-    integration_cloudfilter: bool = field(default=False, init=False)
 
     # Should we run all services tests?
     all_service: bool = field(default=False, init=False)
@@ -151,12 +147,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"bin_{bin}", True)
                 hint.all_service = True
 
-        # integration affected
-        for integration in INTEGRATION:
-            if p.startswith(f"integrations/{integration}"):
-                setattr(hint, f"integration_{integration}", True)
-                hint.all_service = True
-
         # core service affected
         match = re.search(r"core/src/services/([^/]+)/", p)
         if match:
@@ -165,8 +155,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
-            for integration in INTEGRATION:
-                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
         # core test affected
@@ -177,8 +165,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
-            for integration in INTEGRATION:
-                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
         # fixture affected
@@ -189,8 +175,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
-            for integration in INTEGRATION:
-                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
     return hint
@@ -331,23 +315,6 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
         if len(bin_cases) > 0:
             jobs["components"][f"bin_{bin}"] = True
             jobs[f"bin_{bin}"].append({"os": "ubuntu-latest", "cases": bin_cases})
-
-    for integration in INTEGRATION:
-        jobs[f"integration_{integration}"] = []
-        jobs["components"][f"integration_{integration}"] = False
-
-        # cloudfilter is the only integration need to run upon windows, let's hard code it here.
-        if integration == "cloudfilter" and (getattr(hint, "integration_cloudfilter") or hint.all_service):
-            jobs["components"][f"integration_cloudfilter"] = True
-            jobs[f"integration_cloudfilter"] = [
-                {
-                    "os": "windows-latest", "cases": [{
-                        "setup": "fixture_data",
-                        "service": "fs",
-                        "feature": "services-fs"
-                    }]
-                },
-            ]
     return jobs
 
 

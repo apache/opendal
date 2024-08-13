@@ -59,26 +59,6 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["bin_ofs"][0]["cases"]]
         # Should contain ofs
         self.assertTrue("fs" in cases)
-    
-    def test_integration_cloudfilter(self):
-        result = plan(["integrations/cloudfilter/Cargo.toml"])
-        self.assertTrue(result["components"]["integration_cloudfilter"])
-        self.assertEqual(result["integration_cloudfilter"][0]["cases"], 
-                        [{"service": "fs", "setup": "fixture_data", "feature": "services-fs"}])
-
-        result = plan(["core/src/services/fs/mod.rs"])
-        self.assertTrue(result["components"]["integration_cloudfilter"])
-        self.assertEqual(result["integration_cloudfilter"][0]["cases"], 
-                        [{"service": "fs", "setup": "fixture_data", "feature": "services-fs"}])
-        
-        result = plan(["core/src/services/s3/mod.rs"])
-        self.assertTrue(result["components"]["integration_cloudfilter"])
-        self.assertEqual(result["integration_cloudfilter"][0]["cases"], 
-                        [{"service": "fs", "setup": "fixture_data", "feature": "services-fs"}])
-        
-        result = plan(["bindings/java/pom.xml"])
-        self.assertFalse(result["components"]["integration_cloudfilter"])
-        self.assertTrue(len(result["integration_cloudfilter"]) == 0)
 
 
 if __name__ == "__main__":

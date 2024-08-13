@@ -18,14 +18,16 @@
 name: Behavior Test Integration CloudFilter
 
 on:
-  workflow_call:
-    inputs:
-      os:
-        required: true
-        type: string
-      cases:
-        required: true
-        type: string
+  push:
+    paths:
+      - "integrations/cloudfilter/**.rs"
+      - "integrations/cloudfilter/Cargo.toml"
+      - ".github/workflows/test_behavior_integration_cloudfilter.yml"
+  pull_request:
+    paths:
+      - "integrations/cloudfilter/**.rs"
+      - "integrations/cloudfilter/Cargo.toml"
+      - ".github/workflows/test_behavior_integration_cloudfilter.yml"
 
 jobs:
   test:

@@ -520,13 +520,13 @@ impl Filesystem {
         let (_, is_append) = self.check_write_flags(flags)?;
         let writer = self
             .core
-            .writer_with(&path)
+            .writer_with(path)
             .append(is_append)
             .await
             .map_err(opendal_error2error)?;
         let written = if is_append {
             self.core
-                .stat(&path)
+                .stat(path)
                 .await
                 .map_err(opendal_error2error)?
                 .content_length()

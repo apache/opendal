@@ -20,7 +20,6 @@ use crate::Metadata;
 use crate::Result;
 use crate::{EntryMode, Metakey};
 use flagset::FlagSet;
-use std::fmt::Debug;
 use std::fs::FileType;
 use std::path::Path;
 use std::path::PathBuf;
@@ -80,7 +79,7 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             &rel_path
         };
 
-        Ok(Some(oio::Entry::new(&p, metadata)))
+        Ok(Some(oio::Entry::new(p, metadata)))
     }
 }
 
@@ -122,7 +121,7 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
             &rel_path
         };
 
-        Ok(Some(oio::Entry::new(&p, metadata)))
+        Ok(Some(oio::Entry::new(p, metadata)))
     }
 }
 
@@ -131,10 +130,10 @@ fn get_metadata(
     fs_meta: Option<std::fs::Metadata>,
     file_type: Option<FileType>,
 ) -> Result<(Metadata, bool)> {
-    let ft = if fs_meta.is_some() {
-        fs_meta.as_ref().unwrap().file_type()
-    } else if file_type.is_some() {
-        file_type.unwrap()
+    let ft = if let Some(t) = fs_meta.as_ref() {
+        t.file_type()
+    } else if let Some(t) = file_type {
+        t
     } else {
         panic!("At least one metadata should be provided!")
     };

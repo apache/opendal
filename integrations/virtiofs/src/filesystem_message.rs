@@ -26,7 +26,11 @@ pub enum Opcode {
     Lookup = 1,
     Getattr = 3,
     Setattr = 4,
+    Unlink = 10,
+    Open = 14,
+    Release = 18,
     Init = 26,
+    Create = 35,
     Destroy = 38,
 }
 
@@ -38,7 +42,11 @@ impl TryFrom<u32> for Opcode {
             1 => Ok(Opcode::Lookup),
             3 => Ok(Opcode::Getattr),
             4 => Ok(Opcode::Setattr),
+            10 => Ok(Opcode::Unlink),
+            14 => Ok(Opcode::Open),
+            18 => Ok(Opcode::Release),
             26 => Ok(Opcode::Init),
+            35 => Ok(Opcode::Create),
             38 => Ok(Opcode::Destroy),
             _ => Err(new_vhost_user_fs_error("failed to decode opcode", None)),
         }
@@ -170,6 +178,45 @@ pub struct AttrOut {
     pub attr: Attr,
 }
 
+/// CreateIn is used to parse the parameters passed in the Create filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L881
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CreateIn {
+    pub flags: u32,
+    pub mode: u32,
+    pub umask: u32,
+    pub open_flags: u32,
+}
+
+/// OpenIn is used to parse the parameters passed in the Open filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#873
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OpenIn {
+    pub flags: u32,
+    pub open_flags: u32,
+}
+
+/// OpenOut is used to return the file descriptor in the filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L891
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OpenOut {
+    pub fh: u64,
+    pub open_flags: u32,
+    pub padding: u32,
+}
+
 /// We will use ByteValued to implement the encoding and decoding
 /// of these structures in shared memory.
 unsafe impl ByteValued for Attr {}
@@ -179,3 +226,6 @@ unsafe impl ByteValued for InitIn {}
 unsafe impl ByteValued for InitOut {}
 unsafe impl ByteValued for EntryOut {}
 unsafe impl ByteValued for AttrOut {}
+unsafe impl ByteValued for CreateIn {}
+unsafe impl ByteValued for OpenIn {}
+unsafe impl ByteValued for OpenOut {}

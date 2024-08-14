@@ -32,7 +32,8 @@ use vm_memory::ByteValued;
 
 use crate::error::*;
 use crate::filesystem_message::*;
-use crate::virtiofs_util::{Reader, Writer};
+use crate::virtiofs_util::Reader;
+use crate::virtiofs_util::Writer;
 
 /// Version number of this interface.
 const KERNEL_VERSION: u32 = 7;
@@ -58,6 +59,15 @@ enum FileType {
 struct OpenedFile {
     path: String,
     metadata: Attr,
+}
+
+struct InnerWriter {
+    // #[allow(dead_code)] here will be removed after write is implemented.
+    #[allow(dead_code)]
+    writer: opendal::Writer,
+    // #[allow(dead_code)] here will be removed after write is implemented.
+    #[allow(dead_code)]
+    written: u64,
 }
 
 impl OpenedFile {
@@ -120,6 +130,7 @@ pub struct Filesystem {
     // Since we need to manually manage the allocation of inodes,
     // we record the inode of each opened file here.
     opened_files_map: Mutex<HashMap<String, u64>>,
+    opened_files_writer: Mutex<HashMap<String, InnerWriter>>,
 }
 
 impl Filesystem {
@@ -138,6 +149,7 @@ impl Filesystem {
             gid: 1000,
             opened_files: Slab::new(),
             opened_files_map: Mutex::new(HashMap::new()),
+            opened_files_writer: Mutex::new(HashMap::new()),
         }
     }
 
@@ -156,6 +168,10 @@ impl Filesystem {
                 Opcode::Lookup => self.lookup(in_header, r, w),
                 Opcode::Getattr => self.getattr(in_header, r, w),
                 Opcode::Setattr => self.setattr(in_header, r, w),
+                Opcode::Create => self.create(in_header, r, w),
+                Opcode::Unlink => self.unlink(in_header, r, w),
+                Opcode::Open => self.open(in_header, r, w),
+                Opcode::Release => self.release(in_header, r, w),
             }
         } else {
             Filesystem::reply_error(in_header.unique, w)
@@ -209,6 +225,33 @@ impl Filesystem {
         })?;
         Ok(w.bytes_written())
     }
+
+    fn check_write_flags(&self, flags: u32) -> Result<(bool, bool)> {
+        let is_trunc = flags & libc::O_TRUNC as u32 != 0 || flags & libc::O_CREAT as u32 != 0;
+        let is_append = flags & libc::O_APPEND as u32 != 0;
+
+        let mode = flags & libc::O_ACCMODE as u32;
+        let is_write = mode == libc::O_WRONLY as u32 || mode == libc::O_RDWR as u32 || is_append;
+        if !is_write {
+            Err(Error::from(libc::EINVAL))?;
+        }
+
+        // OpenDAL only supports truncate write and append write,
+        // so O_TRUNC or O_APPEND needs to be specified explicitly
+        if (is_write && !is_trunc && !is_append) || is_trunc && !is_write {
+            Err(Error::from(libc::EINVAL))?;
+        }
+
+        let capability = self.core.info().full_capability();
+        if is_trunc && !capability.write {
+            Err(Error::from(libc::EACCES))?;
+        }
+        if is_append && !capability.write_can_append {
+            Err(Error::from(libc::EACCES))?;
+        }
+
+        Ok((is_trunc, is_append))
+    }
 }
 
 impl Filesystem {
@@ -238,7 +281,7 @@ impl Filesystem {
 
     fn lookup(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let name_len = in_header.len as usize - size_of::<InHeader>();
-        let mut buf = vec![0u8; name_len];
+        let mut buf = vec![0; name_len];
         r.read_exact(&mut buf).map_err(|e| {
             new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
@@ -272,7 +315,6 @@ impl Filesystem {
             attr: metadata.metadata,
             ..Default::default()
         };
-
         Filesystem::reply_ok(Some(out), None, in_header.unique, w)
     }
 
@@ -308,6 +350,150 @@ impl Filesystem {
         // do nothing for setattr.
         self.getattr(in_header, _r, w)
     }
+
+    fn create(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
+        let CreateIn { flags, .. } = r.read_obj().map_err(|e| {
+            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+
+        let name_len = in_header.len as usize - size_of::<InHeader>() - size_of::<CreateIn>();
+        let mut buf = vec![0; name_len];
+        r.read_exact(&mut buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+        let name = String::from_utf8(buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+
+        debug!("create: parent inode={} name={}", in_header.nodeid, name);
+
+        let parent_path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let path = format!("{}/{}", parent_path, name);
+        let mut attr = OpenedFile::new(FileType::File, &path, self.uid, self.gid);
+        let inode = self
+            .opened_files
+            .insert(attr.clone())
+            .expect("failed to allocate inode");
+        attr.metadata.ino = inode as u64;
+        let mut opened_files_map = self.opened_files_map.lock().unwrap();
+        opened_files_map.insert(path.to_string(), inode as u64);
+
+        let writer = match self.rt.block_on(self.do_get_writer(&path, flags)) {
+            Ok(writer) => writer,
+            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
+        opened_file_writer.insert(path, writer);
+
+        let entry_out = EntryOut {
+            nodeid: attr.metadata.ino,
+            entry_valid: DEFAULT_TTL.as_secs(),
+            attr_valid: DEFAULT_TTL.as_secs(),
+            entry_valid_nsec: DEFAULT_TTL.subsec_nanos(),
+            attr_valid_nsec: DEFAULT_TTL.subsec_nanos(),
+            attr: attr.metadata,
+            ..Default::default()
+        };
+        let open_out = OpenOut {
+            ..Default::default()
+        };
+        Filesystem::reply_ok(
+            Some(entry_out),
+            Some(open_out.as_slice()),
+            in_header.unique,
+            w,
+        )
+    }
+
+    fn unlink(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
+        let name_len = in_header.len as usize - size_of::<InHeader>();
+        let mut buf = vec![0; name_len];
+        r.read_exact(&mut buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+        let name = String::from_utf8(buf).map_err(|e| {
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+
+        debug!("unlink: parent inode={} name={}", in_header.nodeid, name);
+
+        let parent_path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let path = format!("{}/{}", parent_path, name);
+        if self.rt.block_on(self.do_delete(&path)).is_err() {
+            return Filesystem::reply_error(in_header.unique, w);
+        }
+
+        self.opened_files.remove(in_header.nodeid as usize);
+        let mut opened_files_map = self.opened_files_map.lock().unwrap();
+        opened_files_map.remove(&path);
+
+        Filesystem::reply_ok(None::<u8>, None, in_header.unique, w)
+    }
+
+    fn open(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
+        debug!("open: inode={}", in_header.nodeid);
+
+        let OpenIn { flags, .. } = r.read_obj().map_err(|e| {
+            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+        })?;
+
+        let path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let writer = match self.rt.block_on(self.do_get_writer(&path, flags)) {
+            Ok(writer) => writer,
+            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
+        opened_file_writer.insert(path, writer);
+
+        let out = OpenOut {
+            ..Default::default()
+        };
+        Filesystem::reply_ok(Some(out), None, in_header.unique, w)
+    }
+
+    fn release(&self, in_header: InHeader, _r: Reader, w: Writer) -> Result<usize> {
+        debug!("release: inode={}", in_header.nodeid);
+
+        let path = match self
+            .opened_files
+            .get(in_header.nodeid as usize)
+            .map(|f| f.path.clone())
+        {
+            Some(path) => path,
+            None => return Filesystem::reply_error(in_header.unique, w),
+        };
+
+        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
+        opened_file_writer.remove(&path);
+
+        Filesystem::reply_ok(None::<u8>, None, in_header.unique, w)
+    }
 }
 
 impl Filesystem {
@@ -328,5 +514,30 @@ impl Filesystem {
         }
 
         Ok(attr)
+    }
+
+    async fn do_get_writer(&self, path: &str, flags: u32) -> Result<InnerWriter> {
+        let (_, is_append) = self.check_write_flags(flags)?;
+        let writer = self
+            .core
+            .writer_with(&path)
+            .append(is_append)
+            .await
+            .map_err(opendal_error2error)?;
+        let written = if is_append {
+            self.core
+                .stat(&path)
+                .await
+                .map_err(opendal_error2error)?
+                .content_length()
+        } else {
+            0
+        };
+
+        Ok(InnerWriter { writer, written })
+    }
+
+    async fn do_delete(&self, path: &str) -> Result<()> {
+        self.core.delete(path).await.map_err(opendal_error2error)
     }
 }

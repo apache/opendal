@@ -25,11 +25,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.opendal</groupId>
-        <artifactId>spring-opendal-parent</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <artifactId>spring-boot-opendal-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>opendal-spring-starter</artifactId>
+    <artifactId>opendal-spring-boot-starter-reactive</artifactId>
 
     <dependencies>
         <dependency>
@@ -44,3 +44,4 @@
     </dependencies>
 
 </project>
+

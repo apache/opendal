@@ -26,26 +26,28 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-spring-parent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <modules>
         <module>opendal-spring</module>
-        <module>opendal-spring-starter</module>
-        <module>opendal-spring-starter-reactive</module>
+        <module>opendal-spring-boot-starter</module>
+        <module>opendal-spring-boot-starter-reactive</module>
     </modules>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
-        <version>3.3.2</version>
+        <version>${spring-boot.version}</version>
     </parent>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
         <!-- dependency -->
         <opendal.version>0.47.0</opendal.version>
+        <spring-boot.version>3.3.2</spring-boot.version>
     </properties>
 
     <dependencies>

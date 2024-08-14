@@ -112,10 +112,6 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        // On Windows and most Unix platforms this function is free
-        // (no extra system calls needed), but some Unix platforms may
-        // require the equivalent call to symlink_metadata to learn about
-        // the target file type.
         let default_meta = self.op.metakey() == Metakey::Mode;
 
         let metadata = if default_meta {

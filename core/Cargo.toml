@@ -364,7 +364,7 @@ metrics = { version = "0.23", optional = true }
 # for layers-mime-guess
 mime_guess = { version = "2.0.5", optional = true }
 # for layers-fastrace
-fastrace = { version = "0.6", optional = true }
+fastrace = { version = "0.7.1", optional = true }
 # for layers-opentelemetry
 opentelemetry = { version = "0.24", optional = true }
 # for layers-prometheus
@@ -382,7 +382,7 @@ getrandom = { version = "0.2", features = ["js"] }
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-fastrace = { version = "0.6", features = ["enable"] }
+fastrace = { version = "0.7", features = ["enable"] }
 libtest-mimic = "0.7"
 opentelemetry = { version = "0.24", default-features = false, features = [
   "trace",

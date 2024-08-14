@@ -50,13 +50,6 @@ def test_sync_reader(service_name, operator, async_operator):
         assert not reader.closed
 
         read_content = reader.read()
-        while True:
-            chunk = reader.read(1024)  # Read in chunks, e.g., 1024 bytes at a time
-            if not chunk:
-                break
-            read_content.extend(chunk)
-
-        read_content = bytes(read_content)
         assert read_content is not None
         assert read_content == content
 

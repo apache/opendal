@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::Operator;
+use opendal::services::Fs;
 use opendal::Result;
+use opendal::{Metadata, Metakey, Operator};
 
 async fn example(op: Operator) -> Result<()> {
     // Write data to S3.

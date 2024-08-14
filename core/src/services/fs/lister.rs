@@ -16,10 +16,12 @@
 // under the License.
 
 use crate::raw::*;
-use crate::Result;
 use crate::Metadata;
+use crate::Result;
 use crate::{EntryMode, Metakey};
 use flagset::FlagSet;
+use std::fmt::Debug;
+use std::fs::FileType;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -52,8 +54,6 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             return Ok(None);
         };
 
-        let ft = de.file_type().await.map_err(new_std_io_error)?;
-
         let entry_path = de.path();
         let rel_path = normalize_path(
             &entry_path
@@ -63,17 +63,24 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        let d = if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if ft.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        let default_meta = self.op.metakey() == Metakey::Mode;
+
+        let (metadata, is_dir) = if default_meta {
+            let ft = de.file_type().await.map_err(new_std_io_error)?;
+            get_metadata(self.op.metakey(), None, Some(ft))?
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            let fs_meta = de.metadata().await.map_err(new_std_io_error)?;
+            get_metadata(self.op.metakey(), Some(fs_meta), None)?
         };
 
-        let fs_meta = de.metadata().await.map_err(new_std_io_error)?;
-        fill_metadata(self.op.metakey(), d, fs_meta)
+        let p = if is_dir {
+            // Make sure we are returning the correct path.
+            &format!("{rel_path}/")
+        } else {
+            &rel_path
+        };
+
+        Ok(Some(oio::Entry::new(&p, metadata)))
     }
 }
 
@@ -97,36 +104,61 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
         // (no extra system calls needed), but some Unix platforms may
         // require the equivalent call to symlink_metadata to learn about
         // the target file type.
-        let file_type = de.file_type().map_err(new_std_io_error)?;
 
-        let entry = if file_type.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if file_type.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        let default_meta = self.op.metakey() == Metakey::Mode;
+
+        let (metadata, is_dir) = if default_meta {
+            let ft = de.file_type().map_err(new_std_io_error)?;
+            get_metadata(self.op.metakey(), None, Some(ft))?
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            let fs_meta = de.metadata().map_err(new_std_io_error)?;
+            get_metadata(self.op.metakey(), Some(fs_meta), None)?
         };
 
-        let fs_meta = de.metadata().map_err(new_std_io_error)?;
-        fill_metadata(self.op.metakey(), entry, fs_meta)
+        let p = if is_dir {
+            // Make sure we are returning the correct path.
+            &format!("{rel_path}/")
+        } else {
+            &rel_path
+        };
+
+        Ok(Some(oio::Entry::new(&p, metadata)))
     }
 }
 
-fn fill_metadata(
+fn get_metadata(
     metakey: FlagSet<Metakey>,
-    entry: oio::Entry,
-    fs_meta: std::fs::Metadata,
-) -> Result<Option<oio::Entry>> {
-    let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
-    let (p, mut meta) = entry.into_entry().into_parts();
-    if contains_metakey(Metakey::ContentLength) {
-        meta.set_content_length(fs_meta.len());
+    fs_meta: Option<std::fs::Metadata>,
+    file_type: Option<FileType>,
+) -> Result<(Metadata, bool)> {
+    let ft = if fs_meta.is_some() {
+        fs_meta.as_ref().unwrap().file_type()
+    } else if file_type.is_some() {
+        file_type.unwrap()
+    } else {
+        panic!("At least one metadata should be provided!")
+    };
+
+    let mut meta = if ft.is_file() {
+        Metadata::new(EntryMode::FILE)
+    } else if ft.is_dir() {
+        Metadata::new(EntryMode::DIR)
+    } else {
+        Metadata::new(EntryMode::Unknown)
+    };
+
+    if fs_meta.is_some() {
+        let contains_metakey = |k| metakey.contains(k) || metakey.contains(Metakey::Complete);
+        let fs_meta = fs_meta.unwrap();
+
+        if contains_metakey(Metakey::ContentLength) {
+            meta.set_content_length(fs_meta.len());
+        }
+
+        if contains_metakey(Metakey::LastModified) {
+            meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
+        }
     }
 
-    if contains_metakey(Metakey::LastModified) {
-        meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
-    }
-
-    Ok(Some(oio::Entry::new(&p, meta.clone())))
+    Ok((meta, ft.is_dir()))
 }

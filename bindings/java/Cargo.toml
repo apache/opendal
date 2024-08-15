@@ -73,7 +73,8 @@ services-all = [
   "services-persy",
   "services-postgresql",
   "services-koofr",
-  "services-mysql",
+  # Workaround for https://github.com/apache/opendal/issues/5000
+  # "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.

@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::env;
 
 use cloud_filter::root::{
     HydrationType, PopulationType, SecurityId, Session, SyncRootIdBuilder, SyncRootInfo,
@@ -45,8 +45,8 @@ async fn main() {
     let connection = Session::new()
         .connect_async(
             &client_path,
-            cloudfilter_opendal::CloudFilter::new(op, PathBuf::from(&client_path)),
-            move |f| handle.clone().block_on(f),
+            cloudfilter_opendal::CloudFilter::new(op, client_path.clone().into()),
+            move |f| handle.block_on(f),
         )
         .expect("create session");
 

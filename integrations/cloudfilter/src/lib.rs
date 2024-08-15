@@ -25,11 +25,10 @@ use std::{
 
 use cloud_filter::{
     error::{CResult, CloudErrorKind},
-    filter::{info, ticket, Filter},
+    filter::{info, ticket, Filter, Request},
     metadata::Metadata,
     placeholder::{ConvertOptions, Placeholder},
     placeholder_file::PlaceholderFile,
-    request::Request,
     utility::{FileTime, WriteAt},
 };
 use file::FileBlob;

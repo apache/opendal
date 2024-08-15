@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.49.1] - 2024-08-15
+
+### Added
+* feat(ovfs): add lookup and unit tests by @zjregee in https://github.com/apache/opendal/pull/4997
+* feat(gcs): allow setting a token directly by @jdockerty in https://github.com/apache/opendal/pull/4978
+* feat(integrations/cloudfilter): introduce behavior tests by @ho-229 in https://github.com/apache/opendal/pull/4973
+* feat(integrations/spring): add spring project module by @shoothzj in https://github.com/apache/opendal/pull/4988
+* feat(fs): expose the metadata for fs services by @Aitozi in https://github.com/apache/opendal/pull/5005
+* feat(ovfs): add file creation and deletion by @zjregee in https://github.com/apache/opendal/pull/5009
+### Fixed
+* fix(integrations/spring): correct parent artifactId by @shoothzj in https://github.com/apache/opendal/pull/5007
+* fix(bindings/python): Make sure read until EOF by @Bicheka in https://github.com/apache/opendal/pull/4995
+### Docs
+* docs: Fix version detect in website by @Xuanwo in https://github.com/apache/opendal/pull/5003
+* docs: add branding, license and trademarks to integrations by @PsiACE in https://github.com/apache/opendal/pull/5006
+* docs(integrations/cloudfilter): improve docs and examples by @ho-229 in https://github.com/apache/opendal/pull/5010
+### CI
+* ci(bindings/python): Fix aws-lc-rs build on arm platforms by @Xuanwo in https://github.com/apache/opendal/pull/5004
+### Chore
+* chore(deps): bump fastrace to 0.7.1 by @andylokandy in https://github.com/apache/opendal/pull/5008
+
 ## [v0.49.0] - 2024-08-09
 
 ### Added
@@ -3911,6 +3932,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.49.1]: https://github.com/apache/opendal/compare/v0.49.0...v0.49.1
+[v0.49.0]: https://github.com/apache/opendal/compare/v0.48.0...v0.49.0
 [v0.48.0]: https://github.com/apache/opendal/compare/v0.47.3...v0.48.0
 [v0.47.3]: https://github.com/apache/opendal/compare/v0.47.2...v0.47.3
 [v0.47.2]: https://github.com/apache/opendal/compare/v0.47.1...v0.47.2

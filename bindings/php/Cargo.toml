@@ -18,7 +18,7 @@
 [package]
 name = "opendal-php"
 publish = false
-version = "0.1.6"
+version = "0.1.7"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"

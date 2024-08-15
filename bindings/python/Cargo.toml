@@ -69,6 +69,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
+  # Workaround for https://github.com/apache/opendal/issues/5000
   # "services-mysql",
   "services-redb",
   "services-redis",

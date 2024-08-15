@@ -74,6 +74,9 @@ impl oio::PageList for SeafileLister {
                 let infos: Vec<Info> = serde_json::from_reader(resp_body.reader())
                     .map_err(new_json_deserialize_error)?;
 
+                // add path itself
+                ctx.entries.push_back(Entry::new(self.path.as_str(), Metadata::new(EntryMode::DIR)));
+
                 for info in infos {
                     if !info.name.is_empty() {
                         let rel_path =

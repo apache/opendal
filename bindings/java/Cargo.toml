@@ -73,7 +73,7 @@ services-all = [
   "services-persy",
   "services-postgresql",
   "services-koofr",
-  "services-mysql",
+  # "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
@@ -134,7 +134,7 @@ services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
 services-mongodb = ["opendal/services-mongodb"]
-services-mysql = ["opendal/services-mysql"]
+# services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]

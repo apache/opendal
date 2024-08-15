@@ -69,7 +69,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
-  "services-mysql",
+  # "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME how to support rocksdb services in bindings?
@@ -131,7 +131,7 @@ services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
 services-mongodb = ["opendal/services-mongodb"]
-services-mysql = ["opendal/services-mysql"]
+# services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
@@ -154,8 +154,6 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-# Workaround for https://github.com/apache/opendal/issues/5000
-aws-lc-rs = { version = "1", features = ["bindgen"] }
 bytes = "1.5.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version

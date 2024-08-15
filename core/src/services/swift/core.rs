@@ -107,7 +107,6 @@ impl SwiftCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
-
         let url = format!(
             "{}/{}/{}",
             &self.endpoint,

@@ -45,10 +45,14 @@ pub struct MiniMokaConfig {
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub time_to_idle: Option<Duration>,
+
+    /// root path of this backend
+    pub root: Option<String>,
 }
 
 impl Configurator for MiniMokaConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MiniMokaBuilder;
+    fn into_builder(self) -> Self::Builder {
         MiniMokaBuilder { config: self }
     }
 }
@@ -90,6 +94,17 @@ impl MiniMokaBuilder {
         }
         self
     }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
+        self
+    }
 }
 
 impl Builder for MiniMokaBuilder {
@@ -113,9 +128,14 @@ impl Builder for MiniMokaBuilder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MiniMokaBackend::new(Adapter {
+        let mut backend = MiniMokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 

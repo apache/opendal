@@ -58,7 +58,8 @@ impl Debug for SledConfig {
 }
 
 impl Configurator for SledConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SledBuilder;
+    fn into_builder(self) -> Self::Builder {
         SledBuilder { config: self }
     }
 }

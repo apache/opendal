@@ -60,7 +60,8 @@ impl Debug for VercelBlobConfig {
 }
 
 impl Configurator for VercelBlobConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = VercelBlobBuilder;
+    fn into_builder(self) -> Self::Builder {
         VercelBlobBuilder {
             config: self,
             http_client: None,

@@ -18,6 +18,7 @@
 use futures::Stream;
 use object_store::ObjectMeta;
 use opendal::{Entry, Metadata, Metakey};
+use std::future::IntoFuture;
 
 /// Conditionally add the `Send` marker trait for the wrapped type.
 /// Only take effect when the `send_wrapper` feature is enabled.
@@ -88,11 +89,12 @@ pub trait IntoSendFuture {
 
 impl<T> IntoSendFuture for T
 where
-    T: futures::Future,
+    T: IntoFuture,
 {
-    type Output = SendWrapper<T>;
+    type Output = SendWrapper<T::IntoFuture>;
+
     fn into_send(self) -> Self::Output {
-        SendWrapper::new(self)
+        SendWrapper::new(self.into_future())
     }
 }
 

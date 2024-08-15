@@ -29,7 +29,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Config for MemCached services support
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemcachedConfig {
@@ -50,7 +50,8 @@ pub struct MemcachedConfig {
 }
 
 impl Configurator for MemcachedConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MemcachedBuilder;
+    fn into_builder(self) -> Self::Builder {
         MemcachedBuilder { config: self }
     }
 }

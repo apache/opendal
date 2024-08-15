@@ -20,3 +20,5 @@ mod filesystem;
 mod filesystem_message;
 mod virtiofs;
 mod virtiofs_util;
+
+pub use virtiofs::VirtioFs;

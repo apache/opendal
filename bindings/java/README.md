@@ -47,18 +47,18 @@ Generally, you can first add the `os-maven-plugin` for automatically detect the 
 </build>
 ```
 
-Then add the dependency to `opendal-java` as following:
+Then add the dependency to `opendal` as following:
 
 ```xml
 <dependencies>
 <dependency>
   <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal-java</artifactId>
+  <artifactId>opendal</artifactId>
   <version>${opendal.version}</version>
 </dependency>
 <dependency>
   <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal-java</artifactId>
+  <artifactId>opendal</artifactId>
   <version>${opendal.version}</version>
   <classifier>${os.detected.classifier}</classifier>
 </dependency>
@@ -75,12 +75,12 @@ plugins {
 }
 ```
 
-Then add the dependency to `opendal-java` as following:
+Then add the dependency to `opendal as following:
 
 ```groovy
 dependencies {
-    implementation "org.apache.opendal:opendal-java:$opendalVersion"
-    implementation "org.apache.opendal:opendal-java:$opendalVersion:$osdetector.classifier"
+    implementation "org.apache.opendal:opendal:$opendalVersion"
+    implementation "org.apache.opendal:opendal:$opendalVersion:$osdetector.classifier"
 }
 ```
 
@@ -101,7 +101,7 @@ To load the shared library correctly, you can choose one of the following approa
 
 ## Build
 
-This project provides OpenDAL Java bindings with artifact name `opendal-java`. It depends on JDK 8 or later.
+This project provides OpenDAL Java bindings with artifact name `opendal`. It depends on JDK 8 or later.
 
 You can use Maven to build both Rust dynamic lib and JAR files with one command now:
 

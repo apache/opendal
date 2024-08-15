@@ -56,7 +56,7 @@ static LABEL_OPERATION: &str = "operation";
 /// The error kind of this failed request.
 static LABEL_ERROR: &str = "error";
 
-/// Add [metrics](https://docs.rs/metrics/) for every operations.
+/// Add [metrics](https://docs.rs/metrics/) for every operation.
 ///
 /// # Metrics
 ///

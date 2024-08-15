@@ -1,5 +1,5 @@
 package = "opendal"
-version = "0.1.3-1"
+version = "0.1.7-1"
 
 source = {
     url = "git+https://github.com/apache/opendal/",
@@ -16,7 +16,7 @@ description = {
 
 dependencies = {
     "lua >= 5.1",
-    "luarocks-build-rust-mlua",
+    "luarocks-build-rust-mlua = 0.2.0",
 }
 
 build = {

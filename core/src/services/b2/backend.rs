@@ -83,7 +83,8 @@ impl Debug for B2Config {
 }
 
 impl Configurator for B2Config {
-    fn into_builder(self) -> impl Builder {
+    type Builder = B2Builder;
+    fn into_builder(self) -> Self::Builder {
         B2Builder {
             config: self,
             http_client: None,

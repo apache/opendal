@@ -71,7 +71,8 @@ impl Debug for FtpConfig {
 }
 
 impl Configurator for FtpConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = FtpBuilder;
+    fn into_builder(self) -> Self::Builder {
         FtpBuilder { config: self }
     }
 }

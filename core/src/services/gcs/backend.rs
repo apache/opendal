@@ -66,6 +66,18 @@ pub struct GcsConfig {
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
     pub default_storage_class: Option<String>,
+    /// Allow opendal to send requests without signing when credentials are not
+    /// loaded.
+    pub allow_anonymous: bool,
+    /// Disable attempting to load credentials from the GCE metadata server when
+    /// running within Google Cloud.
+    pub disable_vm_metadata: bool,
+    /// Disable loading configuration from the environment.
+    pub disable_config_load: bool,
+    /// A Google Cloud OAuth2 token.
+    ///
+    /// Takes precedence over `credential` and `credential_path`.
+    pub token: Option<String>,
 }
 
 impl Debug for GcsConfig {
@@ -80,7 +92,8 @@ impl Debug for GcsConfig {
 }
 
 impl Configurator for GcsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GcsBuilder;
+    fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
             http_client: None,
@@ -205,6 +218,24 @@ impl GcsBuilder {
         self
     }
 
+    /// Provide the OAuth2 token to use.
+    pub fn token(mut self, token: String) -> Self {
+        self.config.token = Some(token);
+        self
+    }
+
+    /// Disable attempting to load credentials from the GCE metadata server.
+    pub fn disable_vm_metadata(mut self) -> Self {
+        self.config.disable_vm_metadata = true;
+        self
+    }
+
+    /// Disable loading configuration from the environment.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Set the predefined acl for GCS.
     ///
     /// Available values are:
@@ -232,6 +263,15 @@ impl GcsBuilder {
         if !class.is_empty() {
             self.config.default_storage_class = Some(class.to_string())
         };
+        self
+    }
+
+    /// Allow anonymous requests.
+    ///
+    /// This is typically used for buckets which are open to the public or GCS
+    /// storage emulators.
+    pub fn allow_anonymous(mut self) -> Self {
+        self.config.allow_anonymous = true;
         self
     }
 }
@@ -287,6 +327,12 @@ impl Builder for GcsBuilder {
             cred_loader = cred_loader.with_disable_well_known_location();
         }
 
+        if self.config.disable_config_load {
+            cred_loader = cred_loader
+                .with_disable_env()
+                .with_disable_well_known_location();
+        }
+
         let scope = if let Some(scope) = &self.config.scope {
             scope
         } else {
@@ -304,6 +350,10 @@ impl Builder for GcsBuilder {
             token_loader = token_loader.with_customized_token_loader(loader)
         }
 
+        if self.config.disable_vm_metadata {
+            token_loader = token_loader.with_disable_vm_metadata(true);
+        }
+
         let signer = GoogleSigner::new("storage");
 
         let backend = GcsBackend {
@@ -314,9 +364,12 @@ impl Builder for GcsBuilder {
                 client,
                 signer,
                 token_loader,
+                token: self.config.token,
+                scope: scope.to_string(),
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
+                allow_anonymous: self.config.allow_anonymous,
             }),
         };
 

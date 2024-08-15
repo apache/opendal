@@ -40,7 +40,8 @@ pub struct CompfsConfig {
 }
 
 impl Configurator for CompfsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = CompfsBuilder;
+    fn into_builder(self) -> Self::Builder {
         CompfsBuilder { config: self }
     }
 }

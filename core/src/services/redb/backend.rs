@@ -45,7 +45,8 @@ pub struct RedbConfig {
 }
 
 impl Configurator for RedbConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = RedbBuilder;
+    fn into_builder(self) -> Self::Builder {
         RedbBuilder { config: self }
     }
 }

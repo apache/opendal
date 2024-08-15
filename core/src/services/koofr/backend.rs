@@ -67,7 +67,8 @@ impl Debug for KoofrConfig {
 }
 
 impl Configurator for KoofrConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = KoofrBuilder;
+    fn into_builder(self) -> Self::Builder {
         KoofrBuilder {
             config: self,
             http_client: None,

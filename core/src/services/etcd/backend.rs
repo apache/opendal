@@ -102,7 +102,8 @@ impl Debug for EtcdConfig {
 }
 
 impl Configurator for EtcdConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = EtcdBuilder;
+    fn into_builder(self) -> Self::Builder {
         EtcdBuilder { config: self }
     }
 }

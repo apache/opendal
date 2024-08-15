@@ -52,6 +52,9 @@ pub struct MokaConfig {
     ///
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
     pub num_segments: Option<usize>,
+
+    /// root path of this backend
+    pub root: Option<String>,
 }
 
 impl Debug for MokaConfig {
@@ -62,12 +65,14 @@ impl Debug for MokaConfig {
             .field("time_to_live", &self.time_to_live)
             .field("time_to_idle", &self.time_to_idle)
             .field("num_segments", &self.num_segments)
+            .field("root", &self.root)
             .finish_non_exhaustive()
     }
 }
 
 impl Configurator for MokaConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MokaBuilder;
+    fn into_builder(self) -> Self::Builder {
         MokaBuilder { config: self }
     }
 }
@@ -126,6 +131,17 @@ impl MokaBuilder {
         self.config.num_segments = Some(v);
         self
     }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
+        self
+    }
 }
 
 impl Builder for MokaBuilder {
@@ -153,9 +169,15 @@ impl Builder for MokaBuilder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MokaBackend::new(Adapter {
+
+        let mut backend = MokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 

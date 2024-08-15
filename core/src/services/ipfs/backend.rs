@@ -44,7 +44,8 @@ pub struct IpfsConfig {
 }
 
 impl Configurator for IpfsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = IpfsBuilder;
+    fn into_builder(self) -> Self::Builder {
         IpfsBuilder {
             config: self,
             http_client: None,

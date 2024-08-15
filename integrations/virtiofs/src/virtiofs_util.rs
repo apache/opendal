@@ -45,6 +45,11 @@ struct DescriptorChainConsumer<'a, B> {
 }
 
 impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
+    #[cfg(test)]
+    fn available_bytes(&self) -> usize {
+        self.buffers.iter().fold(0, |count, vs| count + vs.len())
+    }
+
     fn bytes_consumed(&self) -> usize {
         self.bytes_consumed
     }
@@ -96,7 +101,6 @@ pub struct Reader<'a, B = ()> {
     buffer: DescriptorChainConsumer<'a, B>,
 }
 
-#[allow(dead_code)]
 impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
     pub fn new<M>(
         mem: &'a GuestMemoryMmap<B>,
@@ -147,6 +151,16 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
         self.read_exact(buf)?;
         Ok(unsafe { obj.assume_init() })
     }
+
+    #[cfg(test)]
+    pub fn available_bytes(&self) -> usize {
+        self.buffer.available_bytes()
+    }
+
+    #[cfg(test)]
+    pub fn bytes_read(&self) -> usize {
+        self.buffer.bytes_consumed()
+    }
 }
 
 impl<'a, B: BitmapSlice> io::Read for Reader<'a, B> {
@@ -174,7 +188,6 @@ pub struct Writer<'a, B = ()> {
     buffer: DescriptorChainConsumer<'a, B>,
 }
 
-#[allow(dead_code)]
 impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
     pub fn new<M>(
         mem: &'a GuestMemoryMmap<B>,
@@ -218,6 +231,11 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
         })
     }
 
+    #[cfg(test)]
+    pub fn available_bytes(&self) -> usize {
+        self.buffer.available_bytes()
+    }
+
     pub fn bytes_written(&self) -> usize {
         self.buffer.bytes_consumed()
     }
@@ -245,5 +263,163 @@ impl<'a, B: BitmapSlice> Write for Writer<'a, B> {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use virtio_queue::Queue;
+    use virtio_queue::QueueOwnedT;
+    use virtio_queue::QueueT;
+    use vm_memory::Bytes;
+    use vm_memory::GuestAddress;
+    use vm_memory::Le16;
+    use vm_memory::Le32;
+    use vm_memory::Le64;
+
+    const VIRTQ_DESC_F_NEXT: u16 = 0x1;
+    const VIRTQ_DESC_F_WRITE: u16 = 0x2;
+
+    enum DescriptorType {
+        Readable,
+        Writable,
+    }
+
+    // Helper structure for testing, used to define the layout of the descriptor chain.
+    #[derive(Copy, Clone, Debug, Default)]
+    #[repr(C)]
+    struct VirtqDesc {
+        addr: Le64,
+        len: Le32,
+        flags: Le16,
+        next: Le16,
+    }
+
+    // Helper structure for testing, used to define the layout of the available ring.
+    #[derive(Copy, Clone, Debug, Default)]
+    #[repr(C)]
+    struct VirtqAvail {
+        flags: Le16,
+        idx: Le16,
+        ring: Le16,
+    }
+
+    unsafe impl ByteValued for VirtqAvail {}
+    unsafe impl ByteValued for VirtqDesc {}
+
+    // Helper function for testing, used to create a descriptor chain with the specified descriptors.
+    fn create_descriptor_chain(
+        memory: &GuestMemoryMmap,
+        descriptor_array_addr: GuestAddress,
+        mut buffers_start_addr: GuestAddress,
+        descriptors: Vec<(DescriptorType, u32)>,
+    ) -> DescriptorChain<&GuestMemoryMmap> {
+        let descriptors_len = descriptors.len();
+        for (index, (type_, size)) in descriptors.into_iter().enumerate() {
+            let mut flags = 0;
+            if let DescriptorType::Writable = type_ {
+                flags |= VIRTQ_DESC_F_WRITE;
+            }
+            if index + 1 < descriptors_len {
+                flags |= VIRTQ_DESC_F_NEXT;
+            }
+
+            let desc = VirtqDesc {
+                addr: buffers_start_addr.raw_value().into(),
+                len: size.into(),
+                flags: flags.into(),
+                next: (index as u16 + 1).into(),
+            };
+
+            buffers_start_addr = buffers_start_addr.checked_add(size as u64).unwrap();
+
+            memory
+                .write_obj(
+                    desc,
+                    descriptor_array_addr
+                        .checked_add((index * std::mem::size_of::<VirtqDesc>()) as u64)
+                        .unwrap(),
+                )
+                .unwrap();
+        }
+
+        let avail_ring = descriptor_array_addr
+            .checked_add((descriptors_len * std::mem::size_of::<VirtqDesc>()) as u64)
+            .unwrap();
+        let avail = VirtqAvail {
+            flags: 0.into(),
+            idx: 1.into(),
+            ring: 0.into(),
+        };
+        memory.write_obj(avail, avail_ring).unwrap();
+
+        let mut queue = Queue::new(4).unwrap();
+        queue
+            .try_set_desc_table_address(descriptor_array_addr)
+            .unwrap();
+        queue.try_set_avail_ring_address(avail_ring).unwrap();
+        queue.set_ready(true);
+        queue.iter(memory).unwrap().next().unwrap()
+    }
+
+    #[test]
+    fn simple_chain_reader_test() {
+        let memory_start_addr = GuestAddress(0x0);
+        let memory = GuestMemoryMmap::from_ranges(&[(memory_start_addr, 0x1000)]).unwrap();
+
+        let chain = create_descriptor_chain(
+            &memory,
+            GuestAddress(0x0),
+            GuestAddress(0x100),
+            vec![
+                (DescriptorType::Readable, 8),
+                (DescriptorType::Readable, 16),
+                (DescriptorType::Readable, 18),
+                (DescriptorType::Readable, 64),
+            ],
+        );
+
+        let mut reader = Reader::new(&memory, chain).unwrap();
+        assert_eq!(reader.available_bytes(), 106);
+        assert_eq!(reader.bytes_read(), 0);
+
+        let mut buffer = [0; 64];
+        reader.read_exact(&mut buffer).unwrap();
+        assert_eq!(reader.available_bytes(), 42);
+        assert_eq!(reader.bytes_read(), 64);
+        assert_eq!(reader.read(&mut buffer).unwrap(), 42);
+        assert_eq!(reader.available_bytes(), 0);
+        assert_eq!(reader.bytes_read(), 106);
+    }
+
+    #[test]
+    fn simple_chain_writer_test() {
+        let memory_start_addr = GuestAddress(0x0);
+        let memory = GuestMemoryMmap::from_ranges(&[(memory_start_addr, 0x1000)]).unwrap();
+
+        let chain = create_descriptor_chain(
+            &memory,
+            GuestAddress(0x0),
+            GuestAddress(0x100),
+            vec![
+                (DescriptorType::Writable, 8),
+                (DescriptorType::Writable, 16),
+                (DescriptorType::Writable, 18),
+                (DescriptorType::Writable, 64),
+            ],
+        );
+
+        let mut writer = Writer::new(&memory, chain).unwrap();
+        assert_eq!(writer.available_bytes(), 106);
+        assert_eq!(writer.bytes_written(), 0);
+
+        let buffer = [0; 64];
+        writer.write_all(&buffer).unwrap();
+        assert_eq!(writer.available_bytes(), 42);
+        assert_eq!(writer.bytes_written(), 64);
+        assert_eq!(writer.write(&buffer).unwrap(), 42);
+        assert_eq!(writer.available_bytes(), 0);
+        assert_eq!(writer.bytes_written(), 106);
     }
 }

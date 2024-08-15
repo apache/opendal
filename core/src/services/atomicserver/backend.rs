@@ -63,7 +63,8 @@ impl Debug for AtomicserverConfig {
 }
 
 impl Configurator for AtomicserverConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AtomicserverBuilder;
+    fn into_builder(self) -> Self::Builder {
         AtomicserverBuilder { config: self }
     }
 }

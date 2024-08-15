@@ -25,7 +25,7 @@ use tracing::Span;
 use crate::raw::*;
 use crate::*;
 
-/// Add [tracing](https://docs.rs/tracing/) for every operations.
+/// Add [tracing](https://docs.rs/tracing/) for every operation.
 ///
 /// # Examples
 ///

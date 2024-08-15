@@ -89,7 +89,8 @@ impl Debug for AliyunDriveConfig {
 }
 
 impl Configurator for AliyunDriveConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AliyunDriveBuilder;
+    fn into_builder(self) -> Self::Builder {
         AliyunDriveBuilder {
             config: self,
             http_client: None,

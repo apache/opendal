@@ -60,7 +60,8 @@ impl Debug for YandexDiskConfig {
 }
 
 impl Configurator for YandexDiskConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = YandexDiskBuilder;
+    fn into_builder(self) -> Self::Builder {
         YandexDiskBuilder {
             config: self,
             http_client: None,

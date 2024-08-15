@@ -73,7 +73,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };
 
     let mut op = op
-        .layer(layers::LoggingLayer::default().with_backtrace_output(true))
+        .layer(layers::LoggingLayer::default())
         .layer(layers::TimeoutLayer::new())
         .layer(layers::RetryLayer::new().with_max_times(4));
 

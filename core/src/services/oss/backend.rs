@@ -86,7 +86,8 @@ impl Debug for OssConfig {
 }
 
 impl Configurator for OssConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = OssBuilder;
+    fn into_builder(self) -> Self::Builder {
         OssBuilder {
             config: self,
             http_client: None,

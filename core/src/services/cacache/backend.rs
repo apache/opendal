@@ -32,14 +32,15 @@ use crate::Scheme;
 use crate::*;
 
 /// cacache service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
     pub datadir: Option<String>,
 }
 
 impl Configurator for CacacheConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = CacacheBuilder;
+    fn into_builder(self) -> Self::Builder {
         CacacheBuilder { config: self }
     }
 }

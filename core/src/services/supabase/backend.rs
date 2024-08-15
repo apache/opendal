@@ -56,7 +56,8 @@ impl Debug for SupabaseConfig {
 }
 
 impl Configurator for SupabaseConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SupabaseBuilder;
+    fn into_builder(self) -> Self::Builder {
         SupabaseBuilder {
             config: self,
             http_client: None,

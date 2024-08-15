@@ -26,7 +26,7 @@ camino@1.1.7		X							X
 cargo-platform@0.1.8		X							X					
 cargo_metadata@0.14.2									X					
 cbc@0.1.2		X							X					
-cc@1.1.8		X							X					
+cc@1.1.11		X							X					
 cexpr@0.6.0		X							X					
 cfg-if@1.0.0		X							X					
 chrono@0.4.38		X							X					
@@ -37,8 +37,8 @@ const-random@0.1.18		X							X
 const-random-macro@0.1.16		X							X					
 constant_time_eq@0.1.5							X							
 core-foundation@0.9.4		X							X					
-core-foundation-sys@0.8.6		X							X					
-cpufeatures@0.2.12		X							X					
+core-foundation-sys@0.8.7		X							X					
+cpufeatures@0.2.13		X							X					
 crc32c@0.6.8		X							X					
 crc32fast@1.4.2		X							X					
 crossbeam-utils@0.8.20		X							X					
@@ -95,7 +95,7 @@ inout@0.1.3		X							X
 ipnet@2.9.0		X							X					
 itoa@1.0.11		X							X					
 jobserver@0.1.32		X							X					
-js-sys@0.3.69		X							X					
+js-sys@0.3.70		X							X					
 jsonwebtoken@9.3.0									X					
 lazy_static@1.5.0		X							X					
 lazycell@1.3.0		X							X					
@@ -110,7 +110,7 @@ memchr@2.7.4									X				X
 mime@0.3.17		X							X					
 minimal-lexical@0.2.1		X							X					
 miniz_oxide@0.7.4		X							X					X
-mio@1.0.1									X					
+mio@1.0.2									X					
 native-tls@0.2.12		X							X					
 nom@7.1.3									X					
 num-bigint@0.4.6		X							X					
@@ -121,8 +121,8 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.3		X							X					
 once_cell@1.19.0		X							X					
-opendal@0.49.0		X												
-opendal-php@0.1.6		X												
+opendal@0.49.1		X												
+opendal-php@0.1.7		X												
 openssl@0.10.66		X												
 openssl-macros@0.1.1		X							X					
 openssl-probe@0.1.5		X							X					
@@ -182,9 +182,9 @@ scrypt@0.11.0		X							X
 security-framework@2.11.1		X							X					
 security-framework-sys@2.11.1		X							X					
 semver@1.0.23		X							X					
-serde@1.0.205		X							X					
-serde_derive@1.0.205		X							X					
-serde_json@1.0.122		X							X					
+serde@1.0.207		X							X					
+serde_derive@1.0.207		X							X					
+serde_json@1.0.125		X							X					
 serde_urlencoded@0.7.1		X							X					
 sha1@0.10.6		X							X					
 sha2@0.10.8		X							X					
@@ -200,7 +200,7 @@ spki@0.7.3		X							X
 strsim@0.10.0									X					
 subtle@2.6.1					X									
 syn@1.0.109		X							X					
-syn@2.0.72		X							X					
+syn@2.0.74		X							X					
 sync_wrapper@1.0.1		X												
 tempfile@3.12.0		X							X					
 thiserror@1.0.63		X							X					
@@ -215,8 +215,8 @@ tokio@1.39.2									X
 tokio-rustls@0.26.0		X							X					
 tokio-util@0.7.11									X					
 tower@0.4.13									X					
-tower-layer@0.3.2									X					
-tower-service@0.3.2									X					
+tower-layer@0.3.3									X					
+tower-service@0.3.3									X					
 tracing@0.1.40									X					
 tracing-core@0.1.32									X					
 trim-in-place@0.1.7									X					
@@ -235,14 +235,14 @@ version_check@0.9.5		X							X
 walkdir@2.5.0									X				X	
 want@0.3.1									X					
 wasi@0.11.0+wasi-snapshot-preview1		X	X						X					
-wasm-bindgen@0.2.92		X							X					
-wasm-bindgen-backend@0.2.92		X							X					
-wasm-bindgen-futures@0.4.42		X							X					
-wasm-bindgen-macro@0.2.92		X							X					
-wasm-bindgen-macro-support@0.2.92		X							X					
-wasm-bindgen-shared@0.2.92		X							X					
+wasm-bindgen@0.2.93		X							X					
+wasm-bindgen-backend@0.2.93		X							X					
+wasm-bindgen-futures@0.4.43		X							X					
+wasm-bindgen-macro@0.2.93		X							X					
+wasm-bindgen-macro-support@0.2.93		X							X					
+wasm-bindgen-shared@0.2.93		X							X					
 wasm-streams@0.4.0		X							X					
-web-sys@0.3.69		X							X					
+web-sys@0.3.70		X							X					
 webpki-roots@0.26.3										X				
 which@4.4.2									X					
 winapi-util@0.1.9									X				X	

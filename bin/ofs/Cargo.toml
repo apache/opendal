@@ -31,15 +31,10 @@ rust-version = "1.75"
 
 [dependencies]
 anyhow = "1"
-bytes = "1.7.0"
-chrono = "0.4.34"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 env_logger = "0.11.2"
-fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
-fuse3_opendal = { version = "0.0.5", path = "../../integrations/fuse3" }
 futures-util = "0.3.30"
 log = "0.4.21"
-nix = { version = "0.29.0", features = ["user"] }
 opendal = { version = "0.49.0", path = "../../core" }
 sharded-slab = "0.1.7"
 tokio = { version = "1.37.0", features = [
@@ -52,13 +47,13 @@ tokio = { version = "1.37.0", features = [
 url = "2.5.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
-fuse3_opendal = { version = "0.0.3", path = "../../integrations/fuse3" }
+fuse3_opendal = { version = "0.0.5", path = "../../integrations/fuse3" }
 fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
 nix = { version = "0.29.0", features = ["user"] }
 libc = "0.2.154"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-cloud-filter = { version = "0.0.3" }
+cloud-filter = { version = "0.0.5" }
 cloudfilter_opendal = { version = "0.0.0", path = "../../integrations/cloudfilter" }
 
 [features]

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci(bindings/python): Fix aws-lc-rs build on arm platforms by @Xuanwo in https://github.com/apache/opendal/pull/5004
 ### Chore
 * chore(deps): bump fastrace to 0.7.1 by @andylokandy in https://github.com/apache/opendal/pull/5008
+* chore(bindings): Disable mysql service for java and python by @Xuanwo in https://github.com/apache/opendal/pull/5013
 
 ## [v0.49.0] - 2024-08-09
 

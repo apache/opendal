@@ -863,9 +863,6 @@ impl BlockingOperator {
             }
         }
 
-        // Remove the directory itself.
-        self.delete(path)?;
-
         Ok(())
     }
 

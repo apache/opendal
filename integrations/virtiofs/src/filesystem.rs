@@ -129,7 +129,7 @@ pub struct Filesystem {
     // Since we need to manually manage the allocation of inodes,
     // we record the inode of each opened file here.
     opened_files_map: Mutex<HashMap<String, u64>>,
-    opened_files_writer: Mutex<HashMap<String, InnerWriter>>,
+    opened_files_writer: tokio::sync::Mutex<HashMap<String, InnerWriter>>,
 }
 
 impl Filesystem {
@@ -148,7 +148,7 @@ impl Filesystem {
             gid: 1000,
             opened_files: Slab::new(),
             opened_files_map: Mutex::new(HashMap::new()),
-            opened_files_writer: Mutex::new(HashMap::new()),
+            opened_files_writer: tokio::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -486,8 +486,9 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
-        opened_file_writer.remove(&path);
+        if self.rt.block_on(self.do_release_writter(&path)).is_err() {
+            return Filesystem::reply_error(in_header.unique, w);
+        }
 
         Filesystem::reply_ok(None::<u8>, None, in_header.unique, w)
     }
@@ -639,8 +640,23 @@ impl Filesystem {
         };
 
         let inner_writer = InnerWriter { writer, written };
-        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
+        let mut opened_file_writer = self.opened_files_writer.lock().await;
         opened_file_writer.insert(path.to_string(), inner_writer);
+
+        Ok(())
+    }
+
+    async fn do_release_writter(&self, path: &str) -> Result<()> {
+        let mut opened_file_writer = self.opened_files_writer.lock().await;
+        let inner_writer = opened_file_writer
+            .get_mut(path)
+            .ok_or(Error::from(libc::EINVAL))?;
+        inner_writer
+            .writer
+            .close()
+            .await
+            .map_err(opendal_error2error)?;
+        opened_file_writer.remove(path);
 
         Ok(())
     }
@@ -664,7 +680,7 @@ impl Filesystem {
 
     async fn do_write(&self, path: &str, offset: u64, data: Buffer) -> Result<usize> {
         let len = data.len();
-        let mut opened_file_writer = self.opened_files_writer.lock().unwrap();
+        let mut opened_file_writer = self.opened_files_writer.lock().await;
         let inner_writer = opened_file_writer
             .get_mut(path)
             .ok_or(Error::from(libc::EINVAL))?;

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod buffer;
 mod error;
 mod filesystem;
 mod filesystem_message;

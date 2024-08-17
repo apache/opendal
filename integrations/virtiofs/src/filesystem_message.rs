@@ -24,11 +24,15 @@ use crate::error::*;
 #[non_exhaustive]
 pub enum Opcode {
     Lookup = 1,
+    Forget = 2,
     Getattr = 3,
     Setattr = 4,
     Unlink = 10,
     Open = 14,
+    Read = 15,
+    Write = 16,
     Release = 18,
+    Flush = 25,
     Init = 26,
     Create = 35,
     Destroy = 38,
@@ -40,11 +44,15 @@ impl TryFrom<u32> for Opcode {
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(Opcode::Lookup),
+            2 => Ok(Opcode::Forget),
             3 => Ok(Opcode::Getattr),
             4 => Ok(Opcode::Setattr),
             10 => Ok(Opcode::Unlink),
             14 => Ok(Opcode::Open),
+            15 => Ok(Opcode::Read),
+            16 => Ok(Opcode::Write),
             18 => Ok(Opcode::Release),
+            25 => Ok(Opcode::Flush),
             26 => Ok(Opcode::Init),
             35 => Ok(Opcode::Create),
             38 => Ok(Opcode::Destroy),
@@ -217,6 +225,52 @@ pub struct OpenOut {
     pub padding: u32,
 }
 
+/// ReadIn is used to parse the parameters passed in the Read filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#920
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ReadIn {
+    pub fh: u64,
+    pub offset: u64,
+    pub size: u32,
+    pub read_flags: u32,
+    pub lock_owner: u64,
+    pub flags: u32,
+    pub padding: u32,
+}
+
+/// WriteIn is used to parse the parameters passed in the Write filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#933
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WriteIn {
+    pub fh: u64,
+    pub offset: u64,
+    pub size: u32,
+    pub write_flags: u32,
+    pub lock_owner: u64,
+    pub flags: u32,
+    pub padding: u32,
+}
+
+/// WriteOut is used to return the number of bytes written in the Write filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L946
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WriteOut {
+    pub size: u32,
+    pub padding: u32,
+}
+
 /// We will use ByteValued to implement the encoding and decoding
 /// of these structures in shared memory.
 unsafe impl ByteValued for Attr {}
@@ -229,3 +283,6 @@ unsafe impl ByteValued for AttrOut {}
 unsafe impl ByteValued for CreateIn {}
 unsafe impl ByteValued for OpenIn {}
 unsafe impl ByteValued for OpenOut {}
+unsafe impl ByteValued for ReadIn {}
+unsafe impl ByteValued for WriteIn {}
+unsafe impl ByteValued for WriteOut {}

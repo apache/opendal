@@ -486,7 +486,7 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        if self.rt.block_on(self.do_release_writter(&path)).is_err() {
+        if self.rt.block_on(self.do_release_writer(&path)).is_err() {
             return Filesystem::reply_error(in_header.unique, w);
         }
 
@@ -646,7 +646,7 @@ impl Filesystem {
         Ok(())
     }
 
-    async fn do_release_writter(&self, path: &str) -> Result<()> {
+    async fn do_release_writer(&self, path: &str) -> Result<()> {
         let mut opened_file_writer = self.opened_files_writer.lock().await;
         let inner_writer = opened_file_writer
             .get_mut(path)

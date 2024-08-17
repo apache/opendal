@@ -36,6 +36,7 @@ use vm_memory::GuestMemoryRegion;
 use vm_memory::VolatileMemory;
 use vm_memory::VolatileSlice;
 
+use crate::buffer::ReadWriteAtVolatile;
 use crate::error::*;
 
 /// Used to consume and use data areas in shared memory between host and VMs.
@@ -94,6 +95,48 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
         self.bytes_consumed = total_bytes_consumed;
         Ok(bytes_consumed)
     }
+
+    fn split_at(&mut self, offset: usize) -> Result<DescriptorChainConsumer<'a, B>> {
+        let mut remain = offset;
+        let pos = self.buffers.iter().position(|vs| {
+            if remain < vs.len() {
+                true
+            } else {
+                remain -= vs.len();
+                false
+            }
+        });
+        if let Some(at) = pos {
+            let mut other = self.buffers.split_off(at);
+            if remain > 0 {
+                let front = other.pop_front().expect("empty VecDeque after split");
+                self.buffers.push_back(
+                    front
+                        .subslice(0, remain)
+                        .map_err(|_| new_vhost_user_fs_error("volatile memory error", None))?,
+                );
+                other.push_front(
+                    front
+                        .offset(remain)
+                        .map_err(|_| new_vhost_user_fs_error("volatile memory error", None))?,
+                );
+            }
+            Ok(DescriptorChainConsumer {
+                buffers: other,
+                bytes_consumed: 0,
+            })
+        } else if remain == 0 {
+            Ok(DescriptorChainConsumer {
+                buffers: VecDeque::new(),
+                bytes_consumed: 0,
+            })
+        } else {
+            Err(new_vhost_user_fs_error(
+                "DescriptorChain split is out of bounds",
+                None,
+            ))
+        }
+    }
 }
 
 /// Provides a high-level interface for reading data in shared memory sequences.
@@ -150,6 +193,16 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
             unsafe { std::slice::from_raw_parts_mut(obj.as_mut_ptr() as *mut u8, size_of::<T>()) };
         self.read_exact(buf)?;
         Ok(unsafe { obj.assume_init() })
+    }
+
+    pub fn read_to_at<F: ReadWriteAtVolatile<B>>(
+        &mut self,
+        dst: F,
+        count: usize,
+    ) -> io::Result<usize> {
+        self.buffer
+            .consume(count, |bufs| dst.write_vectored_at_volatile(bufs))
+            .map_err(|err| err.into())
     }
 
     #[cfg(test)]
@@ -229,6 +282,20 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
                 bytes_consumed: 0,
             },
         })
+    }
+
+    pub fn split_at(&mut self, offset: usize) -> Result<Writer<'a, B>> {
+        self.buffer.split_at(offset).map(|buffer| Writer { buffer })
+    }
+
+    pub fn write_from_at<F: ReadWriteAtVolatile<B>>(
+        &mut self,
+        src: F,
+        count: usize,
+    ) -> io::Result<usize> {
+        self.buffer
+            .consume(count, |bufs| src.read_vectored_at_volatile(bufs))
+            .map_err(|err| err.into())
     }
 
     #[cfg(test)]

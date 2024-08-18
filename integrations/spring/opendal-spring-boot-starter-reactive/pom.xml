@@ -25,7 +25,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.opendal</groupId>
-        <artifactId>spring-opendal-parent</artifactId>
+        <artifactId>opendal-spring-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
@@ -40,6 +40,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

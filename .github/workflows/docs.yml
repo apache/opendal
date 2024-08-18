@@ -431,6 +431,8 @@ jobs:
 
   build-website:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs:
       - build-rust-doc
       - build-java-doc

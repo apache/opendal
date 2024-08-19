@@ -23,7 +23,7 @@ use opendal::{Entry, Lister};
 use std::pin::Pin;
 use std::task::Poll::Ready;
 use std::task::{ready, Context, Poll};
-
+use opendal::raw::normalize_path;
 use super::metadata::OpendalMetaData;
 use super::utils::*;
 
@@ -31,12 +31,13 @@ use super::utils::*;
 pub struct OpendalStream {
     op: Operator,
     lister: Lister,
+    path: String
 }
 
 impl OpendalStream {
     /// Create a new opendal stream.
-    pub fn new(op: Operator, lister: Lister) -> Self {
-        OpendalStream { op, lister }
+    pub fn new(op: Operator, lister: Lister, p: &str) -> Self {
+        OpendalStream { op, lister,  path: normalize_path(p)}
     }
 }
 
@@ -45,13 +46,18 @@ impl Stream for OpendalStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let dav_stream = self.get_mut();
-        match ready!(dav_stream.lister.poll_next_unpin(cx)) {
-            Some(entry) => {
-                let entry = entry.map_err(convert_error)?;
-                let webdav_entry = OpendalDirEntry::new(dav_stream.op.clone(), entry);
-                Ready(Some(Ok(Box::new(webdav_entry) as Box<dyn DavDirEntry>)))
+        loop {
+            match ready!(dav_stream.lister.poll_next_unpin(cx)) {
+                Some(entry) => {
+                    let entry = entry.map_err(convert_error)?;
+                    if entry.path() == dav_stream.path {
+                        continue;
+                    }
+                    let webdav_entry = OpendalDirEntry::new(dav_stream.op.clone(), entry);
+                    return Ready(Some(Ok(Box::new(webdav_entry) as Box<dyn DavDirEntry>)))
+                }
+                None => return Ready(None),
             }
-            None => Ready(None),
         }
     }
 }

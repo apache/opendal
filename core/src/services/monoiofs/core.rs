@@ -39,10 +39,8 @@ type TaskSpawner = Box<dyn FnOnce() + Send>;
 #[derive(Debug)]
 pub struct MonoiofsCore {
     root: PathBuf,
-    #[allow(dead_code)]
     /// sender that sends [`TaskSpawner`] to worker threads
     tx: Sender<TaskSpawner>,
-    #[allow(dead_code)]
     /// join handles of worker threads
     threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
     pub buf_pool: oio::PooledBuf,
@@ -98,7 +96,6 @@ impl MonoiofsCore {
         })
     }
 
-    #[allow(dead_code)]
     /// Create a TaskSpawner, send it to the thread pool and wait
     /// for its result. Task panic will propagate.
     pub async fn dispatch<F, Fut, T>(&self, f: F) -> T

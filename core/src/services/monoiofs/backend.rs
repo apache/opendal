@@ -136,10 +136,11 @@ impl Access for MonoiofsBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let path = self.core.prepare_path(path);
-        // TODO: borrowed from FsBackend because statx support for monoio
-        // is not released yet, but stat capability is required for read
-        // and write
-        let meta = tokio::fs::metadata(&path).await.map_err(new_std_io_error)?;
+        let meta = self
+            .core
+            .dispatch(move || monoio::fs::metadata(path))
+            .await
+            .map_err(new_std_io_error)?;
         let mode = if meta.is_dir() {
             EntryMode::DIR
         } else if meta.is_file() {
@@ -172,17 +173,23 @@ impl Access for MonoiofsBackend {
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
         let path = self.core.prepare_path(path);
-        // TODO: borrowed from FsBackend because monoio doesn't support unlink,
-        // but delete capability is required for behavior tests
-        let meta = tokio::fs::metadata(&path).await;
+        let meta = self
+            .core
+            .dispatch({
+                let path = path.clone();
+                move || monoio::fs::metadata(path)
+            })
+            .await;
         match meta {
             Ok(meta) => {
                 if meta.is_dir() {
-                    tokio::fs::remove_dir(&path)
+                    self.core
+                        .dispatch(move || monoio::fs::remove_dir(path))
                         .await
                         .map_err(new_std_io_error)?;
                 } else {
-                    tokio::fs::remove_file(&path)
+                    self.core
+                        .dispatch(move || monoio::fs::remove_file(path))
                         .await
                         .map_err(new_std_io_error)?;
                 }

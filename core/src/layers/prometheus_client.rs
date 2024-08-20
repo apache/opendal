@@ -364,8 +364,6 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::Write.into_static(),
             start.elapsed(),
         );
-        self.metrics
-            .increment_request_total(self.scheme, Operation::Write.into_static());
 
         match res {
             Ok((rp, w)) => Ok((

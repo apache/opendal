@@ -18,9 +18,6 @@
 use await_tree::InstrumentAwait;
 use futures::Future;
 use futures::FutureExt;
-use oio::ListOperation;
-use oio::ReadOperation;
-use oio::WriteOperation;
 
 use crate::raw::*;
 use crate::*;
@@ -182,7 +179,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .instrument_await(format!("opendal::{}", ReadOperation::Read))
+            .instrument_await(format!("opendal::{}", Operation::ReaderRead))
             .await
     }
 }
@@ -197,19 +194,19 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .write(bs)
-            .instrument_await(format!("opendal::{}", WriteOperation::Write.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterWrite.into_static()))
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()
-            .instrument_await(format!("opendal::{}", WriteOperation::Abort.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterAbort.into_static()))
     }
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .close()
-            .instrument_await(format!("opendal::{}", WriteOperation::Close.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterClose.into_static()))
     }
 }
 
@@ -227,7 +224,7 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .instrument_await(format!("opendal::{}", ListOperation::Next))
+            .instrument_await(format!("opendal::{}", Operation::ListerNext))
             .await
     }
 }

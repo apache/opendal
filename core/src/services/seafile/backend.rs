@@ -72,7 +72,8 @@ impl Debug for SeafileConfig {
 }
 
 impl Configurator for SeafileConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = SeafileBuilder;
+    fn into_builder(self) -> Self::Builder {
         SeafileBuilder {
             config: self,
             http_client: None,

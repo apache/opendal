@@ -15,25 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::Path;
-use std::path::PathBuf;
-
 use crate::raw::*;
-use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::{EntryMode, Metakey};
+use std::path::Path;
+use std::path::PathBuf;
 
 pub struct FsLister<P> {
     root: PathBuf,
 
     rd: P,
+
+    op: OpList,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, rd: P) -> Self {
+    pub fn new(root: &Path, rd: P, arg: OpList) -> Self {
         Self {
             root: root.to_owned(),
             rd,
+            op: arg,
         }
     }
 }
@@ -49,8 +51,6 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             return Ok(None);
         };
 
-        let ft = de.file_type().await.map_err(new_std_io_error)?;
-
         let entry_path = de.path();
         let rel_path = normalize_path(
             &entry_path
@@ -60,16 +60,39 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        let d = if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if ft.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        let default_meta = self.op.metakey() == Metakey::Mode;
+
+        let metadata = if default_meta {
+            let ft = de.file_type().await.map_err(new_std_io_error)?;
+            if ft.is_file() {
+                Metadata::new(EntryMode::FILE)
+            } else if ft.is_dir() {
+                Metadata::new(EntryMode::DIR)
+            } else {
+                Metadata::new(EntryMode::Unknown)
+            }
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            let fs_meta = de.metadata().await.map_err(new_std_io_error)?;
+            let mut meta = if fs_meta.file_type().is_file() {
+                Metadata::new(EntryMode::FILE)
+            } else if fs_meta.file_type().is_dir() {
+                Metadata::new(EntryMode::DIR)
+            } else {
+                Metadata::new(EntryMode::Unknown)
+            };
+            meta.set_content_length(fs_meta.len());
+            meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
+            meta
         };
 
-        Ok(Some(d))
+        let p = if metadata.is_dir() {
+            // Make sure we are returning the correct path.
+            &format!("{rel_path}/")
+        } else {
+            &rel_path
+        };
+
+        Ok(Some(oio::Entry::new(p, metadata)))
     }
 }
 
@@ -89,21 +112,38 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        // On Windows and most Unix platforms this function is free
-        // (no extra system calls needed), but some Unix platforms may
-        // require the equivalent call to symlink_metadata to learn about
-        // the target file type.
-        let file_type = de.file_type().map_err(new_std_io_error)?;
+        let default_meta = self.op.metakey() == Metakey::Mode;
 
-        let entry = if file_type.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if file_type.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        let metadata = if default_meta {
+            let ft = de.file_type().map_err(new_std_io_error)?;
+            if ft.is_file() {
+                Metadata::new(EntryMode::FILE)
+            } else if ft.is_dir() {
+                Metadata::new(EntryMode::DIR)
+            } else {
+                Metadata::new(EntryMode::Unknown)
+            }
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            let fs_meta = de.metadata().map_err(new_std_io_error)?;
+            let mut meta = if fs_meta.file_type().is_file() {
+                Metadata::new(EntryMode::FILE)
+            } else if fs_meta.file_type().is_dir() {
+                Metadata::new(EntryMode::DIR)
+            } else {
+                Metadata::new(EntryMode::Unknown)
+            };
+            meta.set_content_length(fs_meta.len());
+            meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
+            meta
         };
 
-        Ok(Some(entry))
+        let p = if metadata.is_dir() {
+            // Make sure we are returning the correct path.
+            &format!("{rel_path}/")
+        } else {
+            &rel_path
+        };
+
+        Ok(Some(oio::Entry::new(p, metadata)))
     }
 }

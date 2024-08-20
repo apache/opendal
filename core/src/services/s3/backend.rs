@@ -124,6 +124,8 @@ pub struct S3Config {
     pub role_arn: Option<String>,
     /// external_id for this backend.
     pub external_id: Option<String>,
+    /// role_session_name for this backend.
+    pub role_session_name: Option<String>,
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -226,7 +228,8 @@ impl Debug for S3Config {
 }
 
 impl Configurator for S3Config {
-    fn into_builder(self) -> impl Builder {
+    type Builder = S3Builder;
+    fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
             customized_credential_load: None,
@@ -352,6 +355,15 @@ impl S3Builder {
     pub fn external_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.external_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set role_session_name for this backend.
+    pub fn role_session_name(mut self, v: &str) -> Self {
+        if !v.is_empty() {
+            self.config.role_session_name = Some(v.to_string())
         }
 
         self
@@ -947,13 +959,19 @@ impl Builder for S3Builder {
             let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
 
             // Build the config for assume role.
-            let assume_role_cfg = AwsConfig {
+            let mut assume_role_cfg = AwsConfig {
                 region: Some(region.clone()),
                 role_arn: Some(role_arn),
                 external_id: self.config.external_id.clone(),
                 sts_regional_endpoints: "regional".to_string(),
                 ..Default::default()
             };
+
+            // override default role_session_name if set
+            if let Some(name) = self.config.role_session_name {
+                assume_role_cfg.role_session_name = name;
+            }
+
             let assume_role_loader = AwsAssumeRoleLoader::new(
                 client.client(),
                 assume_role_cfg,
@@ -1237,7 +1255,7 @@ impl Access for S3Backend {
                 // set the error kind and mark temporary if retryable
                 let (kind, retryable) =
                     parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, &format!("{i:?}"));
+                let mut err: Error = Error::new(kind, format!("{i:?}"));
                 if retryable {
                     err = err.set_temporary();
                 }

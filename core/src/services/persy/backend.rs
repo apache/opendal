@@ -46,7 +46,8 @@ pub struct PersyConfig {
 }
 
 impl Configurator for PersyConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = PersyBuilder;
+    fn into_builder(self) -> Self::Builder {
         PersyBuilder { config: self }
     }
 }

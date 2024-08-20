@@ -70,7 +70,8 @@ impl Debug for WebhdfsConfig {
 }
 
 impl Configurator for WebhdfsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = WebhdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
         WebhdfsBuilder { config: self }
     }
 }

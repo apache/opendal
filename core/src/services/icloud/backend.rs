@@ -72,7 +72,8 @@ impl Debug for IcloudConfig {
 }
 
 impl Configurator for IcloudConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = IcloudBuilder;
+    fn into_builder(self) -> Self::Builder {
         IcloudBuilder {
             config: self,
             http_client: None,

@@ -97,7 +97,8 @@ pub struct GhacConfig {
 }
 
 impl Configurator for GhacConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = GhacBuilder;
+    fn into_builder(self) -> Self::Builder {
         GhacBuilder {
             config: self,
             http_client: None,

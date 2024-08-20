@@ -16,41 +16,29 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+use std::fmt::Display;
 use std::sync::Arc;
 
-use bytes::Buf;
 use futures::FutureExt;
 use futures::TryFutureExt;
-use log::debug;
 use log::log;
-use log::trace;
 use log::Level;
 
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add [log](https://docs.rs/log/) for every operations.
+/// Add [log](https://docs.rs/log/) for every operation.
 ///
 /// # Logging
 ///
 /// - OpenDAL will log in structural way.
 /// - Every operation will start with a `started` log entry.
 /// - Every operation will finish with the following status:
-///   - `finished`: the operation is successful.
-///   - `errored`: the operation returns an expected error like `NotFound`.
+///   - `succeeded`: the operation is successful, but might have more to take.
+///   - `finished`: the whole operation is finished.
 ///   - `failed`: the operation returns an unexpected error.
 /// - The default log level while expected error happened is `Warn`.
 /// - The default log level while unexpected failure happened is `Error`.
-///
-/// # Todo
-///
-/// We should migrate to log's kv api after it's ready.
-///
-/// Tracking issue: <https://github.com/rust-lang/log/issues/328>
 ///
 /// # Examples
 ///
@@ -82,476 +70,485 @@ use crate::*;
 /// ```shell
 /// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
-#[derive(Debug, Copy, Clone)]
-pub struct LoggingLayer {
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
+///
+/// # Logging Interceptor
+///
+/// You can implement your own logging interceptor to customize the logging behavior.
+///
+/// ```no_run
+/// use opendal::layers::LoggingInterceptor;
+/// use opendal::layers::LoggingLayer;
+/// use opendal::raw;
+/// use opendal::services;
+/// use opendal::Error;
+/// use opendal::Operator;
+/// use opendal::Scheme;
+///
+/// #[derive(Debug, Clone)]
+/// struct MyLoggingInterceptor;
+///
+/// impl LoggingInterceptor for MyLoggingInterceptor {
+///     fn log(
+///         &self,
+///         info: &raw::AccessorInfo,
+///         operation: raw::Operation,
+///         context: &[(&str, &str)],
+///         message: &str,
+///         err: Option<&Error>,
+///     ) {
+///         // log something
+///     }
+/// }
+///
+/// let _ = Operator::new(services::Memory::default())
+///     .expect("must init")
+///     .layer(LoggingLayer::new(MyLoggingInterceptor))
+///     .finish();
+/// ```
+#[derive(Debug)]
+pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
+    logger: I,
 }
 
 impl Default for LoggingLayer {
     fn default() -> Self {
         Self {
-            error_level: Some(Level::Warn),
-            failure_level: Some(Level::Error),
-            backtrace_output: false,
+            logger: DefaultLoggingInterceptor,
         }
     }
 }
 
 impl LoggingLayer {
-    /// Setting the log level while expected error happened.
-    ///
-    /// For example: accessor returns NotFound.
-    ///
-    /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level_str) = level {
-            let level = level_str.parse().map_err(|_| {
-                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
-                    .with_context("level", level_str)
-            })?;
-            self.error_level = Some(level);
-        } else {
-            self.error_level = None;
-        }
-        Ok(self)
-    }
-
-    /// Setting the log level while unexpected failure happened.
-    ///
-    /// For example: accessor returns Unexpected network error.
-    ///
-    /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level_str) = level {
-            let level = level_str.parse().map_err(|_| {
-                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
-                    .with_context("level", level_str)
-            })?;
-            self.failure_level = Some(level);
-        } else {
-            self.failure_level = None;
-        }
-        Ok(self)
-    }
-
-    /// Setting whether to output backtrace while unexpected failure happened.
-    ///
-    /// # Notes
-    ///
-    /// - When the error is an expected error, backtrace will not be output.
-    /// - backtrace output is disable by default.
-    pub fn with_backtrace_output(mut self, enable: bool) -> Self {
-        self.backtrace_output = enable;
-        self
+    /// Create the layer with specific logging interceptor.
+    pub fn new<I: LoggingInterceptor>(logger: I) -> LoggingLayer<I> {
+        LoggingLayer { logger }
     }
 }
 
-impl<A: Access> Layer<A> for LoggingLayer {
-    type LayeredAccess = LoggingAccessor<A>;
+impl<A: Access, I: LoggingInterceptor> Layer<A> for LoggingLayer<I> {
+    type LayeredAccess = LoggingAccessor<A, I>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let meta = inner.info();
+        let info = inner.info();
         LoggingAccessor {
             inner,
 
-            ctx: LoggingContext {
-                scheme: meta.scheme(),
-                error_level: self.error_level,
-                failure_level: self.failure_level,
-                backtrace_output: self.backtrace_output,
-            },
+            info,
+            logger: self.logger.clone(),
         }
+    }
+}
+
+/// LoggingInterceptor is used to intercept the log.
+pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
+    /// Everytime there is a log, this function will be called.
+    ///
+    /// # Inputs
+    ///
+    /// - info: The service's access info.
+    /// - operation: The operation to log.
+    /// - context: Additional context of the log like path, etc.
+    /// - message: The log message.
+    /// - err: The error to log.
+    ///
+    /// # Note
+    ///
+    /// Users should avoid calling resource-intensive operations such as I/O or network
+    /// functions here, especially anything that takes longer than 10ms. Otherwise, Opendal
+    /// could perform unexpectedly slow.
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+
+/// The DefaultLoggingInterceptor will log the message by the standard logging macro.
+#[derive(Debug, Copy, Clone, Default)]
+pub struct DefaultLoggingInterceptor;
+
+impl LoggingInterceptor for DefaultLoggingInterceptor {
+    #[inline]
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    ) {
+        if let Some(err) = err {
+            // Print error if it's unexpected, otherwise in warn.
+            let lvl = if err.kind() == ErrorKind::Unexpected {
+                Level::Error
+            } else {
+                Level::Warn
+            };
+
+            log!(
+                target: LOGGING_TARGET,
+                lvl,
+                "service={} name={} {}: {operation} {message} {}",
+                info.scheme(),
+                info.name(),
+                LoggingContext(context),
+                // Print error message with debug output while unexpected happened.
+                //
+                // It's super sad that we can't bind `format_args!()` here.
+                // See: https://github.com/rust-lang/rust/issues/92698
+                if err.kind() != ErrorKind::Unexpected {
+                   format!("{err}")
+                } else {
+                   format!("{err:?}")
+                }
+            );
+        }
+
+        // Print debug message if operation is oneshot, otherwise in trace.
+        let lvl = if operation.is_oneshot() {
+            Level::Debug
+        } else {
+            Level::Trace
+        };
+
+        log!(
+            target: LOGGING_TARGET,
+            lvl,
+            "service={} name={} {}: {operation} {message}",
+            info.scheme(),
+            info.name(),
+            LoggingContext(context),
+        );
+    }
+}
+
+struct LoggingContext<'a>(&'a [(&'a str, &'a str)]);
+
+impl<'a> Display for LoggingContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, (k, v)) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, " {}={}", k, v)?;
+            } else {
+                write!(f, "{}={}", k, v)?;
+            }
+        }
+        Ok(())
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct LoggingContext {
-    scheme: Scheme,
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-    backtrace_output: bool,
-}
-
-impl LoggingContext {
-    #[inline]
-    fn error_level(&self, err: &Error) -> Option<Level> {
-        if err.kind() == ErrorKind::Unexpected {
-            self.failure_level
-        } else {
-            self.error_level
-        }
-    }
-
-    /// Print error with backtrace if it's unexpected error.
-    #[inline]
-    fn error_print(&self, err: &Error) -> String {
-        // Don't print backtrace if it's not unexpected error.
-        if err.kind() != ErrorKind::Unexpected {
-            return format!("{err}");
-        }
-
-        if self.backtrace_output {
-            format!("{err:?}")
-        } else {
-            format!("{err}")
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct LoggingAccessor<A: Access> {
+pub struct LoggingAccessor<A: Access, I: LoggingInterceptor> {
     inner: A,
 
-    ctx: LoggingContext,
+    info: Arc<AccessorInfo>,
+    logger: I,
 }
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-impl<A: Access> LayeredAccess for LoggingAccessor<A> {
+impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type Inner = A;
-    type Reader = LoggingReader<A::Reader>;
-    type BlockingReader = LoggingReader<A::BlockingReader>;
-    type Writer = LoggingWriter<A::Writer>;
-    type BlockingWriter = LoggingWriter<A::BlockingWriter>;
-    type Lister = LoggingLister<A::Lister>;
-    type BlockingLister = LoggingLister<A::BlockingLister>;
+    type Reader = LoggingReader<A::Reader, I>;
+    type BlockingReader = LoggingReader<A::BlockingReader, I>;
+    type Writer = LoggingWriter<A::Writer, I>;
+    type BlockingWriter = LoggingWriter<A::BlockingWriter, I>;
+    type Lister = LoggingLister<A::Lister, I>;
+    type BlockingLister = LoggingLister<A::BlockingLister, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     fn metadata(&self) -> Arc<AccessorInfo> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} -> started",
-            self.ctx.scheme,
-            Operation::Info
-        );
-        let result = self.inner.info();
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} -> finished: {:?}",
-            self.ctx.scheme,
-            Operation::Info,
-            result
-        );
+        self.logger
+            .log(&self.info, Operation::Info, &[], "started", None);
 
-        result
+        let info = self.info.clone();
+
+        self.logger
+            .log(&self.info, Operation::Info, &[], "finished", None);
+
+        info
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::CreateDir,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .create_dir(path, args)
             .await
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::CreateDir,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::CreateDir,
-                        path,
-                        self.ctx.error_print(&err)
-                    )
-                };
+                self.logger.log(
+                    &self.info,
+                    Operation::CreateDir,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Read,
-            path,
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .read(path, args)
             .await
             .map(|(rp, r)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> got reader",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Read,
-                    path,
+                    &[("path", path)],
+                    "created reader",
+                    None,
                 );
                 (
                     rp,
-                    LoggingReader::new(self.ctx.clone(), Operation::Read, path, r),
+                    LoggingReader::new(self.info.clone(), self.logger.clone(), path, r),
                 )
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Read,
-                        path,
-                        self.ctx.error_print(&err)
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::Read,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Write,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .write(path, args)
             .await
             .map(|(rp, w)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start writing",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Write,
-                    path,
+                    &[("path", path)],
+                    "created writer",
+                    None,
                 );
-                let w = LoggingWriter::new(self.ctx.clone(), Operation::Write, path, w);
+                let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Write,
-                        path,
-                        self.ctx.error_print(&err)
-                    )
-                };
+                self.logger.log(
+                    &self.info,
+                    Operation::Write,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} from={} to={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Copy,
-            from,
-            to
+            &[("from", from), ("to", to)],
+            "started",
+            None,
         );
 
         self.inner
             .copy(from, to, args)
             .await
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} from={} to={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Copy,
-                    from,
-                    to
+                    &[("from", from), ("to", to)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} from={} to={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Copy,
-                        from,
-                        to,
-                        self.ctx.error_print(&err),
-                    )
-                };
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[("from", from), ("to", to)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} from={} to={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Rename,
-            from,
-            to
+            &[("from", from), ("to", to)],
+            "started",
+            None,
         );
 
         self.inner
             .rename(from, to, args)
             .await
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} from={} to={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Rename,
-                    from,
-                    to
+                    &[("from", from), ("to", to)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} from={} to={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Rename,
-                        from,
-                        to,
-                        self.ctx.error_print(&err)
-                    )
-                };
+                self.logger.log(
+                    &self.info,
+                    Operation::Rename,
+                    &[("from", from), ("to", to)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Stat,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .stat(path, args)
             .await
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished: {v:?}",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Stat,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Stat,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                };
+                self.logger.log(
+                    &self.info,
+                    Operation::Stat,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Delete,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .delete(path, args.clone())
             .inspect(|v| match v {
                 Ok(_) => {
-                    debug!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} -> finished",
-                        self.ctx.scheme,
+                    self.logger.log(
+                        &self.info,
                         Operation::Delete,
-                        path
+                        &[("path", path)],
+                        "finished",
+                        None,
                     );
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.ctx.error_level(err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} -> {}",
-                            self.ctx.scheme,
-                            Operation::Delete,
-                            path,
-                            self.ctx.error_print(err)
-                        );
-                    }
+                    self.logger.log(
+                        &self.info,
+                        Operation::Delete,
+                        &[("path", path)],
+                        "failed",
+                        Some(err),
+                    );
                 }
             })
             .await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::List,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .list(path, args)
             .map(|v| match v {
                 Ok((rp, v)) => {
-                    debug!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} -> start listing dir",
-                        self.ctx.scheme,
+                    self.logger.log(
+                        &self.info,
                         Operation::List,
-                        path
+                        &[("path", path)],
+                        "created lister",
+                        None,
                     );
-                    let streamer = LoggingLister::new(self.ctx.clone(), path, Operation::List, v);
+                    let streamer =
+                        LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
                     Ok((rp, streamer))
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.ctx.error_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} -> {}",
-                            self.ctx.scheme,
-                            Operation::List,
-                            path,
-                            self.ctx.error_print(&err)
-                        );
-                    }
+                    self.logger.log(
+                        &self.info,
+                        Operation::List,
+                        &[("path", path)],
+                        "failed",
+                        Some(&err),
+                    );
                     Err(err)
                 }
             })
@@ -559,39 +556,35 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Presign,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .presign(path, args)
             .await
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished: {v:?}",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Presign,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Presign,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::Presign,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
@@ -599,471 +592,437 @@ impl<A: Access> LayeredAccess for LoggingAccessor<A> {
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
 
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={}-{op} count={count} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::Batch,
+            &[("op", op.into_static()), ("count", &count.to_string())],
+            "started",
+            None,
         );
 
         self.inner
             .batch(args)
             .map_ok(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={}-{op} count={count} -> finished: {}, succeed: {}, failed: {}",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::Batch,
-                    v.results().len(),
-                    v.results().iter().filter(|(_, v)|v.is_ok()).count(),
-                    v.results().iter().filter(|(_, v)|v.is_err()).count(),
+                    &[("op", op.into_static()), ("count", &count.to_string())],
+                    &format!(
+                        "finished: {}, succeed: {}, failed: {}",
+                        v.results().len(),
+                        v.results().iter().filter(|(_, v)| v.is_ok()).count(),
+                        v.results().iter().filter(|(_, v)| v.is_err()).count(),
+                    ),
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={}-{op} count={count} -> {}",
-                        self.ctx.scheme,
-                        Operation::Batch,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::Batch,
+                    &[("op", op.into_static()), ("count", &count.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
             .await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingCreateDir,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_create_dir(path, args)
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingCreateDir,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingCreateDir,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingCreateDir,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingRead,
-            path,
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_read(path, args.clone())
             .map(|(rp, r)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> got reader",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingRead,
-                    path,
+                    &[("path", path)],
+                    "created reader",
+                    None,
                 );
-                let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
+                let r = LoggingReader::new(self.info.clone(), self.logger.clone(), path, r);
                 (rp, r)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingRead,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingRead,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingWrite,
-            path,
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start writing",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingWrite,
-                    path,
+                    &[("path", path)],
+                    "created writer",
+                    None,
                 );
-                let w = LoggingWriter::new(self.ctx.clone(), Operation::BlockingWrite, path, w);
+                let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingWrite,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingWrite,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} from={} to={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingCopy,
-            from,
-            to,
+            &[("from", from), ("to", to)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_copy(from, to, args)
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} from={} to={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingCopy,
-                    from,
-                    to,
+                    &[("from", from), ("to", to)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} from={} to={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingCopy,
-                        from,
-                        to,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingCopy,
+                    &[("from", from), ("to", to)],
+                    "",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} from={} to={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingRename,
-            from,
-            to,
+            &[("from", from), ("to", to)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_rename(from, to, args)
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} from={} to={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingRename,
-                    from,
-                    to,
+                    &[("from", from), ("to", to)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} from={} to={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingRename,
-                        from,
-                        to,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingRename,
+                    &[("from", from), ("to", to)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingStat,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_stat(path, args)
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished: {v:?}",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingStat,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingStat,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingStat,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingDelete,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_delete(path, args)
             .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingDelete,
-                    path
+                    &[("path", path)],
+                    "finished",
+                    None,
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingDelete,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingDelete,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
+        self.logger.log(
+            &self.info,
             Operation::BlockingList,
-            path
+            &[("path", path)],
+            "started",
+            None,
         );
 
         self.inner
             .blocking_list(path, args)
             .map(|(rp, v)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> got dir",
-                    self.ctx.scheme,
+                self.logger.log(
+                    &self.info,
                     Operation::BlockingList,
-                    path
+                    &[("path", path)],
+                    "created lister",
+                    None,
                 );
-                let li = LoggingLister::new(self.ctx.clone(), path, Operation::BlockingList, v);
+                let li = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
                 (rp, li)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::BlockingList,
-                        path,
-                        self.ctx.error_print(&err)
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingList,
+                    &[("path", path)],
+                    "",
+                    Some(&err),
+                );
                 err
             })
     }
 }
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-pub struct LoggingReader<R> {
-    ctx: LoggingContext,
+pub struct LoggingReader<R, I: LoggingInterceptor> {
+    info: Arc<AccessorInfo>,
+    logger: I,
     path: String,
-    op: Operation,
 
-    read: AtomicU64,
+    read: u64,
     inner: R,
 }
 
-impl<R> LoggingReader<R> {
-    fn new(ctx: LoggingContext, op: Operation, path: &str, reader: R) -> Self {
+impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
+    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, reader: R) -> Self {
         Self {
-            ctx,
-            op,
+            info,
+            logger,
             path: path.to_string(),
 
-            read: AtomicU64::new(0),
+            read: 0,
             inner: reader,
         }
     }
 }
 
-impl<R> Drop for LoggingReader<R> {
-    fn drop(&mut self) {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} read={} -> data read finished",
-            self.ctx.scheme,
-            self.op,
-            self.path,
-            self.read.load(Ordering::Relaxed)
-        );
-    }
-}
-
-impl<R: oio::Read> oio::Read for LoggingReader<R> {
+impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
+        self.logger.log(
+            &self.info,
+            Operation::ReaderRead,
+            &[("path", &self.path), ("read", &self.read.to_string())],
+            "started",
+            None,
+        );
+
         match self.inner.read().await {
             Ok(bs) => {
-                self.read
-                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> read returns {}B",
-                    self.ctx.scheme,
-                    ReadOperation::Read,
-                    self.path,
-                    self.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                self.read += bs.len() as u64;
+                self.logger.log(
+                    &self.info,
+                    Operation::ReaderRead,
+                    &[
+                        ("path", &self.path),
+                        ("read", &self.read.to_string()),
+                        ("size", &bs.len().to_string()),
+                    ],
+                    if bs.is_empty() {
+                        "finished"
+                    } else {
+                        "succeeded"
+                    },
+                    None,
                 );
                 Ok(bs)
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::Read,
-                        self.path,
-                        self.read.load(Ordering::Relaxed),
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::ReaderRead,
+                    &[("path", &self.path), ("read", &self.read.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
+impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingReader<R, I> {
     fn read(&mut self) -> Result<Buffer> {
+        self.logger.log(
+            &self.info,
+            Operation::BlockingReaderRead,
+            &[("path", &self.path), ("read", &self.read.to_string())],
+            "started",
+            None,
+        );
+
         match self.inner.read() {
             Ok(bs) => {
-                self.read
-                    .fetch_add(bs.remaining() as u64, Ordering::Relaxed);
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} read={} -> read returns {}B",
-                    self.ctx.scheme,
-                    ReadOperation::BlockingRead,
-                    self.path,
-                    self.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                self.read += bs.len() as u64;
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingReaderRead,
+                    &[
+                        ("path", &self.path),
+                        ("read", &self.read.to_string()),
+                        ("size", &bs.len().to_string()),
+                    ],
+                    if bs.is_empty() {
+                        "finished"
+                    } else {
+                        "succeeded"
+                    },
+                    None,
                 );
                 Ok(bs)
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} read={} -> read failed: {}",
-                        self.ctx.scheme,
-                        ReadOperation::BlockingRead,
-                        self.path,
-                        self.read.load(Ordering::Relaxed),
-                        self.ctx.error_print(&err),
-                    );
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingReaderRead,
+                    &[("path", &self.path), ("read", &self.read.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 }
 
-pub struct LoggingWriter<W> {
-    ctx: LoggingContext,
-    op: Operation,
+pub struct LoggingWriter<W, I> {
+    info: Arc<AccessorInfo>,
+    logger: I,
     path: String,
 
     written: u64,
     inner: W,
 }
 
-impl<W> LoggingWriter<W> {
-    fn new(ctx: LoggingContext, op: Operation, path: &str, writer: W) -> Self {
+impl<W, I> LoggingWriter<W, I> {
+    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, writer: W) -> Self {
         Self {
-            ctx,
-            op,
+            info,
+            logger,
             path: path.to_string(),
 
             written: 0,
@@ -1072,248 +1031,270 @@ impl<W> LoggingWriter<W> {
     }
 }
 
-impl<W: oio::Write> oio::Write for LoggingWriter<W> {
+impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();
+
+        self.logger.log(
+            &self.info,
+            Operation::WriterWrite,
+            &[
+                ("path", &self.path),
+                ("written", &self.written.to_string()),
+                ("size", &size.to_string()),
+            ],
+            "started",
+            None,
+        );
+
         match self.inner.write(bs).await {
             Ok(_) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> data write {}B",
-                    self.ctx.scheme,
-                    WriteOperation::Write,
-                    self.path,
-                    self.written,
-                    size,
+                self.written += size as u64;
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterWrite,
+                    &[
+                        ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "succeeded",
+                    None,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={}B -> data write failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::Write,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterWrite,
+                    &[
+                        ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.logger.log(
+            &self.info,
+            Operation::WriterAbort,
+            &[("path", &self.path), ("written", &self.written.to_string())],
+            "started",
+            None,
+        );
+
         match self.inner.abort().await {
             Ok(_) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> abort writer",
-                    self.ctx.scheme,
-                    WriteOperation::Abort,
-                    self.path,
-                    self.written,
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterAbort,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "succeeded",
+                    None,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={}B -> abort writer failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::Abort,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterAbort,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 
     async fn close(&mut self) -> Result<()> {
+        self.logger.log(
+            &self.info,
+            Operation::WriterClose,
+            &[("path", &self.path), ("written", &self.written.to_string())],
+            "started",
+            None,
+        );
+
         match self.inner.close().await {
             Ok(_) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> data written finished",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                    self.written
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterClose,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "succeeded",
+                    None,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={}B -> data close failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::Close,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::WriterClose,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 }
 
-impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
+impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for LoggingWriter<W, I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
-        match self.inner.write(bs.clone()) {
+        let size = bs.len();
+
+        self.logger.log(
+            &self.info,
+            Operation::BlockingWriterWrite,
+            &[
+                ("path", &self.path),
+                ("written", &self.written.to_string()),
+                ("size", &size.to_string()),
+            ],
+            "started",
+            None,
+        );
+
+        match self.inner.write(bs) {
             Ok(_) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> data write {}B",
-                    self.ctx.scheme,
-                    WriteOperation::BlockingWrite,
-                    self.path,
-                    self.written,
-                    bs.len(),
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingWriterWrite,
+                    &[
+                        ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "succeeded",
+                    None,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={}B -> data write failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::BlockingWrite,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingWriterWrite,
+                    &[
+                        ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 
     fn close(&mut self) -> Result<()> {
+        self.logger.log(
+            &self.info,
+            Operation::BlockingWriterClose,
+            &[("path", &self.path), ("written", &self.written.to_string())],
+            "started",
+            None,
+        );
+
         match self.inner.close() {
             Ok(_) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={}B -> data written finished",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                    self.written
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingWriterWrite,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "succeeded",
+                    None,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={}B -> data close failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::BlockingClose,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingWriterClose,
+                    &[("path", &self.path), ("written", &self.written.to_string())],
+                    "failed",
+                    Some(&err),
+                );
                 Err(err)
             }
         }
     }
 }
 
-pub struct LoggingLister<P> {
-    ctx: LoggingContext,
+pub struct LoggingLister<P, I: LoggingInterceptor> {
+    info: Arc<AccessorInfo>,
+    logger: I,
     path: String,
-    op: Operation,
 
-    finished: bool,
+    listed: usize,
     inner: P,
 }
 
-impl<P> LoggingLister<P> {
-    fn new(ctx: LoggingContext, path: &str, op: Operation, inner: P) -> Self {
+impl<P, I: LoggingInterceptor> LoggingLister<P, I> {
+    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, inner: P) -> Self {
         Self {
-            ctx,
+            info,
+            logger,
             path: path.to_string(),
-            op,
-            finished: false,
+
+            listed: 0,
             inner,
         }
     }
 }
 
-impl<P> Drop for LoggingLister<P> {
-    fn drop(&mut self) {
-        if self.finished {
-            debug!(
-                target: LOGGING_TARGET,
-                "service={} operation={} path={} -> all entries read finished",
-                self.ctx.scheme,
-                self.op,
-                self.path
-            );
-        } else {
-            debug!(
-                target: LOGGING_TARGET,
-                "service={} operation={} path={} -> partial entries read finished",
-                self.ctx.scheme,
-                self.op,
-                self.path
-            );
-        }
-    }
-}
-
-impl<P: oio::List> oio::List for LoggingLister<P> {
+impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.logger.log(
+            &self.info,
+            Operation::ListerNext,
+            &[("path", &self.path), ("listed", &self.listed.to_string())],
+            "started",
+            None,
+        );
+
         let res = self.inner.next().await;
 
         match &res {
             Ok(Some(de)) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> listed entry: {}",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                    de.path(),
+                self.listed += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::ListerNext,
+                    &[
+                        ("path", &self.path),
+                        ("listed", &self.listed.to_string()),
+                        ("entry", de.path()),
+                    ],
+                    "succeeded",
+                    None,
                 );
             }
             Ok(None) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path
+                self.logger.log(
+                    &self.info,
+                    Operation::ListerNext,
+                    &[("path", &self.path), ("listed", &self.listed.to_string())],
+                    "finished",
+                    None,
                 );
-                self.finished = true;
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        self.op,
-                        self.path,
-                        self.ctx.error_print(err)
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::ListerNext,
+                    &[("path", &self.path), ("listed", &self.listed.to_string())],
+                    "failed",
+                    Some(err),
+                );
             }
         };
 
@@ -1321,43 +1302,49 @@ impl<P: oio::List> oio::List for LoggingLister<P> {
     }
 }
 
-impl<P: oio::BlockingList> oio::BlockingList for LoggingLister<P> {
+impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingLister<P, I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let res = self.inner.next();
+        self.logger.log(
+            &self.info,
+            Operation::BlockingListerNext,
+            &[("path", &self.path), ("listed", &self.listed.to_string())],
+            "started",
+            None,
+        );
 
+        let res = self.inner.next();
         match &res {
-            Ok(Some(des)) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> listed entry: {}",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                    des.path(),
+            Ok(Some(de)) => {
+                self.listed += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingListerNext,
+                    &[
+                        ("path", &self.path),
+                        ("listed", &self.listed.to_string()),
+                        ("entry", de.path()),
+                    ],
+                    "succeeded",
+                    None,
                 );
             }
             Ok(None) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingListerNext,
+                    &[("path", &self.path), ("listed", &self.listed.to_string())],
+                    "finished",
+                    None,
                 );
-                self.finished = true;
             }
             Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        self.op,
-                        self.path,
-                        self.ctx.error_print(err)
-                    )
-                }
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingListerNext,
+                    &[("path", &self.path), ("listed", &self.listed.to_string())],
+                    "failed",
+                    Some(err),
+                );
             }
         };
 

@@ -25,12 +25,12 @@ use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
 use redis::cluster_async::ClusterConnection;
-use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
+use redis::{AsyncCommands, ProtocolVersion};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -99,7 +99,8 @@ impl Debug for RedisConfig {
 }
 
 impl Configurator for RedisConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = RedisBuilder;
+    fn into_builder(self) -> Self::Builder {
         RedisBuilder { config: self }
     }
 }
@@ -311,6 +312,7 @@ impl RedisBuilder {
             db: self.config.db,
             username: self.config.username.clone(),
             password: self.config.password.clone(),
+            protocol: ProtocolVersion::RESP2,
         };
 
         Ok(ConnectionInfo {
@@ -439,10 +441,10 @@ impl kv::Adapter for Adapter {
         let conn = self.conn().await?;
         match conn {
             RedisConnection::Normal(mut conn) => {
-                conn.append(key, value).await.map_err(format_redis_error)?;
+                () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
             RedisConnection::Cluster(mut conn) => {
-                conn.append(key, value).await.map_err(format_redis_error)?;
+                () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
         }
         Ok(())

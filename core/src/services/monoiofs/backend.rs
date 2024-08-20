@@ -44,7 +44,8 @@ pub struct MonoiofsConfig {
 }
 
 impl Configurator for MonoiofsConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = MonoiofsBuilder;
+    fn into_builder(self) -> Self::Builder {
         MonoiofsBuilder { config: self }
     }
 }

@@ -434,7 +434,7 @@ impl DropboxCore {
                     } else {
                         let err = Error::new(
                             ErrorKind::Unexpected,
-                            &format!("delete failed with error {} {}", error.tag, error_cause),
+                            format!("delete failed with error {} {}", error.tag, error_cause),
                         );
                         ("".to_string(), Err(err))
                     }
@@ -443,7 +443,7 @@ impl DropboxCore {
                     "".to_string(),
                     Err(Error::new(
                         ErrorKind::Unexpected,
-                        &format!("delete failed with unexpected tag {}", entry.tag),
+                        format!("delete failed with unexpected tag {}", entry.tag),
                     )),
                 ),
             };

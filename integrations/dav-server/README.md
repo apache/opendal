@@ -23,7 +23,7 @@ This crate can help you to access ANY storage services with the same webdav API.
 ```
 use anyhow::Result;
 use dav_server::davpath::DavPath;
-carguse dav_server_opendalfs::OpendalFs;
+use dav_server_opendalfs::OpendalFs;
 use opendal::services::Memory;
 use opendal::Operator;
 

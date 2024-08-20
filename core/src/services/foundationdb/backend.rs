@@ -37,14 +37,14 @@ use crate::*;
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct FoundationConfig {
+pub struct FoundationdbConfig {
     ///root of the backend.
     pub root: Option<String>,
     ///config_path for the backend.
     pub config_path: Option<String>,
 }
 
-impl Debug for FoundationConfig {
+impl Debug for FoundationdbConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("FoundationConfig");
 
@@ -55,8 +55,9 @@ impl Debug for FoundationConfig {
     }
 }
 
-impl Configurator for FoundationConfig {
-    fn into_builder(self) -> impl Builder {
+impl Configurator for FoundationdbConfig {
+    type Builder = FoundationdbBuilder;
+    fn into_builder(self) -> Self::Builder {
         FoundationdbBuilder { config: self }
     }
 }
@@ -64,7 +65,7 @@ impl Configurator for FoundationConfig {
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {
-    config: FoundationConfig,
+    config: FoundationdbConfig,
 }
 
 impl FoundationdbBuilder {
@@ -83,7 +84,7 @@ impl FoundationdbBuilder {
 
 impl Builder for FoundationdbBuilder {
     const SCHEME: Scheme = Scheme::Foundationdb;
-    type Config = FoundationConfig;
+    type Config = FoundationdbConfig;
 
     fn build(self) -> Result<impl Access> {
         let _network = Arc::new(unsafe { foundationdb::boot() });

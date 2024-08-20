@@ -59,7 +59,8 @@ impl Debug for HdfsNativeConfig {
 }
 
 impl Configurator for HdfsNativeConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = HdfsNativeBuilder;
+    fn into_builder(self) -> Self::Builder {
         HdfsNativeBuilder { config: self }
     }
 }

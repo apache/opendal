@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.45.7"
+version = "0.45.8"
 
 [features]
 default = [
@@ -69,7 +69,8 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
-  "services-mysql",
+  # Workaround for https://github.com/apache/opendal/issues/5000
+  # "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME how to support rocksdb services in bindings?

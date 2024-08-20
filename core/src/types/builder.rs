@@ -94,7 +94,36 @@ impl Builder for () {
 ///     Ok(())
 /// }
 /// ```
+///
+/// Some service builder might contain in memory options like `http_client` . Users can call
+/// `into_builder` to convert the configuration into a builder instead.
+///
+/// ```
+/// # use anyhow::Result;
+/// use std::collections::HashMap;
+///
+/// use opendal::services::S3Config;
+/// use opendal::{Configurator, Operator};
+/// use opendal::raw::HttpClient;
+///
+/// async fn test() -> Result<()> {
+///     let mut cfg = S3Config::default();
+///     cfg.root = Some("/".to_string());
+///     cfg.bucket = "test".to_string();
+///
+///     let builder = cfg.into_builder();
+///     let builder = builder.http_client(HttpClient::new()?);
+///
+///     // Build an `Operator` to start operating the storage.
+///     let op: Operator = Operator::new(builder)?.finish();
+///
+///     Ok(())
+/// }
+/// ```
 pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
+    /// Associated builder for this configuration.
+    type Builder: Builder;
+
     /// Deserialize from an iterator.
     ///
     /// This API is provided by opendal, developer should not implement it.
@@ -107,9 +136,11 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     }
 
     /// Convert this configuration into a service builder.
-    fn into_builder(self) -> impl Builder;
+    fn into_builder(self) -> Self::Builder;
 }
 
 impl Configurator for () {
-    fn into_builder(self) -> impl Builder {}
+    type Builder = ();
+
+    fn into_builder(self) -> Self::Builder {}
 }

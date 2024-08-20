@@ -57,7 +57,8 @@ impl Debug for DropboxConfig {
 }
 
 impl Configurator for DropboxConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = DropboxBuilder;
+    fn into_builder(self) -> Self::Builder {
         DropboxBuilder {
             config: self,
             http_client: None,

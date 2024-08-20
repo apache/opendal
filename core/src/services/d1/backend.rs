@@ -67,7 +67,8 @@ impl Debug for D1Config {
 }
 
 impl Configurator for D1Config {
-    fn into_builder(self) -> impl Builder {
+    type Builder = D1Builder;
+    fn into_builder(self) -> Self::Builder {
         D1Builder {
             config: self,
             http_client: None,

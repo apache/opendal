@@ -119,7 +119,8 @@ impl Debug for AzblobConfig {
 }
 
 impl Configurator for AzblobConfig {
-    fn into_builder(self) -> impl Builder {
+    type Builder = AzblobBuilder;
+    fn into_builder(self) -> Self::Builder {
         AzblobBuilder {
             config: self,
             http_client: None,

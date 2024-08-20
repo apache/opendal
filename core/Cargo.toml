@@ -350,7 +350,12 @@ compio = { version = "0.11.0", optional = true, features = [
 crc32c = { version = "0.6.6", optional = true }
 # for services-monoiofs
 flume = { version = "0.11", optional = true }
-monoio = { version = "0.2.3", optional = true, features = ["sync"] }
+monoio = { version = "0.2.4", optional = true, features = [
+  "sync",
+  "mkdirat",
+  "unlinkat",
+  "renameat",
+] }
 
 # Layers
 # for layers-async-backtrace

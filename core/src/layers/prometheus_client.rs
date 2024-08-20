@@ -57,7 +57,7 @@ use crate::*;
 ///
 ///     let op = Operator::new(builder)
 ///         .expect("must init")
-///         .layer(PrometheusClientLayer::with_registry(&mut registry))
+///         .layer(PrometheusClientLayer::new(&mut registry))
 ///         .finish();
 ///     debug!("operator: {op:?}");
 ///
@@ -320,6 +320,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::CreateDir.into_static(),
             start_time.elapsed(),
         );
+
         create_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::CreateDir.into_static(), e.kind());
@@ -328,16 +329,17 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let start = Instant::now();
+        self.metrics
+            .increment_request_total(self.scheme, Operation::Read.into_static());
 
+        let start = Instant::now();
         let res = self.inner.read(path, args).await;
+
         self.metrics.observe_request_duration(
             self.scheme,
             Operation::Read.into_static(),
             start.elapsed(),
         );
-        self.metrics
-            .increment_request_total(self.scheme, Operation::Read.into_static());
 
         match res {
             Ok((rp, r)) => Ok((
@@ -353,19 +355,17 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let start = Instant::now();
-
         self.metrics
             .increment_request_total(self.scheme, Operation::Write.into_static());
 
+        let start = Instant::now();
         let res = self.inner.write(path, args).await;
+
         self.metrics.observe_request_duration(
             self.scheme,
             Operation::Write.into_static(),
             start.elapsed(),
         );
-        self.metrics
-            .increment_request_total(self.scheme, Operation::Write.into_static());
 
         match res {
             Ok((rp, w)) => Ok((
@@ -383,8 +383,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Stat.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let stat_res = self
             .inner
             .stat(path, args)
@@ -399,6 +399,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::Stat.into_static(),
             start_time.elapsed(),
         );
+
         stat_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::Stat.into_static(), e.kind());
@@ -409,8 +410,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Delete.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let delete_res = self.inner.delete(path, args).await;
 
         self.metrics.observe_request_duration(
@@ -418,6 +419,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::Delete.into_static(),
             start_time.elapsed(),
         );
+
         delete_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::Delete.into_static(), e.kind());
@@ -428,8 +430,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::List.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let list_res = self.inner.list(path, args).await;
 
         self.metrics.observe_request_duration(
@@ -437,6 +439,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::List.into_static(),
             start_time.elapsed(),
         );
+
         list_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::List.into_static(), e.kind());
@@ -447,8 +450,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Batch.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.batch(args).await;
 
         self.metrics.observe_request_duration(
@@ -456,6 +459,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::Batch.into_static(),
             start_time.elapsed(),
         );
+
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::Batch.into_static(), e.kind());
@@ -466,8 +470,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Presign.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.presign(path, args).await;
 
         self.metrics.observe_request_duration(
@@ -475,6 +479,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::Presign.into_static(),
             start_time.elapsed(),
         );
+
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::Presign.into_static(), e.kind());
@@ -485,8 +490,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingCreateDir.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.blocking_create_dir(path, args);
 
         self.metrics.observe_request_duration(
@@ -494,6 +499,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::BlockingCreateDir.into_static(),
             start_time.elapsed(),
         );
+
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::BlockingCreateDir.into_static(), e.kind());
@@ -540,9 +546,10 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingStat.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.blocking_stat(path, args);
+
         self.metrics.observe_request_duration(
             self.scheme,
             Operation::BlockingStat.into_static(),
@@ -559,8 +566,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingDelete.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.blocking_delete(path, args);
 
         self.metrics.observe_request_duration(
@@ -568,6 +575,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::BlockingDelete.into_static(),
             start_time.elapsed(),
         );
+
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::BlockingDelete.into_static(), e.kind());
@@ -578,8 +586,8 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingList.into_static());
-        let start_time = Instant::now();
 
+        let start_time = Instant::now();
         let result = self.inner.blocking_list(path, args);
 
         self.metrics.observe_request_duration(
@@ -587,6 +595,7 @@ impl<A: Access> LayeredAccess for PrometheusAccessor<A> {
             Operation::BlockingList.into_static(),
             start_time.elapsed(),
         );
+
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(Operation::BlockingList.into_static(), e.kind());
@@ -692,26 +701,6 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        let start = Instant::now();
-
-        self.inner
-            .abort()
-            .await
-            .map(|_| {
-                self.metrics.observe_request_duration(
-                    self.scheme,
-                    Operation::WriterAbort.into_static(),
-                    start.elapsed(),
-                );
-            })
-            .map_err(|err| {
-                self.metrics
-                    .increment_errors_total(Operation::WriterAbort.into_static(), err.kind());
-                err
-            })
-    }
-
     async fn close(&mut self) -> Result<()> {
         let start = Instant::now();
 
@@ -728,6 +717,26 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map_err(|err| {
                 self.metrics
                     .increment_errors_total(Operation::WriterClose.into_static(), err.kind());
+                err
+            })
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let start = Instant::now();
+
+        self.inner
+            .abort()
+            .await
+            .map(|_| {
+                self.metrics.observe_request_duration(
+                    self.scheme,
+                    Operation::WriterAbort.into_static(),
+                    start.elapsed(),
+                );
+            })
+            .map_err(|err| {
+                self.metrics
+                    .increment_errors_total(Operation::WriterAbort.into_static(), err.kind());
                 err
             })
     }

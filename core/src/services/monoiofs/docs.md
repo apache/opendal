@@ -2,12 +2,12 @@
 
 This service can be used to:
 
-- [ ] stat
+- [x] stat
 - [x] read
 - [x] write
 - [ ] append
 - [ ] create_dir
-- [ ] delete
+- [x] delete
 - [ ] copy
 - [ ] rename
 - [ ] list

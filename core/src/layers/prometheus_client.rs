@@ -57,7 +57,7 @@ use crate::*;
 ///
 ///     let op = Operator::new(builder)
 ///         .expect("must init")
-///         .layer(PrometheusClientLayer::with_registry(&mut registry))
+///         .layer(PrometheusClientLayer::new(&mut registry))
 ///         .finish();
 ///     debug!("operator: {op:?}");
 ///

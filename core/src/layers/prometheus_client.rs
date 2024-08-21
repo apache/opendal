@@ -231,7 +231,7 @@ impl PrometheusClientMetrics {
     }
 
     fn increment_request_total(&self, labels: &OperationLabels) {
-        self.metrics.requests_total.get_or_create(&labels).inc();
+        self.metrics.requests_total.get_or_create(labels).inc();
     }
 
     fn increment_errors_total(&self, op: Operation, err: ErrorKind) {
@@ -242,18 +242,18 @@ impl PrometheusClientMetrics {
     fn observe_request_duration(&self, labels: &OperationLabels, duration: Duration) {
         self.metrics
             .request_duration_seconds
-            .get_or_create(&labels)
+            .get_or_create(labels)
             .observe(duration.as_secs_f64());
     }
 
     fn observe_bytes_total(&self, labels: &OperationLabels, bytes: usize) {
         self.metrics
             .bytes_total
-            .get_or_create(&labels)
+            .get_or_create(labels)
             .inc_by(bytes as u64);
         self.metrics
             .bytes
-            .get_or_create(&labels)
+            .get_or_create(labels)
             .observe(bytes as f64);
     }
 

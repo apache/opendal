@@ -24,8 +24,14 @@ use flume::Receiver;
 use flume::Sender;
 use futures::channel::oneshot;
 use futures::Future;
+use monoio::task::JoinHandle;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
+
+use crate::raw::*;
+use crate::*;
+
+pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 
 /// a boxed function that spawns task in current monoio runtime
 type TaskSpawner = Box<dyn FnOnce() + Send>;
@@ -33,12 +39,11 @@ type TaskSpawner = Box<dyn FnOnce() + Send>;
 #[derive(Debug)]
 pub struct MonoiofsCore {
     root: PathBuf,
-    #[allow(dead_code)]
     /// sender that sends [`TaskSpawner`] to worker threads
     tx: Sender<TaskSpawner>,
-    #[allow(dead_code)]
     /// join handles of worker threads
     threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
+    pub buf_pool: oio::PooledBuf,
 }
 
 impl MonoiofsCore {
@@ -59,11 +64,20 @@ impl MonoiofsCore {
             .collect();
         let threads = Mutex::new(threads);
 
-        Self { root, tx, threads }
+        Self {
+            root,
+            tx,
+            threads,
+            buf_pool: oio::PooledBuf::new(16).with_initial_capacity(BUFFER_SIZE),
+        }
     }
 
     pub fn root(&self) -> &PathBuf {
         &self.root
+    }
+
+    pub fn prepare_path(&self, path: &str) -> PathBuf {
+        self.root.join(path.trim_end_matches('/'))
     }
 
     /// entrypoint of each worker thread, sets up monoio runtimes and channels
@@ -82,9 +96,8 @@ impl MonoiofsCore {
         })
     }
 
-    #[allow(dead_code)]
-    /// create a TaskSpawner, send it to the thread pool and wait
-    /// for its result
+    /// Create a TaskSpawner, send it to the thread pool and wait
+    /// for its result. Task panic will propagate.
     pub async fn dispatch<F, Fut, T>(&self, f: F) -> T
     where
         F: FnOnce() -> Fut + 'static + Send,
@@ -93,32 +106,54 @@ impl MonoiofsCore {
     {
         // oneshot channel to send result back
         let (tx, rx) = oneshot::channel();
-        self.tx
+        let result = self
+            .tx
             .send_async(Box::new(move || {
+                // task will be spawned on current thread, task panic
+                // will cause current worker thread panic
                 monoio::spawn(async move {
-                    tx.send(f().await)
-                        // discard result because it may be non-Debug and
-                        // we don't need it to appear in the panic message
-                        .map_err(|_| ())
-                        .expect("send result from worker thread should success");
+                    // discard the result if send failed due to
+                    // MonoiofsCore::dispatch cancelled
+                    let _ = tx.send(f().await);
                 });
             }))
-            .await
-            .expect("send new TaskSpawner to worker thread should success");
-        match rx.await {
-            Ok(result) => result,
-            // tx is dropped without sending result, probably the worker
-            // thread has panicked.
-            Err(_) => self.propagate_worker_panic(),
-        }
+            .await;
+        self.unwrap(result);
+        self.unwrap(rx.await)
+    }
+
+    /// Create a TaskSpawner, send it to the thread pool, spawn the task
+    /// and return its [`JoinHandle`]. Task panic cannot propagate
+    /// through the [`JoinHandle`] and should be handled elsewhere.
+    pub async fn spawn<F, Fut, T>(&self, f: F) -> JoinHandle<T>
+    where
+        F: FnOnce() -> Fut + 'static + Send,
+        Fut: Future<Output = T>,
+        T: 'static + Send,
+    {
+        // oneshot channel to send JoinHandle back
+        let (tx, rx) = oneshot::channel();
+        let result = self
+            .tx
+            .send_async(Box::new(move || {
+                // task will be spawned on current thread, task panic
+                // will cause current worker thread panic
+                let handle = monoio::spawn(async move { f().await });
+                // discard the result if send failed due to
+                // MonoiofsCore::spawn cancelled
+                let _ = tx.send(handle);
+            }))
+            .await;
+        self.unwrap(result);
+        self.unwrap(rx.await)
     }
 
     /// This method always panics. It is called only when at least a
     /// worker thread has panicked or meet a broken rx, which is
     /// unrecoverable. It propagates worker thread's panic if there
     /// is any and panics on normally exited thread.
-    fn propagate_worker_panic(&self) -> ! {
-        let mut guard = self.threads.lock().unwrap();
+    pub fn propagate_worker_panic(&self) -> ! {
+        let mut guard = self.threads.lock().expect("worker thread has panicked");
         // wait until the panicked thread exits
         std::thread::sleep(Duration::from_millis(100));
         let threads = mem::take(&mut *guard);
@@ -136,6 +171,17 @@ impl MonoiofsCore {
             }
         }
         unreachable!("this method should panic")
+    }
+
+    /// Unwrap result if result is Ok, otherwise propagates worker thread's
+    /// panic. This method facilitates panic propagation in situation where
+    /// Err returned by broken channel indicates that the worker thread has
+    /// panicked.
+    pub fn unwrap<T, E>(&self, result: Result<T, E>) -> T {
+        match result {
+            Ok(result) => result,
+            Err(_) => self.propagate_worker_panic(),
+        }
     }
 }
 

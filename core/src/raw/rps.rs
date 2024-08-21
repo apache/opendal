@@ -60,7 +60,7 @@ pub struct PresignedRequest {
 
 impl PresignedRequest {
     /// Create a new PresignedRequest
-    pub fn new(method: http::Method, uri: http::Uri, headers: http::HeaderMap) -> Self {
+    pub const fn new(method: http::Method, uri: http::Uri, headers: http::HeaderMap) -> Self {
         Self {
             method,
             uri,
@@ -195,7 +195,7 @@ pub struct RpStat {
 
 impl RpStat {
     /// Create a new reply for `stat`.
-    pub fn new(meta: Metadata) -> Self {
+    pub const fn new(meta: Metadata) -> Self {
         RpStat { meta }
     }
 
@@ -217,7 +217,7 @@ pub struct RpWrite {}
 
 impl RpWrite {
     /// Create a new reply for `write`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }
@@ -228,7 +228,7 @@ pub struct RpCopy {}
 
 impl RpCopy {
     /// Create a new reply for `copy`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }
@@ -239,7 +239,7 @@ pub struct RpRename {}
 
 impl RpRename {
     /// Create a new reply for `rename`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

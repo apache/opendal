@@ -35,8 +35,8 @@ pub struct OpCreateDir {}
 
 impl OpCreateDir {
     /// Create a new `OpCreateDir`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {}
     }
 }
 
@@ -50,8 +50,10 @@ pub struct OpDelete {
 
 impl OpDelete {
     /// Create a new `OpDelete`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            version: None,
+        }
     }
 }
 
@@ -104,7 +106,14 @@ pub struct OpList {
 
 impl Default for OpList {
     fn default() -> Self {
-        OpList {
+        Self::new()
+    }
+}
+
+impl OpList {
+    /// Create a new `OpList`.
+    pub const fn new() -> Self {
+        Self {
             limit: None,
             start_after: None,
             recursive: false,
@@ -112,13 +121,6 @@ impl Default for OpList {
             metakey: Metakey::Mode.into(),
             concurrent: 1,
         }
-    }
-}
-
-impl OpList {
-    /// Create a new `OpList`.
-    pub fn new() -> Self {
-        Self::default()
     }
 
     /// Change the limit of this list operation.
@@ -259,7 +261,7 @@ pub struct OpBatch {
 
 impl OpBatch {
     /// Create a new batch options.
-    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
+    pub const fn new(ops: Vec<(String, BatchOperation)>) -> Self {
         Self { ops }
     }
 
@@ -269,7 +271,7 @@ impl OpBatch {
     }
 
     /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
+    pub const fn into_operation(self) -> Vec<(String, BatchOperation)> {
         self.ops
     }
 }
@@ -439,18 +441,18 @@ pub struct OpReader {
 
 impl Default for OpReader {
     fn default() -> Self {
-        Self {
-            concurrent: 1,
-            chunk: None,
-            gap: None,
-        }
+        Self::new()
     }
 }
 
 impl OpReader {
     /// Create a new `OpReader`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            concurrent: 1,
+            chunk: None,
+            gap: None,
+        }
     }
 
     /// Set the concurrent of the option
@@ -700,8 +702,10 @@ pub struct OpWriter {
 
 impl OpWriter {
     /// Create a new `OpWriter`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            chunk: None,
+        }
     }
 
     /// Get the chunk from op.
@@ -732,8 +736,8 @@ pub struct OpCopy {}
 
 impl OpCopy {
     /// Create a new `OpCopy`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {}
     }
 }
 
@@ -743,7 +747,7 @@ pub struct OpRename {}
 
 impl OpRename {
     /// Create a new `OpMove`.
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {}
     }
 }

@@ -57,7 +57,7 @@ impl BytesRange {
     ///
     /// - offset=None => `bytes=-<size>`, read `<size>` bytes from end.
     /// - offset=Some(0) => `bytes=0-<size>`, read `<size>` bytes from start.
-    pub fn new(offset: u64, size: Option<u64>) -> Self {
+    pub const fn new(offset: u64, size: Option<u64>) -> Self {
         BytesRange(offset, size)
     }
 

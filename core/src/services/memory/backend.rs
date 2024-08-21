@@ -139,7 +139,11 @@ impl typed_kv::Adapter for Adapter {
         let keys: Vec<_> = if path.is_empty() {
             inner.keys().cloned().collect()
         } else {
-            let right_range = format!("{}{}", path, std::char::MAX);
+            let right_range = if let Some(path) = path.strip_suffix('/') {
+                format!("{}0", path)
+            } else {
+                format!("{}{}", path, std::char::MAX)
+            };
             inner
                 .range(path.to_string()..right_range)
                 .map(|(k, _)| k.to_string())

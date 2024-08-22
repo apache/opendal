@@ -56,7 +56,7 @@ where
 
     /// Configure root within this backend.
     ///
-    /// This method asssume root is normalized.
+    /// This method assumes root is normalized.
     pub(crate) fn with_normalized_root(mut self, root: String) -> Self {
         self.root = root;
         self

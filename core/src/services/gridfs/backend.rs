@@ -193,7 +193,8 @@ impl Builder for GridFsBuilder {
             bucket,
             chunk_size,
             bucket_instance: OnceCell::new(),
-        }).with_normalized_root(root))
+        })
+        .with_normalized_root(root))
     }
 }
 

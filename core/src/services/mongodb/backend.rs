@@ -212,7 +212,8 @@ impl Builder for MongodbBuilder {
             collection_instance: OnceCell::new(),
             key_field,
             value_field,
-        }).with_normalized_root(root))
+        })
+        .with_normalized_root(root))
     }
 }
 

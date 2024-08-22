@@ -20,27 +20,13 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::RocksdbConfig;
 use crate::Result;
 use crate::*;
-
-/// Config for Rocksdb Service.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct RocksdbConfig {
-    /// The path to the rocksdb data directory.
-    pub datadir: Option<String>,
-    /// the working directory of the service. Can be "/path/to/dir"
-    ///
-    /// default is "/"
-    pub root: Option<String>,
-}
 
 impl Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;

@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::UpyunBuilder as Upyun;
-pub use backend::UpyunConfig;
 
 mod core;
 mod error;

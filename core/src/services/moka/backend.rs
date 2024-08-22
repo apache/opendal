@@ -22,53 +22,11 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;
+use crate::services::MokaConfig;
 use crate::*;
-
-/// Config for Moka services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MokaConfig {
-    /// Name for this cache instance.
-    pub name: Option<String>,
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
-    /// Sets the segments number of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub num_segments: Option<usize>,
-
-    /// root path of this backend
-    pub root: Option<String>,
-}
-
-impl Debug for MokaConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MokaConfig")
-            .field("name", &self.name)
-            .field("max_capacity", &self.max_capacity)
-            .field("time_to_live", &self.time_to_live)
-            .field("time_to_idle", &self.time_to_idle)
-            .field("num_segments", &self.num_segments)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;

@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::KoofrBuilder as Koofr;
-pub use backend::KoofrConfig;
 
 mod core;
 mod error;

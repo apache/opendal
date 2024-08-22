@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::MysqlBuilder as Mysql;
-pub use backend::MysqlConfig;

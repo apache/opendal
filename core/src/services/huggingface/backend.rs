@@ -23,68 +23,14 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
+use crate::services::HuggingfaceConfig;
 use crate::*;
-
-/// Configuration for Huggingface service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct HuggingfaceConfig {
-    /// Repo type of this backend. Default is model.
-    ///
-    /// Available values:
-    /// - model
-    /// - dataset
-    pub repo_type: Option<String>,
-    /// Repo id of this backend.
-    ///
-    /// This is required.
-    pub repo_id: Option<String>,
-    /// Revision of this backend.
-    ///
-    /// Default is main.
-    pub revision: Option<String>,
-    /// Root of this backend. Can be "/path/to/dir".
-    ///
-    /// Default is "/".
-    pub root: Option<String>,
-    /// Token of this backend.
-    ///
-    /// This is optional.
-    pub token: Option<String>,
-}
-
-impl Debug for HuggingfaceConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("HuggingfaceConfig");
-
-        if let Some(repo_type) = &self.repo_type {
-            ds.field("repo_type", &repo_type);
-        }
-        if let Some(repo_id) = &self.repo_id {
-            ds.field("repo_id", &repo_id);
-        }
-        if let Some(revision) = &self.revision {
-            ds.field("revision", &revision);
-        }
-        if let Some(root) = &self.root {
-            ds.field("root", &root);
-        }
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for HuggingfaceConfig {
     type Builder = HuggingfaceBuilder;

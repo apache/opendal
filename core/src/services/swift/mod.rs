@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::SwiftBuilder as Swift;
-pub use backend::SwiftConfig;
 
 mod core;
 mod error;

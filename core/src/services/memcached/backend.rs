@@ -18,36 +18,14 @@
 use std::time::Duration;
 
 use bb8::RunError;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::MemcachedConfig;
 use crate::*;
-
-/// Config for MemCached services support
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MemcachedConfig {
-    /// network address of the memcached service.
-    ///
-    /// For example: "tcp://localhost:11211"
-    pub endpoint: Option<String>,
-    /// the working directory of the service. Can be "/path/to/dir"
-    ///
-    /// default is "/"
-    pub root: Option<String>,
-    /// Memcached username, optional.
-    pub username: Option<String>,
-    /// Memcached password, optional.
-    pub password: Option<String>,
-    /// The default ttl for put operations.
-    pub default_ttl: Option<Duration>,
-}
 
 impl Configurator for MemcachedConfig {
     type Builder = MemcachedBuilder;

@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::ObsBuilder as Obs;
-pub use backend::ObsConfig;
 
 mod core;
 mod error;

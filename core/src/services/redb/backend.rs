@@ -19,30 +19,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::RedbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-/// Config for redb service support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct RedbConfig {
-    /// path to the redb data directory.
-    pub datadir: Option<String>,
-    /// The root for redb.
-    pub root: Option<String>,
-    /// The table name for redb.
-    pub table: Option<String>,
-}
 
 impl Configurator for RedbConfig {
     type Builder = RedbBuilder;

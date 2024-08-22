@@ -18,4 +18,3 @@
 mod backend;
 
 pub use backend::RedbBuilder as Redb;
-pub use backend::RedbConfig;

@@ -24,24 +24,12 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
+use crate::services::IpfsConfig;
 use crate::*;
-
-/// Config for IPFS file system support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct IpfsConfig {
-    /// IPFS gateway endpoint.
-    pub endpoint: Option<String>,
-    /// IPFS root.
-    pub root: Option<String>,
-}
 
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;

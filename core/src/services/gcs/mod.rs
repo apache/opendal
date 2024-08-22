@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::GcsBuilder as Gcs;
-pub use backend::GcsConfig;
 
 mod core;
 mod error;

@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::VercelBlobBuilder as VercelBlob;
-pub use backend::VercelBlobConfig;
 
 mod core;
 mod error;

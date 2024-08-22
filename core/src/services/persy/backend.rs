@@ -20,30 +20,16 @@ use std::fmt::Formatter;
 use std::str;
 
 use persy;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::PersyConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-/// Config for persy service support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct PersyConfig {
-    /// That path to the persy data file. The directory in the path must already exist.
-    pub datafile: Option<String>,
-    /// That name of the persy segment.
-    pub segment: Option<String>,
-    /// That name of the persy index.
-    pub index: Option<String>,
-}
 
 impl Configurator for PersyConfig {
     type Builder = PersyBuilder;

@@ -22,8 +22,6 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -31,36 +29,8 @@ use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
+use crate::services::UpyunConfig;
 use crate::*;
-
-/// Config for upyun services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct UpyunConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// bucket address of this backend.
-    pub bucket: String,
-    /// username of this backend.
-    pub operator: Option<String>,
-    /// password of this backend.
-    pub password: Option<String>,
-}
-
-impl Debug for UpyunConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("bucket", &self.bucket);
-        ds.field("operator", &self.operator);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;

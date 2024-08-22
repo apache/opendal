@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::B2Builder as B2;
-pub use backend::B2Config;
 
 mod core;
 mod error;

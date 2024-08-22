@@ -21,55 +21,12 @@ use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::core::*;
 use crate::raw::*;
+use crate::services::IcloudConfig;
 use crate::*;
-
-/// Config for icloud services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct IcloudConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// default to `/` if not set.
-    pub root: Option<String>,
-    /// apple_id of this backend.
-    ///
-    /// apple_id must be full, mostly like `example@gmail.com`.
-    pub apple_id: Option<String>,
-    /// password of this backend.
-    ///
-    /// password must be full.
-    pub password: Option<String>,
-
-    /// Session
-    ///
-    /// token must be valid.
-    pub trust_token: Option<String>,
-    /// ds_web_auth_token must be set in Session
-    pub ds_web_auth_token: Option<String>,
-    /// enable the china origin
-    /// China region `origin` Header needs to be set to "https://www.icloud.com.cn".
-    ///
-    /// otherwise Apple server will return 302.
-    pub is_china_mainland: bool,
-}
-
-impl Debug for IcloudConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("IcloudBuilder");
-        d.field("root", &self.root);
-        d.field("is_china_mainland", &self.is_china_mainland);
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for IcloudConfig {
     type Builder = IcloudBuilder;

@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::MongodbBuilder as Mongodb;
-pub use backend::MongodbConfig;

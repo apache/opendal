@@ -21,7 +21,6 @@ mod error;
 mod graph_model;
 
 pub use builder::OnedriveBuilder as Onedrive;
-pub use builder::OnedriveConfig;
 
 mod lister;
 mod writer;

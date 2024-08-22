@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::SqliteBuilder as Sqlite;
-pub use backend::SqliteConfig;

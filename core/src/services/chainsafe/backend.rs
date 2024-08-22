@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::parse_info;
 use super::core::ChainsafeCore;
@@ -34,35 +32,8 @@ use super::lister::ChainsafeLister;
 use super::writer::ChainsafeWriter;
 use super::writer::ChainsafeWriters;
 use crate::raw::*;
+use crate::services::ChainsafeConfig;
 use crate::*;
-
-/// Config for Chainsafe services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct ChainsafeConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// api_key of this backend.
-    pub api_key: Option<String>,
-    /// bucket_id of this backend.
-    ///
-    /// required.
-    pub bucket_id: String,
-}
-
-impl Debug for ChainsafeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("ChainsafeConfig");
-
-        d.field("root", &self.root)
-            .field("bucket_id", &self.bucket_id);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for ChainsafeConfig {
     type Builder = ChainsafeBuilder;

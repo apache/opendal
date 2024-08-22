@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::PcloudBuilder as Pcloud;
-pub use backend::PcloudConfig;
 
 mod core;
 mod error;

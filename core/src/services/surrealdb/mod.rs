@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::SurrealdbBuilder as Surrealdb;
-pub use backend::SurrealdbConfig;

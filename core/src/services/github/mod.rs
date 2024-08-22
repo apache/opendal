@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::GithubBuilder as Github;
-pub use backend::GithubConfig;
 
 mod core;
 mod error;

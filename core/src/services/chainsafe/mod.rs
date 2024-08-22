@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::ChainsafeBuilder as Chainsafe;
-pub use backend::ChainsafeConfig;
 
 mod core;
 mod error;

@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::MiniMokaBuilder as MiniMoka;
-pub use backend::MiniMokaConfig;

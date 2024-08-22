@@ -21,8 +21,6 @@ use std::sync::Arc;
 
 use http::Response;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AlluxioCore;
 use super::error::parse_error;

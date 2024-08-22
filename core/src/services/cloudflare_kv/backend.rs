@@ -23,43 +23,13 @@ use http::header;
 use http::Request;
 use http::StatusCode;
 use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::CloudflareKvConfig;
 use crate::ErrorKind;
 use crate::*;
-
-/// Cloudflare KV Service Support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct CloudflareKvConfig {
-    /// The token used to authenticate with CloudFlare.
-    pub token: Option<String>,
-    /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
-    pub account_id: Option<String>,
-    /// The namespace ID. Used as URI path parameter.
-    pub namespace_id: Option<String>,
-
-    /// Root within this backend.
-    pub root: Option<String>,
-}
-
-impl Debug for CloudflareKvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("CloudflareKvConfig");
-
-        ds.field("root", &self.root);
-        ds.field("account_id", &self.account_id);
-        ds.field("namespace_id", &self.namespace_id);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for CloudflareKvConfig {
     type Builder = CloudflareKvBuilder;

@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::MemoryBuilder as Memory;
-pub use backend::MemoryConfig;

@@ -16,23 +16,11 @@
 // under the License.
 
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::backend::IpmfsBackend;
 use crate::raw::*;
+use crate::services::IpmfsConfig;
 use crate::*;
-
-/// Config for IPFS MFS support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct IpmfsConfig {
-    /// Root for ipfs.
-    pub root: Option<String>,
-    /// Endpoint for ipfs.
-    pub endpoint: Option<String>,
-}
 
 impl Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;

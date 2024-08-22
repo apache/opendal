@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -36,35 +34,8 @@ use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
+use crate::services::KoofrConfig;
 use crate::*;
-
-/// Config for Koofr services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct KoofrConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// Koofr endpoint.
-    pub endpoint: String,
-    /// Koofr email.
-    pub email: String,
-    /// password of this backend. (Must be the application password)
-    pub password: Option<String>,
-}
-
-impl Debug for KoofrConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("email", &self.email);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for KoofrConfig {
     type Builder = KoofrBuilder;

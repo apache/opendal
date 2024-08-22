@@ -20,21 +20,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use serde::Deserialize;
-use serde::Serialize;
-
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
+use crate::services::MemoryConfig;
 use crate::*;
-
-/// Config for memory.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MemoryConfig {
-    /// root of the backend.
-    pub root: Option<String>,
-}
 
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;

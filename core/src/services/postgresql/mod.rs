@@ -17,4 +17,3 @@
 
 mod backend;
 pub use backend::PostgresqlBuilder as Postgresql;
-pub use backend::PostgresqlConfig;

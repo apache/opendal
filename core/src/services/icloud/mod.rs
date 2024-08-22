@@ -17,6 +17,5 @@
 
 mod backend;
 pub use backend::IcloudBuilder as Icloud;
-pub use backend::IcloudConfig;
 
 mod core;

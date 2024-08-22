@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::YandexDiskBuilder as YandexDisk;
-pub use backend::YandexDiskConfig;
 
 mod core;
 mod error;

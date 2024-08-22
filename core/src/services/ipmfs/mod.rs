@@ -18,7 +18,6 @@
 mod backend;
 mod builder;
 pub use builder::IpmfsBuilder as Ipmfs;
-pub use builder::IpmfsConfig;
 
 mod error;
 mod lister;

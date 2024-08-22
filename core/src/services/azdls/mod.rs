@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::AzdlsBuilder as Azdls;
-pub use backend::AzdlsConfig;
 
 mod core;
 mod error;

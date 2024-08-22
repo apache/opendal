@@ -18,31 +18,12 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
-use serde::Serialize;
-
 use super::backend::VercelArtifactsBackend;
 use crate::raw::Access;
 use crate::raw::HttpClient;
+use crate::services::VercelArtifactsConfig;
 use crate::Scheme;
 use crate::*;
-
-/// Config for Vercel Cache support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct VercelArtifactsConfig {
-    /// The access token for Vercel.
-    pub access_token: Option<String>,
-}
-
-impl Debug for VercelArtifactsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VercelArtifactsConfig")
-            .field("access_token", &"<redacted>")
-            .finish()
-    }
-}
 
 impl Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;

@@ -18,4 +18,3 @@
 mod backend;
 
 pub use backend::PersyBuilder as Persy;
-pub use backend::PersyConfig;

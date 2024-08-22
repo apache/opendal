@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::SeafileBuilder as Seafile;
-pub use backend::SeafileConfig;
 
 mod core;
 mod error;

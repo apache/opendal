@@ -37,6 +37,7 @@ use serde::Serialize;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
+use crate::services::GhacConfig;
 use crate::*;
 
 /// The base url for cache url.
@@ -79,21 +80,6 @@ fn value_or_env(
             .with_operation(operation)
             .set_source(err)
     })
-}
-
-/// Config for GitHub Action Cache Services support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GhacConfig {
-    /// The root path for ghac.
-    pub root: Option<String>,
-    /// The version that used by cache.
-    pub version: Option<String>,
-    /// The endpoint for ghac service.
-    pub endpoint: Option<String>,
-    /// The runtime token for ghac service.
-    pub runtime_token: Option<String>,
 }
 
 impl Configurator for GhacConfig {

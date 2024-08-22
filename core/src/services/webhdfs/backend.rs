@@ -27,7 +27,6 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;
@@ -38,36 +37,10 @@ use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
+use crate::services::WebhdfsConfig;
 use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
-
-/// Config for WebHDFS support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct WebhdfsConfig {
-    /// Root for webhdfs.
-    pub root: Option<String>,
-    /// Endpoint for webhdfs.
-    pub endpoint: Option<String>,
-    /// Delegation token for webhdfs.
-    pub delegation: Option<String>,
-    /// Disable batch listing
-    pub disable_list_batch: bool,
-    /// atomic_write_dir of this backend
-    pub atomic_write_dir: Option<String>,
-}
-
-impl Debug for WebhdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WebhdfsConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("atomic_write_dir", &self.atomic_write_dir)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for WebhdfsConfig {
     type Builder = WebhdfsBuilder;

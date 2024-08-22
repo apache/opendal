@@ -21,6 +21,6 @@ mod core;
 mod error;
 
 pub use builder::GdriveBuilder as Gdrive;
-pub use builder::GdriveConfig;
+
 mod lister;
 mod writer;

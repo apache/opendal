@@ -25,8 +25,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AzfileCore;
 use super::error::parse_error;
@@ -34,49 +32,11 @@ use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
 use crate::services::azfile::lister::AzfileLister;
+use crate::services::AzfileConfig;
 use crate::*;
 
 /// Default endpoint of Azure File services.
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
-
-/// Azure File services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzfileConfig {
-    /// The root path for azfile.
-    pub root: Option<String>,
-    /// The endpoint for azfile.
-    pub endpoint: Option<String>,
-    /// The share name for azfile.
-    pub share_name: String,
-    /// The account name for azfile.
-    pub account_name: Option<String>,
-    /// The account key for azfile.
-    pub account_key: Option<String>,
-    /// The sas token for azfile.
-    pub sas_token: Option<String>,
-}
-
-impl Debug for AzfileConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzfileConfig");
-
-        ds.field("root", &self.root);
-        ds.field("share_name", &self.share_name);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;

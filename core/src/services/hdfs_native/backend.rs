@@ -21,42 +21,17 @@ use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
-// use uuid::Uuid;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
 use crate::raw::*;
+use crate::services::HdfsNativeConfig;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
-
-/// Config for HdfsNative services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct HdfsNativeConfig {
-    /// work dir of this backend
-    pub root: Option<String>,
-    /// url of this backend
-    pub url: Option<String>,
-    /// enable the append capacity
-    pub enable_append: bool,
-}
-
-impl Debug for HdfsNativeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HdfsNativeConfig")
-            .field("root", &self.root)
-            .field("url", &self.url)
-            .field("enable_append", &self.enable_append)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for HdfsNativeConfig {
     type Builder = HdfsNativeBuilder;

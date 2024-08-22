@@ -30,8 +30,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -41,6 +39,7 @@ use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::services::azblob::writer::AzblobWriters;
+use crate::services::AzblobConfig;
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
@@ -54,69 +53,6 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
-
-/// Azure Storage Blob services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzblobConfig {
-    /// The root of Azblob service backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-
-    /// The container name of Azblob service backend.
-    pub container: String,
-
-    /// The endpoint of Azblob service backend.
-    ///
-    /// Endpoint must be full uri, e.g.
-    ///
-    /// - Azblob: `https://accountname.blob.core.windows.net`
-    /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-    pub endpoint: Option<String>,
-
-    /// The account name of Azblob service backend.
-    pub account_name: Option<String>,
-
-    /// The account key of Azblob service backend.
-    pub account_key: Option<String>,
-
-    /// The encryption key of Azblob service backend.
-    pub encryption_key: Option<String>,
-
-    /// The encryption key sha256 of Azblob service backend.
-    pub encryption_key_sha256: Option<String>,
-
-    /// The encryption algorithm of Azblob service backend.
-    pub encryption_algorithm: Option<String>,
-
-    /// The sas token of Azblob service backend.
-    pub sas_token: Option<String>,
-
-    /// The maximum batch operations of Azblob service backend.
-    pub batch_max_operations: Option<usize>,
-}
-
-impl Debug for AzblobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobConfig");
-
-        ds.field("root", &self.root);
-        ds.field("container", &self.container);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
@@ -838,7 +774,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         assert_eq!(
             builder.config.endpoint.unwrap(),
@@ -859,7 +795,7 @@ AccountKey=account-key;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         // SAS should be preferred over shared key
         assert_eq!(builder.config.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");

@@ -16,7 +16,6 @@
 // under the License.
 
 pub use backend::CompfsBuilder as Compfs;
-pub use backend::CompfsConfig;
 
 mod backend;
 mod core;

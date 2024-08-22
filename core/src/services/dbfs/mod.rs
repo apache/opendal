@@ -16,7 +16,6 @@
 // under the License.
 
 pub use backend::DbfsBuilder as Dbfs;
-pub use backend::DbfsConfig;
 
 mod backend;
 mod core;

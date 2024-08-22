@@ -224,16 +224,13 @@ impl OssCore {
         let data: HashMap<String, String> = headers
             .iter()
             .filter_map(|(key, _)| {
-                if key.as_str().starts_with(user_metadata_prefix) {
-                    if let Ok(Some(value)) = parse_header_to_str(headers, key) {
-                        let key_str = key.to_string();
-                        let stripped_key = key_str
-                            .strip_prefix(user_metadata_prefix)
-                            .expect("strip prefix must succeed");
-                        return Some((stripped_key.to_string(), value.to_string()));
-                    }
-                }
-                None
+                key.as_str()
+                    .strip_prefix(user_metadata_prefix)
+                    .and_then(|stripped_key| {
+                        parse_header_to_str(headers, key)
+                            .unwrap_or(None)
+                            .map(|val| (stripped_key.to_string(), val.to_string()))
+                    })
             })
             .collect();
         if !data.is_empty() {

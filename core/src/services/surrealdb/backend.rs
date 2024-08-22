@@ -251,7 +251,7 @@ impl Builder for SurrealdbBuilder {
             key_field,
             value_field,
         })
-        .with_root(&root))
+        .with_normalized_root(&root))
     }
 }
 

@@ -51,7 +51,14 @@ where
 
     /// Configure root within this backend.
     pub fn with_root(mut self, root: &str) -> Self {
-        self.root = normalize_root(root);
+        self.with_normalized_root(normalize_root(root))
+    }
+
+    /// Configure root within this backend.
+    ///
+    /// This method asssume root is normalized.
+    pub(crate) fn with_normalized_root(mut self, root: String) -> Self {
+        self.root = root;
         self
     }
 }

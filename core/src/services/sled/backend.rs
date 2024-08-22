@@ -88,7 +88,12 @@ impl SledBuilder {
 
     /// Set the root for sled.
     pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 

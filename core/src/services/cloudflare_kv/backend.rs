@@ -115,9 +115,12 @@ impl CloudflareKvBuilder {
 
     /// Set the root within this backend.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 }
@@ -175,7 +178,7 @@ impl Builder for CloudflareKvBuilder {
             client,
             url_prefix,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 

@@ -172,7 +172,7 @@ impl Builder for MemcachedBuilder {
             conn,
             default_ttl: self.config.default_ttl,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 

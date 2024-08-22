@@ -19,12 +19,13 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
+mod config;
+pub use config::*;
+
 #[cfg(feature = "services-aliyun-drive")]
 mod aliyun_drive;
 #[cfg(feature = "services-aliyun-drive")]
 pub use aliyun_drive::AliyunDrive;
-#[cfg(feature = "services-aliyun-drive")]
-pub use aliyun_drive::AliyunDriveConfig;
 
 #[cfg(feature = "services-azblob")]
 mod azblob;
@@ -331,8 +332,6 @@ pub use self::postgresql::PostgresqlConfig;
 mod atomicserver;
 #[cfg(feature = "services-atomicserver")]
 pub use self::atomicserver::Atomicserver;
-#[cfg(feature = "services-atomicserver")]
-pub use self::atomicserver::AtomicserverConfig;
 
 #[cfg(feature = "services-mysql")]
 mod mysql;
@@ -387,8 +386,6 @@ pub use self::swift::SwiftConfig;
 mod alluxio;
 #[cfg(feature = "services-alluxio")]
 pub use alluxio::Alluxio;
-#[cfg(feature = "services-alluxio")]
-pub use alluxio::AlluxioConfig;
 
 #[cfg(feature = "services-b2")]
 mod b2;

@@ -17,7 +17,6 @@
 
 mod backend;
 pub use backend::AlluxioBuilder as Alluxio;
-pub use backend::AlluxioConfig;
 
 mod core;
 mod error;

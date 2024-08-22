@@ -36,57 +36,8 @@ use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
 use crate::raw::*;
+use crate::services::AliyunDriveConfig;
 use crate::*;
-
-/// Aliyun Drive services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct AliyunDriveConfig {
-    /// The Root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// Default to `/` if not set.
-    pub root: Option<String>,
-    /// The access_token of this backend.
-    ///
-    /// Solution for client-only purpose. #4733
-    ///
-    /// Required if no client_id, client_secret and refresh_token are provided.
-    pub access_token: Option<String>,
-    /// The client_id of this backend.
-    ///
-    /// Required if no access_token is provided.
-    pub client_id: Option<String>,
-    /// The client_secret of this backend.
-    ///
-    /// Required if no access_token is provided.
-    pub client_secret: Option<String>,
-    /// The refresh_token of this backend.
-    ///
-    /// Required if no access_token is provided.
-    pub refresh_token: Option<String>,
-    /// The drive_type of this backend.
-    ///
-    /// All operations will happen under this type of drive.
-    ///
-    /// Available values are `default`, `backup` and `resource`.
-    ///
-    /// Fallback to default if not set or no other drives can be found.
-    pub drive_type: String,
-}
-
-impl Debug for AliyunDriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AliyunDriveConfig");
-
-        d.field("root", &self.root)
-            .field("drive_type", &self.drive_type);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
@@ -205,12 +156,12 @@ impl Builder for AliyunDriveBuilder {
                 self.config.refresh_token.clone(),
             ) {
                 (Some(client_id), Some(client_secret), Some(refresh_token)) if
-                    !client_id.is_empty() && !client_secret.is_empty() && !refresh_token.is_empty() => {
+                !client_id.is_empty() && !client_secret.is_empty() && !refresh_token.is_empty() => {
                     AliyunDriveSign::Refresh(client_id, client_secret, refresh_token, None, 0)
                 }
                 _ => return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
+                    ErrorKind::ConfigInvalid,
+                    "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
                     .with_operation("Builder::build")
                     .with_context("service", Scheme::AliyunDrive)),
             },

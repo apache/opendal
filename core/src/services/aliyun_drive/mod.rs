@@ -20,6 +20,5 @@ mod error;
 mod lister;
 mod writer;
 pub use backend::AliyunDriveBuilder as AliyunDrive;
-pub use backend::AliyunDriveConfig;
 
 mod core;

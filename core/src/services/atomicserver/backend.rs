@@ -30,37 +30,8 @@ use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::AtomicserverConfig;
 use crate::*;
-
-/// Atomicserver service support.
-
-/// Config for Atomicserver services support
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct AtomicserverConfig {
-    /// work dir of this backend
-    pub root: Option<String>,
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// private_key of this backend
-    pub private_key: Option<String>,
-    /// public_key of this backend
-    pub public_key: Option<String>,
-    /// parent_resource_id of this backend
-    pub parent_resource_id: Option<String>,
-}
-
-impl Debug for AtomicserverConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AtomicserverConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("public_key", &self.public_key)
-            .field("parent_resource_id", &self.parent_resource_id)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for AtomicserverConfig {
     type Builder = AtomicserverBuilder;

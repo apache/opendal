@@ -18,4 +18,3 @@
 mod backend;
 
 pub use backend::AtomicserverBuilder as Atomicserver;
-pub use backend::AtomicserverConfig;

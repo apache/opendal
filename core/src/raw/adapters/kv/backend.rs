@@ -50,7 +50,7 @@ where
     }
 
     /// Configure root within this backend.
-    pub fn with_root(mut self, root: &str) -> Self {
+    pub fn with_root(self, root: &str) -> Self {
         self.with_normalized_root(normalize_root(root))
     }
 

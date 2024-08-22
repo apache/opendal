@@ -126,7 +126,7 @@ impl Builder for AtomicserverBuilder {
                     .with_context("service", Scheme::Atomicserver)
             })?,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 

@@ -65,7 +65,12 @@ impl OnedriveBuilder {
 
     /// Set root path of OneDrive folder.
     pub fn root(mut self, root: &str) -> Self {
-        self.config.root = Some(root.to_string());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 

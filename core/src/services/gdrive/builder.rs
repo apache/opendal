@@ -92,7 +92,12 @@ impl Debug for GdriveBuilder {
 impl GdriveBuilder {
     /// Set root path of GoogleDrive folder.
     pub fn root(mut self, root: &str) -> Self {
-        self.config.root = Some(root.to_string());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 

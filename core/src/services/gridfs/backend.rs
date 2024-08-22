@@ -30,7 +30,7 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::new_std_io_error;
-use crate::raw::Access;
+use crate::raw::*;
 use crate::*;
 
 /// Config for Grid file system support.
@@ -114,9 +114,12 @@ impl GridFsBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -176,13 +179,22 @@ impl Builder for GridFsBuilder {
         };
         let chunk_size = self.config.chunk_size.unwrap_or(255);
 
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
+
         Ok(GridFsBackend::new(Adapter {
             connection_string: conn,
             database,
             bucket,
             chunk_size,
             bucket_instance: OnceCell::new(),
-        }))
+        })
+        .with_normalized_root(root))
     }
 }
 

@@ -24,7 +24,6 @@ use flume::Receiver;
 use flume::Sender;
 use futures::channel::oneshot;
 use futures::Future;
-use monoio::task::JoinHandle;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 
@@ -122,30 +121,22 @@ impl MonoiofsCore {
         self.unwrap(rx.await)
     }
 
-    /// Create a TaskSpawner, send it to the thread pool, spawn the task
-    /// and return its [`JoinHandle`]. Task panic cannot propagate
-    /// through the [`JoinHandle`] and should be handled elsewhere.
-    pub async fn spawn<F, Fut, T>(&self, f: F) -> JoinHandle<T>
+    /// Create a TaskSpawner, send it to the thread pool and spawn the task.
+    pub async fn spawn<F, Fut, T>(&self, f: F)
     where
         F: FnOnce() -> Fut + 'static + Send,
         Fut: Future<Output = T>,
-        T: 'static + Send,
+        T: 'static,
     {
-        // oneshot channel to send JoinHandle back
-        let (tx, rx) = oneshot::channel();
         let result = self
             .tx
             .send_async(Box::new(move || {
                 // task will be spawned on current thread, task panic
                 // will cause current worker thread panic
-                let handle = monoio::spawn(async move { f().await });
-                // discard the result if send failed due to
-                // MonoiofsCore::spawn cancelled
-                let _ = tx.send(handle);
+                monoio::spawn(async move { f().await });
             }))
             .await;
         self.unwrap(result);
-        self.unwrap(rx.await)
     }
 
     /// This method always panics. It is called only when at least a

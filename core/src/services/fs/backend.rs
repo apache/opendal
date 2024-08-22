@@ -67,6 +67,8 @@ impl FsBuilder {
         } else {
             Some(root.to_string())
         };
+
+        self
     }
 
     /// Set temp dir for atomic write.

@@ -27,7 +27,7 @@ use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::Access;
+use crate::raw::*;
 use crate::*;
 
 /// Config for Mongodb service support.
@@ -199,7 +199,7 @@ impl Builder for MongodbBuilder {
             None => "value".to_string(),
         };
         let root = normalize_root(
-            config
+            self.config
                 .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())

@@ -113,7 +113,7 @@ impl Builder for FoundationdbBuilder {
                 .as_str(),
         );
 
-        Ok(FoundationdbBackend::new(Adapter { db, _network }).with_normalized_root(&root))
+        Ok(FoundationdbBackend::new(Adapter { db, _network }).with_normalized_root(root))
     }
 }
 

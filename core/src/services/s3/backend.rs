@@ -1071,6 +1071,8 @@ impl Access for S3Backend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_user_metadata: true,
+
                 // The min multipart size of S3 is 5 MiB.
                 //
                 // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1115,6 +1117,22 @@ impl Access for S3Backend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+
+                let user_meta: HashMap<String, String> = headers
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        name.as_str()
+                            .strip_prefix(constants::X_AMZ_META_PREFIX)
+                            .and_then(|stripped_key| {
+                                parse_header_to_str(headers, name)
+                                    .unwrap_or(None)
+                                    .map(|val| (stripped_key.to_string(), val.to_string()))
+                            })
+                    })
+                    .collect();
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
 
                 if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
                     meta.set_version(v);

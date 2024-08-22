@@ -106,13 +106,6 @@ pub struct OpList {
 
 impl Default for OpList {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl OpList {
-    /// Create a new `OpList`.
-    pub const fn new() -> Self {
         Self {
             limit: None,
             start_after: None,
@@ -121,6 +114,13 @@ impl OpList {
             metakey: Metakey::Mode.into(),
             concurrent: 1,
         }
+    }
+}
+
+impl OpList {
+    /// Create a new `OpList`.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Change the limit of this list operation.
@@ -271,7 +271,7 @@ impl OpBatch {
     }
 
     /// Consume OpBatch into BatchOperation
-    pub const fn into_operation(self) -> Vec<(String, BatchOperation)> {
+    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
         self.ops
     }
 }

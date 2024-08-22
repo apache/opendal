@@ -83,6 +83,8 @@ impl MemcachedBuilder {
         } else {
             Some(root.to_string())
         };
+
+        self
     }
 
     /// set the username.

@@ -95,7 +95,7 @@ crate::impl_root_for_builder! {
     /// # Note
     ///
     /// The root will be automatically created if not exists.
-    WebdavBuilder
+    WebhdfsBuilder
 }
 
 impl WebhdfsBuilder {

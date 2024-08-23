@@ -104,7 +104,7 @@ impl Debug for SftpBuilder {
 
 crate::impl_root_for_builder! {
     /// It uses the default directory set by the remote `sftp-server` as default.
-    SeafileBuilder
+    SftpBuilder
 }
 
 impl SftpBuilder {

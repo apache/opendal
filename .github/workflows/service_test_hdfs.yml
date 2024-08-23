@@ -101,10 +101,38 @@ jobs:
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
           OPENDAL_HDFS_ENABLE_APPEND: true
 
-  hdfs-default-with-atomic-write-dir:
+  hdfs-cluster-with-atomic-write-dir:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure Hdfs
+        # namenode will use ports: 9870, 9000, 8020
+        # datanode will use ports: 9864
+        run: |
+          docker run -d \
+            --name namenode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
+            -e HDFS_CONF_dfs_support_append=true \
+            -e HDFS_CONF_dfs_replication=1 \
+            bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+
+          docker run -d \
+            --name datanode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
+            -e HDFS_CONF_dfs_support_append=true \
+            -e HDFS_CONF_dfs_replication=1 \
+            bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+
+          curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -135,5 +163,5 @@ jobs:
           OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_ATOMIC_WRITE_DIR: /tmp/atomic_write_dir/opendal/
-          OPENDAL_HDFS_NAME_NODE: default
+          OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
           OPENDAL_HDFS_ENABLE_APPEND: false

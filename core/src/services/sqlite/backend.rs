@@ -24,6 +24,7 @@ use sqlx::SqlitePool;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
+use tokio::sync::OnceCell;
 
 impl Configurator for SqliteConfig {
     type Builder = SqliteBuilder;
@@ -149,10 +150,9 @@ impl Builder for SqliteBuilder {
 
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
-        let pool = SqlitePool::connect_lazy_with(config);
-
         Ok(SqliteBackend::new(Adapter {
-            pool,
+            pool: OnceCell::new(),
+            config,
             table,
             key_field,
             value_field,
@@ -165,11 +165,25 @@ pub type SqliteBackend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    pool: SqlitePool,
+    pool: OnceCell<SqlitePool>,
+    config: SqliteConnectOptions,
 
     table: String,
     key_field: String,
     value_field: String,
+}
+
+impl Adapter {
+    async fn get_client(&self) -> Result<&SqlitePool> {
+        self.pool
+            .get_or_try_init(async {
+                let pool = SqlitePool::connect_with(self.config.clone())
+                    .await
+                    .map_err(parse_sqlite_error)?;
+                Ok(pool)
+            })
+            .await
+    }
 }
 
 impl kv::Adapter for Adapter {
@@ -189,12 +203,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let pool = self.get_client().await?;
+
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             "SELECT `{}` FROM `{}` WHERE `{}` = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
-        .fetch_optional(&self.pool)
+        .fetch_optional(pool)
         .await
         .map_err(parse_sqlite_error)?;
 
@@ -202,13 +218,15 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let pool = self.get_client().await?;
+
         sqlx::query(&format!(
             "INSERT OR REPLACE INTO `{}` (`{}`, `{}`) VALUES ($1, $2)",
             self.table, self.key_field, self.value_field,
         ))
         .bind(path)
         .bind(value.to_vec())
-        .execute(&self.pool)
+        .execute(pool)
         .await
         .map_err(parse_sqlite_error)?;
 
@@ -216,12 +234,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
+        let pool = self.get_client().await?;
+
         sqlx::query(&format!(
             "DELETE FROM `{}` WHERE `{}` = $1",
             self.table, self.key_field
         ))
         .bind(path)
-        .execute(&self.pool)
+        .execute(pool)
         .await
         .map_err(parse_sqlite_error)?;
 
@@ -229,13 +249,15 @@ impl kv::Adapter for Adapter {
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        let pool = self.get_client().await?;
+
         let value = sqlx::query_scalar(&format!(
             "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1 and `{}` <> $2",
             self.key_field, self.table, self.key_field, self.key_field
         ))
         .bind(format!("{path}%"))
         .bind(path)
-        .fetch_all(&self.pool)
+        .fetch_all(pool)
         .await
         .map_err(parse_sqlite_error)?;
 

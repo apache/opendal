@@ -15,16 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::PostgresqlConfig;
+use crate::*;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::PgPool;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::PostgresqlConfig;
-use crate::*;
+use tokio::sync::OnceCell;
 
 impl Configurator for PostgresqlConfig {
     type Builder = PostgresqlBuilder;
@@ -147,10 +147,9 @@ impl Builder for PostgresqlBuilder {
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        let pool = PgPool::connect_lazy_with(config);
-
         Ok(PostgresqlBackend::new(Adapter {
-            pool,
+            pool: OnceCell::new(),
+            config,
             table,
             key_field,
             value_field,
@@ -164,11 +163,25 @@ pub type PostgresqlBackend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    pool: PgPool,
+    pool: OnceCell<PgPool>,
+    config: PgConnectOptions,
 
     table: String,
     key_field: String,
     value_field: String,
+}
+
+impl Adapter {
+    async fn get_client(&self) -> Result<&PgPool> {
+        self.pool
+            .get_or_try_init(async {
+                let pool = PgPool::connect_with(self.config.clone())
+                    .await
+                    .map_err(parse_postgres_error)?;
+                Ok(pool)
+            })
+            .await
+    }
 }
 
 impl kv::Adapter for Adapter {
@@ -185,12 +198,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let pool = self.get_client().await?;
+
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
-        .fetch_optional(&self.pool)
+        .fetch_optional(pool)
         .await
         .map_err(parse_postgres_error)?;
 
@@ -198,10 +213,11 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let pool = self.get_client().await?;
+
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
-
         sqlx::query(&format!(
             r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
                 VALUES ($1, $2)
@@ -210,7 +226,7 @@ impl kv::Adapter for Adapter {
         ))
         .bind(path)
         .bind(value.to_vec())
-        .execute(&self.pool)
+        .execute(pool)
         .await
         .map_err(parse_postgres_error)?;
 
@@ -218,12 +234,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
+        let pool = self.get_client().await?;
+
         sqlx::query(&format!(
             "DELETE FROM {} WHERE {} = $1",
             self.table, self.key_field
         ))
         .bind(path)
-        .execute(&self.pool)
+        .execute(pool)
         .await
         .map_err(parse_postgres_error)?;
 

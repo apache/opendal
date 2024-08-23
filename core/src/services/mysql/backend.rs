@@ -23,6 +23,7 @@ use sqlx::mysql::MySqlConnectOptions;
 use sqlx::MySqlPool;
 use std::fmt::Debug;
 use std::str::FromStr;
+use tokio::sync::OnceCell;
 
 impl Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
@@ -147,10 +148,9 @@ impl Builder for MysqlBuilder {
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        let connection_pool = MySqlPool::connect_lazy_with(config);
-
         Ok(MySqlBackend::new(Adapter {
-            connection_pool,
+            pool: OnceCell::new(),
+            config,
             table,
             key_field,
             value_field,
@@ -164,11 +164,25 @@ pub type MySqlBackend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    connection_pool: MySqlPool,
+    pool: OnceCell<MySqlPool>,
+    config: MySqlConnectOptions,
 
     table: String,
     key_field: String,
     value_field: String,
+}
+
+impl Adapter {
+    async fn get_client(&self) -> Result<&MySqlPool> {
+        self.pool
+            .get_or_try_init(async {
+                let pool = MySqlPool::connect_with(self.config.clone())
+                    .await
+                    .map_err(parse_mysql_error)?;
+                Ok(pool)
+            })
+            .await
+    }
 }
 
 impl kv::Adapter for Adapter {
@@ -185,12 +199,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let pool = self.get_client().await?;
+
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             "SELECT `{}` FROM `{}` WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
-        .fetch_optional(&self.connection_pool)
+        .fetch_optional(pool)
         .await
         .map_err(parse_mysql_error)?;
 
@@ -198,6 +214,8 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let pool = self.get_client().await?;
+
         sqlx::query(&format!(
             r#"INSERT INTO `{}` (`{}`, `{}`) VALUES (?, ?)
             ON DUPLICATE KEY UPDATE `{}` = VALUES({})"#,
@@ -205,7 +223,7 @@ impl kv::Adapter for Adapter {
         ))
         .bind(path)
         .bind(value.to_vec())
-        .execute(&self.connection_pool)
+        .execute(pool)
         .await
         .map_err(parse_mysql_error)?;
 
@@ -213,12 +231,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
+        let pool = self.get_client().await?;
+
         sqlx::query(&format!(
             "DELETE FROM `{}` WHERE `{}` = ?",
             self.table, self.key_field
         ))
         .bind(path)
-        .execute(&self.connection_pool)
+        .execute(pool)
         .await
         .map_err(parse_mysql_error)?;
 

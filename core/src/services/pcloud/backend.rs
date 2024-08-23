@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -33,36 +31,8 @@ use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
+use crate::services::PcloudConfig;
 use crate::*;
-
-/// Config for Pcloud services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct PcloudConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    ///pCloud  endpoint address.
-    pub endpoint: String,
-    /// pCloud username.
-    pub username: Option<String>,
-    /// pCloud password.
-    pub password: Option<String>,
-}
-
-impl Debug for PcloudConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("username", &self.username);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for PcloudConfig {
     type Builder = PcloudBuilder;

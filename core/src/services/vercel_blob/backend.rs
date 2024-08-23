@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::parse_blob;
 use super::core::Blob;
@@ -34,30 +32,8 @@ use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
 use crate::raw::*;
+use crate::services::VercelBlobConfig;
 use crate::*;
-
-/// Config for VercelBlob services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct VercelBlobConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// vercel blob token.
-    pub token: String,
-}
-
-impl Debug for VercelBlobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;

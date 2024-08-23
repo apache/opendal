@@ -25,8 +25,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -34,6 +32,7 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
+use crate::services::AzdlsConfig;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -45,40 +44,6 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
     "dfs.core.usgovcloudapi.net",
     "dfs.core.chinacloudapi.cn",
 ];
-
-/// Azure Data Lake Storage Gen2 Support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzdlsConfig {
-    /// Root of this backend.
-    pub root: Option<String>,
-    /// Filesystem name of this backend.
-    pub filesystem: String,
-    /// Endpoint of this backend.
-    pub endpoint: Option<String>,
-    /// Account name of this backend.
-    pub account_name: Option<String>,
-    /// Account key of this backend.
-    pub account_key: Option<String>,
-}
-
-impl Debug for AzdlsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("filesystem", &self.filesystem);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;

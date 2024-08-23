@@ -20,61 +20,12 @@ use std::fmt::Formatter;
 
 use rusqlite::params;
 use rusqlite::Connection;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::SqliteConfig;
 use crate::*;
-
-/// Config for Sqlite support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SqliteConfig {
-    /// Set the connection_string of the sqlite service.
-    ///
-    /// This connection string is used to connect to the sqlite service. There are url based formats:
-    ///
-    /// ## Url
-    ///
-    /// This format resembles the url format of the sqlite client. The format is: `file://[path]?flag`
-    ///
-    /// - `file://data.db`
-    ///
-    /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
-    pub connection_string: Option<String>,
-
-    /// Set the table name of the sqlite service to read/write.
-    pub table: Option<String>,
-    /// Set the key field name of the sqlite service to read/write.
-    ///
-    /// Default to `key` if not specified.
-    pub key_field: Option<String>,
-    /// Set the value field name of the sqlite service to read/write.
-    ///
-    /// Default to `value` if not specified.
-    pub value_field: Option<String>,
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub root: Option<String>,
-}
-
-impl Debug for SqliteConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SqliteConfig");
-
-        d.field("connection_string", &self.connection_string)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for SqliteConfig {
     type Builder = SqliteBuilder;

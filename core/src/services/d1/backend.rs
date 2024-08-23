@@ -22,49 +22,15 @@ use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde::Deserialize;
-use serde::Serialize;
 use serde_json::Value;
 
 use super::error::parse_error;
 use super::model::D1Response;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::D1Config;
 use crate::ErrorKind;
 use crate::*;
-
-/// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct D1Config {
-    /// Set the token of cloudflare api.
-    pub token: Option<String>,
-    /// Set the account id of cloudflare api.
-    pub account_id: Option<String>,
-    /// Set the database id of cloudflare api.
-    pub database_id: Option<String>,
-
-    /// Set the working directory of OpenDAL.
-    pub root: Option<String>,
-    /// Set the table of D1 Database.
-    pub table: Option<String>,
-    /// Set the key field of D1 Database.
-    pub key_field: Option<String>,
-    /// Set the value field of D1 Database.
-    pub value_field: Option<String>,
-}
-
-impl Debug for D1Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("D1Config");
-        ds.field("root", &self.root);
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for D1Config {
     type Builder = D1Builder;

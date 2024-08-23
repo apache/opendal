@@ -23,40 +23,14 @@ use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::DbfsCore;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
 use crate::raw::*;
+use crate::services::DbfsConfig;
 use crate::*;
-
-/// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct DbfsConfig {
-    /// The root for dbfs.
-    pub root: Option<String>,
-    /// The endpoint for dbfs.
-    pub endpoint: Option<String>,
-    /// The token for dbfs.
-    pub token: Option<String>,
-}
-
-impl Debug for DbfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("DbfsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for DbfsConfig {
     type Builder = DbfsBuilder;

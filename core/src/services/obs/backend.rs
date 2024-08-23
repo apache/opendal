@@ -26,8 +26,6 @@ use log::debug;
 use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::ObsCore;
 use super::error::parse_error;
@@ -35,36 +33,8 @@ use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
+use crate::services::ObsConfig;
 use crate::*;
-
-/// Config for Huawei-Cloud Object Storage Service (OBS) support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct ObsConfig {
-    /// Root for obs.
-    pub root: Option<String>,
-    /// Endpoint for obs.
-    pub endpoint: Option<String>,
-    /// Access key id for obs.
-    pub access_key_id: Option<String>,
-    /// Secret access key for obs.
-    pub secret_access_key: Option<String>,
-    /// Bucket for obs.
-    pub bucket: Option<String>,
-}
-
-impl Debug for ObsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ObsConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("access_key_id", &"<redacted>")
-            .field("secret_access_key", &"<redacted>")
-            .field("bucket", &self.bucket)
-            .finish()
-    }
-}
 
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;

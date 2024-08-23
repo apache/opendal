@@ -28,8 +28,6 @@ use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -37,53 +35,10 @@ use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;
 use crate::services::oss::writer::OssWriters;
+use crate::services::OssConfig;
 use crate::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
-
-/// Config for Aliyun Object Storage Service (OSS) support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct OssConfig {
-    /// Root for oss.
-    pub root: Option<String>,
-
-    /// Endpoint for oss.
-    pub endpoint: Option<String>,
-    /// Presign endpoint for oss.
-    pub presign_endpoint: Option<String>,
-    /// Bucket for oss.
-    pub bucket: String,
-
-    // OSS features
-    /// Server side encryption for oss.
-    pub server_side_encryption: Option<String>,
-    /// Server side encryption key id for oss.
-    pub server_side_encryption_key_id: Option<String>,
-    /// Allow anonymous for oss.
-    pub allow_anonymous: bool,
-
-    // authenticate options
-    /// Access key id for oss.
-    pub access_key_id: Option<String>,
-    /// Access key secret for oss.
-    pub access_key_secret: Option<String>,
-    /// batch_max_operations
-    pub batch_max_operations: Option<usize>,
-}
-
-impl Debug for OssConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("Builder");
-        d.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("allow_anonymous", &self.allow_anonymous);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for OssConfig {
     type Builder = OssBuilder;

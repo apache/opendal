@@ -22,38 +22,13 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
 use crate::raw::*;
+use crate::services::SupabaseConfig;
 use crate::*;
-
-/// Config for supabase service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SupabaseConfig {
-    root: Option<String>,
-    bucket: String,
-    endpoint: Option<String>,
-    key: Option<String>,
-    // TODO(1) optional public, currently true always
-    // TODO(2) optional file_size_limit, currently 0
-    // TODO(3) optional allowed_mime_types, currently only string
-}
-
-impl Debug for SupabaseConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SupabaseConfig")
-            .field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for SupabaseConfig {
     type Builder = SupabaseBuilder;

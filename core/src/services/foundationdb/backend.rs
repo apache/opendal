@@ -21,39 +21,15 @@ use std::sync::Arc;
 
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::FoundationdbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-/// [foundationdb](https://www.foundationdb.org/) service support.
-///Config for FoundationDB.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct FoundationdbConfig {
-    ///root of the backend.
-    pub root: Option<String>,
-    ///config_path for the backend.
-    pub config_path: Option<String>,
-}
-
-impl Debug for FoundationdbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("FoundationConfig");
-
-        ds.field("root", &self.root);
-        ds.field("config_path", &self.config_path);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for FoundationdbConfig {
     type Builder = FoundationdbBuilder;

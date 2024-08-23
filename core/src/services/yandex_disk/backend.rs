@@ -25,8 +25,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -34,30 +32,8 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
+use crate::services::YandexDiskConfig;
 use crate::*;
-
-/// Config for YandexDisk services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct YandexDiskConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// yandex disk oauth access_token.
-    pub access_token: String,
-}
-
-impl Debug for YandexDiskConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;

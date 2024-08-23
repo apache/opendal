@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::FsBuilder as Fs;
-pub use backend::FsConfig;
-
+#[cfg(feature = "services-fs")]
 mod core;
+#[cfg(feature = "services-fs")]
 mod lister;
+#[cfg(feature = "services-fs")]
 mod reader;
+#[cfg(feature = "services-fs")]
 mod writer;
+
+#[cfg(feature = "services-fs")]
+mod backend;
+#[cfg(feature = "services-fs")]
+pub use backend::FsBuilder as Fs;
+
+mod config;
+pub use config::FsConfig;

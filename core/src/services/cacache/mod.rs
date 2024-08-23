@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-cacache")]
 mod backend;
-
+#[cfg(feature = "services-cacache")]
 pub use backend::CacacheBuilder as Cacache;
-pub use backend::CacacheConfig;
+
+mod config;
+pub use config::CacacheConfig;

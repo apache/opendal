@@ -15,9 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SupabaseBuilder as Supabase;
-pub use backend::SupabaseConfig;
+#[cfg(feature = "services-supabase")]
 mod core;
+#[cfg(feature = "services-supabase")]
 mod error;
+#[cfg(feature = "services-supabase")]
 mod writer;
+
+#[cfg(feature = "services-supabase")]
+mod backend;
+#[cfg(feature = "services-supabase")]
+pub use backend::SupabaseBuilder as Supabase;
+
+mod config;
+pub use config::SupabaseConfig;

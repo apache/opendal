@@ -19,19 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
+use crate::services::DashmapConfig;
 use crate::*;
-
-/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct DashmapConfig {
-    /// The root path for dashmap.
-    pub root: Option<String>,
-}
 
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;

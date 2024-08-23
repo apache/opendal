@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::CosBuilder as Cos;
-pub use backend::CosConfig;
-
+#[cfg(feature = "services-cos")]
 mod core;
+#[cfg(feature = "services-cos")]
 mod error;
+#[cfg(feature = "services-cos")]
 mod lister;
+#[cfg(feature = "services-cos")]
 mod writer;
+
+#[cfg(feature = "services-cos")]
+mod backend;
+#[cfg(feature = "services-cos")]
+pub use backend::CosBuilder as Cos;
+
+mod config;
+pub use config::CosConfig;

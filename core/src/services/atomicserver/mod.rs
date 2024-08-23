@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-atomicserver")]
 mod backend;
-
+#[cfg(feature = "services-atomicserver")]
 pub use backend::AtomicserverBuilder as Atomicserver;
-pub use backend::AtomicserverConfig;
+
+mod config;
+pub use config::AtomicserverConfig;

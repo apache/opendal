@@ -26,39 +26,11 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::HttpConfig;
 use crate::*;
-
-/// Config for Http service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct HttpConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// username of this backend
-    pub username: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-    /// token of this backend
-    pub token: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-}
-
-impl Debug for HttpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HttpConfig");
-        de.field("endpoint", &self.endpoint);
-        de.field("root", &self.root);
-
-        de.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;

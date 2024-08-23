@@ -23,46 +23,14 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
+use crate::services::WebdavConfig;
 use crate::*;
-
-/// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct WebdavConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// username of this backend
-    pub username: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-    /// token of this backend
-    pub token: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// WebDAV Service doesn't support copy.
-    pub disable_copy: bool,
-}
-
-impl Debug for WebdavConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavConfig");
-
-        d.field("endpoint", &self.endpoint)
-            .field("username", &self.username)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;

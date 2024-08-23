@@ -18,50 +18,19 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
-use serde::Serialize;
 use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::Access;
+use crate::services::TikvConfig;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-/// Config for Tikv services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct TikvConfig {
-    /// network address of the TiKV service.
-    pub endpoints: Option<Vec<String>>,
-    /// whether using insecure connection to TiKV
-    pub insecure: bool,
-    /// certificate authority file path
-    pub ca_path: Option<String>,
-    /// cert path
-    pub cert_path: Option<String>,
-    /// key path
-    pub key_path: Option<String>,
-}
-
-impl Debug for TikvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("TikvConfig");
-
-        d.field("endpoints", &self.endpoints)
-            .field("insecure", &self.insecure)
-            .field("ca_path", &self.ca_path)
-            .field("cert_path", &self.cert_path)
-            .field("key_path", &self.key_path)
-            .finish()
-    }
-}
 
 impl Configurator for TikvConfig {
     type Builder = TikvBuilder;

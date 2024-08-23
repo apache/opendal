@@ -22,8 +22,6 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::lister::FsLister;
@@ -31,19 +29,8 @@ use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use crate::raw::*;
+use crate::services::FsConfig;
 use crate::*;
-
-/// config for file system
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct FsConfig {
-    /// root dir for backend
-    pub root: Option<String>,
-
-    /// tmp dir for atomic write
-    pub atomic_write_dir: Option<String>,
-}
 
 impl Configurator for FsConfig {
     type Builder = FsBuilder;

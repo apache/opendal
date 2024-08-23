@@ -20,46 +20,11 @@ use std::fmt::Debug;
 use mysql_async::prelude::*;
 use mysql_async::Opts;
 use mysql_async::Pool;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::MysqlConfig;
 use crate::*;
-
-/// Config for Mysql services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MysqlConfig {
-    /// The connection string for mysql.
-    pub connection_string: Option<String>,
-
-    /// The table name for mysql.
-    pub table: Option<String>,
-    /// The key field name for mysql.
-    pub key_field: Option<String>,
-    /// The value field name for mysql.
-    pub value_field: Option<String>,
-    /// The root for mysql.
-    pub root: Option<String>,
-}
-
-impl Debug for MysqlConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("MysqlConfig");
-
-        if self.connection_string.is_some() {
-            d.field("connection_string", &"<redacted>");
-        }
-
-        d.field("root", &self.root)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
-}
 
 impl Configurator for MysqlConfig {
     type Builder = MysqlBuilder;

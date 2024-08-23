@@ -19,34 +19,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::HttpClient;
+use crate::services::OnedriveConfig;
 use crate::Scheme;
 use crate::*;
-
-/// Config for [OneDrive](https://onedrive.com) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct OnedriveConfig {
-    /// bearer access token for OneDrive
-    pub access_token: Option<String>,
-    /// root path of OneDrive folder.
-    pub root: Option<String>,
-}
-
-impl Debug for OnedriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OnedriveConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;

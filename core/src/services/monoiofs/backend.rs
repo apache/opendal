@@ -21,27 +21,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::DateTime;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::MonoiofsCore;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;
+use crate::services::MonoiofsConfig;
 use crate::*;
-
-/// Config for monoiofs services support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MonoiofsConfig {
-    /// The Root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// Builder::build will return error if not set.
-    pub root: Option<String>,
-}
 
 impl Configurator for MonoiofsConfig {
     type Builder = MonoiofsBuilder;

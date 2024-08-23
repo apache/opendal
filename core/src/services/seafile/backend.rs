@@ -22,8 +22,6 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::parse_dir_detail;
@@ -35,41 +33,8 @@ use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
+use crate::services::SeafileConfig;
 use crate::*;
-
-/// Config for seafile services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SeafileConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// endpoint address of this backend.
-    pub endpoint: Option<String>,
-    /// username of this backend.
-    pub username: Option<String>,
-    /// password of this backend.
-    pub password: Option<String>,
-    /// repo_name of this backend.
-    ///
-    /// required.
-    pub repo_name: String,
-}
-
-impl Debug for SeafileConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SeafileConfig");
-
-        d.field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("username", &self.username)
-            .field("repo_name", &self.repo_name);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for SeafileConfig {
     type Builder = SeafileBuilder;

@@ -24,8 +24,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -38,49 +36,8 @@ use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::b2::core::B2Signer;
 use crate::services::b2::core::ListFileNamesResponse;
+use crate::services::B2Config;
 use crate::*;
-
-/// Config for backblaze b2 services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct B2Config {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// keyID of this backend.
-    ///
-    /// - If application_key_id is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub application_key_id: Option<String>,
-    /// applicationKey of this backend.
-    ///
-    /// - If application_key is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub application_key: Option<String>,
-    /// bucket of this backend.
-    ///
-    /// required.
-    pub bucket: String,
-    /// bucket id of this backend.
-    ///
-    /// required.
-    pub bucket_id: String,
-}
-
-impl Debug for B2Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("B2Config");
-
-        d.field("root", &self.root)
-            .field("application_key_id", &self.application_key_id)
-            .field("bucket_id", &self.bucket_id)
-            .field("bucket", &self.bucket);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for B2Config {
     type Builder = B2Builder;

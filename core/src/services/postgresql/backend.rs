@@ -22,51 +22,13 @@ use std::sync::Arc;
 
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::OnceCell;
 use tokio_postgres::Config;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::PostgresqlConfig;
 use crate::*;
-
-/// Config for PostgreSQL services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct PostgresqlConfig {
-    /// Root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// Default to `/` if not set.
-    pub root: Option<String>,
-    /// the connection string of postgres server
-    pub connection_string: Option<String>,
-    /// the table of postgresql
-    pub table: Option<String>,
-    /// the key field of postgresql
-    pub key_field: Option<String>,
-    /// the value field of postgresql
-    pub value_field: Option<String>,
-}
-
-impl Debug for PostgresqlConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PostgresqlConfig");
-
-        if self.connection_string.is_some() {
-            d.field("connection_string", &"<redacted>");
-        }
-
-        d.field("root", &self.root)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
-}
 
 impl Configurator for PostgresqlConfig {
     type Builder = PostgresqlBuilder;

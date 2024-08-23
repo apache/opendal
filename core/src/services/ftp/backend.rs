@@ -92,6 +92,8 @@ impl Debug for FtpBuilder {
     }
 }
 
+crate::impl_root_for_builder!(FtpBuilder);
+
 impl FtpBuilder {
     /// set endpoint for ftp backend.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
@@ -99,17 +101,6 @@ impl FtpBuilder {
             None
         } else {
             Some(endpoint.to_string())
-        };
-
-        self
-    }
-
-    /// set root path for ftp backend.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
         };
 
         self

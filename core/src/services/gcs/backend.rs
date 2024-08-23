@@ -121,18 +121,9 @@ impl Debug for GcsBuilder {
     }
 }
 
+crate::impl_root_for_builder!(GcsBuilder);
+
 impl GcsBuilder {
-    /// set the working directory root of backend
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// set the container's name
     pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();

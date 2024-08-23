@@ -63,6 +63,8 @@ pub struct MemcachedBuilder {
     config: MemcachedConfig,
 }
 
+crate::impl_root_for_builder!(MemcachedBuilder);
+
 impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
@@ -71,19 +73,6 @@ impl MemcachedBuilder {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_owned());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

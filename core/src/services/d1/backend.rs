@@ -92,6 +92,8 @@ impl Debug for D1Builder {
     }
 }
 
+crate::impl_root_for_builder!(D1Builder);
+
 impl D1Builder {
     /// Set api token for the cloudflare d1 service.
     ///
@@ -122,19 +124,6 @@ impl D1Builder {
         if !database_id.is_empty() {
             self.config.database_id = Some(database_id.to_string());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

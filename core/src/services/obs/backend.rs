@@ -92,20 +92,9 @@ impl Debug for ObsBuilder {
     }
 }
 
+crate::impl_root_for_builder!(ObsBuilder);
+
 impl ObsBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set endpoint of this backend.
     ///
     /// Both huaweicloud default domain and user domain endpoints are allowed.

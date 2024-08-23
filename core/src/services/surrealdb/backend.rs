@@ -94,6 +94,8 @@ impl Debug for SurrealdbBuilder {
     }
 }
 
+crate::impl_root_for_builder!(SurrealdbBuilder);
+
 impl SurrealdbBuilder {
     /// Set the connection_string of the surrealdb service.
     ///
@@ -109,19 +111,6 @@ impl SurrealdbBuilder {
         if !connection_string.is_empty() {
             self.config.connection_string = Some(connection_string.to_string());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

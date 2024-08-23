@@ -92,6 +92,8 @@ impl Debug for WebdavBuilder {
     }
 }
 
+crate::impl_root_for_builder!(WebdavBuilder);
+
 impl WebdavBuilder {
     /// Set endpoint for http backend.
     ///
@@ -133,17 +135,6 @@ impl WebdavBuilder {
         if !token.is_empty() {
             self.config.token = Some(token.to_owned());
         }
-        self
-    }
-
-    /// Set root path of http backend.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

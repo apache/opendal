@@ -87,20 +87,9 @@ impl Debug for YandexDiskBuilder {
     }
 }
 
+crate::impl_root_for_builder!(YandexDiskBuilder);
+
 impl YandexDiskBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// yandex disk oauth access_token.
     /// The valid token will looks like `y0_XXXXXXqihqIWAADLWwAAAAD3IXXXXXX0gtVeSPeIKM0oITMGhXXXXXX`.
     /// We can fetch the debug token from <https://yandex.com/dev/disk/poligon>.

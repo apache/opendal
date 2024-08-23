@@ -102,6 +102,11 @@ impl Debug for SftpBuilder {
     }
 }
 
+crate::impl_root_for_builder! {
+    /// It uses the default directory set by the remote `sftp-server` as default.
+    SeafileBuilder
+}
+
 impl SftpBuilder {
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
@@ -110,18 +115,6 @@ impl SftpBuilder {
             None
         } else {
             Some(endpoint.to_string())
-        };
-
-        self
-    }
-
-    /// set root path for sftp backend.
-    /// It uses the default directory set by the remote `sftp-server` as default.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
         };
 
         self

@@ -91,24 +91,14 @@ impl Debug for WebhdfsBuilder {
     }
 }
 
-impl WebhdfsBuilder {
-    /// Set the working directory of this backend
-    ///
-    /// All operations will happen under this root
-    ///
+crate::impl_root_for_builder! {
     /// # Note
     ///
     /// The root will be automatically created if not exists.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
+    WebdavBuilder
+}
 
-        self
-    }
-
+impl WebhdfsBuilder {
     /// Set the remote address of this backend
     /// default to `http://127.0.0.1:9870`
     ///

@@ -87,6 +87,8 @@ impl Debug for SwiftBuilder {
     }
 }
 
+crate::impl_root_for_builder!(SwiftBuilder);
+
 impl SwiftBuilder {
     /// Set the remote address of this backend
     ///
@@ -116,19 +118,6 @@ impl SwiftBuilder {
         } else {
             Some(container.trim_end_matches('/').to_string())
         };
-        self
-    }
-
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

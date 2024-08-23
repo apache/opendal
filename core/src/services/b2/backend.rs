@@ -110,20 +110,9 @@ impl Debug for B2Builder {
     }
 }
 
+crate::impl_root_for_builder!(B2Builder);
+
 impl B2Builder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// application_key_id of this backend.
     pub fn application_key_id(mut self, application_key_id: &str) -> Self {
         self.config.application_key_id = if application_key_id.is_empty() {

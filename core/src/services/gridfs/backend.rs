@@ -82,6 +82,8 @@ impl Debug for GridFsBuilder {
     }
 }
 
+crate::impl_root_for_builder!(GridFsBuilder);
+
 impl GridFsBuilder {
     /// Set the connection_string of the MongoDB service.
     ///
@@ -107,19 +109,6 @@ impl GridFsBuilder {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
-        self
-    }
-
-    /// Set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

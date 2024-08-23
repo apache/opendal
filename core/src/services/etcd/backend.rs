@@ -124,6 +124,8 @@ impl Debug for EtcdBuilder {
     }
 }
 
+crate::impl_root_for_builder!(EtcdBuilder);
+
 impl EtcdBuilder {
     /// set the network address of etcd service.
     ///
@@ -152,19 +154,6 @@ impl EtcdBuilder {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

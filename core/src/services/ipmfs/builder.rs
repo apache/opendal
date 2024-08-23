@@ -90,18 +90,9 @@ pub struct IpmfsBuilder {
     http_client: Option<HttpClient>,
 }
 
+crate::impl_root_for_builder!(IpmfsBuilder);
+
 impl IpmfsBuilder {
-    /// Set root for ipfs.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set endpoint for ipfs.
     ///
     /// Default: http://localhost:5001

@@ -92,20 +92,9 @@ impl Debug for CosBuilder {
     }
 }
 
+crate::impl_root_for_builder!(CosBuilder);
+
 impl CosBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set endpoint of this backend.
     ///
     /// NOTE: no bucket or account id in endpoint, we will trim them if exists.

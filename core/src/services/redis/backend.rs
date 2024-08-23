@@ -121,6 +121,8 @@ impl Debug for RedisBuilder {
     }
 }
 
+crate::impl_root_for_builder!(RedisBuilder);
+
 impl RedisBuilder {
     /// set the network address of redis service.
     ///
@@ -184,19 +186,6 @@ impl RedisBuilder {
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = Some(ttl);
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 }

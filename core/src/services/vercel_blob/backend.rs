@@ -87,20 +87,9 @@ impl Debug for VercelBlobBuilder {
     }
 }
 
+crate::impl_root_for_builder!(VercelBlobBuilder);
+
 impl VercelBlobBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Vercel Blob token.
     ///
     /// Get from Vercel environment variable `BLOB_READ_WRITE_TOKEN`.

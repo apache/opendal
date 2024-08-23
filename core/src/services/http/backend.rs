@@ -86,6 +86,8 @@ impl Debug for HttpBuilder {
     }
 }
 
+crate::impl_root_for_builder!(HttpBuilder);
+
 impl HttpBuilder {
     /// Set endpoint for http backend.
     ///
@@ -127,17 +129,6 @@ impl HttpBuilder {
         if !token.is_empty() {
             self.config.token = Some(token.to_owned());
         }
-        self
-    }
-
-    /// Set root path of http backend.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

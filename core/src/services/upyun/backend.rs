@@ -90,20 +90,9 @@ impl Debug for UpyunBuilder {
     }
 }
 
+crate::impl_root_for_builder!(UpyunBuilder);
+
 impl UpyunBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// bucket of this backend.
     ///
     /// It is required. e.g. `test`

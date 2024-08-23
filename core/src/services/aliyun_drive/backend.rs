@@ -115,20 +115,9 @@ impl Debug for AliyunDriveBuilder {
     }
 }
 
+crate::impl_root_for_builder!(AliyunDriveBuilder);
+
 impl AliyunDriveBuilder {
-    /// Set the root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set access_token of this backend.
     pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());

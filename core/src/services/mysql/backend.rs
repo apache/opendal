@@ -82,6 +82,8 @@ impl Debug for MysqlBuilder {
     }
 }
 
+crate::impl_root_for_builder!(MysqlBuilder);
+
 impl MysqlBuilder {
     /// Set the connection_string of the mysql service.
     ///
@@ -101,19 +103,6 @@ impl MysqlBuilder {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

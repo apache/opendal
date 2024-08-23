@@ -89,18 +89,9 @@ impl Debug for GdriveBuilder {
     }
 }
 
+crate::impl_root_for_builder!(GdriveBuilder);
+
 impl GdriveBuilder {
-    /// Set root path of GoogleDrive folder.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Access token is used for temporary access to the GoogleDrive API.
     ///
     /// You can get the access token from [GoogleDrive App Console](https://console.cloud.google.com/apis/credentials)

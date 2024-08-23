@@ -83,20 +83,9 @@ impl Debug for DropboxBuilder {
     }
 }
 
+crate::impl_root_for_builder!(DropboxBuilder);
+
 impl DropboxBuilder {
-    /// Set the root directory for dropbox.
-    ///
-    /// Default to `/` if not set.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Access token is used for temporary access to the Dropbox API.
     ///
     /// You can get the access token from [Dropbox App Console](https://www.dropbox.com/developers/apps)

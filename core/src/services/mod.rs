@@ -19,6 +19,8 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
+pub(crate) mod impl_root_for_builder;
+
 #[cfg(feature = "services-aliyun-drive")]
 mod aliyun_drive;
 #[cfg(feature = "services-aliyun-drive")]
@@ -71,9 +73,9 @@ pub use self::etcd::EtcdConfig;
 #[cfg(feature = "services-fs")]
 mod fs;
 #[cfg(feature = "services-fs")]
-pub use fs::Fs;
+pub use self::fs::Fs;
 #[cfg(feature = "services-fs")]
-pub use fs::FsConfig;
+pub use self::fs::FsConfig;
 
 #[cfg(feature = "services-ftp")]
 mod ftp;

@@ -109,6 +109,8 @@ impl Debug for HuggingfaceBuilder {
     }
 }
 
+crate::impl_root_for_builder!(HuggingfaceBuilder);
+
 impl HuggingfaceBuilder {
     /// Set repo type of this backend. Default is model.
     ///
@@ -152,19 +154,6 @@ impl HuggingfaceBuilder {
         if !revision.is_empty() {
             self.config.revision = Some(revision.to_string());
         }
-        self
-    }
-
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

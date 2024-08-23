@@ -88,20 +88,9 @@ impl Debug for AlluxioBuilder {
     }
 }
 
+crate::impl_root_for_builder!(AlluxioBuilder);
+
 impl AlluxioBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// endpoint of this backend.
     ///
     /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.

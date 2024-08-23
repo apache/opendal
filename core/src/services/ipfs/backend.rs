@@ -61,7 +61,7 @@ pub struct IpfsBuilder {
     http_client: Option<HttpClient>,
 }
 
-impl IpfsBuilder {
+crate::impl_root_for_builder! {
     /// Set root of ipfs backend.
     ///
     /// Root must be a valid ipfs address like the following:
@@ -69,16 +69,10 @@ impl IpfsBuilder {
     /// - `/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/` (IPFS with CID v0)
     /// - `/ipfs/bafybeibozpulxtpv5nhfa2ue3dcjx23ndh3gwr5vwllk7ptoyfwnfjjr4q/` (IPFS with  CID v1)
     /// - `/ipns/opendal.apache.org/` (IPNS)
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
+    IpfsBuilder
+}
 
-        self
-    }
-
+impl IpfsBuilder {
     /// Set endpoint if ipfs backend.
     ///
     /// Endpoint must be a valid ipfs gateway which passed the [IPFS Gateway Checker](https://ipfs.github.io/public-gateway-checker/)

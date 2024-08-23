@@ -102,6 +102,8 @@ impl Debug for LibsqlBuilder {
     }
 }
 
+crate::impl_root_for_builder!(LibsqlBuilder);
+
 impl LibsqlBuilder {
     /// Set the connection_string of the libsql service.
     ///
@@ -130,19 +132,6 @@ impl LibsqlBuilder {
         if !auth_token.is_empty() {
             self.config.auth_token = Some(auth_token.to_owned());
         }
-        self
-    }
-
-    /// set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

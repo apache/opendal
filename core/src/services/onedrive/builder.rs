@@ -74,23 +74,14 @@ impl Debug for OnedriveBuilder {
     }
 }
 
+crate::impl_root_for_builder!(OnedriveBuilder);
+
 impl OnedriveBuilder {
     /// set the bearer access token for OneDrive
     ///
     /// default: no access token, which leads to failure
     pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
-        self
-    }
-
-    /// Set root path of OneDrive folder.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

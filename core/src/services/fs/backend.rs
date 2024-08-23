@@ -59,18 +59,9 @@ pub struct FsBuilder {
     config: FsConfig,
 }
 
+crate::impl_root_for_builder!(FsBuilder);
+
 impl FsBuilder {
-    /// Set root for backend.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set temp dir for atomic write.
     ///
     /// # Notes

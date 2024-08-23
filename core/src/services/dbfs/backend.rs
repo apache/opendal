@@ -82,20 +82,9 @@ impl Debug for DbfsBuilder {
     }
 }
 
+crate::impl_root_for_builder!(DbfsBuilder);
+
 impl DbfsBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set endpoint of this backend.
     ///
     /// Endpoint must be full uri, e.g.

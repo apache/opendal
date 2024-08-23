@@ -99,20 +99,9 @@ impl Debug for GithubBuilder {
     }
 }
 
+crate::impl_root_for_builder!(GithubBuilder);
+
 impl GithubBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Github access_token.
     ///
     /// required.

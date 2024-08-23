@@ -79,21 +79,12 @@ impl Debug for SledBuilder {
     }
 }
 
+crate::impl_root_for_builder!(SledBuilder);
+
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
-        self
-    }
-
-    /// Set the root for sled.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 

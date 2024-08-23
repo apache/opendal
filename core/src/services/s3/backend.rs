@@ -259,20 +259,9 @@ impl Debug for S3Builder {
     }
 }
 
+crate::impl_root_for_builder!(S3Builder);
+
 impl S3Builder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set bucket name of this backend.
     pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();

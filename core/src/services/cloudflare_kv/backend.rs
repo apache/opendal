@@ -88,6 +88,8 @@ impl Debug for CloudflareKvBuilder {
     }
 }
 
+crate::impl_root_for_builder!(CloudflareKvBuilder);
+
 impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
     pub fn token(mut self, token: &str) -> Self {
@@ -110,17 +112,6 @@ impl CloudflareKvBuilder {
         if !namespace_id.is_empty() {
             self.config.namespace_id = Some(namespace_id.to_string())
         }
-        self
-    }
-
-    /// Set the root within this backend.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
         self
     }
 }

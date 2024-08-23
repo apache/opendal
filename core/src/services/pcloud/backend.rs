@@ -92,20 +92,9 @@ impl Debug for PcloudBuilder {
     }
 }
 
+crate::impl_root_for_builder!(PcloudBuilder);
+
 impl PcloudBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Pcloud endpoint.
     /// <https://api.pcloud.com> for United States and <https://eapi.pcloud.com> for Europe
     /// ref to [doc.pcloud.com](https://docs.pcloud.com/)

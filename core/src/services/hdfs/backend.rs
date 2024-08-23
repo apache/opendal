@@ -92,20 +92,9 @@ impl Debug for HdfsBuilder {
     }
 }
 
+crate::impl_root_for_builder!(HdfsBuilder);
+
 impl HdfsBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Set name_node of this backend.
     ///
     /// Valid format including:

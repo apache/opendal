@@ -50,14 +50,6 @@ pub struct MemoryBuilder {
     config: MemoryConfig,
 }
 
-impl MemoryBuilder {
-    /// Set the root for BTreeMap.
-    pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
-        self
-    }
-}
-
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
     type Config = MemoryConfig;

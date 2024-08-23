@@ -105,20 +105,9 @@ impl Debug for IcloudBuilder {
     }
 }
 
+crate::impl_root_for_builder!(IcloudBuilder);
+
 impl IcloudBuilder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// Your Apple id
     ///
     /// It is required. your Apple login email, e.g. `example@gmail.com`

@@ -114,18 +114,9 @@ pub struct GhacBuilder {
     http_client: Option<HttpClient>,
 }
 
+crate::impl_root_for_builder!(GhacBuilder);
+
 impl GhacBuilder {
-    /// set the working directory root of backend
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-
     /// set the version that used by cache.
     ///
     /// The version is the unique value that provides namespacing.

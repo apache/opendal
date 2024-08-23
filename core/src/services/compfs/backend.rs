@@ -52,18 +52,7 @@ pub struct CompfsBuilder {
     config: CompfsConfig,
 }
 
-impl CompfsBuilder {
-    /// Set root for Compfs
-    pub fn root(mut self, root: &str) -> Self {
-        self.config.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
-}
+crate::impl_root_for_builder!(CompfsBuilder);
 
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;

@@ -128,7 +128,7 @@ For details of each step, please refer to: https://opendal.apache.org/community/
 
 ## Release List
 
-Use `./script/version.py` to generate a release version list for review.
+Use `./scripts/version.py` to generate a release version list for review.
 
 This list bumps `patch` version by default, please adapt with the actual needs.
 

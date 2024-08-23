@@ -173,7 +173,7 @@ pub unsafe extern "C" fn opendal_operator_new(
         }
     };
 
-    let mut map = HashMap::default();
+    let mut map = HashMap::<String, String>::default();
     if !options.is_null() {
         for (k, v) in (*options).as_ref() {
             map.insert(k.to_string(), v.to_string());

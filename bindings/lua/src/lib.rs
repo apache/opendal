@@ -44,7 +44,7 @@ fn operator_new<'a>(
         return Err(LuaError::external("schema is empty"));
     }
 
-    let mut map = HashMap::default();
+    let mut map = HashMap::<String, String>::default();
     for pair in option.pairs::<String, String>() {
         let (key, value) = pair?;
         map.insert(key, value);

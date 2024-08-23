@@ -15,17 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
-use rusqlite::params;
-use rusqlite::Connection;
-use tokio::task;
-
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::SqliteConfig;
 use crate::*;
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::SqlitePool;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::str::FromStr;
 
 impl Configurator for SqliteConfig {
     type Builder = SqliteBuilder;
@@ -56,11 +54,13 @@ impl SqliteBuilder {
     ///
     /// ## Url
     ///
-    /// This format resembles the url format of the sqlite client. The format is: `file://[path]?flag`
+    /// This format resembles the url format of the sqlite client:
     ///
-    /// - `file://data.db`
+    /// - `sqlite::memory:`
+    /// - `sqlite:data.db`
+    /// - `sqlite://data.db`
     ///
-    /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
+    /// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
     pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
@@ -115,7 +115,7 @@ impl Builder for SqliteBuilder {
     type Config = SqliteConfig;
 
     fn build(self) -> Result<impl Access> {
-        let connection_string = match self.config.connection_string.clone() {
+        let conn = match self.config.connection_string {
             Some(v) => v,
             None => {
                 return Err(Error::new(
@@ -125,32 +125,31 @@ impl Builder for SqliteBuilder {
                 .with_context("service", Scheme::Sqlite));
             }
         };
-        let table = match self.config.table.clone() {
+
+        let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+                .with_context("service", Scheme::Sqlite)
+                .set_source(err)
+        })?;
+
+        let table = match self.config.table {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Sqlite));
             }
         };
-        let key_field = match self.config.key_field.clone() {
-            Some(v) => v,
-            None => "key".to_string(),
-        };
-        let value_field = match self.config.value_field.clone() {
-            Some(v) => v,
-            None => "value".to_string(),
-        };
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
-        let mgr = SqliteConnectionManager { connection_string };
-        let pool = r2d2::Pool::new(mgr).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "sqlite pool init failed").set_source(err)
-        })?;
+
+        let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+
+        let value_field = self
+            .config
+            .value_field
+            .unwrap_or_else(|| "value".to_string());
+
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
+
+        let pool = SqlitePool::connect_lazy_with(config);
 
         Ok(SqliteBackend::new(Adapter {
             pool,
@@ -162,47 +161,15 @@ impl Builder for SqliteBuilder {
     }
 }
 
-struct SqliteConnectionManager {
-    connection_string: String,
-}
-
-impl r2d2::ManageConnection for SqliteConnectionManager {
-    type Connection = Connection;
-    type Error = Error;
-
-    fn connect(&self) -> Result<Connection> {
-        Connection::open(&self.connection_string)
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "sqlite open error").set_source(err))
-    }
-
-    fn is_valid(&self, conn: &mut Connection) -> Result<()> {
-        conn.execute_batch("").map_err(parse_rusqlite_error)
-    }
-
-    fn has_broken(&self, _: &mut Connection) -> bool {
-        false
-    }
-}
-
 pub type SqliteBackend = kv::Backend<Adapter>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Adapter {
-    pool: r2d2::Pool<SqliteConnectionManager>,
+    pool: SqlitePool,
 
     table: String,
     key_field: String,
     value_field: String,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SqliteAdapter");
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.finish()
-    }
 }
 
 impl kv::Adapter for Adapter {
@@ -222,108 +189,60 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let this = self.clone();
-        let path = path.to_string();
-
-        task::spawn_blocking(move || this.blocking_get(&path))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
-        let conn = self.pool.get().map_err(parse_r2d2_error)?;
-
-        let query = format!(
-            "SELECT {} FROM {} WHERE `{}` = $1 LIMIT 1",
+        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
+            "SELECT `{}` FROM `{}` WHERE `{}` = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
-        );
-        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        let result: rusqlite::Result<Vec<u8>> = statement.query_row([path], |row| row.get(0));
-        match result {
-            Ok(v) => Ok(Some(Buffer::from(v))),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(err) => Err(parse_rusqlite_error(err)),
-        }
+        ))
+        .bind(path)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(parse_sqlite_error)?;
+
+        Ok(value.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let this = self.clone();
-        let path = path.to_string();
-        task::spawn_blocking(move || this.blocking_set(&path, value))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        let conn = self.pool.get().map_err(parse_r2d2_error)?;
-
-        let query = format!(
+        sqlx::query(&format!(
             "INSERT OR REPLACE INTO `{}` (`{}`, `{}`) VALUES ($1, $2)",
-            self.table, self.key_field, self.value_field
-        );
-        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        statement
-            .execute(params![path, value.to_vec()])
-            .map_err(parse_rusqlite_error)?;
+            self.table, self.key_field, self.value_field,
+        ))
+        .bind(path)
+        .bind(value.to_vec())
+        .execute(&self.pool)
+        .await
+        .map_err(parse_sqlite_error)?;
+
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let this = self.clone();
-        let path = path.to_string();
+        sqlx::query(&format!(
+            "DELETE FROM `{}` WHERE `{}` = $1",
+            self.table, self.key_field
+        ))
+        .bind(path)
+        .execute(&self.pool)
+        .await
+        .map_err(parse_sqlite_error)?;
 
-        task::spawn_blocking(move || this.blocking_delete(&path))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
-        let conn = self.pool.get().map_err(parse_r2d2_error)?;
-
-        let query = format!("DELETE FROM {} WHERE `{}` = $1", self.table, self.key_field);
-        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        statement.execute([path]).map_err(parse_rusqlite_error)?;
         Ok(())
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let this = self.clone();
-        let path = path.to_string();
-
-        task::spawn_blocking(move || this.blocking_scan(&path))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let conn = self.pool.get().map_err(parse_r2d2_error)?;
-        let query = format!(
-            "SELECT {} FROM {} WHERE `{}` LIKE $1 and `{}` <> $2",
+        let value = sqlx::query_scalar(&format!(
+            "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1 and `{}` <> $2",
             self.key_field, self.table, self.key_field, self.key_field
-        );
-        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
-        let like_param = format!("{}%", path);
-        let result = statement.query(params![like_param, path]);
+        ))
+        .bind(format!("{path}%"))
+        .bind(path)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(parse_sqlite_error)?;
 
-        match result {
-            Ok(mut rows) => {
-                let mut keys: Vec<String> = Vec::new();
-                while let Some(row) = rows.next().map_err(parse_rusqlite_error)? {
-                    let item = row.get(0).map_err(parse_rusqlite_error)?;
-                    keys.push(item);
-                }
-                Ok(keys)
-            }
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(vec![]),
-            Err(err) => Err(parse_rusqlite_error(err)),
-        }
+        Ok(value)
     }
 }
 
-fn parse_rusqlite_error(err: rusqlite::Error) -> Error {
+fn parse_sqlite_error(err: sqlx::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from sqlite").set_source(err)
-}
-
-fn parse_r2d2_error(err: r2d2::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from r2d2").set_source(err)
 }

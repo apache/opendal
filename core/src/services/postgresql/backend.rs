@@ -60,7 +60,7 @@ impl PostgresqlBuilder {
     /// - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`
     /// - `postgresql:///mydb?user=user&host=/var/lib/postgresql`
     ///
-    /// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>
+    /// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
     pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
@@ -187,7 +187,7 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            "SELECT {} FROM {} WHERE {} = $1",
+            "SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
@@ -204,10 +204,10 @@ impl kv::Adapter for Adapter {
         let value_field = &self.value_field;
 
         sqlx::query(&format!(
-            r#"INSERT INTO {table} ({key_field}, {value_field})
+            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
                 VALUES ($1, $2)
-                ON CONFLICT ({key_field})
-                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}"#,
+                ON CONFLICT ("{key_field}")
+                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
         ))
         .bind(path)
         .bind(value.to_vec())

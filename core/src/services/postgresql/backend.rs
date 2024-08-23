@@ -174,7 +174,7 @@ pub struct Adapter {
 impl Adapter {
     async fn get_client(&self) -> Result<&PgPool> {
         self.pool
-            .get_or_try_init(async {
+            .get_or_try_init(|| async {
                 let pool = PgPool::connect_with(self.config.clone())
                     .await
                     .map_err(parse_postgres_error)?;

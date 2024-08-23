@@ -19,6 +19,7 @@ mod lister;
 mod reader;
 mod types;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -101,7 +102,7 @@ pub struct Operator(od::BlockingOperator);
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
 
-    let map = configs
+    let map: HashMap<String, String> = configs
         .into_iter()
         .map(|value| (value.key, value.value))
         .collect();

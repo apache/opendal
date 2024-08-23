@@ -176,7 +176,7 @@ pub struct Adapter {
 impl Adapter {
     async fn get_client(&self) -> Result<&SqlitePool> {
         self.pool
-            .get_or_try_init(async {
+            .get_or_try_init(|| async {
                 let pool = SqlitePool::connect_with(self.config.clone())
                     .await
                     .map_err(parse_sqlite_error)?;

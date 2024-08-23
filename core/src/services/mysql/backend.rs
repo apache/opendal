@@ -175,7 +175,7 @@ pub struct Adapter {
 impl Adapter {
     async fn get_client(&self) -> Result<&MySqlPool> {
         self.pool
-            .get_or_try_init(async {
+            .get_or_try_init(|| async {
                 let pool = MySqlPool::connect_with(self.config.clone())
                     .await
                     .map_err(parse_mysql_error)?;

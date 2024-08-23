@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::TryFutureExt;
 use sqlx::postgres::PgConnectOptions;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -187,7 +186,7 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            "SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1",
+            r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
             self.value_field, self.table, self.key_field
         ))
         .bind(path)

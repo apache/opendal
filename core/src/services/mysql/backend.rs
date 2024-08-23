@@ -185,7 +185,7 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let value = sqlx::query_scalar(&format!(
+        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             "SELECT `{}` FROM `{}` WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
         ))

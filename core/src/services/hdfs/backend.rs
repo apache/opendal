@@ -22,7 +22,6 @@ use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use futures::AsyncWriteExt;
 use log::debug;
 use uuid::Uuid;
 
@@ -290,40 +289,34 @@ impl Access for HdfsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = build_rooted_abs_path(&self.root, path);
-            let tmp_path = build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path));
-
-            // If the target file exists, we should append to the end of it directly.
-            if op.append() && self.client.metadata(&target_path).is_ok() {
-                (target_path, None)
-            } else {
-                (target_path, Some(tmp_path))
+        let target_path = build_rooted_abs_path(&self.root, path);
+        let target_exists = match self.client.metadata(&target_path) {
+            Ok(_) => true,
+            Err(err) => {
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+                false
             }
-        } else {
-            let p = build_rooted_abs_path(&self.root, path);
-            (p, None)
         };
 
-        if let Err(err) = self.client.metadata(&target_path) {
-            // Early return if other error happened.
-            if err.kind() != io::ErrorKind::NotFound {
-                return Err(new_std_io_error(err));
+        let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
+            // If the target file exists, we should append to the end of it directly.
+            if op.append() && target_exists {
+                None
+            } else {
+                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
             }
+        });
 
+        if !target_exists {
             let parent = get_parent(&target_path);
-
             self.client.create_dir(parent).map_err(new_std_io_error)?;
-
-            let mut f = self
-                .client
-                .open_file()
-                .create(true)
-                .write(true)
-                .async_open(&target_path)
-                .await
+        } else if tmp_path.is_some() {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            self.client
+                .remove_file(&target_path)
                 .map_err(new_std_io_error)?;
-            f.close().await.map_err(new_std_io_error)?;
         }
 
         let mut open_options = self.client.open_file();
@@ -489,37 +482,33 @@ impl Access for HdfsBackend {
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = build_rooted_abs_path(&self.root, path);
-            let tmp_path = build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path));
-
-            // If the target file exists, we should append to the end of it directly.
-            if op.append() && self.client.metadata(&target_path).is_ok() {
-                (target_path, None)
-            } else {
-                (target_path, Some(tmp_path))
+        let target_path = build_rooted_abs_path(&self.root, path);
+        let target_exists = match self.client.metadata(&target_path) {
+            Ok(_) => true,
+            Err(err) => {
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+                false
             }
-        } else {
-            let p = build_rooted_abs_path(&self.root, path);
-
-            (p, None)
         };
 
-        if let Err(err) = self.client.metadata(&target_path) {
-            // Early return if other error happened.
-            if err.kind() != io::ErrorKind::NotFound {
-                return Err(new_std_io_error(err));
+        let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
+            // If the target file exists, we should append to the end of it directly.
+            if op.append() && target_exists {
+                None
+            } else {
+                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
             }
+        });
 
+        if !target_exists {
             let parent = get_parent(&target_path);
-
             self.client.create_dir(parent).map_err(new_std_io_error)?;
-
+        } else if tmp_path.is_some() {
+            // we must delete the target_path, otherwise the rename_file operation will fail
             self.client
-                .open_file()
-                .create(true)
-                .write(true)
-                .open(&target_path)
+                .remove_file(&target_path)
                 .map_err(new_std_io_error)?;
         }
 

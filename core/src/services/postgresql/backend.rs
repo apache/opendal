@@ -21,8 +21,6 @@ use sqlx::{PgPool, Row};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -150,9 +148,10 @@ impl Builder for PostgresqlBuilder {
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
+        let pool = PgPool::connect_lazy_with(config);
+
         Ok(PostgresqlBackend::new(Adapter {
-            pool: OnceCell::new(),
-            config,
+            pool,
             table,
             key_field,
             value_field,
@@ -164,33 +163,13 @@ impl Builder for PostgresqlBuilder {
 /// Backend for Postgresql service
 pub type PostgresqlBackend = kv::Backend<Adapter>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Adapter {
-    pool: OnceCell<Arc<PgPool>>,
-    config: PgConnectOptions,
+    pool: PgPool,
 
     table: String,
     key_field: String,
     value_field: String,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.finish_non_exhaustive()
-    }
-}
-
-impl Adapter {
-    async fn get_client(&self) -> Result<&PgPool> {
-        self.pool
-            .get_or_try_init(|| async {
-                let pool = PgPool::connect_with(self.config.clone()).await?;
-                Ok(Arc::new(pool))
-            })
-            .await
-            .map(|v| v.as_ref())
-    }
 }
 
 impl kv::Adapter for Adapter {
@@ -207,14 +186,12 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let pool = self.get_client().await?;
-
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             "SELECT {} FROM {} WHERE {} = $1",
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
-        .fetch_optional(pool)
+        .fetch_optional(&self.pool)
         .await
         .map_err(parse_postgres_error)?;
 
@@ -226,7 +203,6 @@ impl kv::Adapter for Adapter {
         let key_field = &self.key_field;
         let value_field = &self.value_field;
 
-        let pool = self.get_client().await?;
         sqlx::query(&format!(
             r#"INSERT INTO {table} ({key_field}, {value_field})
                 VALUES ($1, $2)
@@ -235,23 +211,23 @@ impl kv::Adapter for Adapter {
         ))
         .bind(path)
         .bind(value.to_vec())
-        .execute(pool)
+        .execute(&self.pool)
         .await
         .map_err(parse_postgres_error)?;
+
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let pool = self.get_client().await?;
-
         sqlx::query(&format!(
             "DELETE FROM {} WHERE {} = $1",
             self.table, self.key_field
         ))
         .bind(path)
-        .execute(pool)
+        .execute(&self.pool)
         .await
         .map_err(parse_postgres_error)?;
+
         Ok(())
     }
 }

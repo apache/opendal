@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use mysql_async::prelude::*;
-use mysql_async::Opts;
-use mysql_async::Pool;
-
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::MysqlConfig;
 use crate::*;
+use sqlx::mysql::MySqlConnectOptions;
+use sqlx::MySqlPool;
+use std::fmt::Debug;
+use std::str::FromStr;
 
 impl Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
@@ -116,7 +114,7 @@ impl Builder for MysqlBuilder {
     type Config = MysqlConfig;
 
     fn build(self) -> Result<impl Access> {
-        let conn = match self.config.connection_string.clone() {
+        let conn = match self.config.connection_string {
             Some(v) => v,
             None => {
                 return Err(
@@ -126,39 +124,33 @@ impl Builder for MysqlBuilder {
             }
         };
 
-        let config = Opts::from_url(&conn).map_err(|err| {
+        let config = MySqlConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
                 .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
 
-        let table = match self.config.table.clone() {
+        let table = match self.config.table {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Mysql))
             }
         };
-        let key_field = match self.config.key_field.clone() {
-            Some(v) => v,
-            None => "key".to_string(),
-        };
-        let value_field = match self.config.value_field.clone() {
-            Some(v) => v,
-            None => "value".to_string(),
-        };
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
-        let pool = Pool::new(config.clone());
+
+        let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+
+        let value_field = self
+            .config
+            .value_field
+            .unwrap_or_else(|| "value".to_string());
+
+        let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
+
+        let connection_pool = MySqlPool::connect_lazy_with(config);
 
         Ok(MySqlBackend::new(Adapter {
-            connection_pool: pool,
-            config,
+            connection_pool,
             table,
             key_field,
             value_field,
@@ -170,26 +162,13 @@ impl Builder for MysqlBuilder {
 /// Backend for mysql service
 pub type MySqlBackend = kv::Backend<Adapter>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Adapter {
-    connection_pool: Pool,
-    config: Opts,
+    connection_pool: MySqlPool,
 
     table: String,
     key_field: String,
     value_field: String,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("connection_pool", &self.connection_pool)
-            .field("config", &self.config)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
 }
 
 impl kv::Adapter for Adapter {
@@ -206,81 +185,47 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let query = format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` = :path LIMIT 1",
+        let value = sqlx::query_scalar(&format!(
+            "SELECT `{}` FROM `{}` WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
-        );
-        let mut conn = self
-            .connection_pool
-            .get_conn()
-            .await
-            .map_err(parse_mysql_error)?;
-        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
-        let result: Option<Vec<u8>> = conn
-            .exec_first(
-                statement,
-                params! {
-                    "path" => path,
-                },
-            )
-            .await
-            .map_err(parse_mysql_error)?;
-        match result {
-            Some(v) => Ok(Some(Buffer::from(v))),
-            None => Ok(None),
-        }
+        ))
+        .bind(path)
+        .fetch_optional(&self.connection_pool)
+        .await
+        .map_err(parse_mysql_error)?;
+
+        Ok(value.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let query = format!(
-            "INSERT INTO `{}` (`{}`, `{}`)
-            VALUES (:path, :value)
-            ON DUPLICATE KEY UPDATE `{}` = VALUES({})",
+        sqlx::query(&format!(
+            r#"INSERT INTO `{}` (`{}`, `{}`) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE `{}` = VALUES({})"#,
             self.table, self.key_field, self.value_field, self.value_field, self.value_field
-        );
-        let mut conn = self
-            .connection_pool
-            .get_conn()
-            .await
-            .map_err(parse_mysql_error)?;
-        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
-
-        conn.exec_drop(
-            statement,
-            params! {
-                "path" => path,
-                "value" => value.to_vec(),
-            },
-        )
+        ))
+        .bind(path)
+        .bind(value.to_vec())
+        .execute(&self.connection_pool)
         .await
         .map_err(parse_mysql_error)?;
+
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let query = format!(
-            "DELETE FROM `{}` WHERE `{}` = :path",
+        sqlx::query(&format!(
+            "DELETE FROM `{}` WHERE `{}` = ?",
             self.table, self.key_field
-        );
-        let mut conn = self
-            .connection_pool
-            .get_conn()
-            .await
-            .map_err(parse_mysql_error)?;
-        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
-
-        conn.exec_drop(
-            statement,
-            params! {
-                "path" => path,
-            },
-        )
+        ))
+        .bind(path)
+        .execute(&self.connection_pool)
         .await
         .map_err(parse_mysql_error)?;
+
         Ok(())
     }
 }
 
-fn parse_mysql_error(err: mysql_async::Error) -> Error {
+fn parse_mysql_error(err: sqlx::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from mysql").set_source(err)
 }

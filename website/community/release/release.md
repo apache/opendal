@@ -130,12 +130,12 @@ For details of each step, please refer to: https://opendal.apache.org/community/
 
 Use `./scripts/version.py` to generate a release version list for review.
 
-This list bumps `patch` version by default, please adapt with the actual needs.
+This list bumps the `patch` version by default; please adapt to the actual needs.
 
 For example:
 
-- If breaking change happened, we need to bump `minor` version instead of `patch`.
-- If this package is not ready for release, we can skip it.
+- If there is any breaking change, please bump the `minor` version instead of the `patch` version.
+- If this package is not ready for release, please skip.
 
 ## GitHub Side
 

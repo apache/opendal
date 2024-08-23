@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-yandex-disk")]
+mod core;
+#[cfg(feature = "services-yandex-disk")]
+mod error;
+#[cfg(feature = "services-yandex-disk")]
+mod lister;
+#[cfg(feature = "services-yandex-disk")]
+mod writer;
+
+#[cfg(feature = "services-yandex-disk")]
 mod backend;
+#[cfg(feature = "services-yandex-disk")]
 pub use backend::YandexDiskBuilder as YandexDisk;
 
-mod core;
-mod error;
-mod lister;
-mod writer;
+mod config;
+pub use config::YandexDiskConfig;

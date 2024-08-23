@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-b2")]
+mod core;
+#[cfg(feature = "services-b2")]
+mod error;
+#[cfg(feature = "services-b2")]
+mod lister;
+#[cfg(feature = "services-b2")]
+mod writer;
+
+#[cfg(feature = "services-b2")]
 mod backend;
+#[cfg(feature = "services-b2")]
 pub use backend::B2Builder as B2;
 
-mod core;
-mod error;
-mod lister;
-mod writer;
+mod config;
+pub use config::B2Config;

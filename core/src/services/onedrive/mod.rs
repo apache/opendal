@@ -15,12 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-onedrive")]
 mod backend;
-mod builder;
+#[cfg(feature = "services-onedrive")]
 mod error;
+#[cfg(feature = "services-onedrive")]
 mod graph_model;
+#[cfg(feature = "services-onedrive")]
+mod lister;
+#[cfg(feature = "services-onedrive")]
+mod writer;
 
+#[cfg(feature = "services-onedrive")]
+mod builder;
+#[cfg(feature = "services-onedrive")]
 pub use builder::OnedriveBuilder as Onedrive;
 
-mod lister;
-mod writer;
+mod config;
+pub use config::OnedriveConfig;

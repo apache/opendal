@@ -15,5 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-redis")]
 mod backend;
+#[cfg(feature = "services-redis")]
 pub use backend::RedisBuilder as Redis;
+
+mod config;
+pub use config::RedisConfig;

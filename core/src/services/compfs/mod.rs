@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-compfs")]
+mod core;
+#[cfg(feature = "services-compfs")]
+mod lister;
+#[cfg(feature = "services-compfs")]
+mod reader;
+#[cfg(feature = "services-compfs")]
+mod writer;
+
+#[cfg(feature = "services-compfs")]
+mod backend;
+#[cfg(feature = "services-compfs")]
 pub use backend::CompfsBuilder as Compfs;
 
-mod backend;
-mod core;
-mod lister;
-mod reader;
-mod writer;
+mod config;
+pub use config::CompfsConfig;

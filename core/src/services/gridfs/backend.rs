@@ -28,23 +28,24 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::services::GridFsConfig;
 use crate::*;
 
-impl Configurator for GridFsConfig {
-    type Builder = GridFsBuilder;
+use super::config::GridfsConfig;
+
+impl Configurator for GridfsConfig {
+    type Builder = GridfsBuilder;
     fn into_builder(self) -> Self::Builder {
-        GridFsBuilder { config: self }
+        GridfsBuilder { config: self }
     }
 }
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
-pub struct GridFsBuilder {
-    config: GridFsConfig,
+pub struct GridfsBuilder {
+    config: GridfsConfig,
 }
 
-impl Debug for GridFsBuilder {
+impl Debug for GridfsBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("GridFsBuilder");
         d.field("config", &self.config);
@@ -52,7 +53,7 @@ impl Debug for GridFsBuilder {
     }
 }
 
-impl GridFsBuilder {
+impl GridfsBuilder {
     /// Set the connection_string of the MongoDB service.
     ///
     /// This connection string is used to connect to the MongoDB service. It typically follows the format:
@@ -122,9 +123,9 @@ impl GridFsBuilder {
     }
 }
 
-impl Builder for GridFsBuilder {
-    const SCHEME: Scheme = Scheme::Mongodb;
-    type Config = GridFsConfig;
+impl Builder for GridfsBuilder {
+    const SCHEME: Scheme = Scheme::Gridfs;
+    type Config = GridfsConfig;
 
     fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {

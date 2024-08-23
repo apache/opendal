@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-hdfs-native")]
+mod error;
+#[cfg(feature = "services-hdfs-native")]
+mod lister;
+#[cfg(feature = "services-hdfs-native")]
+mod reader;
+#[cfg(feature = "services-hdfs-native")]
+mod writer;
+
+#[cfg(feature = "services-hdfs-native")]
 mod backend;
+#[cfg(feature = "services-hdfs-native")]
 pub use backend::HdfsNativeBuilder as HdfsNative;
 
-mod error;
-mod lister;
-mod reader;
-mod writer;
+mod config;
+pub use config::HdfsNativeConfig;

@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-icloud")]
+mod core;
+
+#[cfg(feature = "services-icloud")]
 mod backend;
+#[cfg(feature = "services-icloud")]
 pub use backend::IcloudBuilder as Icloud;
 
-mod core;
+mod config;
+pub use config::IcloudConfig;

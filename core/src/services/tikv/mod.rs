@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-tikv")]
 mod backend;
-
+#[cfg(feature = "services-tikv")]
 pub use backend::TikvBuilder as Tikv;
+
+mod config;
+pub use config::TikvConfig;

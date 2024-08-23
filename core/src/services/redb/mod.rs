@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-redb")]
 mod backend;
-
+#[cfg(feature = "services-redb")]
 pub use backend::RedbBuilder as Redb;
+
+mod config;
+pub use config::RedbConfig;

@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-alluxio")]
+mod core;
+#[cfg(feature = "services-alluxio")]
+mod error;
+#[cfg(feature = "services-alluxio")]
+mod lister;
+#[cfg(feature = "services-alluxio")]
+mod writer;
+
+#[cfg(feature = "services-alluxio")]
 mod backend;
+#[cfg(feature = "services-alluxio")]
 pub use backend::AlluxioBuilder as Alluxio;
 
-mod core;
-mod error;
-mod lister;
-mod writer;
+mod config;
+pub use config::AlluxioConfig;

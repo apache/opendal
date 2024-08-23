@@ -38,7 +38,7 @@ pub unsafe extern "C" fn blocking_operator_construct(
 
     let mut map = HashMap::default();
     map.insert("root".to_string(), "/tmp".to_string());
-    let op = match opendal::Operator::via_map(scheme, map) {
+    let op = match opendal::Operator::via_iter(scheme, map) {
         Ok(op) => op.blocking(),
         Err(err) => {
             println!("err={err:?}");

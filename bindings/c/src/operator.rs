@@ -102,7 +102,7 @@ fn build_operator(
     schema: core::Scheme,
     map: HashMap<String, String>,
 ) -> core::Result<core::Operator> {
-    let mut op = match core::Operator::via_map(schema, map) {
+    let mut op = match core::Operator::via_iter(schema, map) {
         Ok(o) => o,
         Err(e) => return Err(e),
     };

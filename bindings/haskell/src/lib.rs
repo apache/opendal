@@ -99,7 +99,7 @@ pub unsafe extern "C" fn via_map_ffi(
         }
     }
 
-    let res = match od::Operator::via_map(scheme, map) {
+    let res = match od::Operator::via_iter(scheme, map) {
         Ok(mut operator) => {
             operator = operator.layer(RetryLayer::new());
             if callback.is_some() {

@@ -315,7 +315,7 @@ redis = { version = "0.26", features = [
   "connection-manager",
 ], optional = true }
 # for services-rocksdb
-rocksdb = { version = "0.22.0", default-features = false, optional = true }
+rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-sled
 sled = { version = "0.34.7", optional = true }
 # for services-ftp

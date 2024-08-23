@@ -33,7 +33,7 @@ pub struct Operator(od::BlockingOperator);
 impl Operator {
     pub fn __construct(scheme_str: String, config: HashMap<String, String>) -> PhpResult<Self> {
         let scheme = od::Scheme::from_str(&scheme_str).map_err(format_php_err)?;
-        let op = od::Operator::via_map(scheme, config).map_err(format_php_err)?;
+        let op = od::Operator::via_iter(scheme, config).map_err(format_php_err)?;
 
         Ok(Operator(op.blocking()))
     }

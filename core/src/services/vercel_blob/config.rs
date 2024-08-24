@@ -28,7 +28,7 @@ pub struct VercelBlobConfig {
     /// All operations will happen under this root.
     pub root: Option<String>,
     /// vercel blob token.
-    pub token: String,
+    pub token: Option<String>,
 }
 
 impl Debug for VercelBlobConfig {

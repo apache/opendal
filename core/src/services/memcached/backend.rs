@@ -89,10 +89,8 @@ impl Builder for MemcachedBuilder {
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Access> {
-        let endpoint = self.config.endpoint.clone().ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Memcached)
-        })?;
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
         let uri = http::Uri::try_from(&endpoint).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", Scheme::Memcached)

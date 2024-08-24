@@ -157,12 +157,10 @@ impl Builder for ObsBuilder {
 
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
-                Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                    .with_context("service", Scheme::Obs)
+                Error::error_kind_config_invalid(Self::SCHEME, "endpoint is invalid")
                     .set_source(err)
             }),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Obs)),
+            None => Err(Error::empty_endpoint_err(Self::SCHEME)),
         }?;
 
         let scheme = match uri.scheme_str() {

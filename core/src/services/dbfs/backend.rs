@@ -105,12 +105,9 @@ impl Builder for DbfsBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Dbfs)),
-        }?;
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)
+                .map_err(|err| err.with_operation("Builder::build"))?;
         debug!("backend use endpoint: {}", &endpoint);
 
         let token = match self.config.token {

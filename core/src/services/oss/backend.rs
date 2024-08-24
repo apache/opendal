@@ -154,15 +154,11 @@ impl OssBuilder {
     fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
         let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
-                let uri = ep.parse::<Uri>().map_err(|err| {
-                    Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                        .with_context("service", Scheme::Oss)
-                        .with_context("endpoint", &ep)
-                        .set_source(err)
-                })?;
+                let uri = ep
+                    .parse::<Uri>()
+                    .map_err(|err| Error::empty_endpoint_err(Self::SCHEME).set_source(err))?;
                 let host = uri.host().ok_or_else(|| {
-                    Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
-                        .with_context("service", Scheme::Oss)
+                    Error::error_kind_config_invalid(Self::SCHEME, "endpoint host is empty")
                         .with_context("endpoint", &ep)
                 })?;
                 let full_host = if let Some(port) = uri.port_u16() {
@@ -174,11 +170,10 @@ impl OssBuilder {
                     Some(scheme_str) => match scheme_str {
                         "http" | "https" => format!("{scheme_str}://{full_host}"),
                         _ => {
-                            return Err(Error::new(
-                                ErrorKind::ConfigInvalid,
+                            return Err(Error::error_kind_config_invalid(
+                                Self::SCHEME,
                                 "endpoint protocol is invalid",
-                            )
-                            .with_context("service", Scheme::Oss));
+                            ));
                         }
                     },
                     None => format!("https://{full_host}"),
@@ -186,8 +181,7 @@ impl OssBuilder {
                 (endpoint, full_host)
             }
             None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Oss));
+                return Err(Error::empty_endpoint_err(Self::SCHEME));
             }
         };
         Ok((endpoint, host))

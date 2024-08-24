@@ -134,15 +134,13 @@ impl Builder for WebdavBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let endpoint = match &self.config.endpoint {
-            Some(v) => v,
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Webdav));
-            }
-        };
+        // Handle endpoint.
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
+        debug!("backend use endpoint {}", endpoint);
+
         // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
-        let server_path = http::Uri::from_str(endpoint)
+        let server_path = http::Uri::from_str(&endpoint)
             .map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                     .with_context("service", Scheme::Webdav)
@@ -176,7 +174,7 @@ impl Builder for WebdavBuilder {
         }
 
         let core = Arc::new(WebdavCore {
-            endpoint: endpoint.to_string(),
+            endpoint,
             server_path,
             authorization,
             disable_copy: self.config.disable_copy,

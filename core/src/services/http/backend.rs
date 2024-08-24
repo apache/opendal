@@ -131,15 +131,8 @@ impl Builder for HttpBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
-
-        let endpoint = match &self.config.endpoint {
-            Some(v) => v,
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Http))
-            }
-        };
-
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 

@@ -42,6 +42,8 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
 
+use crate::Scheme;
+
 /// Result that is a wrapper of `Result<T, opendal::Error>`
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -399,6 +401,32 @@ impl Error {
     /// Check if this error is temporary.
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
+    }
+
+    /** Useful helper functions for Builder::build  */
+
+    #[inline]
+    pub(crate) fn error_kind_config_invalid(scheme: Scheme, message: impl Into<String>) -> Self {
+        // Since all ErrorKind::ConfigInvalid occur in Builder::build,
+        // we always call `with_operation` and `with_context`.
+        Self::new(ErrorKind::ConfigInvalid, message)
+            .with_operation("Builder::build")
+            .with_context("service", scheme)
+    }
+
+    #[inline]
+    pub(crate) fn empty_endpoint_err(ctx_schema: Scheme) -> Self {
+        Self::error_kind_config_invalid(ctx_schema, "endpoint is empty")
+    }
+
+    #[inline]
+    pub(crate) fn ensure_endpoint_not_empty(
+        endpoint: Option<&str>,
+        ctx_schema: Scheme,
+    ) -> Result<String, Self> {
+        let endpoint = endpoint.ok_or_else(|| Self::empty_endpoint_err(ctx_schema))?;
+
+        Ok(endpoint.to_string())
     }
 }
 

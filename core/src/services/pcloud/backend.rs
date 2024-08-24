@@ -137,13 +137,9 @@ impl Builder for PcloudBuilder {
         debug!("backend use root {}", &root);
 
         // Handle endpoint.
-        if self.config.endpoint.is_empty() {
-            return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud));
-        }
-
-        debug!("backend use endpoint {}", &self.config.endpoint);
+        let endpoint =
+            Error::ensure_endpoint_not_empty(Some(self.config.endpoint.as_str()), Self::SCHEME)?;
+        debug!("backend use endpoint {}", endpoint);
 
         let username = match &self.config.username {
             Some(username) => Ok(username.clone()),
@@ -171,7 +167,7 @@ impl Builder for PcloudBuilder {
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {
                 root,
-                endpoint: self.config.endpoint.clone(),
+                endpoint,
                 username,
                 password,
                 client,

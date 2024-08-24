@@ -157,22 +157,18 @@ impl Builder for CosBuilder {
 
         let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),
-            None => Err(
-                Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::Cos),
-            ),
+            None => Err(Error::error_kind_config_invalid(
+                Self::SCHEME,
+                "The bucket is misconfigured",
+            )),
         }?;
         debug!("backend use bucket {}", &bucket);
 
         let uri = match &self.config.endpoint {
-            Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
-                Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                    .with_context("service", Scheme::Cos)
-                    .with_context("endpoint", endpoint)
-                    .set_source(err)
-            }),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Cos)),
+            Some(endpoint) => endpoint
+                .parse::<Uri>()
+                .map_err(|err| Error::empty_endpoint_err(Self::SCHEME).set_source(err)),
+            None => Err(Error::empty_endpoint_err(Self::SCHEME)),
         }?;
 
         let scheme = match uri.scheme_str() {

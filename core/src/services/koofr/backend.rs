@@ -140,13 +140,9 @@ impl Builder for KoofrBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        if self.config.endpoint.is_empty() {
-            return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
-        }
-
-        debug!("backend use endpoint {}", &self.config.endpoint);
+        let endpoint =
+            Error::ensure_endpoint_not_empty(Some(self.config.endpoint.as_str()), Self::SCHEME)?;
+        debug!("backend use endpoint {}", endpoint);
 
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
@@ -177,7 +173,7 @@ impl Builder for KoofrBuilder {
         Ok(KoofrBackend {
             core: Arc::new(KoofrCore {
                 root,
-                endpoint: self.config.endpoint.clone(),
+                endpoint,
                 email: self.config.email.clone(),
                 password,
                 mount_id: OnceCell::new(),

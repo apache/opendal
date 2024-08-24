@@ -164,12 +164,9 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdls)),
-        }?;
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)
+                .map_err(|err| err.with_operation("Builder::build"))?;
         debug!("backend use endpoint {}", &endpoint);
 
         let client = if let Some(client) = self.http_client {

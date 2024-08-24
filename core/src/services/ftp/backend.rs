@@ -119,11 +119,8 @@ impl Builder for FtpBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("ftp backend build started: {:?}", &self);
-        let endpoint = match &self.config.endpoint {
-            None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
-            Some(v) => v,
-        };
-
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
         let endpoint_uri = match endpoint.parse::<Uri>() {
             Err(e) => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")

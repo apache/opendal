@@ -158,12 +158,8 @@ impl Builder for SeafileBuilder {
 
         debug!("backend use repo_name {}", &self.config.repo_name);
 
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Seafile)),
-        }?;
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
 
         let username = match &self.config.username {
             Some(username) => Ok(username.clone()),

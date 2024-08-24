@@ -150,10 +150,10 @@ impl Builder for SftpBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("sftp backend build started: {:?}", &self);
-        let endpoint = match self.config.endpoint.clone() {
-            Some(v) => v,
-            None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
-        };
+        // Handle endpoint.
+        let endpoint =
+            Error::ensure_endpoint_not_empty(self.config.endpoint.as_deref(), Self::SCHEME)?;
+        debug!("backend use endpoint {}", endpoint);
 
         let user = self.config.user.clone();
 

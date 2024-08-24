@@ -79,8 +79,9 @@ impl GithubBuilder {
     ///
     /// required.
     pub fn token(mut self, token: &str) -> Self {
-        self.config.token = Some(token.to_string());
-
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 

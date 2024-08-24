@@ -235,14 +235,14 @@ impl PrometheusMetricDefinitions {
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
         let errors_total = register_int_counter_vec_with_registry!(
             "opendal_errors_total",
             "Total times of the specific operation be called but meet error",
             &labels_with_error,
             registry
         )
-            .unwrap();
+        .unwrap();
 
         let requests_duration_seconds = register_histogram_vec_with_registry!(
             histogram_opts!(
@@ -253,7 +253,7 @@ impl PrometheusMetricDefinitions {
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
 
         let bytes_total = register_int_counter_vec_with_registry!(
             "opendal_bytes_total",
@@ -261,14 +261,14 @@ impl PrometheusMetricDefinitions {
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
 
         let bytes = register_histogram_vec_with_registry!(
             histogram_opts!("opendal_bytes", "The size of bytes", bytes_buckets),
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
 
         Self {
             requests_total,

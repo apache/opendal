@@ -75,8 +75,28 @@ impl MonoiofsCore {
         &self.root
     }
 
+    /// join root and path
     pub fn prepare_path(&self, path: &str) -> PathBuf {
         self.root.join(path.trim_end_matches('/'))
+    }
+
+    /// join root and path, create parent dirs
+    pub async fn prepare_write_path(&self, path: &str) -> Result<PathBuf> {
+        let path = self.prepare_path(path);
+        let parent = path
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path should have parent but not, it must be malformed",
+                )
+                .with_context("input", path.to_string_lossy())
+            })?
+            .to_path_buf();
+        self.dispatch(move || monoio::fs::create_dir_all(parent))
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(path)
     }
 
     /// entrypoint of each worker thread, sets up monoio runtimes and channels

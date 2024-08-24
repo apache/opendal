@@ -1,0 +1,30 @@
+name: hdfs_default_with_atomic_write_dir
+description: 'Behavior test for hdfs default with atomic write dir'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup java env
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "11"
+    - name: Setup
+      shell: bash
+      run: |
+        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+
+        export HADOOP_HOME="/home/runner/hadoop-3.3.5"
+        export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+
+        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
+
+        cat << EOF >> $GITHUB_ENV
+        HADOOP_HOME=${HADOOP_HOME}
+        CLASSPATH=${CLASSPATH}
+        LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
+        OPENDAL_HDFS_ROOT=/tmp/opendal/
+        OPENDAL_HDFS_ATOMIC_WRITE_DIR=/tmp/atomic_write_dir/opendal/
+        OPENDAL_HDFS_NAME_NODE=default
+        OPENDAL_HDFS_ENABLE_APPEND=false
+        EOF

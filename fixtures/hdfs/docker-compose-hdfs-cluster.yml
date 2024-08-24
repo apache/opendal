@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    network_mode: "host"
+    environment:
+      CLUSTER_NAME: test
+      WEBHDFS_CONF_dfs_webhdfs_enabled: true
+      CORE_CONF_hadoop_http_staticuser_user: root
+      HDFS_CONF_dfs_permissions_enabled: false
+      HDFS_CONF_dfs_support_append: true
+      HDFS_CONF_dfs_replication: 1
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    network_mode: "host"
+    environment:
+      CLUSTER_NAME: test
+      WEBHDFS_CONF_dfs_webhdfs_enabled: true
+      CORE_CONF_hadoop_http_staticuser_user: root
+      HDFS_CONF_dfs_permissions_enabled: false
+      HDFS_CONF_dfs_support_append: true
+      HDFS_CONF_dfs_replication: 1
+

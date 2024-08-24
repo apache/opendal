@@ -29,7 +29,6 @@ use prometheus::HistogramTimer;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::layers::PrometheusClientLayer;
 use crate::raw::Access;
 use crate::raw::*;
 use crate::*;

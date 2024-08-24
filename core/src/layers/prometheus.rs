@@ -98,42 +98,24 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct PrometheusLayer {
-    metrics: PrometheusMetricDefinitions,
-    /// The path level we will keep in the path label.
-    path_label_level: usize,
-}
-
-impl PrometheusLayer {
-    /// Create a [`PrometheusLayer`] while registering itself to this registry.
-    pub fn new(registry: Registry) -> Self {
-        Self::builder().build(registry)
-    }
-
-    /// Create a [`PrometheusLayerBuilder`].
-    pub fn builder() -> PrometheusLayerBuilder {
-        PrometheusLayerBuilder::default()
-    }
-}
-
-/// [`PrometheusLayerBuilder`] is a config builder to build a [`PrometheusLayer`].
-pub struct PrometheusLayerBuilder {
+    registry: Registry,
     requests_duration_seconds_buckets: Vec<f64>,
     bytes_buckets: Vec<f64>,
     /// The level we will keep in the path label.
     path_label_level: usize,
 }
 
-impl Default for PrometheusLayerBuilder {
-    fn default() -> Self {
+impl PrometheusLayer {
+    /// Create a [`PrometheusLayer`] while registering itself to this registry.
+    pub fn new(registry: Registry) -> Self {
         Self {
+            registry,
             requests_duration_seconds_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
             bytes_buckets: exponential_buckets(1.0, 2.0, 16).unwrap(),
             path_label_level: 0,
         }
     }
-}
 
-impl PrometheusLayerBuilder {
     /// Set buckets for `requests_duration_seconds` histogram.
     pub fn requests_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
@@ -159,21 +141,6 @@ impl PrometheusLayerBuilder {
         self.path_label_level = level;
         self
     }
-
-    /// Register the metrics and build the [`PrometheusLayer`].
-    pub fn build(self, registry: Registry) -> PrometheusLayer {
-        let metrics = PrometheusMetricDefinitions::register(
-            registry,
-            self.requests_duration_seconds_buckets,
-            self.bytes_buckets,
-            self.path_label_level,
-        );
-
-        PrometheusLayer {
-            metrics,
-            path_label_level: self.path_label_level,
-        }
-    }
 }
 
 impl<A: Access> Layer<A> for PrometheusLayer {
@@ -185,7 +152,12 @@ impl<A: Access> Layer<A> for PrometheusLayer {
         let root = meta.root().to_string();
         let name = meta.name().to_string();
 
-        let metrics = self.metrics.clone();
+        let metrics = PrometheusMetricDefinitions::register(
+            self.registry.clone(),
+            self.requests_duration_seconds_buckets.clone(),
+            self.bytes_buckets.clone(),
+            self.path_label_level,
+        );
         let metrics = PrometheusMetrics::new(metrics, scheme, root, name, self.path_label_level);
 
         PrometheusAccessor { inner, metrics }
@@ -201,9 +173,6 @@ struct PrometheusMetricDefinitions {
     errors_total: GenericCounterVec<AtomicU64>,
     /// Latency of the specific operation be called.
     requests_duration_seconds: HistogramVec,
-
-    /// Total size of bytes.
-    bytes_total: GenericCounterVec<AtomicU64>,
     /// The size of bytes.
     bytes: HistogramVec,
 }
@@ -254,14 +223,6 @@ impl PrometheusMetricDefinitions {
         )
         .unwrap();
 
-        let bytes_total = register_int_counter_vec_with_registry!(
-            "opendal_bytes_total",
-            "Total size of bytes",
-            &labels,
-            registry
-        )
-        .unwrap();
-
         let bytes = register_histogram_vec_with_registry!(
             histogram_opts!("opendal_bytes", "The size of bytes", bytes_buckets),
             &labels,
@@ -273,7 +234,6 @@ impl PrometheusMetricDefinitions {
             requests_total,
             errors_total,
             requests_duration_seconds,
-            bytes_total,
             bytes,
         }
     }
@@ -321,11 +281,7 @@ impl PrometheusMetrics {
             .start_timer()
     }
 
-    fn observe_bytes_total(&self, labels: &[&str], bytes: usize) {
-        self.metrics
-            .bytes_total
-            .with_label_values(labels)
-            .inc_by(bytes as u64);
+    fn observe_bytes(&self, labels: &[&str], bytes: usize) {
         self.metrics
             .bytes
             .with_label_values(labels)
@@ -677,7 +633,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
 
         match result {
             Ok(bs) => {
-                self.metrics.observe_bytes_total(&labels, bs.remaining());
+                self.metrics.observe_bytes(&labels, bs.remaining());
                 Ok(bs)
             }
             Err(err) => {
@@ -700,7 +656,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 
         match result {
             Ok(bs) => {
-                self.metrics.observe_bytes_total(&labels, bs.remaining());
+                self.metrics.observe_bytes(&labels, bs.remaining());
                 Ok(bs)
             }
             Err(err) => {
@@ -725,7 +681,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 
         match result {
             Ok(_) => {
-                self.metrics.observe_bytes_total(&labels, size);
+                self.metrics.observe_bytes(&labels, size);
                 Ok(())
             }
             Err(err) => {
@@ -786,7 +742,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
 
         match result {
             Ok(_) => {
-                self.metrics.observe_bytes_total(&labels, size);
+                self.metrics.observe_bytes(&labels, size);
                 Ok(())
             }
             Err(err) => {

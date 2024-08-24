@@ -45,10 +45,10 @@ pub struct MonoiofsWriter {
 }
 
 impl MonoiofsWriter {
-    pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf) -> Result<Self> {
+    pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf, append: bool) -> Result<Self> {
         let (open_result_tx, open_result_rx) = oneshot::channel();
         let (tx, rx) = mpsc::unbounded();
-        core.spawn(move || Self::worker_entrypoint(path, rx, open_result_tx))
+        core.spawn(move || Self::worker_entrypoint(path, append, rx, open_result_tx))
             .await;
         core.unwrap(open_result_rx.await)?;
         Ok(Self { core, tx, pos: 0 })
@@ -57,13 +57,15 @@ impl MonoiofsWriter {
     /// entrypoint of worker task that runs in context of monoio
     async fn worker_entrypoint(
         path: PathBuf,
+        append: bool,
         mut rx: mpsc::UnboundedReceiver<WriterRequest>,
         open_result_tx: oneshot::Sender<Result<()>>,
     ) {
         let result = OpenOptions::new()
             .write(true)
             .create(true)
-            .truncate(true)
+            .append(append)
+            .truncate(!append)
             .open(path)
             .await;
         // [`monoio::fs::File`] is non-Send, hence it is kept within

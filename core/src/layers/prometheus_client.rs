@@ -828,6 +828,9 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusClientMetricWrapper
 
 fn get_path_label(path: &str, path_level: usize) -> Option<&str> {
     if path_level > 0 {
+        if path.is_empty() {
+            return None;
+        }
         let label_value = path
             .char_indices()
             .filter(|&(_, c)| c == '/')
@@ -836,5 +839,22 @@ fn get_path_label(path: &str, path_level: usize) -> Option<&str> {
         Some(label_value)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_path_label() {
+        let path = "abc/def/ghi";
+        assert_eq!(get_path_label(path, 0), None);
+        assert_eq!(get_path_label(path, 1), Some("abc"));
+        assert_eq!(get_path_label(path, 2), Some("abc/def"));
+        assert_eq!(get_path_label(path, 3), Some("abc/def/ghi"));
+        assert_eq!(get_path_label(path, usize::MAX), Some("abc/def/ghi"));
+
+        assert_eq!(get_path_label("", 1), None);
     }
 }

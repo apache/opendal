@@ -406,6 +406,7 @@ impl Error {
     /** Useful helper functions for Builder::build  */
 
     #[inline]
+    #[allow(unused)]
     pub(crate) fn error_kind_config_invalid(scheme: Scheme, message: impl Into<String>) -> Self {
         // Since all ErrorKind::ConfigInvalid occur in Builder::build,
         // we always call `with_operation` and `with_context`.
@@ -415,11 +416,13 @@ impl Error {
     }
 
     #[inline]
+    #[allow(unused)]
     pub(crate) fn empty_endpoint_err(ctx_schema: Scheme) -> Self {
         Self::error_kind_config_invalid(ctx_schema, "endpoint is empty")
     }
 
     #[inline]
+    #[allow(unused)]
     pub(crate) fn ensure_endpoint_not_empty(
         endpoint: Option<&str>,
         ctx_schema: Scheme,

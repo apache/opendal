@@ -5,11 +5,11 @@ This service can be used to:
 - [x] stat
 - [x] read
 - [x] write
-- [ ] append
-- [ ] create_dir
+- [x] append
+- [x] create_dir
 - [x] delete
-- [ ] copy
-- [ ] rename
+- [x] copy
+- [x] rename
 - [ ] list
 - [ ] ~~presign~~
 - [ ] blocking

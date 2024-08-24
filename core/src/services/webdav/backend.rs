@@ -99,7 +99,7 @@ impl WebdavBuilder {
     /// default: no access token
     pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
-            self.config.token = Some(token.to_owned());
+            self.config.token = Some(token.to_string());
         }
         self
     }

@@ -79,12 +79,6 @@ impl oio::PageList for B2Lister {
             return Err(parse_error(resp).await?);
         }
 
-        // Return self at the first page.
-        if ctx.token.is_empty() && !ctx.done && self.path.ends_with('/') {
-            let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
-            ctx.entries.push_back(e);
-        }
-
         let bs = resp.into_body();
 
         let output: ListFileNamesResponse =

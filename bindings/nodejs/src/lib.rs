@@ -49,7 +49,7 @@ impl Operator {
             .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
-        let mut op = opendal::Operator::via_map(scheme, options).map_err(format_napi_error)?;
+        let mut op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
 
         if !op.info().full_capability().blocking {
             if let Ok(handle) = tokio::runtime::Handle::try_current() {

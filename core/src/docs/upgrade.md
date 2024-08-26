@@ -1,3 +1,11 @@
+# Upgrade to v0.50
+
+## Public API
+
+### `services-postgresql`'s connect string now supports only URL format
+
+Previously, it supports both URL format and key-value format. After switching the implementation from `tokio-postgres` to `sqlx`, the service now supports only the URL format.
+
 # Upgrade to v0.49
 
 ## Public API

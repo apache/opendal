@@ -29,11 +29,13 @@ pub struct SqliteConfig {
     ///
     /// ## Url
     ///
-    /// This format resembles the url format of the sqlite client. The format is: `file://[path]?flag`
+    /// This format resembles the url format of the sqlite client:
     ///
-    /// - `file://data.db`
+    /// - `sqlite::memory:`
+    /// - `sqlite:data.db`
+    /// - `sqlite://data.db`
     ///
-    /// For more information, please refer to [Opening A New Database Connection](http://www.sqlite.org/c3ref/open.html)
+    /// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
     pub connection_string: Option<String>,
 
     /// Set the table name of the sqlite service to read/write.

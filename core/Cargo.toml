@@ -161,7 +161,7 @@ services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
 services-mongodb = ["dep:mongodb"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
-services-mysql = ["dep:mysql_async"]
+services-mysql = ["dep:sqlx", "sqlx?/mysql"]
 services-obs = [
     "dep:reqsign",
     "reqsign?/services-huaweicloud",
@@ -175,7 +175,7 @@ services-oss = [
 ]
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
-services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
+services-postgresql = ["dep:sqlx", "sqlx?/postgres"]
 services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -189,7 +189,7 @@ services-s3 = [
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
 services-sled = ["dep:sled", "internal-tokio-rt"]
-services-sqlite = ["dep:rusqlite", "dep:r2d2", "internal-tokio-rt"]
+services-sqlite = ["dep:sqlx", "sqlx?/sqlite"]
 services-supabase = []
 services-surrealdb = ["dep:surrealdb"]
 services-swift = []
@@ -263,18 +263,15 @@ rand = { version = "0.8", optional = true }
 # general dependencies.
 bb8 = { version = "0.8", optional = true }
 prost = { version = "0.13", optional = true }
-r2d2 = { version = "0.8", optional = true }
 sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
+sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls"], optional = true }
 
 # For http based services.
 reqsign = { version = "0.16", default-features = false, optional = true }
 
 # for services-atomic-server
-atomic_lib = { version = "0.38", optional = true }
-# for services-postgres
-bb8-postgres = { version = "0.8.1", optional = true }
-tokio-postgres = { version = "0.7.8", optional = true }
+atomic_lib = { version = "0.39.0", optional = true }
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
     "tokio-runtime",
@@ -301,15 +298,11 @@ mini-moka = { version = "0.10", optional = true }
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb
 mongodb = { version = "3", optional = true }
-# for services-mysql
-mysql_async = { version = "0.34", default-features = false, features = [
-    "default-rustls",
-], optional = true }
 # for services-sftp
-openssh = { version = "0.10.0", optional = true }
-openssh-sftp-client = { version = "0.14.0", optional = true, features = [
-    "openssh",
-    "tracing",
+openssh = { version = "0.11.0", optional = true }
+openssh-sftp-client = { version = "0.15.0", optional = true, features = [
+  "openssh",
+  "tracing",
 ] }
 # for services-persy
 persy = { version = "1.4.6", optional = true }
@@ -322,9 +315,7 @@ redis = { version = "0.26", features = [
     "connection-manager",
 ], optional = true }
 # for services-rocksdb
-rocksdb = { version = "0.21", default-features = false, optional = true }
-# for services-sqlite
-rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
+rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-sled
 sled = { version = "0.34.7", optional = true }
 # for services-ftp

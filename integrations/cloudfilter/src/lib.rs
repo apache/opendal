@@ -19,9 +19,9 @@
 //! It provides a way to access various cloud storage on Windows.
 //!
 //! Note that `cloudfilter_opendal` is a read-only service, and it is not recommended to use it in production.
-//! 
+//!
 //! # Example
-//! 
+//!
 //! ```no_run
 //! use anyhow::Result;
 //! use cloud_filter::root::PopulationType;
@@ -33,7 +33,7 @@
 //! use opendal::Operator;
 //! use tokio::runtime::Handle;
 //! use tokio::signal;
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create any service desired
@@ -45,14 +45,14 @@
 //!         ("region".to_string(), "my_region".to_string()),
 //!     ])?
 //!     .finish();
-//! 
+//!
 //!     let client_path = std::env::var("CLIENT_PATH").expect("$CLIENT_PATH is set");
-//! 
+//!
 //!     // Create a sync root id
 //!     let sync_root_id = SyncRootIdBuilder::new("cloudfilter_opendal")
 //!         .user_security_id(SecurityId::current_user()?)
 //!         .build();
-//! 
+//!
 //!     // Register the sync root if not exists
 //!     if !sync_root_id.is_registered()? {
 //!         sync_root_id.register(
@@ -65,20 +65,20 @@
 //!                 .with_path(&client_path)?,
 //!         )?;
 //!     }
-//! 
+//!
 //!     let handle = Handle::current();
 //!     let connection = Session::new().connect_async(
 //!         &client_path,
 //!         cloudfilter_opendal::CloudFilter::new(op, client_path.clone().into()),
 //!         move |f| handle.block_on(f),
 //!     )?;
-//! 
+//!
 //!     signal::ctrl_c().await?;
-//! 
+//!
 //!     // Drop the connection before unregister the sync root
 //!     drop(connection);
 //!     sync_root_id.unregister()?;
-//! 
+//!
 //!     Ok(())
 //! }
 //! ``````

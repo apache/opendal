@@ -65,26 +65,19 @@ impl oio::PageList for AliyunDriveLister {
         };
 
         let offset = if ctx.token.is_empty() {
-            if !parent.path.ends_with('/') {
-                // List "dir" should contains "dir/".
-                let path = if !parent.path.starts_with('/') {
-                    format!("/{}", parent.path)
-                } else {
-                    parent.path.clone()
-                };
-                ctx.entries.push_back(Entry::new(
-                    &format!("{}/", path),
-                    Metadata::new(EntryMode::DIR).with_last_modified(
-                        parent
-                            .updated_at
-                            .parse::<chrono::DateTime<Utc>>()
-                            .map_err(|e| {
-                                Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                    .set_source(e)
-                            })?,
-                    ),
-                ));
-            }
+            // Push self into the list result.
+            ctx.entries.push_back(Entry::new(
+                &parent.path,
+                Metadata::new(EntryMode::DIR).with_last_modified(
+                    parent
+                        .updated_at
+                        .parse::<chrono::DateTime<Utc>>()
+                        .map_err(|e| {
+                            Error::new(ErrorKind::Unexpected, "parse last modified time")
+                                .set_source(e)
+                        })?,
+                ),
+            ));
             None
         } else {
             Some(ctx.token.clone())
@@ -110,11 +103,7 @@ impl oio::PageList for AliyunDriveLister {
         let n = result.items.len();
 
         for item in result.items {
-            let path = if parent.path.starts_with('/') {
-                build_abs_path(&parent.path, &item.name)
-            } else {
-                build_abs_path(&format!("/{}", &parent.path), &item.name)
-            };
+            let path = build_abs_path(&parent.path, &item.name);
 
             let (path, md) = if item.path_type == "folder" {
                 let path = format!("{}/", path);

@@ -56,6 +56,13 @@ impl oio::PageList for AzfileLister {
             return Err(parse_error(resp).await?);
         }
 
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_rel_path(&self.core.root, &self.path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
+        }
+
         let bs = resp.into_body();
 
         let results: EnumerationResults =

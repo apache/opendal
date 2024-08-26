@@ -56,6 +56,13 @@ impl oio::PageList for AzdlsLister {
             return Err(parse_error(resp).await?);
         }
 
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_rel_path(&self.core.root, &self.path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
+        }
+
         // Check whether this list is done.
         if let Some(value) = resp.headers().get("x-ms-continuation") {
             let value = value.to_str().map_err(|err| {
@@ -90,7 +97,7 @@ impl oio::PageList for AzdlsLister {
                 .with_last_modified(parse_datetime_from_rfc2822(&object.last_modified)?);
 
             let mut path = build_rel_path(&self.core.root, &object.name);
-            if mode == EntryMode::DIR {
+            if path.is_empty() {
                 path += "/"
             };
 

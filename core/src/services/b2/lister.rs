@@ -79,6 +79,13 @@ impl oio::PageList for B2Lister {
             return Err(parse_error(resp).await?);
         }
 
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_rel_path(&self.core.root, &self.path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
+        }
+
         let bs = resp.into_body();
 
         let output: ListFileNamesResponse =
@@ -95,9 +102,6 @@ impl oio::PageList for B2Lister {
                 if build_abs_path(&self.core.root, &start_after) == file.file_name {
                     continue;
                 }
-            }
-            if file.file_name == build_abs_path(&self.core.root, &self.path) {
-                continue;
             }
             let file_name = file.file_name.clone();
             let metadata = parse_file_info(&file);

@@ -38,7 +38,12 @@ impl Entry {
     }
 
     /// Create a new entry with given value.
-    pub fn with(path: String, meta: Metadata) -> Entry {
+    pub fn with(mut path: String, meta: Metadata) -> Entry {
+        // Normalize path as `/` if it's empty.
+        if path.is_empty() {
+            path = "/".to_string();
+        }
+
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",

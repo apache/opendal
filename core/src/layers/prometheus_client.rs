@@ -156,9 +156,6 @@ struct PrometheusClientMetricDefinitions {
     errors_total: Family<ErrorLabels, Counter>,
     /// Latency of the specific operation be called.
     request_duration_seconds: Family<OperationLabels, Histogram>,
-
-    /// Total size of bytes.
-    bytes_total: Family<OperationLabels, Counter>,
     /// The size of bytes.
     bytes: Family<OperationLabels, Histogram>,
 }
@@ -171,8 +168,6 @@ impl PrometheusClientMetricDefinitions {
             let buckets = histogram::exponential_buckets(0.01, 2.0, 16);
             Histogram::new(buckets)
         });
-
-        let bytes_total = Family::default();
         let bytes = Family::<OperationLabels, _>::new_with_constructor(|| {
             let buckets = histogram::exponential_buckets(1.0, 2.0, 16);
             Histogram::new(buckets)
@@ -193,15 +188,12 @@ impl PrometheusClientMetricDefinitions {
             "Latency of the specific operation be called",
             request_duration_seconds.clone(),
         );
-
-        registry.register("opendal_bytes", "Total size of bytes", bytes_total.clone());
         registry.register("opendal_bytes", "The size of bytes", bytes.clone());
 
         Self {
             requests_total,
             errors_total,
             request_duration_seconds,
-            bytes_total,
             bytes,
         }
     }
@@ -246,11 +238,7 @@ impl PrometheusClientMetrics {
             .observe(duration.as_secs_f64());
     }
 
-    fn observe_bytes_total(&self, labels: &OperationLabels, bytes: usize) {
-        self.metrics
-            .bytes_total
-            .get_or_create(labels)
-            .inc_by(bytes as u64);
+    fn observe_bytes(&self, labels: &OperationLabels, bytes: usize) {
         self.metrics
             .bytes
             .get_or_create(labels)
@@ -579,7 +567,7 @@ impl<R: oio::Read> oio::Read for PrometheusClientMetricWrapper<R> {
 
         match self.inner.read().await {
             Ok(bs) => {
-                self.metrics.observe_bytes_total(&labels, bs.remaining());
+                self.metrics.observe_bytes(&labels, bs.remaining());
                 self.metrics
                     .observe_request_duration(&labels, start.elapsed());
                 Ok(bs)
@@ -602,7 +590,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusClientMetricWrapper<R
         self.inner
             .read()
             .map(|bs| {
-                self.metrics.observe_bytes_total(&labels, bs.remaining());
+                self.metrics.observe_bytes(&labels, bs.remaining());
                 self.metrics
                     .observe_request_duration(&labels, start.elapsed());
                 bs
@@ -626,7 +614,7 @@ impl<R: oio::Write> oio::Write for PrometheusClientMetricWrapper<R> {
             .write(bs)
             .await
             .map(|_| {
-                self.metrics.observe_bytes_total(&labels, size);
+                self.metrics.observe_bytes(&labels, size);
                 self.metrics
                     .observe_request_duration(&labels, start.elapsed());
             })
@@ -686,7 +674,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusClientMetricWrapper
         self.inner
             .write(bs)
             .map(|_| {
-                self.metrics.observe_bytes_total(&labels, size);
+                self.metrics.observe_bytes(&labels, size);
                 self.metrics
                     .observe_request_duration(&labels, start.elapsed());
             })

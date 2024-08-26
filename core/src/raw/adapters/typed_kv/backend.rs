@@ -15,15 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-use std::vec::IntoIter;
-
 use super::Adapter;
 use super::Value;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;
 use crate::*;
+use std::sync::Arc;
+use std::vec::IntoIter;
 
 /// The typed kv backend which implements Accessor for typed kv adapter.
 #[derive(Debug, Clone)]
@@ -211,8 +210,11 @@ impl KvLister {
             } else {
                 EntryMode::FILE
             };
-
-            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+            let mut path = build_rel_path(&self.root, &v);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+            oio::Entry::new(&path, Metadata::new(mode))
         })
     }
 }

@@ -115,6 +115,7 @@ func testListRichDir(assert *require.Assertions, op *opendal.Operator, fixture *
 	}
 	assert.Nil(obs.Error())
 
+	expected = append(expected, parent)
 	slices.Sort(expected)
 	slices.Sort(actual)
 
@@ -133,10 +134,12 @@ func testListEmptyDir(assert *require.Assertions, op *opendal.Operator, fixture 
 	for obs.Next() {
 		entry := obs.Entry()
 		paths = append(paths, entry.Path())
+		assert.Equal(dir, entry.Path())
 	}
 	assert.Nil(obs.Error())
-	assert.Equal(0, len(paths), "dir should only return empty")
+	assert.Equal(1, len(paths), "dir should only return itself")
 
+	paths = nil
 	obs, err = op.List(strings.TrimSuffix(dir, "/"))
 	assert.Nil(err)
 	defer obs.Close()
@@ -211,6 +214,7 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	defer obs.Close()
 	paths = nil
 	var foundFile bool
+	var foundDirPath bool
 	var foundDir bool
 	for obs.Next() {
 		entry := obs.Entry()
@@ -218,11 +222,15 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 		if entry.Path() == filePath {
 			foundFile = true
 		} else if entry.Path() == dirPath {
+			foundDirPath = true
+		} else if entry.Path() == dir {
 			foundDir = true
 		}
 	}
 	assert.Nil(obs.Error())
-	assert.Equal(2, len(paths), "parent should only got 2 entries")
+	assert.Equal(3, len(paths), "dir should only got 3 entries")
+
+	assert.True(foundDir, "dir should be found in list")
 
 	assert.True(foundFile, "file should be found in list")
 	meta, err := op.Stat(filePath)
@@ -230,7 +238,7 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	assert.True(meta.IsFile())
 	assert.Equal(uint64(20), meta.ContentLength())
 
-	assert.True(foundDir, "dir should be found in list")
+	assert.True(foundDirPath, "dir path should be found in list")
 	meta, err = op.Stat(dirPath)
 	assert.Nil(err)
 	assert.True(meta.IsDir())

@@ -21,7 +21,7 @@ bumpalo@3.16.0		X							X
 byteorder@1.5.0									X				X	
 bytes@1.7.1									X					
 cbc@0.1.2		X							X					
-cc@1.1.11		X							X					
+cc@1.1.14		X							X					
 cexpr@0.6.0		X							X					
 cfg-if@1.0.0		X							X					
 chrono@0.4.38		X							X					
@@ -40,7 +40,7 @@ deranged@0.3.11		X							X
 digest@0.10.7		X							X					
 dlv-list@0.5.2		X							X					
 either@1.13.0		X							X					
-fastrand@2.1.0		X							X					
+fastrand@2.1.1		X							X					
 flagset@0.4.6		X												
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.1		X							X					
@@ -79,7 +79,7 @@ js-sys@0.3.70		X							X
 jsonwebtoken@9.3.0									X					
 lazy_static@1.5.0		X							X					
 lazycell@1.3.0		X							X					
-libc@0.2.155		X							X					
+libc@0.2.158		X							X					
 libloading@0.8.5								X						
 libm@0.2.8		X							X					
 log@0.4.22		X							X					
@@ -100,8 +100,8 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.3		X							X					
 once_cell@1.19.0		X							X					
-opendal@0.49.1		X												
-opendal-ruby@0.1.7		X												
+opendal@0.49.2		X												
+opendal-ruby@0.1.8		X												
 ordered-multimap@0.7.3									X					
 pbkdf2@0.12.2		X							X					
 pem@3.0.4									X					
@@ -119,18 +119,18 @@ ppv-lite86@0.2.20		X							X
 proc-macro2@1.0.86		X							X					
 quick-xml@0.35.0									X					
 quick-xml@0.36.1									X					
-quote@1.0.36		X							X					
+quote@1.0.37		X							X					
 rand@0.8.5		X							X					
 rand_chacha@0.3.1		X							X					
 rand_core@0.6.4		X							X					
-rb-sys@0.9.101		X							X					
-rb-sys-build@0.9.101		X							X					
+rb-sys@0.9.102		X							X					
+rb-sys-build@0.9.102		X							X					
 rb-sys-env@0.1.2		X							X					
 regex@1.10.6		X							X					
 regex-automata@0.4.7		X							X					
 regex-syntax@0.8.4		X							X					
 reqsign@0.16.0		X												
-reqwest@0.12.5		X							X					
+reqwest@0.12.7		X							X					
 ring@0.17.8											X			
 rsa@0.9.6		X							X					
 rust-ini@0.21.1									X					
@@ -145,9 +145,9 @@ ryu@1.0.18		X				X
 salsa20@0.10.2		X							X					
 scrypt@0.11.0		X							X					
 semver@1.0.23		X							X					
-serde@1.0.207		X							X					
-serde_derive@1.0.207		X							X					
-serde_json@1.0.125		X							X					
+serde@1.0.209		X							X					
+serde_derive@1.0.209		X							X					
+serde_json@1.0.127		X							X					
 serde_urlencoded@0.7.1		X							X					
 sha1@0.10.6		X							X					
 sha2@0.10.8		X							X					
@@ -162,7 +162,7 @@ spin@0.9.8									X
 spki@0.7.3		X							X					
 subtle@2.6.1					X									
 syn@1.0.109		X							X					
-syn@2.0.74		X							X					
+syn@2.0.76		X							X					
 sync_wrapper@1.0.1		X												
 thiserror@1.0.63		X							X					
 thiserror-impl@1.0.63		X							X					
@@ -172,7 +172,7 @@ time-macros@0.2.18		X							X
 tiny-keccak@2.0.2							X							
 tinyvec@1.8.0		X							X					X
 tinyvec_macros@0.1.1		X							X					X
-tokio@1.39.2									X					
+tokio@1.39.3									X					
 tokio-rustls@0.26.0		X							X					
 tokio-util@0.7.11									X					
 tower@0.4.13									X					
@@ -202,26 +202,19 @@ wasm-streams@0.4.0		X							X
 web-sys@0.3.70		X							X					
 webpki-roots@0.26.3										X				
 windows-core@0.52.0		X							X					
-windows-sys@0.48.0		X							X					
+windows-registry@0.2.0		X							X					
+windows-result@0.2.0		X							X					
+windows-strings@0.1.0		X							X					
 windows-sys@0.52.0		X							X					
-windows-targets@0.48.5		X							X					
 windows-targets@0.52.6		X							X					
-windows_aarch64_gnullvm@0.48.5		X							X					
 windows_aarch64_gnullvm@0.52.6		X							X					
-windows_aarch64_msvc@0.48.5		X							X					
 windows_aarch64_msvc@0.52.6		X							X					
-windows_i686_gnu@0.48.5		X							X					
 windows_i686_gnu@0.52.6		X							X					
 windows_i686_gnullvm@0.52.6		X							X					
-windows_i686_msvc@0.48.5		X							X					
 windows_i686_msvc@0.52.6		X							X					
-windows_x86_64_gnu@0.48.5		X							X					
 windows_x86_64_gnu@0.52.6		X							X					
-windows_x86_64_gnullvm@0.48.5		X							X					
 windows_x86_64_gnullvm@0.52.6		X							X					
-windows_x86_64_msvc@0.48.5		X							X					
 windows_x86_64_msvc@0.52.6		X							X					
-winreg@0.52.0									X					
 zerocopy@0.7.35		X		X					X					
 zerocopy-derive@0.7.35		X		X					X					
 zeroize@1.8.1		X							X					

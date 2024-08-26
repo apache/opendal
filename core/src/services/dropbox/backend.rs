@@ -95,7 +95,7 @@ impl Access for DropboxBackend {
         //
         // Let's try our best to make sure it won't failed for rate limited issues.
         let res = { || self.core.dropbox_create_folder(path) }
-            .retry(&*BACKOFF)
+            .retry(*BACKOFF)
             .when(|e| e.is_temporary())
             .await
             // Set this error to permanent to avoid retrying.
@@ -264,7 +264,7 @@ impl Access for DropboxBackend {
                     .async_job_id
                     .expect("async_job_id should be present");
                 let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
-                    .retry(&*BACKOFF)
+                    .retry(*BACKOFF)
                     .when(|e| e.is_temporary())
                     .await?;
 

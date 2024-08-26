@@ -82,8 +82,9 @@ impl VercelBlobBuilder {
     /// Get from Vercel environment variable `BLOB_READ_WRITE_TOKEN`.
     /// It is required.
     pub fn token(mut self, token: &str) -> Self {
-        self.config.token = token.to_string();
-
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 
@@ -111,11 +112,11 @@ impl Builder for VercelBlobBuilder {
         debug!("backend use root {}", &root);
 
         // Handle token.
-        if self.config.token.is_empty() {
+        let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::VercelBlob));
-        }
+        };
 
         let client = if let Some(client) = self.http_client {
             client
@@ -129,7 +130,7 @@ impl Builder for VercelBlobBuilder {
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
                 root,
-                token: self.config.token.clone(),
+                token,
                 client,
             }),
         })

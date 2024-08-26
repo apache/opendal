@@ -21,8 +21,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::DateTime;
+use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;
+use super::core::BUFFER_SIZE;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;
@@ -114,7 +116,11 @@ impl Access for MonoiofsBackend {
                 stat: true,
                 read: true,
                 write: true,
+                write_can_append: true,
                 delete: true,
+                rename: true,
+                create_dir: true,
+                copy: true,
                 ..Default::default()
             });
         am.into()
@@ -150,10 +156,9 @@ impl Access for MonoiofsBackend {
         Ok((RpRead::default(), reader))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // TODO: create parent directory before write
-        let path = self.core.prepare_path(path);
-        let writer = MonoiofsWriter::new(self.core.clone(), path).await?;
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = self.core.prepare_write_path(path).await?;
+        let writer = MonoiofsWriter::new(self.core.clone(), path, args.append()).await?;
         Ok((RpWrite::default(), writer))
     }
 
@@ -185,5 +190,88 @@ impl Access for MonoiofsBackend {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
             Err(err) => Err(new_std_io_error(err)),
         }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from = self.core.prepare_path(from);
+        // ensure file exists
+        self.core
+            .dispatch({
+                let from = from.clone();
+                move || monoio::fs::metadata(from)
+            })
+            .await
+            .map_err(new_std_io_error)?;
+        let to = self.core.prepare_write_path(to).await?;
+        self.core
+            .dispatch(move || monoio::fs::rename(from, to))
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(RpRename::default())
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let path = self.core.prepare_path(path);
+        self.core
+            .dispatch(move || monoio::fs::create_dir_all(path))
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(RpCreateDir::default())
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = self.core.prepare_path(from);
+        // ensure file exists
+        self.core
+            .dispatch({
+                let from = from.clone();
+                move || monoio::fs::metadata(from)
+            })
+            .await
+            .map_err(new_std_io_error)?;
+        let to = self.core.prepare_write_path(to).await?;
+        self.core
+            .dispatch({
+                let core = self.core.clone();
+                move || async move {
+                    let from = OpenOptions::new().read(true).open(from).await?;
+                    let to = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(to)
+                        .await?;
+
+                    // AsyncReadRent and AsyncWriteRent is not implemented
+                    // for File, so we can't write this:
+                    // monoio::io::copy(&mut from, &mut to).await?;
+
+                    let mut pos = 0;
+                    // allocate and resize buffer
+                    let mut buf = core.buf_pool.get();
+                    // set capacity of buf to exact size to avoid excessive read
+                    buf.reserve(BUFFER_SIZE);
+                    let _ = buf.split_off(BUFFER_SIZE);
+
+                    loop {
+                        let result;
+                        (result, buf) = from.read_at(buf, pos).await;
+                        if result? == 0 {
+                            // EOF
+                            break;
+                        }
+                        let result;
+                        (result, buf) = to.write_all_at(buf, pos).await;
+                        result?;
+                        pos += buf.len() as u64;
+                        buf.clear();
+                    }
+                    core.buf_pool.put(buf);
+                    Ok(())
+                }
+            })
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(RpCopy::default())
     }
 }

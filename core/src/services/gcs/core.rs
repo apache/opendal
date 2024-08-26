@@ -83,7 +83,7 @@ impl GcsCore {
         }
 
         let cred = { || self.token_loader.load() }
-            .retry(&*BACKOFF)
+            .retry(*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 

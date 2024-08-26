@@ -1452,9 +1452,6 @@ impl Operator {
                 .await?;
         }
 
-        // Remove the directory itself.
-        self.delete(path).await?;
-
         Ok(())
     }
 

@@ -138,7 +138,7 @@ impl typed_kv::Adapter for Adapter {
         if path.is_empty() {
             Ok(keys.collect())
         } else {
-            Ok(keys.filter(|k| k.starts_with(path) && k != path).collect())
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }

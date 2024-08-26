@@ -135,11 +135,9 @@ impl typed_kv::Adapter for Adapter {
             };
             inner
                 .range(path.to_string()..right_range)
-                .filter(|(k, _)| k.as_str() != path)
                 .map(|(k, _)| k.to_string())
                 .collect()
         };
-
         Ok(keys)
     }
 }

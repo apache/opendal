@@ -77,8 +77,13 @@ TEST_F(OpendalTest, BasicTest) {
   auto list_file_path = dir_path + file_path;
   op.write(list_file_path, data);
   auto entries = op.list(dir_path);
-  EXPECT_EQ(entries.size(), 1);
-  EXPECT_EQ(entries[0].path, list_file_path);
+  EXPECT_EQ(entries.size(), 2);
+  std::set<std::string> paths;
+  for (const auto &entry : entries) {
+    paths.insert(entry.path);
+  }
+  EXPECT_TRUE(paths.find(dir_path) != paths.end());
+  EXPECT_TRUE(paths.find(list_file_path) != paths.end());
 
   // remove
   op.remove(file_path_renamed);
@@ -133,23 +138,23 @@ TEST_F(OpendalTest, ReaderTest) {
 }
 
 TEST_F(OpendalTest, ListerTest) {
-  op.create_dir("test_dir/");
-  op.write("test_dir/test1", {1, 2, 3});
-  op.write("test_dir/test2", {4, 5, 6});
+  std::string dir_path = "test_dir/";
+  op.create_dir(dir_path);
+  auto test1_path = dir_path + "test1";
+  op.write(test1_path, {1, 2, 3});
+  auto test2_path = dir_path + "test2";
+  op.write(test2_path, {4, 5, 6});
 
-  int size = 0;
   auto lister = op.lister("test_dir/");
-  for (const auto &entry : lister) {
-    EXPECT_TRUE(entry.path.find("test_dir/test") == 0);
-    size += 1;
-  }
-  EXPECT_EQ(size, 2);
 
-  lister = op.lister("test_dir/");
-  std::vector<opendal::Entry> paths(lister.begin(), lister.end());
-  EXPECT_EQ(paths.size(), 2);
-  EXPECT_EQ(paths[0].path, "test_dir/test1");
-  EXPECT_EQ(paths[1].path, "test_dir/test2");
+  std::set<std::string> paths;
+  for (const auto &entry : lister) {
+      paths.insert(entry.path);
+  }
+  EXPECT_EQ(paths.size(), 3);
+  EXPECT_TRUE(paths.find(dir_path) != paths.end());
+  EXPECT_TRUE(paths.find(test1_path) != paths.end());
+  EXPECT_TRUE(paths.find(test2_path) != paths.end());
 }
 
 int main(int argc, char **argv) {

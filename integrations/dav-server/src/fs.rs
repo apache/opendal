@@ -87,10 +87,11 @@ impl DavFileSystem for OpendalFs {
         _meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         async move {
+            let path = path.as_url_string();
             self.op
-                .lister(path.as_url_string().as_str())
+                .lister(path.as_str())
                 .await
-                .map(|lister| OpendalStream::new(self.op.clone(), lister).boxed())
+                .map(|lister| OpendalStream::new(self.op.clone(), lister, path.as_str()).boxed())
                 .map_err(convert_error)
         }
         .boxed()

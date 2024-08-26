@@ -44,7 +44,6 @@ runs:
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_DISABLE_RANDOM_ROOT=true
         OPENDAL_SWIFT_CONTAINER=testing
         OPENDAL_SWIFT_ROOT=/
         EOF

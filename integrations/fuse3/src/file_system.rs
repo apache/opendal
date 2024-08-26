@@ -29,6 +29,7 @@ use fuse3::Result;
 use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
+use opendal::raw::normalize_path;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
@@ -575,11 +576,21 @@ impl PathFilesystem for Filesystem {
 
         let mut current_dir = PathBuf::from(path);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
+        let path = current_dir.to_string_lossy().to_string();
         let children = self
             .op
             .lister(&current_dir.to_string_lossy())
             .await
             .map_err(opendal_error2errno)?
+            .filter_map(move |entry| {
+                let dir = normalize_path(path.as_str());
+                async move {
+                    match entry {
+                        Ok(e) if e.path() == dir => None,
+                        _ => Some(entry),
+                    }
+                }
+            })
             .enumerate()
             .map(|(i, entry)| {
                 entry
@@ -697,12 +708,22 @@ impl PathFilesystem for Filesystem {
         let uid = self.uid;
         let gid = self.gid;
 
+        let path = current_dir.to_string_lossy().to_string();
         let children = self
             .op
-            .lister_with(&current_dir.to_string_lossy())
+            .lister_with(&path)
             .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
+            .filter_map(move |entry| {
+                let dir = normalize_path(path.as_str());
+                async move {
+                    match entry {
+                        Ok(e) if e.path() == dir => None,
+                        _ => Some(entry),
+                    }
+                }
+            })
             .enumerate()
             .map(move |(i, entry)| {
                 entry

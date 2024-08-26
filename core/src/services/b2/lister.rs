@@ -80,7 +80,7 @@ impl oio::PageList for B2Lister {
         }
 
         // Return self at the first page.
-        if ctx.token.is_empty() && !ctx.done {
+        if ctx.token.is_empty() && !ctx.done && self.path.ends_with('/') {
             let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
             ctx.entries.push_back(e);
         }

@@ -96,9 +96,6 @@ impl oio::PageList for B2Lister {
                     continue;
                 }
             }
-            if file.file_name == build_abs_path(&self.core.root, &self.path) {
-                continue;
-            }
             let file_name = file.file_name.clone();
             let metadata = parse_file_info(&file);
 

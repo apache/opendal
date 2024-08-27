@@ -64,6 +64,13 @@ impl oio::PageList for GdriveLister {
             return Ok(());
         }
 
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_rel_path(&self.core.root, &self.path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
+        }
+
         let decoded_response =
             serde_json::from_slice::<GdriveFileList>(&bytes).map_err(new_json_deserialize_error)?;
 

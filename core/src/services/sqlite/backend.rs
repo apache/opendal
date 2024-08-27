@@ -251,11 +251,10 @@ impl kv::Adapter for Adapter {
         let pool = self.get_client().await?;
 
         let value = sqlx::query_scalar(&format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1 and `{}` <> $2",
-            self.key_field, self.table, self.key_field, self.key_field
+            "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
+            self.key_field, self.table, self.key_field
         ))
         .bind(format!("{path}%"))
-        .bind(path)
         .fetch_all(pool)
         .await
         .map_err(parse_sqlite_error)?;

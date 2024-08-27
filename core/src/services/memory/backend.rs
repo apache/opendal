@@ -136,16 +136,16 @@ impl typed_kv::Adapter for Adapter {
                 break;
             }
             keys.push(key.to_string());
-        };
+        }
         Ok(keys)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::raw::adapters::typed_kv::{Adapter, Value};
     use crate::services::memory::backend;
-    use super::*;
 
     #[test]
     fn test_accessor_metadata_name() {
@@ -158,12 +158,16 @@ mod tests {
 
     #[test]
     fn test_blocking_scan() {
-        let adapter = backend::Adapter { inner: Arc::new(Mutex::new(BTreeMap::default())) };
+        let adapter = backend::Adapter {
+            inner: Arc::new(Mutex::new(BTreeMap::default())),
+        };
 
         adapter.blocking_set("aaa/bbb/", Value::new_dir()).unwrap();
         adapter.blocking_set("aab/bbb/", Value::new_dir()).unwrap();
         adapter.blocking_set("aab/ccc/", Value::new_dir()).unwrap();
-        adapter.blocking_set(&format!("aab{}aaa/", std::char::MAX), Value::new_dir()).unwrap();
+        adapter
+            .blocking_set(&format!("aab{}aaa/", std::char::MAX), Value::new_dir())
+            .unwrap();
         adapter.blocking_set("aac/bbb/", Value::new_dir()).unwrap();
 
         let data = adapter.blocking_scan("aab").unwrap();
@@ -173,4 +177,3 @@ mod tests {
         }
     }
 }
-

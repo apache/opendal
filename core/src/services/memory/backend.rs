@@ -173,7 +173,7 @@ mod tests {
         let data = adapter.blocking_scan("aab").unwrap();
         assert_eq!(data.len(), 3);
         for path in data {
-            assert_eq!(path.starts_with("aab"), true);
+            assert!(path.starts_with("aab"));
         }
     }
 }

@@ -31,6 +31,7 @@ use prometheus_client::metrics::histogram;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
+use crate::layers::observe;
 use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
@@ -80,8 +81,43 @@ use crate::*;
 /// }
 /// ```
 #[derive(Clone, Debug)]
-pub struct PrometheusClientLayer {
-    metrics: PrometheusClientMetricDefinitions,
+pub struct PrometheusClientLayer = observe::MetricsLayer<PrometheusClientInterceptor>;
+
+pub struct PrometheusClientInterceptor {}
+
+impl observe::MetricsIntercept for PrometheusClientInterceptor {
+    fn observe_operation_duration_seconds(
+        &self,
+        scheme: Scheme,
+        namespace: &str,
+        path: &str,
+        op: Operation,
+        duration: Duration,
+    ) {
+        todo!()
+    }
+
+    fn observe_operation_bytes(
+        &self,
+        scheme: Scheme,
+        namespace: &str,
+        path: &str,
+        op: Operation,
+        bytes: usize,
+    ) {
+        todo!()
+    }
+
+    fn observe_operation_errors_total(
+        &self,
+        scheme: Scheme,
+        namespace: &str,
+        path: &str,
+        op: Operation,
+        error: ErrorKind,
+    ) {
+        todo!()
+    }
 }
 
 impl PrometheusClientLayer {

@@ -49,11 +49,18 @@ func contextWithFFIs(path string) (ctx context.Context, cancel context.CancelFun
 type contextWithFFI func(ctx context.Context, libopendal uintptr) (context.Context, error)
 
 func getFFI[T any](ctx context.Context, key string) T {
-	return ctx.Value(key).(T)
+	ctxKey := contextKey(key)
+	return ctx.Value(ctxKey).(T)
+}
+
+type contextKey string
+
+func (k contextKey) String() string {
+	return string(k)
 }
 
 type ffiOpts struct {
-	sym    string
+	sym    contextKey
 	rType  *ffi.Type
 	aTypes []*ffi.Type
 }
@@ -76,7 +83,7 @@ func withFFI[T any](
 		); status != ffi.OK {
 			return nil, errors.New(status.String())
 		}
-		fn, err := purego.Dlsym(libopendal, opts.sym)
+		fn, err := purego.Dlsym(libopendal, opts.sym.String())
 		if err != nil {
 			return nil, err
 		}

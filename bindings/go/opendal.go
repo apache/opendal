@@ -180,10 +180,14 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 	setOptions := getFFI[operatorOptionsSet](ctx, symOperatorOptionSet)
 	optionsFree := getFFI[operatorOptionsFree](ctx, symOperatorOptionsFree)
 
-	for key, value := range opts {
-		setOptions(options, key, value)
-	}
 	defer optionsFree(options)
+
+	for key, value := range opts {
+		err = setOptions(options, key, value)
+		if err != nil {
+			return
+		}
+	}
 
 	inner, err := getFFI[operatorNew](ctx, symOperatorNew)(scheme, options)
 	if err != nil {

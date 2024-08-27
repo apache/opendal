@@ -126,13 +126,12 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
 name = "backon"
-version = "0.4.4"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d67782c3f868daa71d3533538e98a8e13713231969def7536e8039606fc46bf0"
+checksum = "2caf634d05fe0642d0fb1ab43497fa627088ecd93f84b2d0f2a5d7b91f7730db"
 dependencies = [
  "fastrand",
- "futures-core",
- "pin-project",
+ "gloo-timers",
  "tokio",
 ]
 
@@ -669,6 +668,18 @@ name = "gimli"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ecd4077b5ae9fd2e9e169b102c6c330d0605168eb0e8bf79952b256dbefffd"
+
+[[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "hashbrown"

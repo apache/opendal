@@ -46,8 +46,28 @@ pub struct OssConfig {
     pub access_key_id: Option<String>,
     /// Access key secret for oss.
     pub access_key_secret: Option<String>,
-    /// batch_max_operations
+    /// The size of max batch operations.
     pub batch_max_operations: Option<usize>,
+    /// If `role_arn` is set, we will use already known config as source
+    /// credential to assume role with `role_arn`.
+    pub role_arn: Option<String>,
+    /// role_session_name for this backend.
+    pub role_session_name: Option<String>,
+    /// `oidc_provider_arn` will be loaded from
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+    pub oidc_provider_arn: Option<String>,
+    /// `oidc_token_file` will be loaded from
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+    pub oidc_token_file: Option<String>,
+    /// `sts_endpoint` will be loaded from
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_STS_ENDPOINT`]
+    pub sts_endpoint: Option<String>,
 }
 
 impl Debug for OssConfig {

@@ -79,6 +79,7 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
+#[derive(Clone, Debug)]
 pub struct PrometheusClientLayer(observe::MetricsLayer<PrometheusClientInterceptor>);
 
 impl PrometheusClientLayer {

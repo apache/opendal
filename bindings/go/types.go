@@ -195,18 +195,14 @@ type resultOperatorNew struct {
 	error *opendalError
 }
 
-type opendalOperator struct {
-	ptr uintptr
-}
+type opendalOperator struct{}
 
 type resultRead struct {
 	data  *opendalBytes
 	error *opendalError
 }
 
-type opendalReader struct {
-	inner uintptr
-}
+type opendalReader struct{}
 
 type resultOperatorReader struct {
 	reader *opendalReader
@@ -228,9 +224,7 @@ type resultStat struct {
 	error *opendalError
 }
 
-type opendalMetadata struct {
-	inner uintptr
-}
+type opendalMetadata struct{}
 
 type opendalBytes struct {
 	data *byte
@@ -242,27 +236,21 @@ type opendalError struct {
 	message opendalBytes
 }
 
-type opendalOperatorInfo struct {
-	inner uintptr
-}
+type opendalOperatorInfo struct{}
 
 type opendalResultList struct {
 	lister *opendalLister
 	err    *opendalError
 }
 
-type opendalLister struct {
-	inner uintptr
-}
+type opendalLister struct{}
 
 type opendalResultListerNext struct {
 	entry *opendalEntry
 	err   *opendalError
 }
 
-type opendalEntry struct {
-	inner uintptr
-}
+type opendalEntry struct{}
 
 func toOpendalBytes(data []byte) opendalBytes {
 	var ptr *byte

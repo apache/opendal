@@ -181,13 +181,8 @@ impl kv::Adapter for Adapter {
         for key in it {
             let key = key.map_err(parse_rocksdb_error)?;
             let key = String::from_utf8_lossy(&key);
-            // FIXME: it's must a bug that rocksdb returns key that not start with path.
             if !key.starts_with(path) {
-                continue;
-            }
-            // List should skip the path itself.
-            if key == path {
-                continue;
+                break;
             }
             res.push(key.to_string());
         }

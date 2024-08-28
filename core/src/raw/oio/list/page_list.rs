@@ -54,11 +54,11 @@ pub struct PageContext {
     pub done: bool,
     /// token is used by underlying storage services to fetch next page.
     pub token: String,
-    /// entries is used to store entries fetched from underlying storage.
+    /// entries are used to store entries fetched from underlying storage.
     ///
     /// Please always reuse the same `VecDeque` to avoid unnecessary memory allocation.
     /// PageLister makes sure that entries is reset before calling `next_page`. Implementer
-    /// can calling `push_back` on `entries` directly.
+    /// can call `push_back` on `entries` directly.
     pub entries: VecDeque<oio::Entry>,
 }
 

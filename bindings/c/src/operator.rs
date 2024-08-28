@@ -102,7 +102,7 @@ fn build_operator(
     schema: core::Scheme,
     map: HashMap<String, String>,
 ) -> core::Result<core::Operator> {
-    let mut op = match core::Operator::via_map(schema, map) {
+    let mut op = match core::Operator::via_iter(schema, map) {
         Ok(o) => o,
         Err(e) => return Err(e),
     };
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn opendal_operator_new(
         }
     };
 
-    let mut map = HashMap::default();
+    let mut map = HashMap::<String, String>::default();
     if !options.is_null() {
         for (k, v) in (*options).as_ref() {
             map.insert(k.to_string(), v.to_string());

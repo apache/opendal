@@ -235,6 +235,54 @@ impl OssBuilder {
         self.config.allow_anonymous = true;
         self
     }
+
+    /// Set role_arn for this backend.
+    ///
+    /// If `role_arn` is set, we will use already known config as source
+    /// credential to assume role with `role_arn`.
+    pub fn role_arn(mut self, role_arn: &str) -> Self {
+        if !role_arn.is_empty() {
+            self.config.role_arn = Some(role_arn.to_string())
+        }
+
+        self
+    }
+
+    /// Set role_session_name for this backend.
+    pub fn role_session_name(mut self, role_session_name: &str) -> Self {
+        if !role_session_name.is_empty() {
+            self.config.role_session_name = Some(role_session_name.to_string())
+        }
+
+        self
+    }
+
+    /// Set oidc_provider_arn for this backend.
+    pub fn oidc_provider_arn(mut self, oidc_provider_arn: &str) -> Self {
+        if !oidc_provider_arn.is_empty() {
+            self.config.oidc_provider_arn = Some(oidc_provider_arn.to_string())
+        }
+
+        self
+    }
+
+    /// Set oidc_token_file for this backend.
+    pub fn oidc_token_file(mut self, oidc_token_file: &str) -> Self {
+        if !oidc_token_file.is_empty() {
+            self.config.oidc_token_file = Some(oidc_token_file.to_string())
+        }
+
+        self
+    }
+
+    /// Set sts_endpoint for this backend.
+    pub fn sts_endpoint(mut self, sts_endpoint: &str) -> Self {
+        if !sts_endpoint.is_empty() {
+            self.config.sts_endpoint = Some(sts_endpoint.to_string())
+        }
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -295,6 +343,27 @@ impl Builder for OssBuilder {
 
         if let Some(v) = self.config.access_key_secret {
             cfg.access_key_secret = Some(v);
+        }
+
+        if let Some(v) = self.config.role_arn {
+            cfg.role_arn = Some(v);
+        }
+
+        // override default role_session_name if set
+        if let Some(v) = self.config.role_session_name {
+            cfg.role_session_name = v;
+        }
+
+        if let Some(v) = self.config.oidc_provider_arn {
+            cfg.oidc_provider_arn = Some(v);
+        }
+
+        if let Some(v) = self.config.oidc_token_file {
+            cfg.oidc_token_file = Some(v);
+        }
+
+        if let Some(v) = self.config.sts_endpoint {
+            cfg.sts_endpoint = Some(v);
         }
 
         let client = if let Some(client) = self.http_client {

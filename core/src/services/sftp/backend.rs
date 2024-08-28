@@ -52,7 +52,7 @@ impl Configurator for SftpConfig {
 
 /// SFTP services support. (only works on unix)
 ///
-/// If you are interested in working on windows, pl ease refer to [this](https://github.com/apache/opendal/issues/2963) issue.
+/// If you are interested in working on windows, please refer to [this](https://github.com/apache/opendal/issues/2963) issue.
 /// Welcome to leave your comments or make contributions.
 ///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.

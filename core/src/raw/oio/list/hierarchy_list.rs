@@ -69,11 +69,6 @@ impl<P> HierarchyLister<P> {
             return false;
         }
 
-        // Dir itself should not be returned in hierarchy page.
-        if e.path() == self.path {
-            return false;
-        }
-
         // Don't return already visited path.
         if self.visited.contains(e.path()) {
             return false;

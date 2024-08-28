@@ -25,15 +25,18 @@ use std::path::PathBuf;
 pub struct FsLister<P> {
     root: PathBuf,
 
+    current_path: Option<String>,
+
     rd: P,
 
     op: OpList,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, rd: P, arg: OpList) -> Self {
+    pub fn new(root: &Path, path: &str, rd: P, arg: OpList) -> Self {
         Self {
             root: root.to_owned(),
+            current_path: Some(path.to_string()),
             rd,
             op: arg,
         }
@@ -47,6 +50,12 @@ unsafe impl<P> Sync for FsLister<P> {}
 
 impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        // since list should return path itself, we return it first
+        if let Some(path) = self.current_path.take() {
+            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+            return Ok(Some(e));
+        }
+
         let Some(de) = self.rd.next_entry().await.map_err(new_std_io_error)? else {
             return Ok(None);
         };
@@ -98,6 +107,12 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
 
 impl oio::BlockingList for FsLister<std::fs::ReadDir> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
+        // since list should return path itself, we return it first
+        if let Some(path) = self.current_path.take() {
+            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+            return Ok(Some(e));
+        }
+
         let de = match self.rd.next() {
             Some(de) => de.map_err(new_std_io_error)?,
             None => return Ok(None),

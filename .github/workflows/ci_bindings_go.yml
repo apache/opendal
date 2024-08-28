@@ -39,9 +39,23 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  checks: write
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: "v1.60"
+          working-directory: bindings/go
   matrix:
+    needs: [ lint ]
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -73,6 +87,8 @@ jobs:
           TARGET: ${{ matrix.build.target }}
         run: rustup target add $TARGET
       - uses: actions/setup-go@v5
+        with:
+          go-version: stable
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"

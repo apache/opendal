@@ -14,7 +14,7 @@
 
 This crate can help you to access 30 more storage services with the same object_store API.
 
-    
+
 ## Useful Links
 
 - Documentation: [release](https://docs.rs/object_store_opendal/) | [dev](https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/)
@@ -25,9 +25,9 @@ Add the following dependencies to your `Cargo.toml` with correct version:
 
 ```toml
 [dependencies]
-object_store = "0.10.0"
-object_store_opendal = "0.44.0"
-opendal = { version = "0.47.0", features = ["services-s3"] }
+object_store = "0.11.0"
+object_store_opendal = "0.47.0"
+opendal = { version = "0.49.0", features = ["services-s3"] }
 ```
 
 Build `OpendalStore` via `opendal::Operator`:

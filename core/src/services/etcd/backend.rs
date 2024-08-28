@@ -323,9 +323,6 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            if v == path {
-                continue;
-            }
             res.push(v);
         }
 

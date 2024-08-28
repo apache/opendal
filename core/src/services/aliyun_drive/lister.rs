@@ -65,26 +65,19 @@ impl oio::PageList for AliyunDriveLister {
         };
 
         let offset = if ctx.token.is_empty() {
-            if !parent.path.ends_with('/') {
-                // List "dir" should contains "dir/".
-                let path = if !parent.path.starts_with('/') {
-                    format!("/{}", parent.path)
-                } else {
-                    parent.path.clone()
-                };
-                ctx.entries.push_back(Entry::new(
-                    &format!("{}/", path),
-                    Metadata::new(EntryMode::DIR).with_last_modified(
-                        parent
-                            .updated_at
-                            .parse::<chrono::DateTime<Utc>>()
-                            .map_err(|e| {
-                                Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                    .set_source(e)
-                            })?,
-                    ),
-                ));
-            }
+            // Push self into the list result.
+            ctx.entries.push_back(Entry::new(
+                &parent.path,
+                Metadata::new(EntryMode::DIR).with_last_modified(
+                    parent
+                        .updated_at
+                        .parse::<chrono::DateTime<Utc>>()
+                        .map_err(|e| {
+                            Error::new(ErrorKind::Unexpected, "parse last modified time")
+                                .set_source(e)
+                        })?,
+                ),
+            ));
             None
         } else {
             Some(ctx.token.clone())
@@ -107,57 +100,35 @@ impl oio::PageList for AliyunDriveLister {
         let result: AliyunDriveFileList =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
-        let n = result.items.len();
-
         for item in result.items {
-            let path = if parent.path.starts_with('/') {
-                build_abs_path(&parent.path, &item.name)
+            let (path, mut md) = if item.path_type == "folder" {
+                let path = format!("{}{}/", &parent.path.trim_start_matches('/'), &item.name);
+                (path, Metadata::new(EntryMode::DIR))
             } else {
-                build_abs_path(&format!("/{}", &parent.path), &item.name)
+                let path = format!("{}{}", &parent.path.trim_start_matches('/'), &item.name);
+                (path, Metadata::new(EntryMode::FILE))
             };
 
-            let (path, md) = if item.path_type == "folder" {
-                let path = format!("{}/", path);
-                let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                    item.updated_at
-                        .parse::<chrono::DateTime<Utc>>()
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                .set_source(e)
-                        })?,
-                );
-                (path, meta)
-            } else {
-                let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-                    item.updated_at
-                        .parse::<chrono::DateTime<Utc>>()
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                .set_source(e)
-                        })?,
-                );
-                if let Some(v) = item.size {
-                    meta = meta.with_content_length(v);
-                }
-                if let Some(v) = item.content_type {
-                    meta = meta.with_content_type(v);
-                }
-                (path, meta)
-            };
+            md = md.with_last_modified(item.updated_at.parse::<chrono::DateTime<Utc>>().map_err(
+                |e| Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e),
+            )?);
+            if let Some(v) = item.size {
+                md = md.with_content_length(v);
+            }
+            if let Some(v) = item.content_type {
+                md = md.with_content_type(v);
+            }
 
             ctx.entries.push_back(Entry::new(&path, md));
         }
 
-        if self.limit.is_some_and(|x| x < n) || result.next_marker.is_none() {
+        let next_marker = result.next_marker.unwrap_or_default();
+        if next_marker.is_empty() {
             ctx.done = true;
+        } else {
+            ctx.token = next_marker;
         }
 
-        if let Some(marker) = result.next_marker {
-            if marker.is_empty() {
-                ctx.done = true;
-            }
-            ctx.token = marker;
-        }
         Ok(())
     }
 }

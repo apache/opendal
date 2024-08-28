@@ -386,7 +386,7 @@ impl Access for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f);
+        let rd = HdfsLister::new(&self.root, f, path);
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -582,7 +582,7 @@ impl Access for HdfsBackend {
             }
         };
 
-        let rd = HdfsLister::new(&self.root, f);
+        let rd = HdfsLister::new(&self.root, f, path);
 
         Ok((RpList::default(), Some(rd)))
     }

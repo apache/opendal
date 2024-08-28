@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.49.2] - 2024-08-26
+
+### Added
+* feat(ovfs): support read and write by @zjregee in https://github.com/apache/opendal/pull/5016
+* feat(bin/ofs): introduce `integrations/cloudfilter` for ofs by @ho-229 in https://github.com/apache/opendal/pull/4935
+* feat(integrations/spring): add AutoConfiguration class for Spring Mvc and Webflux by @shoothzj in https://github.com/apache/opendal/pull/5019
+* feat(services/monoiofs): impl read and write, add behavior test by @NKID00 in https://github.com/apache/opendal/pull/4944
+* feat(core/services-s3): support user defined metadata by @haoqixu in https://github.com/apache/opendal/pull/5030
+* feat: align `fn root` semantics; fix missing root for some services; rm duplicated normalize ops by @yjhmelody in https://github.com/apache/opendal/pull/5035
+* feat(core): expose configs always by @tisonkun in https://github.com/apache/opendal/pull/5034
+* feat(services/monoiofs): append, create_dir, copy and rename by @NKID00 in https://github.com/apache/opendal/pull/5041
+### Changed
+* refactor(core): new type to print context and reduce allocations by @evenyag in https://github.com/apache/opendal/pull/5021
+* refactor(layers/prometheus-client): remove useless `scheme` field from `PrometheusAccessor` and `PrometheusMetricWrapper` type by @koushiro in https://github.com/apache/opendal/pull/5026
+* refactor(layers/prometheus-client): avoid multiple clone of labels by @koushiro in https://github.com/apache/opendal/pull/5028
+* refactor(core/services-oss): remove the `starts_with` by @haoqixu in https://github.com/apache/opendal/pull/5036
+### Fixed
+* fix(layers/prometheus-client): remove duplicated `increment_request_total` of write operation by @koushiro in https://github.com/apache/opendal/pull/5023
+* fix(services/monoiofs): drop JoinHandle in worker thread by @NKID00 in https://github.com/apache/opendal/pull/5031
+### CI
+* ci: Add contents write permission for build-website by @Xuanwo in https://github.com/apache/opendal/pull/5017
+* ci: Fix test for service ghac by @Xuanwo in https://github.com/apache/opendal/pull/5018
+* ci(integrations/spring): add spring boot bean load test by @shoothzj in https://github.com/apache/opendal/pull/5032
+### Chore
+* chore: fix path typo in release docs by @tisonkun in https://github.com/apache/opendal/pull/5038
+* chore: align the `token` method semantics by @yjhmelody in https://github.com/apache/opendal/pull/5045
+
 ## [v0.49.1] - 2024-08-15
 
 ### Added
@@ -3933,6 +3960,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.49.2]: https://github.com/apache/opendal/compare/v0.49.1...v0.49.2
 [v0.49.1]: https://github.com/apache/opendal/compare/v0.49.0...v0.49.1
 [v0.49.0]: https://github.com/apache/opendal/compare/v0.48.0...v0.49.0
 [v0.48.0]: https://github.com/apache/opendal/compare/v0.47.3...v0.48.0

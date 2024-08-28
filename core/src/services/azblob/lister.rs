@@ -17,14 +17,13 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use quick_xml::de;
-
 use super::core::AzblobCore;
 use super::core::ListBlobsOutput;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
+use bytes::Buf;
+use quick_xml::de;
 
 pub struct AzblobLister {
     core: Arc<AzblobCore>,
@@ -83,11 +82,9 @@ impl oio::PageList for AzblobLister {
         }
 
         for object in output.blobs.blob {
-            let path = build_rel_path(&self.core.root, &object.name);
-
-            // azblob could return the dir itself in contents.
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.name);
+            if path.is_empty() {
+                path = "/".to_string();
             }
 
             let meta = Metadata::new(EntryMode::from_path(&path))

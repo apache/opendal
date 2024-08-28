@@ -44,7 +44,7 @@ fn operator_new<'a>(
         return Err(LuaError::external("schema is empty"));
     }
 
-    let mut map = HashMap::default();
+    let mut map = HashMap::<String, String>::default();
     for pair in option.pairs::<String, String>() {
         let (key, value) = pair?;
         map.insert(key, value);
@@ -55,7 +55,7 @@ fn operator_new<'a>(
         Err(e) => return Err(LuaError::external(e)),
     };
 
-    let op = match od::Operator::via_map(od_schema, map) {
+    let op = match od::Operator::via_iter(od_schema, map) {
         Ok(o) => o.blocking(),
         Err(e) => return Err(LuaError::external(e)),
     };

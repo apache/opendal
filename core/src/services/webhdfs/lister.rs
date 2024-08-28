@@ -45,6 +45,10 @@ impl oio::PageList for WebhdfsLister {
             match resp.status() {
                 StatusCode::OK => {
                     ctx.done = true;
+                    ctx.entries.push_back(oio::Entry::new(
+                        format!("{}/", self.path).as_str(),
+                        Metadata::new(EntryMode::DIR),
+                    ));
 
                     let bs = resp.into_body();
                     serde_json::from_reader::<_, FileStatusesWrapper>(bs.reader())
@@ -72,6 +76,11 @@ impl oio::PageList for WebhdfsLister {
                     let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
 
                     if directory_listing.remaining_entries == 0 {
+                        ctx.entries.push_back(oio::Entry::new(
+                            format!("{}/", self.path).as_str(),
+                            Metadata::new(EntryMode::DIR),
+                        ));
+
                         ctx.done = true;
                     } else if !file_statuses.is_empty() {
                         ctx.token

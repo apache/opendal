@@ -292,7 +292,7 @@ impl WebdavCore {
 
         loop {
             match self.webdav_stat_rooted_abs_path(path).await {
-                // Dir is exist, break the loop.
+                // Dir exists, break the loop.
                 Ok(_) => {
                     break;
                 }

@@ -130,7 +130,7 @@ pub fn normalize_path(path: &str) -> String {
 /// - Add leading `/` if not starts with: `abc/` => `/abc/`
 /// - Add trailing `/` if not ends with: `/abc` => `/abc/`
 ///
-/// Finally, we will got path like `/path/to/root/`.
+/// Finally, we will get path like `/path/to/root/`.
 pub fn normalize_root(v: &str) -> String {
     let mut v = v
         .split('/')

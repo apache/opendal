@@ -115,6 +115,10 @@ impl PrometheusLayer {
     }
 
     /// Set buckets for `operation_duration_seconds` histogram.
+    ///
+    /// You could call the [`linear_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.linear_buckets.html)
+    /// or [`exponential_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.exponential_buckets.html)
+    /// to generate the buckets.
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.operation_duration_seconds_buckets = buckets;
@@ -123,6 +127,10 @@ impl PrometheusLayer {
     }
 
     /// Set buckets for `operation_bytes` histogram.
+    ///
+    /// You could call the [`linear_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.linear_buckets.html)
+    /// or [`exponential_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.exponential_buckets.html)
+    /// to generate the buckets.
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.operation_bytes_buckets = buckets;
@@ -132,9 +140,9 @@ impl PrometheusLayer {
 
     /// Set the level of path label.
     ///
-    /// - level = 0: no path label, the path label will be the "".
+    /// - level = 0: we will ignore the path label.
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
-    ///   like "/abc/def/ghi", if n=1, the path label will be "/abc".
+    ///   if n=1 and input path is "abc/def/ghi", and we will get "abc/".
     pub fn enable_path_label(mut self, level: usize) -> Self {
         self.path_label_level = level;
         self
@@ -170,34 +178,7 @@ impl PrometheusInterceptor {
         operation_bytes_buckets: Vec<f64>,
         path_label_level: usize,
     ) -> Self {
-        let fixed_labels = vec![
-            observe::LABEL_SCHEME,
-            observe::LABEL_NAMESPACE,
-            observe::LABEL_ROOT,
-            observe::LABEL_OPERATION,
-        ];
-        let (labels, labels_with_error) = if path_label_level > 0 {
-            (
-                {
-                    let mut labels = fixed_labels.clone();
-                    labels.push(observe::LABEL_PATH);
-                    labels
-                },
-                {
-                    let mut labels = fixed_labels.clone();
-                    labels.push(observe::LABEL_ERROR);
-                    labels.push(observe::LABEL_PATH);
-                    labels
-                },
-            )
-        } else {
-            (fixed_labels.clone(), {
-                let mut labels = fixed_labels;
-                labels.push(observe::LABEL_ERROR);
-                labels
-            })
-        };
-
+        let labels = OperationLabels::names(false, path_label_level);
         let operation_duration_seconds = register_histogram_vec_with_registry!(
             histogram_opts!(
                 observe::METRIC_OPERATION_DURATION_SECONDS.name(),
@@ -207,7 +188,7 @@ impl PrometheusInterceptor {
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
         let operation_bytes = register_histogram_vec_with_registry!(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -217,14 +198,16 @@ impl PrometheusInterceptor {
             &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
+
+        let labels = OperationLabels::names(true, path_label_level);
         let operation_errors_total = register_int_counter_vec_with_registry!(
             observe::METRIC_OPERATION_ERRORS_TOTAL.name(),
             observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
-            &labels_with_error,
+            &labels,
             registry
         )
-            .unwrap();
+        .unwrap();
 
         Self {
             operation_duration_seconds,
@@ -232,53 +215,6 @@ impl PrometheusInterceptor {
             operation_errors_total,
             path_label_level,
         }
-    }
-
-    // labels: `["scheme", "namespace", "root", "op", "path"]`
-    //      or `["scheme", "namespace", "root", "op"]`
-    fn gen_operation_labels<'a>(
-        &'a self,
-        scheme: Scheme,
-        namespace: &'a str,
-        root: &'a str,
-        op: Operation,
-        path: &'a str,
-    ) -> Vec<&'a str> {
-        let mut labels = vec![scheme.into_static(), namespace, root, op.into_static()];
-
-        if self.path_label_level > 0 {
-            let path_value = get_path_label(path, self.path_label_level);
-            labels.push(path_value);
-        }
-
-        labels
-    }
-
-    // labels: `["scheme", "namespace", "root", "op", "error", "path"]`
-    //      or `["scheme", "namespace", "root", "op", "error"]`
-    fn gen_error_labels<'a>(
-        &'a self,
-        scheme: Scheme,
-        namespace: &'a str,
-        root: &'a str,
-        op: Operation,
-        error: ErrorKind,
-        path: &'a str,
-    ) -> Vec<&'a str> {
-        let mut labels = vec![
-            scheme.into_static(),
-            namespace,
-            root,
-            op.into_static(),
-            error.into_static(),
-        ];
-
-        if self.path_label_level > 0 {
-            let path_value = get_path_label(path, self.path_label_level);
-            labels.push(path_value);
-        }
-
-        labels
     }
 }
 
@@ -292,7 +228,16 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
         op: Operation,
         duration: Duration,
     ) {
-        let labels = self.gen_operation_labels(scheme, &namespace, &root, op, path);
+        let labels = OperationLabels {
+            scheme,
+            namespace: &namespace,
+            root: &root,
+            op,
+            error: None,
+            path,
+        }
+        .into_values(self.path_label_level);
+
         self.operation_duration_seconds
             .with_label_values(&labels)
             .observe(duration.as_secs_f64())
@@ -307,7 +252,16 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
         op: Operation,
         bytes: usize,
     ) {
-        let labels = self.gen_operation_labels(scheme, &namespace, &root, op, path);
+        let labels = OperationLabels {
+            scheme,
+            namespace: &namespace,
+            root: &root,
+            op,
+            error: None,
+            path,
+        }
+        .into_values(self.path_label_level);
+
         self.operation_bytes
             .with_label_values(&labels)
             .observe(bytes as f64);
@@ -322,8 +276,76 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
         op: Operation,
         error: ErrorKind,
     ) {
-        let labels = self.gen_error_labels(scheme, &namespace, &root, op, error, path);
+        let labels = OperationLabels {
+            scheme,
+            namespace: &namespace,
+            root: &root,
+            op,
+            error: Some(error),
+            path,
+        }
+        .into_values(self.path_label_level);
+
         self.operation_errors_total.with_label_values(&labels).inc();
+    }
+}
+
+struct OperationLabels<'a> {
+    scheme: Scheme,
+    namespace: &'a str,
+    root: &'a str,
+    op: Operation,
+    error: Option<ErrorKind>,
+    path: &'a str,
+}
+
+impl<'a> OperationLabels<'a> {
+    fn names(error: bool, path_label_level: usize) -> Vec<&'a str> {
+        let mut names = Vec::with_capacity(6);
+
+        names.extend([
+            observe::LABEL_SCHEME,
+            observe::LABEL_NAMESPACE,
+            observe::LABEL_ROOT,
+            observe::LABEL_OPERATION,
+        ]);
+
+        if error {
+            names.push(observe::LABEL_ERROR);
+        }
+
+        if path_label_level > 0 {
+            names.push(observe::LABEL_PATH);
+        }
+
+        names
+    }
+
+    /// labels:
+    ///
+    /// 1. `["scheme", "namespace", "root", "operation"]`
+    /// 2. `["scheme", "namespace", "root", "operation", "path"]`
+    /// 3. `["scheme", "namespace", "root", "operation", "error"]`
+    /// 4. `["scheme", "namespace", "root", "operation", "error", "path"]`
+    fn into_values(self, path_label_level: usize) -> Vec<&'a str> {
+        let mut labels = Vec::with_capacity(6);
+
+        labels.extend([
+            self.scheme.into_static(),
+            self.namespace,
+            self.root,
+            self.op.into_static(),
+        ]);
+
+        if let Some(error) = self.error {
+            labels.push(error.into_static());
+        }
+
+        if path_label_level > 0 {
+            labels.push(get_path_label(self.path, path_label_level));
+        }
+
+        labels
     }
 }
 

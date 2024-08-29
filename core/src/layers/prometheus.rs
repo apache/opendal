@@ -282,12 +282,6 @@ impl PrometheusInterceptor {
     }
 }
 
-#[inline]
-fn duration_to_seconds(d: Duration) -> f64 {
-    let nanos = f64::from(d.subsec_nanos()) / 1e9;
-    d.as_secs() as f64 + nanos
-}
-
 impl observe::MetricsIntercept for PrometheusInterceptor {
     fn observe_operation_duration_seconds(
         &self,
@@ -301,7 +295,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
         let labels = self.gen_operation_labels(scheme, &namespace, &root, op, path);
         self.operation_duration_seconds
             .with_label_values(&labels)
-            .observe(duration_to_seconds(duration))
+            .observe(duration.as_secs_f64())
     }
 
     fn observe_operation_bytes(

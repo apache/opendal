@@ -295,8 +295,8 @@ struct OperationLabels<'a> {
     namespace: &'a str,
     root: &'a str,
     op: Operation,
-    error: Option<ErrorKind>,
     path: &'a str,
+    error: Option<ErrorKind>,
 }
 
 impl<'a> OperationLabels<'a> {
@@ -310,12 +310,12 @@ impl<'a> OperationLabels<'a> {
             observe::LABEL_OPERATION,
         ]);
 
-        if error {
-            names.push(observe::LABEL_ERROR);
-        }
-
         if path_label_level > 0 {
             names.push(observe::LABEL_PATH);
+        }
+
+        if error {
+            names.push(observe::LABEL_ERROR);
         }
 
         names
@@ -326,7 +326,7 @@ impl<'a> OperationLabels<'a> {
     /// 1. `["scheme", "namespace", "root", "operation"]`
     /// 2. `["scheme", "namespace", "root", "operation", "path"]`
     /// 3. `["scheme", "namespace", "root", "operation", "error"]`
-    /// 4. `["scheme", "namespace", "root", "operation", "error", "path"]`
+    /// 4. `["scheme", "namespace", "root", "operation", "path", "error"]`
     fn into_values(self, path_label_level: usize) -> Vec<&'a str> {
         let mut labels = Vec::with_capacity(6);
 
@@ -337,12 +337,12 @@ impl<'a> OperationLabels<'a> {
             self.op.into_static(),
         ]);
 
-        if let Some(error) = self.error {
-            labels.push(error.into_static());
-        }
-
         if path_label_level > 0 {
             labels.push(get_path_label(self.path, path_label_level));
+        }
+
+        if let Some(error) = self.error {
+            labels.push(error.into_static());
         }
 
         labels

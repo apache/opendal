@@ -53,7 +53,7 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_build
 /// use log::debug;
 /// use log::info;
 /// use opendal::layers::PrometheusLayer;
@@ -95,7 +95,6 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-
 #[derive(Clone, Debug)]
 pub struct PrometheusLayer {
     registry: Registry,

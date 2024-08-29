@@ -122,7 +122,7 @@ impl PrometheusLayer {
         self
     }
 
-    /// Set buckets for `bytes` histogram.
+    /// Set buckets for `operation_bytes` histogram.
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.operation_bytes_buckets = buckets;
@@ -207,7 +207,7 @@ impl PrometheusInterceptor {
             &labels,
             registry
         )
-        .unwrap();
+            .unwrap();
         let operation_bytes = register_histogram_vec_with_registry!(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -217,14 +217,14 @@ impl PrometheusInterceptor {
             &labels,
             registry
         )
-        .unwrap();
+            .unwrap();
         let operation_errors_total = register_int_counter_vec_with_registry!(
             observe::METRIC_OPERATION_ERRORS_TOTAL.name(),
             observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
             &labels_with_error,
             registry
         )
-        .unwrap();
+            .unwrap();
 
         Self {
             operation_duration_seconds,

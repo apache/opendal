@@ -20,6 +20,7 @@
 //! This module offers essential components to facilitate the implementation of observability in OpenDAL.
 
 mod metrics;
+
 pub use metrics::MetricMetadata;
 pub use metrics::MetricsAccessor;
 pub use metrics::MetricsIntercept;
@@ -33,3 +34,37 @@ pub use metrics::LABEL_SCHEME;
 pub use metrics::METRIC_OPERATION_BYTES;
 pub use metrics::METRIC_OPERATION_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;
+
+pub(crate) fn path_label_value(path: &str, path_level: usize) -> Option<&str> {
+    if path.is_empty() {
+        return None;
+    }
+
+    if path_level > 0 {
+        let label_value = path
+            .char_indices()
+            .filter(|&(_, c)| c == '/')
+            .nth(path_level - 1)
+            .map_or(path, |(i, _)| &path[..i]);
+        Some(label_value)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path_label_value() {
+        let path = "abc/def/ghi";
+        assert_eq!(path_label_value(path, 0), None);
+        assert_eq!(path_label_value(path, 1), Some("abc"));
+        assert_eq!(path_label_value(path, 2), Some("abc/def"));
+        assert_eq!(path_label_value(path, 3), Some("abc/def/ghi"));
+        assert_eq!(path_label_value(path, usize::MAX), Some("abc/def/ghi"));
+
+        assert_eq!(path_label_value("", 1), None);
+    }
+}

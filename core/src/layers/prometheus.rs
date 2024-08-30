@@ -20,12 +20,10 @@ use std::time::Duration;
 
 use prometheus::core::AtomicU64;
 use prometheus::core::GenericCounterVec;
-use prometheus::exponential_buckets;
 use prometheus::histogram_opts;
-use prometheus::register_histogram_vec_with_registry;
-use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
+use prometheus::{exponential_buckets, Opts};
 
 use crate::layers::observe;
 use crate::raw::Access;
@@ -53,26 +51,24 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```no_build
-/// use log::debug;
-/// use log::info;
-/// use opendal::layers::PrometheusLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Result;
-/// use prometheus::Encoder;
+/// ```no_run
+/// # use log::debug;
+/// # use log::info;
+/// # use opendal::layers::PrometheusLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use prometheus::Encoder;
 ///
-/// /// Visit [`opendal::services`] for more service related config.
-/// /// Visit [`opendal::Operator`] for more operator level APIs.
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
 ///     let builder = services::Memory::default();
 ///     let registry = prometheus::default_registry();
 ///
 ///     let op = Operator::new(builder)
 ///         .expect("must init")
-///         .layer(PrometheusLayer::new(registry.clone()))
+///         .layer(PrometheusLayer::new(registry))
 ///         .finish();
 ///     debug!("operator: {op:?}");
 ///
@@ -93,47 +89,123 @@ use crate::*;
 ///     println!("## Prometheus Metrics");
 ///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
 ///     Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PrometheusLayer {
-    registry: Registry,
-    operation_duration_seconds_buckets: Vec<f64>,
-    operation_bytes_buckets: Vec<f64>,
-    path_label_level: usize,
+    interceptor: PrometheusInterceptor,
 }
 
 impl PrometheusLayer {
     /// Create a [`PrometheusLayer`] while registering itself to this registry.
-    pub fn new(registry: Registry) -> Self {
-        Self {
-            registry,
-            operation_duration_seconds_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
-            operation_bytes_buckets: exponential_buckets(1.0, 2.0, 16).unwrap(),
-            path_label_level: 0,
-        }
+    pub fn new(registry: &Registry) -> Self {
+        let interceptor = PrometheusInterceptor::default();
+        Self { interceptor }.register(registry)
+    }
+
+    /// Register the metrics into the registry.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(PrometheusLayer::default().register(registry))
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn register(self, registry: &Registry) -> Self {
+        self.interceptor.register(registry);
+        self
     }
 
     /// Set buckets for `operation_duration_seconds` histogram.
     ///
-    /// You could call the [`linear_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.linear_buckets.html)
-    /// or [`exponential_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.exponential_buckets.html)
-    /// to generate the buckets.
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let buckets = prometheus::exponential_buckets(0.01, 2.0, 16).unwrap();
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusLayer::default()
+    ///                 .operation_duration_seconds_buckets(buckets)
+    ///                 .register(registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            self.operation_duration_seconds_buckets = buckets;
+            self.interceptor = self.interceptor.with_operation_duration_seconds(buckets);
         }
         self
     }
 
     /// Set buckets for `operation_bytes` histogram.
     ///
-    /// You could call the [`linear_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.linear_buckets.html)
-    /// or [`exponential_buckets`](https://docs.rs/prometheus/latest/prometheus/fn.exponential_buckets.html)
-    /// to generate the buckets.
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let buckets = prometheus::exponential_buckets(1.0, 2.0, 16).unwrap();
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusLayer::default()
+    ///                 .operation_bytes_buckets(buckets)
+    ///                 .register(registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            self.operation_bytes_buckets = buckets;
+            self.interceptor = self.interceptor.with_operation_bytes(buckets);
         }
         self
     }
@@ -143,8 +215,37 @@ impl PrometheusLayer {
     /// - level = 0: we will ignore the path label.
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
     ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusLayer::default()
+    ///                 .enable_path_label(1)
+    ///                 .register(registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn enable_path_label(mut self, level: usize) -> Self {
-        self.path_label_level = level;
+        self.interceptor = self.interceptor.with_path_label_level(level);
         self
     }
 }
@@ -153,13 +254,7 @@ impl<A: Access> Layer<A> for PrometheusLayer {
     type LayeredAccess = observe::MetricsAccessor<A, PrometheusInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let interceptor = PrometheusInterceptor::register(
-            self.registry.clone(),
-            self.operation_duration_seconds_buckets.clone(),
-            self.operation_bytes_buckets.clone(),
-            self.path_label_level,
-        );
-        observe::MetricsLayer::new(interceptor).layer(inner)
+        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
     }
 }
 
@@ -171,43 +266,41 @@ pub struct PrometheusInterceptor {
     path_label_level: usize,
 }
 
-impl PrometheusInterceptor {
-    fn register(
-        registry: Registry,
-        operation_duration_seconds_buckets: Vec<f64>,
-        operation_bytes_buckets: Vec<f64>,
-        path_label_level: usize,
-    ) -> Self {
+impl Default for PrometheusInterceptor {
+    fn default() -> Self {
+        let operation_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).unwrap();
+        let operation_bytes_buckets = exponential_buckets(1.0, 2.0, 16).unwrap();
+        let path_label_level = 0;
+
         let labels = OperationLabels::names(false, path_label_level);
-        let operation_duration_seconds = register_histogram_vec_with_registry!(
+        let operation_duration_seconds = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_DURATION_SECONDS.name(),
                 observe::METRIC_OPERATION_DURATION_SECONDS.help(),
                 operation_duration_seconds_buckets
             ),
             &labels,
-            registry
         )
-        .unwrap();
-        let operation_bytes = register_histogram_vec_with_registry!(
+            .unwrap();
+        let operation_bytes = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
                 observe::METRIC_OPERATION_BYTES.help(),
                 operation_bytes_buckets
             ),
             &labels,
-            registry
         )
-        .unwrap();
+            .unwrap();
 
-        let labels = OperationLabels::names(true, path_label_level);
-        let operation_errors_total = register_int_counter_vec_with_registry!(
-            observe::METRIC_OPERATION_ERRORS_TOTAL.name(),
-            observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
+        let labels = OperationLabels::names(false, path_label_level);
+        let operation_errors_total = GenericCounterVec::new(
+            Opts::new(
+                observe::METRIC_OPERATION_ERRORS_TOTAL.name(),
+                observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
+            ),
             &labels,
-            registry
         )
-        .unwrap();
+            .unwrap();
 
         Self {
             operation_duration_seconds,
@@ -215,6 +308,53 @@ impl PrometheusInterceptor {
             operation_errors_total,
             path_label_level,
         }
+    }
+}
+
+impl PrometheusInterceptor {
+    fn with_operation_duration_seconds(mut self, buckets: Vec<f64>) -> Self {
+        let labels = OperationLabels::names(false, self.path_label_level);
+        self.operation_duration_seconds = HistogramVec::new(
+            histogram_opts!(
+                observe::METRIC_OPERATION_DURATION_SECONDS.name(),
+                observe::METRIC_OPERATION_DURATION_SECONDS.help(),
+                buckets
+            ),
+            &labels,
+        )
+            .unwrap();
+        self
+    }
+
+    fn with_operation_bytes(mut self, buckets: Vec<f64>) -> Self {
+        let labels = OperationLabels::names(false, self.path_label_level);
+        self.operation_bytes = HistogramVec::new(
+            histogram_opts!(
+                observe::METRIC_OPERATION_BYTES.name(),
+                observe::METRIC_OPERATION_BYTES.help(),
+                buckets
+            ),
+            &labels,
+        )
+            .unwrap();
+        self
+    }
+
+    fn with_path_label_level(mut self, level: usize) -> Self {
+        self.path_label_level = level;
+        self
+    }
+
+    fn register(&self, registry: &Registry) {
+        registry
+            .register(Box::new(self.operation_duration_seconds.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(self.operation_bytes.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(self.operation_errors_total.clone()))
+            .unwrap();
     }
 }
 
@@ -236,7 +376,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-        .into_values(self.path_label_level);
+            .into_values(self.path_label_level);
 
         self.operation_duration_seconds
             .with_label_values(&labels)
@@ -260,7 +400,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-        .into_values(self.path_label_level);
+            .into_values(self.path_label_level);
 
         self.operation_bytes
             .with_label_values(&labels)
@@ -284,7 +424,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: Some(error),
             path,
         }
-        .into_values(self.path_label_level);
+            .into_values(self.path_label_level);
 
         self.operation_errors_total.with_label_values(&labels).inc();
     }
@@ -337,8 +477,8 @@ impl<'a> OperationLabels<'a> {
             self.op.into_static(),
         ]);
 
-        if path_label_level > 0 {
-            labels.push(get_path_label(self.path, path_label_level));
+        if let Some(path) = observe::path_label_value(self.path, path_label_level) {
+            labels.push(path);
         }
 
         if let Some(error) = self.error {
@@ -346,33 +486,5 @@ impl<'a> OperationLabels<'a> {
         }
 
         labels
-    }
-}
-
-fn get_path_label(path: &str, path_level: usize) -> &str {
-    if path_level > 0 {
-        return path
-            .char_indices()
-            .filter(|&(_, c)| c == '/')
-            .nth(path_level - 1)
-            .map_or(path, |(i, _)| &path[..i]);
-    }
-    ""
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_path_label() {
-        let path = "abc/def/ghi";
-        assert_eq!(get_path_label(path, 0), "");
-        assert_eq!(get_path_label(path, 1), "abc");
-        assert_eq!(get_path_label(path, 2), "abc/def");
-        assert_eq!(get_path_label(path, 3), "abc/def/ghi");
-        assert_eq!(get_path_label(path, usize::MAX), "abc/def/ghi");
-
-        assert_eq!(get_path_label("", 0), "");
     }
 }

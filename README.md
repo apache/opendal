@@ -15,7 +15,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
 | [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
 | [Dotnet Binding]  | -                                                | -                                                                                 |
-| [Go Binding]      | -                                                | -                                                                                 |
+| [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                         |
 | [Haskell Binding] | -                                                | -                                                                                 |
 | [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] |
 | [Lua Binding]     | -                                                | -                                                                                 |
@@ -40,6 +40,9 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
 [Dotnet Binding]: bindings/dotnet/README.md
 [Go Binding]: bindings/go/README.md
+[Go Binding Image]: https://badge.fury.io/go/github.com%2Fapache%2Fopendal%2Fbindings%2Fgo.svg
+[Go Binding Link]: https://pkg.go.dev/github.com/apache/opendal/bindings/go
+[Go Release Docs]: https://pkg.go.dev/github.com/apache/opendal/bindings/go
 [Haskell Binding]: bindings/haskell/README.md
 [Java Binding]: bindings/java/README.md
 [Java Binding Image]: https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java

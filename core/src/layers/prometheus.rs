@@ -281,7 +281,7 @@ impl Default for PrometheusInterceptor {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
         let operation_bytes = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -290,7 +290,7 @@ impl Default for PrometheusInterceptor {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
 
         let labels = OperationLabels::names(false, path_label_level);
         let operation_errors_total = GenericCounterVec::new(
@@ -300,7 +300,7 @@ impl Default for PrometheusInterceptor {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
 
         Self {
             operation_duration_seconds,
@@ -322,7 +322,7 @@ impl PrometheusInterceptor {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
         self
     }
 
@@ -336,7 +336,7 @@ impl PrometheusInterceptor {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
         self
     }
 
@@ -376,7 +376,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_duration_seconds
             .with_label_values(&labels)
@@ -400,7 +400,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_bytes
             .with_label_values(&labels)
@@ -424,7 +424,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: Some(error),
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_errors_total.with_label_values(&labels).inc();
     }

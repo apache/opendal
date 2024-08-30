@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,6 +24,7 @@ use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::encoding::LabelSetEncoder;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::family::MetricConstructor;
 use prometheus_client::metrics::histogram;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
@@ -38,19 +38,16 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```no_build
-/// use log::debug;
-/// use log::info;
-/// use opendal::layers::PrometheusClientLayer;
-/// use opendal::layers::PrometheusClientInterceptor;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// ```no_run
+/// # use log::debug;
+/// # use log::info;
+/// # use opendal::layers::PrometheusClientLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// /// Visit [`opendal::services`] for more service related config.
-/// /// Visit [`opendal::Operator`] for more operator level APIs.
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
 ///     let builder = services::Memory::default();
 ///     let mut registry = prometheus_client::registry::Registry::default();
@@ -77,52 +74,164 @@ use crate::*;
 ///     println!("## Prometheus Metrics");
 ///     println!("{}", buf);
 ///     Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Clone, Debug)]
-pub struct PrometheusClientLayer(observe::MetricsLayer<PrometheusClientInterceptor>);
+#[derive(Clone, Debug, Default)]
+pub struct PrometheusClientLayer {
+    interceptor: PrometheusClientInterceptor,
+}
 
 impl PrometheusClientLayer {
     /// Create a new [`PrometheusClientLayer`].
     pub fn new(registry: &mut Registry) -> Self {
-        let operation_duration_seconds = Family::<OperationLabels, _>::new_with_constructor(|| {
-            let buckets = histogram::exponential_buckets(0.01, 2.0, 16);
-            Histogram::new(buckets)
-        });
-        registry.register_with_unit(
-            observe::METRIC_OPERATION_DURATION_SECONDS.name(),
-            observe::METRIC_OPERATION_DURATION_SECONDS.help(),
-            Unit::Seconds,
-            operation_duration_seconds.clone(),
-        );
+        let interceptor = PrometheusClientInterceptor::default();
+        Self { interceptor }.register(registry)
+    }
 
-        let operation_bytes = Family::<OperationLabels, _>::new_with_constructor(|| {
-            let buckets = histogram::exponential_buckets(1.0, 2.0, 16);
-            Histogram::new(buckets)
-        });
-        registry.register_with_unit(
-            observe::METRIC_OPERATION_BYTES.name(),
-            observe::METRIC_OPERATION_BYTES.help(),
-            Unit::Bytes,
-            operation_bytes.clone(),
-        );
+    /// Register the metrics into the registry.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(PrometheusClientLayer::default().register(&mut registry))
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn register(self, registry: &mut Registry) -> Self {
+        self.interceptor.register(registry);
+        self
+    }
 
-        let operation_errors_total =
-            Family::<OperationErrorsTotalLabels, Counter>::new_with_constructor(|| {
-                Counter::default()
-            });
-        registry.register(
-            observe::METRIC_OPERATION_ERRORS_TOTAL.name(),
-            observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
-            operation_errors_total.clone(),
-        );
+    /// Set buckets for `operation_duration_seconds` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusClientLayer::default()
+    ///                 .operation_duration_seconds_buckets(buckets)
+    ///                 .register(&mut registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.interceptor = self.interceptor.with_operation_duration_seconds(buckets);
+        }
+        self
+    }
 
-        let interceptor = PrometheusClientInterceptor {
-            operation_duration_seconds,
-            operation_bytes,
-            operation_errors_total,
-        };
-        Self(observe::MetricsLayer::new(interceptor))
+    /// Set buckets for `operation_bytes` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusClientLayer::default()
+    ///                 .operation_bytes_buckets(buckets)
+    ///                 .register(&mut registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.interceptor = self.interceptor.with_operation_bytes(buckets);
+        }
+        self
+    }
+
+    /// Set the level of path label.
+    ///
+    /// - level = 0: we will ignore the path label.
+    /// - level > 0: the path label will be the path split by "/" and get the last n level,
+    ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusClientLayer::default()
+    ///                 .enable_path_label(1)
+    ///                 .register(&mut registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn enable_path_label(mut self, level: usize) -> Self {
+        self.interceptor = self.interceptor.with_path_label_level(level);
+        self
     }
 }
 
@@ -130,15 +239,86 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     type LayeredAccess = observe::MetricsAccessor<A, PrometheusClientInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        self.0.layer(inner)
+        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct PrometheusClientInterceptor {
-    operation_duration_seconds: Family<OperationLabels, Histogram>,
-    operation_bytes: Family<OperationLabels, Histogram>,
-    operation_errors_total: Family<OperationErrorsTotalLabels, Counter>,
+    operation_duration_seconds: Family<OperationLabels, Histogram, HistogramConstructor>,
+    operation_bytes: Family<OperationLabels, Histogram, HistogramConstructor>,
+    operation_errors_total: Family<OperationLabels, Counter>,
+    path_label_level: usize,
+}
+
+#[derive(Clone)]
+struct HistogramConstructor {
+    buckets: Vec<f64>,
+}
+
+impl MetricConstructor<Histogram> for HistogramConstructor {
+    fn new_metric(&self) -> Histogram {
+        Histogram::new(self.buckets.iter().cloned())
+    }
+}
+
+impl Default for PrometheusClientInterceptor {
+    fn default() -> Self {
+        let operation_duration_seconds =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+                buckets: histogram::exponential_buckets(0.01, 2.0, 16).collect(),
+            });
+        let operation_bytes =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+                buckets: histogram::exponential_buckets(1.0, 2.0, 16).collect(),
+            });
+        let operation_errors_total = Family::<OperationLabels, Counter>::default();
+        Self {
+            operation_duration_seconds,
+            operation_bytes,
+            operation_errors_total,
+            path_label_level: 0,
+        }
+    }
+}
+
+impl PrometheusClientInterceptor {
+    fn with_operation_duration_seconds(mut self, buckets: Vec<f64>) -> Self {
+        self.operation_duration_seconds =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor { buckets });
+        self
+    }
+
+    fn with_operation_bytes(mut self, buckets: Vec<f64>) -> Self {
+        self.operation_bytes =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor { buckets });
+        self
+    }
+
+    fn with_path_label_level(mut self, level: usize) -> Self {
+        self.path_label_level = level;
+        self
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register_with_unit(
+            "operation_duration",
+            observe::METRIC_OPERATION_DURATION_SECONDS.help(),
+            Unit::Seconds,
+            self.operation_duration_seconds.clone(),
+        );
+        registry.register_with_unit(
+            "operation",
+            observe::METRIC_OPERATION_BYTES.help(),
+            Unit::Bytes,
+            self.operation_bytes.clone(),
+        );
+        registry.register(
+            "operation_errors",
+            observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
+            self.operation_errors_total.clone(),
+        );
+    }
 }
 
 impl observe::MetricsIntercept for PrometheusClientInterceptor {
@@ -147,7 +327,7 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
         scheme: Scheme,
         namespace: Arc<String>,
         root: Arc<String>,
-        _: &str,
+        path: &str,
         op: Operation,
         duration: Duration,
     ) {
@@ -156,8 +336,9 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
                 scheme,
                 namespace,
                 root,
-                path: None,
-                op,
+                operation: op,
+                path: observe::path_label_value(path, self.path_label_level).map(Into::into),
+                error: None,
             })
             .observe(duration.as_secs_f64())
     }
@@ -167,7 +348,7 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
         scheme: Scheme,
         namespace: Arc<String>,
         root: Arc<String>,
-        _: &str,
+        path: &str,
         op: Operation,
         bytes: usize,
     ) {
@@ -176,8 +357,9 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
                 scheme,
                 namespace,
                 root,
-                path: None,
-                op,
+                operation: op,
+                path: observe::path_label_value(path, self.path_label_level).map(Into::into),
+                error: None,
             })
             .observe(bytes as f64)
     }
@@ -187,18 +369,18 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
         scheme: Scheme,
         namespace: Arc<String>,
         root: Arc<String>,
-        _: &str,
+        path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
         self.operation_errors_total
-            .get_or_create(&OperationErrorsTotalLabels {
+            .get_or_create(&OperationLabels {
                 scheme,
                 namespace,
                 root,
-                path: None,
-                op,
-                error: error.into_static(),
+                operation: op,
+                path: observe::path_label_value(path, self.path_label_level).map(Into::into),
+                error: Some(error.into_static()),
             })
             .inc();
     }
@@ -209,8 +391,9 @@ struct OperationLabels {
     scheme: Scheme,
     namespace: Arc<String>,
     root: Arc<String>,
+    operation: Operation,
     path: Option<String>,
-    op: Operation,
+    error: Option<&'static str>,
 }
 
 impl EncodeLabelSet for OperationLabels {
@@ -218,34 +401,13 @@ impl EncodeLabelSet for OperationLabels {
         (observe::LABEL_SCHEME, self.scheme.into_static()).encode(encoder.encode_label())?;
         (observe::LABEL_NAMESPACE, self.namespace.as_str()).encode(encoder.encode_label())?;
         (observe::LABEL_ROOT, self.root.as_str()).encode(encoder.encode_label())?;
+        (observe::LABEL_OPERATION, self.operation.into_static()).encode(encoder.encode_label())?;
         if let Some(path) = &self.path {
             (observe::LABEL_PATH, path.as_str()).encode(encoder.encode_label())?;
         }
-        (observe::LABEL_OPERATION, self.op.into_static()).encode(encoder.encode_label())?;
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-struct OperationErrorsTotalLabels {
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
-    path: Option<String>,
-    op: Operation,
-    error: &'static str,
-}
-
-impl EncodeLabelSet for OperationErrorsTotalLabels {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), fmt::Error> {
-        (observe::LABEL_SCHEME, self.scheme.into_static()).encode(encoder.encode_label())?;
-        (observe::LABEL_NAMESPACE, self.namespace.as_str()).encode(encoder.encode_label())?;
-        (observe::LABEL_ROOT, self.root.as_str()).encode(encoder.encode_label())?;
-        if let Some(path) = &self.path {
-            (observe::LABEL_PATH, path.as_str()).encode(encoder.encode_label())?;
+        if let Some(error) = self.error {
+            (observe::LABEL_ERROR, error).encode(encoder.encode_label())?;
         }
-        (observe::LABEL_OPERATION, self.op.into_static()).encode(encoder.encode_label())?;
-        (observe::LABEL_ERROR, self.error).encode(encoder.encode_label())?;
         Ok(())
     }
 }

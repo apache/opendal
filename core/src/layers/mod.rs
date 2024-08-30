@@ -108,4 +108,5 @@ mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
 
+#[cfg(any(feature = "layers-prometheus", feature = "layers-prometheus-client"))]
 pub mod observe;

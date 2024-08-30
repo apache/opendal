@@ -214,7 +214,7 @@ impl PrometheusLayer {
     ///
     /// - level = 0: we will ignore the path label.
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
-    ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
+    ///   if n=1 and input path is "abc/def/ghi", and then we'll use "abc/" as the path label.
     ///
     /// # Example
     ///

@@ -302,19 +302,19 @@ impl PrometheusClientInterceptor {
 
     fn register(&self, registry: &mut Registry) {
         registry.register_with_unit(
-            "operation_duration",
+            "opendal_operation_duration",
             observe::METRIC_OPERATION_DURATION_SECONDS.help(),
             Unit::Seconds,
             self.operation_duration_seconds.clone(),
         );
         registry.register_with_unit(
-            "operation",
+            "opendal_operation",
             observe::METRIC_OPERATION_BYTES.help(),
             Unit::Bytes,
             self.operation_bytes.clone(),
         );
         registry.register(
-            "operation_errors",
+            "opendal_operation_errors",
             observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
             self.operation_errors_total.clone(),
         );

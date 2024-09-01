@@ -113,7 +113,7 @@ pub(super) struct LakefsStatus {
     pub physical_address: String,
     pub checksum: String,
     pub size_bytes: u64,
-    pub mtime: u32,
+    pub mtime: i64,
     pub content_type: String,
 }
 

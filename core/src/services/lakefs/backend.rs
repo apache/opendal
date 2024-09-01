@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use chrono::{TimeZone, Utc};
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -298,6 +299,8 @@ impl Access for LakefsBackend {
                 if let Some(v) = parse_content_disposition(resp.headers())? {
                     meta.set_content_disposition(v);
                 }
+
+                meta.set_last_modified(Utc.timestamp_opt(decoded_response.mtime, 0).unwrap());
 
                 Ok(RpStat::new(meta))
             }

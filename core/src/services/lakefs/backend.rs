@@ -24,8 +24,6 @@ use chrono::{TimeZone, Utc};
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::LakefsCore;
 use super::core::LakefsStatus;

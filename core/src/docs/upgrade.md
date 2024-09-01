@@ -415,7 +415,7 @@ Please use `op.list_with().metakey()` instead of `op.metadata(&entry)`, for exam
 ```rust
 // Before
 let entries: Vec<Entry> = op.list("dir/").await?;
-for entry in entris {
+for entry in entries {
   let meta = op.metadata(&entry, Metakey::ContentLength | Metakey::ContentType).await?;
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
@@ -424,7 +424,7 @@ for entry in entris {
 let entries: Vec<Entry> = op
   .list_with("dir/")
   .metakey(Metakey::ContentLength | Metakey::ContentType).await?;
-for entry in entris {
+for entry in entries {
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
 ```

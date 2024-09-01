@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 
-use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
@@ -55,17 +54,20 @@ impl LakefsCore {
             .trim_end_matches('/')
             .to_string();
 
-        let url = format!("{}/api/v1/repositories/{}/refs/{}/objects/stat?path={}"
-                          , self.endpoint, self.repository_id, self.branch, percent_encode_path(&p));
+        let url = format!(
+            "{}/api/v1/repositories/{}/refs/{}/objects/stat?path={}",
+            self.endpoint,
+            self.repository_id,
+            self.branch,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::get(&url);
 
-        let auth_header_content = format_authorization_by_basic(&self.username,&self.password)?;
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -80,12 +82,17 @@ impl LakefsCore {
             .trim_end_matches('/')
             .to_string();
 
-        let url = format!("{}/api/v1/repositories/{}/refs/{}/objects?path={}"
-                          , self.endpoint, self.repository_id, self.branch, percent_encode_path(&p));
+        let url = format!(
+            "{}/api/v1/repositories/{}/refs/{}/objects?path={}",
+            self.endpoint,
+            self.repository_id,
+            self.branch,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::get(&url);
 
-        let auth_header_content = format_authorization_by_basic(&self.username,&self.password)?;
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         if !range.is_full() {
@@ -99,21 +106,18 @@ impl LakefsCore {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct LakefsStatus {
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub oid: String,
-    pub size: u64,
-    pub lfs: Option<LakefsLfs>,
     pub path: String,
-    pub last_commit: Option<LakefsLastCommit>,
-    pub security: Option<LakefsSecurity>,
+    pub path_type: String,
+    pub physical_address: String,
+    pub checksum: String,
+    pub size_bytes: u64,
+    pub mtime: u32,
+    pub content_type: String,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct LakefsLfs {
     pub oid: String,
@@ -122,7 +126,6 @@ pub(super) struct LakefsLfs {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct LakefsLastCommit {
     pub id: String,
@@ -131,7 +134,6 @@ pub(super) struct LakefsLastCommit {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct LakefsSecurity {
     pub blob_id: String,
@@ -143,14 +145,12 @@ pub(super) struct LakefsSecurity {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
-#[serde(rename_all = "camelCase")]
 pub(super) struct LakefsAvScan {
     pub virus_found: bool,
     pub virus_names: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(super) struct LakefsPickleImportScan {
     pub highest_safety_level: String,
@@ -164,4 +164,3 @@ pub(super) struct LakefsImport {
     pub name: String,
     pub safety: String,
 }
-

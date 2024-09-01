@@ -71,10 +71,10 @@ impl Debug for LakefsConfig {
         if let Some(endpoint) = &self.endpoint {
             ds.field("endpoint", &endpoint);
         }
-        if let Some(username) = &self.username {
+        if let Some(_username) = &self.username {
             ds.field("username", &"<redacted>");
         }
-        if let Some(password) = &self.password {
+        if let Some(_password) = &self.password {
             ds.field("password", &"<redacted>");
         }
         if let Some(root) = &self.root {
@@ -115,13 +115,13 @@ impl Debug for LakefsBuilder {
 }
 
 impl LakefsBuilder {
-   /// Set the endpoint of this backend.
-   ///
-   /// endpoint must be full uri.
-   ///
-   /// This is required.
-   /// - `http://127.0.0.1:8000` (lakefs daemon in local)
-   /// - `https://my-lakefs.example.com` (lakefs server)
+    /// Set the endpoint of this backend.
+    ///
+    /// endpoint must be full uri.
+    ///
+    /// This is required.
+    /// - `http://127.0.0.1:8000` (lakefs daemon in local)
+    /// - `https://my-lakefs.example.com` (lakefs server)
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string());
@@ -198,9 +198,11 @@ impl Builder for LakefsBuilder {
 
         let repository_id = match &self.config.repository_id {
             Some(repository_id) => Ok(repository_id.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "repository_id is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+            None => Err(
+                Error::new(ErrorKind::ConfigInvalid, "repository_id is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Lakefs),
+            ),
         }?;
         debug!("backend use repository_id: {}", &repository_id);
 
@@ -286,28 +288,15 @@ impl Access for LakefsBackend {
         match status {
             StatusCode::OK => {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body();
+                let bs = resp.clone().into_body();
 
-                let decoded_response: Vec<LakefsStatus> =
+                let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-                // NOTE: if the file is not found, the server will return 200 with an empty array
-                if let Some(status) = decoded_response.first() {
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
-                    }
-
-                    meta.set_content_length(status.size);
-
-                    match status.type_.as_str() {
-                        "directory" => meta.set_mode(EntryMode::DIR),
-                        "file" => meta.set_mode(EntryMode::FILE),
-                        _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
-                    };
-                } else {
-                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
+                meta.set_content_length(decoded_response.size_bytes);
+                meta.set_mode(EntryMode::FILE);
+                if let Some(v) = parse_content_disposition(resp.headers())? {
+                    meta.set_content_disposition(v);
                 }
 
                 Ok(RpStat::new(meta))
@@ -332,5 +321,4 @@ impl Access for LakefsBackend {
             }
         }
     }
-
 }

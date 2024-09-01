@@ -17,10 +17,8 @@
 
 mod backend;
 pub use backend::LakefsBuilder as Lakefs;
-pub use backend::LakefsConfig;
 
 mod config;
 mod core;
 mod error;
-
 pub use config::LakefsConfig;

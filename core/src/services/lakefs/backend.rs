@@ -268,9 +268,6 @@ impl Access for LakefsBackend {
 
                 read: true,
 
-                list: true,
-                list_with_recursive: true,
-
                 ..Default::default()
             });
         am.into()

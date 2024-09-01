@@ -4790,7 +4790,6 @@ dependencies = [
 name = "opendal-examples-basic"
 version = "0.49.1"
 dependencies = [
- "anyhow",
  "futures",
  "opendal",
  "tokio",

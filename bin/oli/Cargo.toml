@@ -79,7 +79,7 @@ opendal = { version = "0.49.0", path = "../../core", features = [
   "services-azfile",
 ] }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.39", features = [
+tokio = { version = "1.40", features = [
   "fs",
   "macros",
   "rt-multi-thread",

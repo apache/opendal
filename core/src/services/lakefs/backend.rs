@@ -31,66 +31,8 @@ use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::LakefsConfig;
 use crate::*;
-
-/// Configuration for Lakefs service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct LakefsConfig {
-    /// Base url.
-    ///
-    /// This is required.
-    pub endpoint: Option<String>,
-    /// Username for HTTP basic authentication.
-    ///
-    /// This is required.
-    pub username: Option<String>,
-    /// Password for HTTP basic authentication.
-    ///
-    /// This is required.
-    pub password: Option<String>,
-    /// Root of this backend. Can be "/path/to/dir".
-    ///
-    /// Default is "/".
-    pub root: Option<String>,
-
-    /// The repository name
-    ///
-    /// This is required.
-    pub repository_id: Option<String>,
-    /// Name of the branch or a commit ID. Default is main.
-    ///
-    /// This is optional.
-    pub branch: Option<String>,
-}
-
-impl Debug for LakefsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("LakefsConfig");
-
-        if let Some(endpoint) = &self.endpoint {
-            ds.field("endpoint", &endpoint);
-        }
-        if let Some(_username) = &self.username {
-            ds.field("username", &"<redacted>");
-        }
-        if let Some(_password) = &self.password {
-            ds.field("password", &"<redacted>");
-        }
-        if let Some(root) = &self.root {
-            ds.field("root", &root);
-        }
-        if let Some(repository_id) = &self.repository_id {
-            ds.field("repository_id", &repository_id);
-        }
-        if let Some(branch) = &self.branch {
-            ds.field("branch", &branch);
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
@@ -170,12 +112,12 @@ impl LakefsBuilder {
         self
     }
 
-    /// Set the repository_id of this backend.
+    /// Set the repository of this backend.
     ///
     /// This is required.
-    pub fn repository_id(mut self, repository_id: &str) -> Self {
-        if !repository_id.is_empty() {
-            self.config.repository_id = Some(repository_id.to_string());
+    pub fn repository(mut self, repository: &str) -> Self {
+        if !repository.is_empty() {
+            self.config.repository = Some(repository.to_string());
         }
         self
     }
@@ -197,15 +139,13 @@ impl Builder for LakefsBuilder {
         }?;
         debug!("backend use endpoint: {:?}", &endpoint);
 
-        let repository_id = match &self.config.repository_id {
-            Some(repository_id) => Ok(repository_id.clone()),
-            None => Err(
-                Error::new(ErrorKind::ConfigInvalid, "repository_id is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Lakefs),
-            ),
+        let repository = match &self.config.repository {
+            Some(repository) => Ok(repository.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "repository is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Lakefs)),
         }?;
-        debug!("backend use repository_id: {}", &repository_id);
+        debug!("backend use repository: {}", &repository);
 
         let branch = match &self.config.branch {
             Some(branch) => branch.clone(),
@@ -235,7 +175,7 @@ impl Builder for LakefsBuilder {
         Ok(LakefsBackend {
             core: Arc::new(LakefsCore {
                 endpoint,
-                repository_id,
+                repository,
                 branch,
                 root,
                 username,
@@ -279,7 +219,7 @@ impl Access for LakefsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.get_file_meta(path).await?;
+        let resp = self.core.get_object_metadata(path).await?;
 
         let status = resp.status();
 
@@ -306,7 +246,10 @@ impl Access for LakefsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.get_file(path, args.range(), &args).await?;
+        let resp = self
+            .core
+            .get_object_content(path, args.range(), &args)
+            .await?;
 
         let status = resp.status();
 

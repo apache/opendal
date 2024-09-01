@@ -27,7 +27,7 @@ use crate::*;
 
 pub struct LakefsCore {
     pub endpoint: String,
-    pub repository_id: String,
+    pub repository: String,
     pub branch: String,
     pub root: String,
     pub username: String,
@@ -42,14 +42,14 @@ impl Debug for LakefsCore {
             .field("username", &self.username)
             .field("password", &self.password)
             .field("root", &self.root)
-            .field("repository_id", &self.repository_id)
+            .field("repository", &self.repository)
             .field("branch", &self.branch)
             .finish_non_exhaustive()
     }
 }
 
 impl LakefsCore {
-    pub async fn get_file_meta(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn get_object_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -57,7 +57,7 @@ impl LakefsCore {
         let url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects/stat?path={}",
             self.endpoint,
-            self.repository_id,
+            self.repository,
             self.branch,
             percent_encode_path(&p)
         );
@@ -72,7 +72,7 @@ impl LakefsCore {
         self.client.send(req).await
     }
 
-    pub async fn get_file(
+    pub async fn get_object_content(
         &self,
         path: &str,
         range: BytesRange,
@@ -85,7 +85,7 @@ impl LakefsCore {
         let url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects?path={}",
             self.endpoint,
-            self.repository_id,
+            self.repository,
             self.branch,
             percent_encode_path(&p)
         );
@@ -115,52 +115,4 @@ pub(super) struct LakefsStatus {
     pub size_bytes: u64,
     pub mtime: i64,
     pub content_type: String,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsLfs {
-    pub oid: String,
-    pub size: u64,
-    pub pointer_size: u64,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsLastCommit {
-    pub id: String,
-    pub title: String,
-    pub date: String,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsSecurity {
-    pub blob_id: String,
-    pub name: String,
-    pub safe: bool,
-    pub av_scan: Option<LakefsAvScan>,
-    pub pickle_import_scan: Option<LakefsPickleImportScan>,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsAvScan {
-    pub virus_found: bool,
-    pub virus_names: Option<Vec<String>>,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsPickleImportScan {
-    pub highest_safety_level: String,
-    pub imports: Vec<LakefsImport>,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct LakefsImport {
-    pub module: String,
-    pub name: String,
-    pub safety: String,
 }

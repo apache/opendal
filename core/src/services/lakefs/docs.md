@@ -21,7 +21,7 @@ This service can be used to:
 ## Configurations
 
 - `endpoint`: The endpoint of the Lakefs repository.
-- `repository_id`: The id of the repository.
+- `repository`: The id of the repository.
 - `branch`: The branch of the repository.
 - `root`: Set the work directory for backend.
 - `username`: The username for accessing the repository.
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         // set the type of Lakefs endpoint
         .endpoint("https://whole-llama-mh6mux.us-east-1.lakefscloud.io")
         // set the id of Lakefs repository
-        .repository_id("sample-repo")
+        .repository("sample-repo")
         // set the branch of Lakefs repository
         .branch("main")
         // set the username for accessing the repository

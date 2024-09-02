@@ -118,6 +118,9 @@ pub use ipmfs::*;
 mod koofr;
 pub use koofr::*;
 
+mod lakefs;
+pub use lakefs::*;
+
 mod libsql;
 pub use libsql::*;
 
@@ -213,6 +216,3 @@ pub use webhdfs::*;
 
 mod yandex_disk;
 pub use yandex_disk::*;
-
-mod lakefs;
-pub use lakefs::*;

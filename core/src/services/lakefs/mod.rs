@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-lakefs")]
+mod core;
+#[cfg(feature = "services-lakefs")]
+mod error;
+
+#[cfg(feature = "services-lakefs")]
 mod backend;
+#[cfg(feature = "services-lakefs")]
 pub use backend::LakefsBuilder as Lakefs;
 
 mod config;
-mod core;
-mod error;
 pub use config::LakefsConfig;

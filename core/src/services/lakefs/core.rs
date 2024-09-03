@@ -109,7 +109,7 @@ impl LakefsCore {
         path: &str,
         delimiter: &str,
         amount: &Option<usize>,
-        after: &Option<&str>,
+        after: Option<String>,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -119,20 +119,19 @@ impl LakefsCore {
         );
 
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url.push_str(&format!("&prefix={}", percent_encode_path(&p)));
         }
 
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+            url.push_str(&format!("&delimiter={}", delimiter));
         }
 
         if let Some(amount) = amount {
-            write!(url, "&amount={amount}").expect("write into string must succeed");
+            url.push_str(&format!("&amount={}", amount));
         }
 
         if let Some(after) = after {
-            write!(url, "&after={after}").expect("write into string must succeed");
+            url.push_str(&format!("&after={}", after));
         }
 
         let mut req = Request::get(&url);

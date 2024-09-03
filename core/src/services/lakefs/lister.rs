@@ -32,7 +32,7 @@ pub struct LakefsLister {
     path: String,
     delimiter: &'static str,
     amount: Option<usize>,
-    after: Option<&'static str>,
+    after: Option<String>,
 }
 
 impl LakefsLister {
@@ -49,7 +49,7 @@ impl LakefsLister {
             path,
             delimiter,
             amount,
-            after,
+            after: after.map(String::from),
         }
     }
 }
@@ -58,7 +58,17 @@ impl oio::PageList for LakefsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self
             .core
-            .list_objects(&self.path, &self.delimiter, &self.amount, &self.after)
+            .list_objects(
+                &self.path,
+                &self.delimiter,
+                &self.amount,
+                // start after should only be set for the first page.
+                if ctx.token.is_empty() {
+                    self.after.clone()
+                } else {
+                    None
+                },
+            )
             .await?;
 
         let status_code = response.status();

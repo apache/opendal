@@ -87,6 +87,39 @@ impl PrometheusClientLayer {
     }
 
     /// Create a [`PrometheusClientLayerBuilder`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let duration_seconds_buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
+    ///     let bytes_buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(
+    ///             PrometheusClientLayer::builder()
+    ///                 .operation_duration_seconds_buckets(duration_seconds_buckets)
+    ///                 .operation_bytes_buckets(bytes_buckets)
+    ///                 .enable_path_label(1)
+    ///                 .register(&mut registry)
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn builder() -> PrometheusClientLayerBuilder {
         PrometheusClientLayerBuilder::default()
     }
@@ -121,36 +154,6 @@ impl Default for PrometheusClientLayerBuilder {
 
 impl PrometheusClientLayerBuilder {
     /// Set buckets for `operation_duration_seconds` histogram.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use log::debug;
-    /// # use opendal::layers::PrometheusClientLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
-    ///
-    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
-    ///     let op = Operator::new(builder)
-    ///         .expect("must init")
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .operation_duration_seconds_buckets(buckets)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
-    ///
-    ///     Ok(())
-    /// # }
-    /// ```
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.operation_duration_seconds_buckets = buckets;
@@ -159,36 +162,6 @@ impl PrometheusClientLayerBuilder {
     }
 
     /// Set buckets for `operation_bytes` histogram.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use log::debug;
-    /// # use opendal::layers::PrometheusClientLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
-    ///
-    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
-    ///     let op = Operator::new(builder)
-    ///         .expect("must init")
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .operation_bytes_buckets(buckets)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
-    ///
-    ///     Ok(())
-    /// # }
-    /// ```
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.operation_bytes_buckets = buckets;
@@ -201,66 +174,12 @@ impl PrometheusClientLayerBuilder {
     /// - level = 0: we will ignore the path label.
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
     ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use log::debug;
-    /// # use opendal::layers::PrometheusClientLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
-    ///
-    ///     let op = Operator::new(builder)
-    ///         .expect("must init")
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .enable_path_label(1)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
-    ///
-    ///     Ok(())
-    /// # }
-    /// ```
     pub fn enable_path_label(mut self, level: usize) -> Self {
         self.path_label_level = level;
         self
     }
 
     /// Register the metrics into the registry and return a [`PrometheusClientLayer`].
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use log::debug;
-    /// # use opendal::layers::PrometheusClientLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
-    ///
-    ///     let op = Operator::new(builder)
-    ///         .expect("must init")
-    ///         .layer(PrometheusClientLayer::builder().register(&mut registry))
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
-    ///
-    ///     Ok(())
-    /// # }
-    /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {
         let operation_duration_seconds =
             Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {

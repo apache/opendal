@@ -35,20 +35,8 @@ use crate::*;
 ///
 /// # Prometheus Metrics
 ///
-/// In this section, we will introduce three metrics that are currently being exported by our project. These metrics are essential for understanding the behavior and performance of our applications.
-///
-///
-/// | Metric Name             | Type     | Description                                       | Labels              |
-/// |-------------------------|----------|---------------------------------------------------|---------------------|
-/// | requests_total          | Counter  | Total times of 'create' operation being called   | scheme, operation   |
-/// | requests_duration_seconds | Histogram | Histogram of the time spent on specific operation | scheme, operation   |
-/// | bytes_total             | Histogram | Total size                                        | scheme, operation   |
-///
+/// We provide several metrics, please see the documentation of [`observe`] module.
 /// For a more detailed explanation of these metrics and how they are used, please refer to the [Prometheus documentation](https://prometheus.io/docs/introduction/overview/).
-///
-/// # Histogram Configuration
-///
-/// The metric buckets for these histograms are automatically generated based on the `exponential_buckets(0.01, 2.0, 16)` configuration.
 ///
 /// # Examples
 ///
@@ -99,6 +87,12 @@ pub struct PrometheusLayer {
 impl PrometheusLayer {
     /// Create a [`PrometheusLayerBuilder`] to set the configuration of metrics.
     ///
+    /// # Default Configuration
+    ///
+    /// - `operation_duration_seconds_buckets`: `exponential_buckets(0.01, 2.0, 16)`
+    /// - `operation_bytes_buckets`: `exponential_buckets(1.0, 2.0, 16)`
+    /// - `path_label`: `0`
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -121,7 +115,7 @@ impl PrometheusLayer {
     ///             PrometheusLayer::builder()
     ///                 .operation_duration_seconds_buckets(duration_seconds_buckets)
     ///                 .operation_bytes_buckets(bytes_buckets)
-    ///                 .path_label(1)
+    ///                 .path_label(0)
     ///                 .register(registry)
     ///                 .expect("register metrics successfully")
     ///         )
@@ -427,7 +421,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             scheme,
             namespace: &namespace,
             root: &root,
-            op,
+            operation: op,
             error: None,
             path,
         }
@@ -451,7 +445,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             scheme,
             namespace: &namespace,
             root: &root,
-            op,
+            operation: op,
             error: None,
             path,
         }
@@ -475,7 +469,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             scheme,
             namespace: &namespace,
             root: &root,
-            op,
+            operation: op,
             error: Some(error),
             path,
         }
@@ -489,7 +483,7 @@ struct OperationLabels<'a> {
     scheme: Scheme,
     namespace: &'a str,
     root: &'a str,
-    op: Operation,
+    operation: Operation,
     path: &'a str,
     error: Option<ErrorKind>,
 }
@@ -529,7 +523,7 @@ impl<'a> OperationLabels<'a> {
             self.scheme.into_static(),
             self.namespace,
             self.root,
-            self.op.into_static(),
+            self.operation.into_static(),
         ]);
 
         if let Some(path) = observe::path_label_value(self.path, path_label_level) {

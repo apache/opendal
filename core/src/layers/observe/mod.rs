@@ -18,6 +18,17 @@
 //! OpenDAL Observability Layer
 //!
 //! This module offers essential components to facilitate the implementation of observability in OpenDAL.
+//!
+//! # Prometheus Metrics
+//!
+//! These metrics are essential for understanding the behavior and performance of our applications.
+//!
+//! | Metric Name                  | Type      | Description                                                  | Labels                                          |
+//! |------------------------------|-----------|--------------------------------------------------------------|-------------------------------------------------|
+//! | operation_duration_seconds   | Histogram | Histogram of time spent during opendal operations            | scheme, namespace, root, operation, path        |
+//! | operation_bytes.             | Histogram | Histogram of the bytes transferred during opendal operations | scheme, operation, root, operation, path        |
+//! | operation_errors_total       | Counter   | Error counter during opendal operations                      | scheme, operation, root, operation, path, error |
+//!
 
 mod metrics;
 
@@ -40,16 +51,16 @@ pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;
 /// - level = 0: return `None`, which means we ignore the path label.
 /// - level > 0: the path label will be the path split by "/" and get the last n level,
 ///   if n=1 and input path is "abc/def/ghi", and then we'll use "abc/" as the path label.
-pub fn path_label_value(path: &str, path_level: usize) -> Option<&str> {
+pub fn path_label_value(path: &str, level: usize) -> Option<&str> {
     if path.is_empty() {
         return None;
     }
 
-    if path_level > 0 {
+    if level > 0 {
         let label_value = path
             .char_indices()
             .filter(|&(_, c)| c == '/')
-            .nth(path_level - 1)
+            .nth(level - 1)
             .map_or(path, |(i, _)| &path[..i]);
         Some(label_value)
     } else {

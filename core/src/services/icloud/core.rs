@@ -526,11 +526,11 @@ impl PathQuery for IcloudPathQuery {
 
         let node = &root[0];
 
-        let id = match node.items.iter().find(|it| it.name == name) {
-            Some(it) => Ok(Some(it.drivewsid.clone())),
-            None => Ok(None),
-        }?;
-        Ok(id)
+        Ok(node
+            .items
+            .iter()
+            .find(|it| it.name == name)
+            .map(|it| it.drivewsid.clone()))
     }
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {

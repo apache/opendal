@@ -103,6 +103,47 @@ impl LakefsCore {
 
         self.client.fetch(req).await
     }
+
+    pub async fn list_objects(
+        &self,
+        path: &str,
+        delimiter: &str,
+        amount: &Option<usize>,
+        after: &Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let mut url = format!(
+            "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
+            self.endpoint, self.repository, self.branch
+        );
+
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(&p))
+                .expect("write into string must succeed");
+        }
+
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        }
+
+        if let Some(amount) = amount {
+            write!(url, "&amount={amount}").expect("write into string must succeed");
+        }
+
+        if let Some(after) = after {
+            write!(url, "&after={after}").expect("write into string must succeed");
+        }
+
+        let mut req = Request::get(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]

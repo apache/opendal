@@ -29,6 +29,7 @@ use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::lakefs::lister::LakefsLister;
 use crate::services::LakefsConfig;
 use crate::*;
 
@@ -193,7 +194,7 @@ pub struct LakefsBackend {
 impl Access for LakefsBackend {
     type Reader = HttpBody;
     type Writer = ();
-    type Lister = ();
+    type Lister = oio::PageLister<LakefsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -261,5 +262,17 @@ impl Access for LakefsBackend {
                 Err(parse_error(Response::from_parts(part, buf)).await?)
             }
         }
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = LakefsLister::new(
+            self.core.clone(),
+            path.to_string(),
+            args.limit(),
+            args.start_after(),
+            args.recursive(),
+        );
+
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

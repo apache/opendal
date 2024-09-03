@@ -114,7 +114,7 @@ impl PrometheusLayer {
     ///     let builder = services::Memory::default();
     ///
     ///     let op = Operator::new(builder)?
-    ///         .layer(PrometheusLayer::register_default())
+    ///         .layer(PrometheusLayer::register_default()?)
     ///         .finish();
     ///     debug!("operator: {op:?}");
     ///

@@ -62,7 +62,7 @@ pub use self::mime_guess::MimeGuessLayer;
 #[cfg(feature = "layers-prometheus")]
 mod prometheus;
 #[cfg(feature = "layers-prometheus")]
-pub use self::prometheus::PrometheusLayer;
+pub use self::prometheus::{PrometheusLayer, PrometheusLayerBuilder};
 
 #[cfg(feature = "layers-prometheus-client")]
 mod prometheus_client;

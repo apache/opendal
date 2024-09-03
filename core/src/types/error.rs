@@ -414,6 +414,13 @@ impl From<Error> for io::Error {
     }
 }
 
+#[cfg(feature = "layers-prometheus")]
+impl From<prometheus::Error> for Error {
+    fn from(err: prometheus::Error) -> Self {
+        Self::new(ErrorKind::Unexpected, err.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;

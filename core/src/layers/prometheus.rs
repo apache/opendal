@@ -326,7 +326,7 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-        .map_err(Error::parse_prometheus_error)?;
+        .map_err(parse_prometheus_error)?;
         let operation_bytes = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -335,7 +335,7 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-        .map_err(Error::parse_prometheus_error)?;
+        .map_err(parse_prometheus_error)?;
 
         let labels = OperationLabels::names(true, self.path_label_level);
         let operation_errors_total = GenericCounterVec::new(
@@ -345,17 +345,17 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-        .map_err(Error::parse_prometheus_error)?;
+        .map_err(parse_prometheus_error)?;
 
         registry
             .register(Box::new(operation_duration_seconds.clone()))
-            .map_err(Error::parse_prometheus_error)?;
+            .map_err(parse_prometheus_error)?;
         registry
             .register(Box::new(operation_bytes.clone()))
-            .map_err(Error::parse_prometheus_error)?;
+            .map_err(parse_prometheus_error)?;
         registry
             .register(Box::new(operation_errors_total.clone()))
-            .map_err(Error::parse_prometheus_error)?;
+            .map_err(parse_prometheus_error)?;
 
         Ok(PrometheusLayer {
             interceptor: PrometheusInterceptor {
@@ -366,6 +366,11 @@ impl PrometheusLayerBuilder {
             },
         })
     }
+}
+
+/// Convert the [`prometheus::Error`] to [`Error`].
+fn parse_prometheus_error(err: prometheus::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, err.to_string()).set_source(err)
 }
 
 #[derive(Clone, Debug)]

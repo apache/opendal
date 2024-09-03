@@ -302,11 +302,11 @@ impl PrometheusClientLayerBuilder {
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {
         let operation_duration_seconds =
-            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
                 buckets: self.operation_duration_seconds_buckets,
             });
         let operation_bytes =
-            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
                 buckets: self.operation_bytes_buckets,
             });
         let operation_errors_total = Family::<OperationLabels, Counter>::default();

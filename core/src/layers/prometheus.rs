@@ -20,10 +20,11 @@ use std::time::Duration;
 
 use prometheus::core::AtomicU64;
 use prometheus::core::GenericCounterVec;
+use prometheus::exponential_buckets;
 use prometheus::histogram_opts;
 use prometheus::HistogramVec;
+use prometheus::Opts;
 use prometheus::Registry;
-use prometheus::{exponential_buckets, Opts};
 
 use crate::layers::observe;
 use crate::raw::Access;

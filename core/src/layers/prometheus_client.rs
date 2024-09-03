@@ -81,12 +81,37 @@ pub struct PrometheusClientLayer {
 }
 
 impl PrometheusClientLayer {
-    /// Create a new [`PrometheusClientLayer`].
+    /// Create a new [`PrometheusClientLayer`] and register its metrics to the given registry.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(PrometheusClientLayer::new(&mut registry))
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn new(registry: &mut Registry) -> Self {
         PrometheusClientLayerBuilder::default().register(registry)
     }
 
-    /// Create a [`PrometheusClientLayerBuilder`].
+    /// Create a [`PrometheusClientLayerBuilder`] to modify the default metric configuration.
     ///
     /// # Examples
     ///

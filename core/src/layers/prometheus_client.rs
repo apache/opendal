@@ -121,14 +121,12 @@ pub struct PrometheusClientLayerBuilder {
 
 impl Default for PrometheusClientLayerBuilder {
     fn default() -> Self {
-        let operation_duration_seconds =
-            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
-                buckets: exponential_buckets(0.01, 2.0, 16).collect(),
-            });
-        let operation_bytes =
-            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
-                buckets: exponential_buckets(1.0, 2.0, 16).collect(),
-            });
+        let operation_duration_seconds = Family::new_with_constructor(HistogramConstructor {
+            buckets: exponential_buckets(0.01, 2.0, 16).collect(),
+        });
+        let operation_bytes = Family::new_with_constructor(HistogramConstructor {
+            buckets: exponential_buckets(1.0, 2.0, 16).collect(),
+        });
         let operation_errors_total = Family::<OperationLabels, Counter>::default();
         Self {
             operation_duration_seconds,
@@ -173,8 +171,8 @@ impl PrometheusClientLayerBuilder {
     /// ```
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            self.operation_duration_seconds =
-                Family::new_with_constructor(HistogramConstructor { buckets });
+            let constructor = HistogramConstructor { buckets };
+            self.operation_duration_seconds = Family::<_, _, _>::new_with_constructor(constructor);
         }
         self
     }
@@ -212,7 +210,8 @@ impl PrometheusClientLayerBuilder {
     /// ```
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            self.operation_bytes = Family::new_with_constructor(HistogramConstructor { buckets });
+            let constructor = HistogramConstructor { buckets };
+            self.operation_bytes = Family::<_, _, _>::new_with_constructor(constructor);
         }
         self
     }

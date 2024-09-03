@@ -104,12 +104,37 @@ impl Default for PrometheusLayer {
 }
 
 impl PrometheusLayer {
-    /// Create a [`PrometheusLayer`] while registering itself to this registry.
+    /// Create a [`PrometheusLayer`] and register its metrics to the given registry.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let op = Operator::new(builder)
+    ///         .expect("must init")
+    ///         .layer(PrometheusLayer::new(registry))
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn new(registry: &Registry) -> Self {
         PrometheusLayerBuilder::default().register(registry)
     }
 
-    /// Create a [`PrometheusLayerBuilder`].
+    /// Create a [`PrometheusLayerBuilder`] to modify the default metric configuration.
     ///
     /// # Example
     ///
@@ -200,7 +225,7 @@ impl PrometheusLayerBuilder {
         self
     }
 
-    /// Register the metrics into the registry and return a [`PrometheusLayer`].
+    /// Register the metrics into the given registry and return a [`PrometheusLayer`].
     pub fn register(self, registry: &Registry) -> PrometheusLayer {
         let labels = OperationLabels::names(false, self.path_label_level);
         let operation_duration_seconds = HistogramVec::new(

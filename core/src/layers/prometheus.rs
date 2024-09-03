@@ -97,35 +97,6 @@ pub struct PrometheusLayer {
 }
 
 impl PrometheusLayer {
-    /// Create a [`PrometheusLayer`] and register its metrics to the default registry.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use log::debug;
-    /// # use opendal::layers::PrometheusLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    /// #
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///
-    ///     let op = Operator::new(builder)?
-    ///         .layer(PrometheusLayer::register_default().expect("register metrics successfully"))
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
-    ///
-    ///     Ok(())
-    /// # }
-    /// ```
-    pub fn register_default() -> Result<Self> {
-        let registry = prometheus::default_registry();
-        Self::builder().register(registry)
-    }
-
     /// Create a [`PrometheusLayerBuilder`] to set the configuration of metrics.
     ///
     /// # Example
@@ -150,7 +121,7 @@ impl PrometheusLayer {
     ///             PrometheusLayer::builder()
     ///                 .operation_duration_seconds_buckets(duration_seconds_buckets)
     ///                 .operation_bytes_buckets(bytes_buckets)
-    ///                 .enable_path_label(1)
+    ///                 .path_label(1)
     ///                 .register(registry)
     ///                 .expect("register metrics successfully")
     ///         )
@@ -300,7 +271,7 @@ impl PrometheusLayerBuilder {
     ///     let op = Operator::new(builder)?
     ///         .layer(
     ///             PrometheusLayer::builder()
-    ///                 .enable_path_label(1)
+    ///                 .path_label(1)
     ///                 .register(registry)
     ///                 .expect("register metrics successfully")
     ///         )
@@ -310,12 +281,40 @@ impl PrometheusLayerBuilder {
     ///     Ok(())
     /// # }
     /// ```
-    pub fn enable_path_label(mut self, level: usize) -> Self {
+    pub fn path_label(mut self, level: usize) -> Self {
         self.path_label_level = level;
         self
     }
 
     /// Register the metrics into the given registry and return a [`PrometheusLayer`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///     let registry = prometheus::default_registry();
+    ///
+    ///     let op = Operator::new(builder)?
+    ///         .layer(
+    ///             PrometheusLayer::builder()
+    ///             .register(registry)
+    ///             .expect("register metrics successfully")
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
     pub fn register(self, registry: &Registry) -> Result<PrometheusLayer> {
         let labels = OperationLabels::names(false, self.path_label_level);
         let operation_duration_seconds = HistogramVec::new(
@@ -365,6 +364,39 @@ impl PrometheusLayerBuilder {
                 path_label_level: self.path_label_level,
             },
         })
+    }
+
+    /// Register the metrics into the default registry and return a [`PrometheusLayer`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    ///     // Pick a builder and configure it.
+    ///     let builder = services::Memory::default();
+    ///
+    ///     let op = Operator::new(builder)?
+    ///         .layer(
+    ///             PrometheusLayer::builder()
+    ///             .register_default()
+    ///             .expect("register metrics successfully")
+    ///         )
+    ///         .finish();
+    ///     debug!("operator: {op:?}");
+    ///
+    ///     Ok(())
+    /// # }
+    /// ```
+    pub fn register_default(self) -> Result<PrometheusLayer> {
+        let registry = prometheus::default_registry();
+        self.register(registry)
     }
 }
 

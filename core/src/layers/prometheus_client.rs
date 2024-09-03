@@ -100,38 +100,20 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
     }
 }
 
-#[derive(Clone)]
-struct HistogramConstructor {
-    buckets: Vec<f64>,
-}
-
-impl MetricConstructor<Histogram> for HistogramConstructor {
-    fn new_metric(&self) -> Histogram {
-        Histogram::new(self.buckets.iter().cloned())
-    }
-}
-
 /// [`PrometheusClientLayerBuilder`] is a config builder to build a [`PrometheusClientLayer`].
 pub struct PrometheusClientLayerBuilder {
-    operation_duration_seconds: Family<OperationLabels, Histogram, HistogramConstructor>,
-    operation_bytes: Family<OperationLabels, Histogram, HistogramConstructor>,
-    operation_errors_total: Family<OperationLabels, Counter>,
+    operation_duration_seconds_buckets: Vec<f64>,
+    operation_bytes_buckets: Vec<f64>,
     path_label_level: usize,
 }
 
 impl Default for PrometheusClientLayerBuilder {
     fn default() -> Self {
-        let operation_duration_seconds = Family::new_with_constructor(HistogramConstructor {
-            buckets: exponential_buckets(0.01, 2.0, 16).collect(),
-        });
-        let operation_bytes = Family::new_with_constructor(HistogramConstructor {
-            buckets: exponential_buckets(1.0, 2.0, 16).collect(),
-        });
-        let operation_errors_total = Family::<OperationLabels, Counter>::default();
+        let operation_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).collect();
+        let operation_bytes_buckets = exponential_buckets(1.0, 2.0, 16).collect();
         Self {
-            operation_duration_seconds,
-            operation_bytes,
-            operation_errors_total,
+            operation_duration_seconds_buckets,
+            operation_bytes_buckets,
             path_label_level: 0,
         }
     }
@@ -171,8 +153,7 @@ impl PrometheusClientLayerBuilder {
     /// ```
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            let constructor = HistogramConstructor { buckets };
-            self.operation_duration_seconds = Family::<_, _, _>::new_with_constructor(constructor);
+            self.operation_duration_seconds_buckets = buckets;
         }
         self
     }
@@ -210,8 +191,7 @@ impl PrometheusClientLayerBuilder {
     /// ```
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
-            let constructor = HistogramConstructor { buckets };
-            self.operation_bytes = Family::<_, _, _>::new_with_constructor(constructor);
+            self.operation_bytes_buckets = buckets;
         }
         self
     }
@@ -282,32 +262,53 @@ impl PrometheusClientLayerBuilder {
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {
+        let operation_duration_seconds =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+                buckets: self.operation_duration_seconds_buckets,
+            });
+        let operation_bytes =
+            Family::<OperationLabels, _, _>::new_with_constructor(HistogramConstructor {
+                buckets: self.operation_bytes_buckets,
+            });
+        let operation_errors_total = Family::<OperationLabels, Counter>::default();
+
         registry.register(
             observe::METRIC_OPERATION_DURATION_SECONDS.name(),
             observe::METRIC_OPERATION_DURATION_SECONDS.help(),
-            self.operation_duration_seconds.clone(),
+            operation_duration_seconds.clone(),
         );
         registry.register(
             observe::METRIC_OPERATION_BYTES.name(),
             observe::METRIC_OPERATION_BYTES.help(),
-            self.operation_bytes.clone(),
+            operation_bytes.clone(),
         );
         // `prometheus-client` will automatically add `_total` suffix into the name of counter
         // metrics, so we can't use `METRIC_OPERATION_ERRORS_TOTAL.name()` here.
         registry.register(
             "opendal_operation_errors",
             observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
-            self.operation_errors_total.clone(),
+            operation_errors_total.clone(),
         );
 
         PrometheusClientLayer {
             interceptor: PrometheusClientInterceptor {
-                operation_duration_seconds: self.operation_duration_seconds,
-                operation_bytes: self.operation_bytes,
-                operation_errors_total: self.operation_errors_total,
+                operation_duration_seconds,
+                operation_bytes,
+                operation_errors_total,
                 path_label_level: self.path_label_level,
             },
         }
+    }
+}
+
+#[derive(Clone)]
+struct HistogramConstructor {
+    buckets: Vec<f64>,
+}
+
+impl MetricConstructor<Histogram> for HistogramConstructor {
+    fn new_metric(&self) -> Histogram {
+        Histogram::new(self.buckets.iter().cloned())
     }
 }
 

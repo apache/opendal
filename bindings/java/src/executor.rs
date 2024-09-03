@@ -18,6 +18,8 @@
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
+use std::num::NonZeroUsize;
+use std::thread::available_parallelism;
 
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -152,5 +154,10 @@ pub(crate) fn executor_or_default<'a>(
 ///
 /// This function could be only when the lib is loaded.
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
-    RUNTIME.get_or_try_init(|| make_tokio_executor(env, num_cpus::get()))
+    RUNTIME.get_or_try_init(|| {
+        make_tokio_executor(
+            env,
+            available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
+        )
+    })
 }

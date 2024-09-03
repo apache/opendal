@@ -94,14 +94,14 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             meta
         };
 
-        let p = if metadata.is_dir() {
+        let entry = if metadata.is_dir() {
             // Make sure we are returning the correct path.
-            &format!("{rel_path}/")
+            oio::Entry::new(&format!("{rel_path}/"), metadata)
         } else {
-            &rel_path
+            oio::Entry::new(&rel_path, metadata)
         };
 
-        Ok(Some(oio::Entry::new(p, metadata)))
+        Ok(Some(entry))
     }
 }
 

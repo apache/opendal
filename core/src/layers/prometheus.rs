@@ -85,7 +85,7 @@ use crate::*;
 ///     // Export prometheus metrics.
 ///     let mut buffer = Vec::<u8>::new();
 ///     let encoder = prometheus::TextEncoder::new();
-///     encoder.encode(&prometheus::gather(), &mut buffer)?;
+///     encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
 ///     println!("## Prometheus Metrics");
 ///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
 ///     Ok(())

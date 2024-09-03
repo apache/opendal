@@ -313,11 +313,6 @@ impl Access for HdfsBackend {
         if !target_exists {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
-        } else if tmp_path.is_some() {
-            // we must delete the target_path, otherwise the rename_file operation will fail
-            self.client
-                .remove_file(&target_path)
-                .map_err(new_std_io_error)?;
         }
 
         let mut open_options = self.client.open_file();
@@ -335,7 +330,13 @@ impl Access for HdfsBackend {
 
         Ok((
             RpWrite::new(),
-            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
+            HdfsWriter::new(
+                target_path,
+                tmp_path,
+                f,
+                Arc::clone(&self.client),
+                target_exists,
+            ),
         ))
     }
 
@@ -507,11 +508,6 @@ impl Access for HdfsBackend {
         if !target_exists {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
-        } else if tmp_path.is_some() {
-            // we must delete the target_path, otherwise the rename_file operation will fail
-            self.client
-                .remove_file(&target_path)
-                .map_err(new_std_io_error)?;
         }
 
         let mut open_options = self.client.open_file();
@@ -528,7 +524,13 @@ impl Access for HdfsBackend {
 
         Ok((
             RpWrite::new(),
-            HdfsWriter::new(target_path, tmp_path, f, Arc::clone(&self.client)),
+            HdfsWriter::new(
+                target_path,
+                tmp_path,
+                f,
+                Arc::clone(&self.client),
+                target_exists,
+            ),
         ))
     }
 

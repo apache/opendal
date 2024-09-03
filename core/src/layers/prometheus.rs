@@ -68,7 +68,7 @@ use crate::*;
 ///     let registry = prometheus::default_registry();
 ///
 ///     let op = Operator::new(builder)?
-///         .layer(PrometheusLayer::builder().register(registry)?)
+///         .layer(PrometheusLayer::builder().register(registry).expect("register metrics successfully"))
 ///         .finish();
 ///     debug!("operator: {op:?}");
 ///
@@ -114,7 +114,7 @@ impl PrometheusLayer {
     ///     let builder = services::Memory::default();
     ///
     ///     let op = Operator::new(builder)?
-    ///         .layer(PrometheusLayer::register_default()?)
+    ///         .layer(PrometheusLayer::register_default().expect("register metrics successfully"))
     ///         .finish();
     ///     debug!("operator: {op:?}");
     ///
@@ -143,15 +143,16 @@ impl PrometheusLayer {
     ///     let builder = services::Memory::default();
     ///     let registry = prometheus::default_registry();
     ///
-    ///     let duration_seconds_buckets = prometheus::exponential_buckets(0.01, 2.0, 16)?;
-    ///     let bytes_buckets = prometheus::exponential_buckets(1.0, 2.0, 16)?;
+    ///     let duration_seconds_buckets = prometheus::exponential_buckets(0.01, 2.0, 16).unwrap();
+    ///     let bytes_buckets = prometheus::exponential_buckets(1.0, 2.0, 16).unwrap();
     ///     let op = Operator::new(builder)?
     ///         .layer(
     ///             PrometheusLayer::builder()
     ///                 .operation_duration_seconds_buckets(duration_seconds_buckets)
     ///                 .operation_bytes_buckets(bytes_buckets)
     ///                 .enable_path_label(1)
-    ///                 .register(registry)?
+    ///                 .register(registry)
+    ///                 .expect("register metrics successfully")
     ///         )
     ///         .finish();
     ///     debug!("operator: {op:?}");
@@ -216,12 +217,13 @@ impl PrometheusLayerBuilder {
     ///     let builder = services::Memory::default();
     ///     let registry = prometheus::default_registry();
     ///
-    ///     let buckets = prometheus::exponential_buckets(0.01, 2.0, 16)?;
+    ///     let buckets = prometheus::exponential_buckets(0.01, 2.0, 16).unwrap();
     ///     let op = Operator::new(builder)?
     ///         .layer(
     ///             PrometheusLayer::builder()
     ///                 .operation_duration_seconds_buckets(buckets)
-    ///                 .register(registry)?
+    ///                 .register(registry)
+    ///                 .expect("register metrics successfully")
     ///         )
     ///         .finish();
     ///     debug!("operator: {op:?}");
@@ -253,12 +255,13 @@ impl PrometheusLayerBuilder {
     ///     let builder = services::Memory::default();
     ///     let registry = prometheus::default_registry();
     ///
-    ///     let buckets = prometheus::exponential_buckets(1.0, 2.0, 16)?;
+    ///     let buckets = prometheus::exponential_buckets(1.0, 2.0, 16).unwrap();
     ///     let op = Operator::new(builder)?
     ///         .layer(
     ///             PrometheusLayer::builder()
     ///                 .operation_bytes_buckets(buckets)
-    ///                 .register(registry)?
+    ///                 .register(registry)
+    ///                 .expect("register metrics successfully")
     ///         )
     ///         .finish();
     ///     debug!("operator: {op:?}");
@@ -298,7 +301,8 @@ impl PrometheusLayerBuilder {
     ///         .layer(
     ///             PrometheusLayer::builder()
     ///                 .enable_path_label(1)
-    ///                 .register(registry)?
+    ///                 .register(registry)
+    ///                 .expect("register metrics successfully")
     ///         )
     ///         .finish();
     ///     debug!("operator: {op:?}");
@@ -321,7 +325,8 @@ impl PrometheusLayerBuilder {
                 self.operation_duration_seconds_buckets
             ),
             &labels,
-        )?;
+        )
+        .map_err(Error::parse_prometheus_error)?;
         let operation_bytes = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -329,7 +334,8 @@ impl PrometheusLayerBuilder {
                 self.operation_bytes_buckets
             ),
             &labels,
-        )?;
+        )
+        .map_err(Error::parse_prometheus_error)?;
 
         let labels = OperationLabels::names(true, self.path_label_level);
         let operation_errors_total = GenericCounterVec::new(
@@ -338,11 +344,18 @@ impl PrometheusLayerBuilder {
                 observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
             ),
             &labels,
-        )?;
+        )
+        .map_err(Error::parse_prometheus_error)?;
 
-        registry.register(Box::new(operation_duration_seconds.clone()))?;
-        registry.register(Box::new(operation_bytes.clone()))?;
-        registry.register(Box::new(operation_errors_total.clone()))?;
+        registry
+            .register(Box::new(operation_duration_seconds.clone()))
+            .map_err(Error::parse_prometheus_error)?;
+        registry
+            .register(Box::new(operation_bytes.clone()))
+            .map_err(Error::parse_prometheus_error)?;
+        registry
+            .register(Box::new(operation_errors_total.clone()))
+            .map_err(Error::parse_prometheus_error)?;
 
         Ok(PrometheusLayer {
             interceptor: PrometheusInterceptor {

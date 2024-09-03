@@ -400,6 +400,12 @@ impl Error {
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
     }
+
+    /// Convert the [`prometheus::Error`] to [`Self`].
+    #[cfg(feature = "layers-prometheus")]
+    pub fn parse_prometheus_error(err: prometheus::Error) -> Self {
+        Self::new(ErrorKind::Unexpected, err.to_string()).set_source(err)
+    }
 }
 
 impl From<Error> for io::Error {
@@ -411,13 +417,6 @@ impl From<Error> for io::Error {
         };
 
         io::Error::new(kind, err)
-    }
-}
-
-#[cfg(feature = "layers-prometheus")]
-impl From<prometheus::Error> for Error {
-    fn from(err: prometheus::Error) -> Self {
-        Self::new(ErrorKind::Unexpected, err.to_string())
     }
 }
 

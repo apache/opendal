@@ -211,7 +211,7 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
         let operation_bytes = HistogramVec::new(
             histogram_opts!(
                 observe::METRIC_OPERATION_BYTES.name(),
@@ -220,7 +220,7 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
 
         let labels = OperationLabels::names(true, self.path_label_level);
         let operation_errors_total = GenericCounterVec::new(
@@ -230,7 +230,7 @@ impl PrometheusLayerBuilder {
             ),
             &labels,
         )
-            .unwrap();
+        .unwrap();
 
         registry
             .register(Box::new(operation_duration_seconds.clone()))
@@ -279,7 +279,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_duration_seconds
             .with_label_values(&labels)
@@ -303,7 +303,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: None,
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_bytes
             .with_label_values(&labels)
@@ -327,7 +327,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
             error: Some(error),
             path,
         }
-            .into_values(self.path_label_level);
+        .into_values(self.path_label_level);
 
         self.operation_errors_total.with_label_values(&labels).inc();
     }

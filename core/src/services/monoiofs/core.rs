@@ -145,7 +145,7 @@ impl MonoiofsCore {
     pub async fn spawn<F, Fut, T>(&self, f: F)
     where
         F: FnOnce() -> Fut + 'static + Send,
-        Fut: Future<Output = T>,
+        Fut: Future<Output = T> + 'static,
         T: 'static,
     {
         let result = self
@@ -153,7 +153,7 @@ impl MonoiofsCore {
             .send_async(Box::new(move || {
                 // task will be spawned on current thread, task panic
                 // will cause current worker thread panic
-                monoio::spawn(async move { f().await });
+                monoio::spawn(f());
             }))
             .await;
         self.unwrap(result);

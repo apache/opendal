@@ -68,15 +68,16 @@ impl MonoiofsReader {
         // worker thread
         let file = match result {
             Ok(file) => {
-                open_result_tx
-                    .send(Ok(()))
-                    .expect("send result from worker thread should success");
+                let Ok(()) = open_result_tx.send(Ok(())) else {
+                    // MonoiofsReader::new is cancelled, exit worker task
+                    return;
+                };
                 file
             }
             Err(e) => {
-                open_result_tx
-                    .send(Err(new_std_io_error(e)))
-                    .expect("send result from worker thread should success");
+                // discard the result if send failed due to MonoiofsReader::new
+                // cancelled since we are going to exit anyway
+                let _ = open_result_tx.send(Err(new_std_io_error(e)));
                 return;
             }
         };
@@ -89,8 +90,8 @@ impl MonoiofsReader {
             match req {
                 ReaderRequest::Read { pos, buf, tx } => {
                     let (result, buf) = file.read_at(buf, pos).await;
-                    // buf.len() will be set to n by monoio if read successfully,
-                    // so n is dropped
+                    // buf.len() will be set to n by monoio if read
+                    // successfully, so n is dropped
                     let result = result.map(move |_| buf).map_err(new_std_io_error);
                     // discard the result if send failed due to
                     // MonoiofsReader::read cancelled

@@ -23,7 +23,6 @@ use chrono::{TimeZone, Utc};
 use crate::raw::*;
 use crate::*;
 
-use super::core::LakefsStatus;
 use super::core::{LakefsCore, LakefsListResponse};
 use super::error::parse_error;
 

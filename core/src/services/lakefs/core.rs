@@ -166,7 +166,7 @@ pub(super) struct LakefsListResponse {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
-struct Pagination {
+pub(super) struct Pagination {
     pub has_more: bool,
     pub max_per_page: u64,
     pub next_offset: String,

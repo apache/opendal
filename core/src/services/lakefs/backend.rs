@@ -204,7 +204,7 @@ impl Access for LakefsBackend {
         am.set_scheme(Scheme::Lakefs)
             .set_native_capability(Capability {
                 stat: true,
-
+                list: true,
                 read: true,
 
                 ..Default::default()
@@ -230,7 +230,7 @@ impl Access for LakefsBackend {
                 let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-                meta.set_content_length(decoded_response.size_bytes);
+                meta.set_content_length(decoded_response.size_bytes.unwrap());
                 meta.set_mode(EntryMode::FILE);
                 if let Some(v) = parse_content_disposition(resp.headers())? {
                     meta.set_content_disposition(v);

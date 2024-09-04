@@ -152,7 +152,23 @@ pub(super) struct LakefsStatus {
     pub path_type: String,
     pub physical_address: String,
     pub checksum: String,
-    pub size_bytes: u64,
+    pub size_bytes: Option<u64>,
     pub mtime: i64,
-    pub content_type: String,
+    pub content_type: Option<String>,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+#[allow(dead_code)]
+pub(super) struct LakefsListResponse {
+    pub pagination: Pagination,
+    pub results: Vec<LakefsStatus>,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+#[allow(dead_code)]
+struct Pagination {
+    pub has_more: bool,
+    pub max_per_page: u64,
+    pub next_offset: String,
+    pub results: u64,
 }

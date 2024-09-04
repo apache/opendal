@@ -23,8 +23,8 @@ use chrono::{TimeZone, Utc};
 use crate::raw::*;
 use crate::*;
 
-use super::core::LakefsCore;
 use super::core::LakefsStatus;
+use super::core::{LakefsCore, LakefsListResponse};
 use super::error::parse_error;
 
 pub struct LakefsLister {
@@ -78,12 +78,13 @@ impl oio::PageList for LakefsLister {
         }
 
         let bytes = response.into_body();
-        let decoded_response: Vec<LakefsStatus> =
+
+        let decoded_response: LakefsListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         ctx.done = true;
 
-        for status in decoded_response {
+        for status in decoded_response.results {
             let entry_type = match status.path_type.as_str() {
                 "common_prefix" => EntryMode::DIR,
                 "object" => EntryMode::FILE,
@@ -97,7 +98,7 @@ impl oio::PageList for LakefsLister {
             }
 
             if entry_type == EntryMode::FILE {
-                meta.set_content_length(status.size_bytes);
+                meta.set_content_length(status.size_bytes.unwrap());
             }
 
             let path = if entry_type == EntryMode::DIR {

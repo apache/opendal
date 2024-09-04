@@ -60,7 +60,7 @@ impl oio::PageList for LakefsLister {
             .core
             .list_objects(
                 &self.path,
-                &self.delimiter,
+                self.delimiter,
                 &self.amount,
                 // start after should only be set for the first page.
                 if ctx.token.is_empty() {

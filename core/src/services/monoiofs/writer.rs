@@ -72,15 +72,16 @@ impl MonoiofsWriter {
         // worker thread
         let file = match result {
             Ok(file) => {
-                open_result_tx
-                    .send(Ok(()))
-                    .expect("send result from worker thread should success");
+                let Ok(()) = open_result_tx.send(Ok(())) else {
+                    // MonoiofsWriter::new is cancelled, exit worker task
+                    return;
+                };
                 file
             }
             Err(e) => {
-                open_result_tx
-                    .send(Err(new_std_io_error(e)))
-                    .expect("send result from worker thread should success");
+                // discard the result if send failed due to MonoiofsWriter::new
+                // cancelled since we are going to exit anyway
+                let _ = open_result_tx.send(Err(new_std_io_error(e)));
                 return;
             }
         };

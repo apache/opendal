@@ -67,7 +67,7 @@ pub use self::prometheus::{PrometheusLayer, PrometheusLayerBuilder};
 #[cfg(feature = "layers-prometheus-client")]
 mod prometheus_client;
 #[cfg(feature = "layers-prometheus-client")]
-pub use self::prometheus_client::PrometheusClientLayer;
+pub use self::prometheus_client::{PrometheusClientLayer, PrometheusClientLayerBuilder};
 
 mod retry;
 pub use self::retry::RetryInterceptor;

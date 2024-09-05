@@ -30,6 +30,7 @@ use super::core::LakefsStatus;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use crate::raw::*;
+use crate::services::lakefs::writer::LakefsWriter;
 use crate::services::LakefsConfig;
 use crate::*;
 
@@ -193,7 +194,7 @@ pub struct LakefsBackend {
 
 impl Access for LakefsBackend {
     type Reader = HttpBody;
-    type Writer = ();
+    type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -206,6 +207,7 @@ impl Access for LakefsBackend {
                 stat: true,
                 list: true,
                 read: true,
+                write: true,
 
                 ..Default::default()
             });
@@ -275,5 +277,12 @@ impl Access for LakefsBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(LakefsWriter::new(self.core.clone(), path.to_string(), args)),
+        ))
     }
 }

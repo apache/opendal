@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use http::header;
+use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::Request;
 use http::Response;
+use http::{header, HeaderName};
 use serde::Deserialize;
 
 use crate::raw::*;
@@ -141,6 +142,51 @@ impl LakefsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
+        self.client.send(req).await
+    }
+
+    pub async fn upload_object(
+        &self,
+        path: &str,
+        args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let url = format!(
+            "{}/api/v1/repositories/{}/refs/{}/objects?path={}",
+            self.endpoint,
+            self.repository,
+            self.branch,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::post(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    #[inline]
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }

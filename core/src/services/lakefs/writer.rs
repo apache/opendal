@@ -15,22 +15,39 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-lakefs")]
-mod core;
-#[cfg(feature = "services-lakefs")]
-mod error;
+use std::sync::Arc;
 
-#[cfg(feature = "services-lakefs")]
-mod lister;
+use http::StatusCode;
 
-#[cfg(feature = "services-lakefs")]
-mod writer;
+use crate::raw::*;
+use crate::services::lakefs::core::LakefsCore;
+use crate::*;
 
-#[cfg(feature = "services-lakefs")]
-mod backend;
-#[cfg(feature = "services-lakefs")]
-pub use backend::LakefsBuilder as Lakefs;
+use super::error::parse_error;
 
-mod config;
+pub struct LakefsWriter {
+    core: Arc<LakefsCore>,
+    op: OpWrite,
+    path: String,
+}
 
-pub use config::LakefsConfig;
+impl LakefsWriter {
+    pub fn new(core: Arc<LakefsCore>, path: String, op: OpWrite) -> Self {
+        LakefsWriter { core, path, op }
+    }
+}
+
+impl oio::OneShotWrite for LakefsWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
+        let req = self.core.upload_object(&self.path, &self.op, bs).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+}

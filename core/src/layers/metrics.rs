@@ -69,17 +69,9 @@ use crate::*;
 /// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
 /// let recorder = builder.build_recorder().expect("failed to build recorder");
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MetricsLayer {
     path_label_level: usize,
-}
-
-impl Default for MetricsLayer {
-    fn default() -> Self {
-        Self {
-            path_label_level: 0,
-        }
-    }
 }
 
 impl MetricsLayer {

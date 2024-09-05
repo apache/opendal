@@ -29,8 +29,8 @@ use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
 use super::lister::LakefsLister;
-use crate::raw::*;
 use super::writer::LakefsWriter;
+use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
 

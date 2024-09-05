@@ -21,6 +21,9 @@ mod core;
 mod error;
 
 #[cfg(feature = "services-lakefs")]
+mod lister;
+
+#[cfg(feature = "services-lakefs")]
 mod backend;
 #[cfg(feature = "services-lakefs")]
 pub use backend::LakefsBuilder as Lakefs;

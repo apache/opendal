@@ -103,16 +103,69 @@ impl LakefsCore {
 
         self.client.fetch(req).await
     }
+
+    pub async fn list_objects(
+        &self,
+        path: &str,
+        delimiter: &str,
+        amount: &Option<usize>,
+        after: Option<String>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let mut url = format!(
+            "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
+            self.endpoint, self.repository, self.branch
+        );
+
+        if !p.is_empty() {
+            url.push_str(&format!("&prefix={}", percent_encode_path(&p)));
+        }
+
+        if !delimiter.is_empty() {
+            url.push_str(&format!("&delimiter={}", delimiter));
+        }
+
+        if let Some(amount) = amount {
+            url.push_str(&format!("&amount={}", amount));
+        }
+
+        if let Some(after) = after {
+            url.push_str(&format!("&after={}", after));
+        }
+
+        let mut req = Request::get(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
 pub(super) struct LakefsStatus {
     pub path: String,
     pub path_type: String,
     pub physical_address: String,
     pub checksum: String,
-    pub size_bytes: u64,
+    pub size_bytes: Option<u64>,
     pub mtime: i64,
-    pub content_type: String,
+    pub content_type: Option<String>,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub(super) struct LakefsListResponse {
+    pub pagination: Pagination,
+    pub results: Vec<LakefsStatus>,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub(super) struct Pagination {
+    pub has_more: bool,
+    pub max_per_page: u64,
+    pub next_offset: String,
+    pub results: u64,
 }

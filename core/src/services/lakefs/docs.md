@@ -14,7 +14,7 @@ This service can be used to:
 - [ ] delete
 - [ ] copy
 - [ ] rename
-- [ ] list
+- [x] list
 - [ ] ~~presign~~
 - [ ] blocking
 

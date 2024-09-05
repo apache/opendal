@@ -28,6 +28,7 @@ use log::debug;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
+use super::lister::LakefsLister;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
@@ -193,7 +194,7 @@ pub struct LakefsBackend {
 impl Access for LakefsBackend {
     type Reader = HttpBody;
     type Writer = ();
-    type Lister = ();
+    type Lister = oio::PageLister<LakefsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -203,7 +204,7 @@ impl Access for LakefsBackend {
         am.set_scheme(Scheme::Lakefs)
             .set_native_capability(Capability {
                 stat: true,
-
+                list: true,
                 read: true,
 
                 ..Default::default()
@@ -228,8 +229,9 @@ impl Access for LakefsBackend {
 
                 let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                meta.set_content_length(decoded_response.size_bytes);
+                if let Some(size_bytes) = decoded_response.size_bytes {
+                    meta.set_content_length(size_bytes);
+                }
                 meta.set_mode(EntryMode::FILE);
                 if let Some(v) = parse_content_disposition(resp.headers())? {
                     meta.set_content_disposition(v);
@@ -261,5 +263,17 @@ impl Access for LakefsBackend {
                 Err(parse_error(Response::from_parts(part, buf)).await?)
             }
         }
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = LakefsLister::new(
+            self.core.clone(),
+            path.to_string(),
+            args.limit(),
+            args.start_after(),
+            args.recursive(),
+        );
+
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

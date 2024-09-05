@@ -30,7 +30,7 @@ use super::core::LakefsStatus;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use crate::raw::*;
-use crate::services::lakefs::writer::LakefsWriter;
+use super::writer::LakefsWriter;
 use crate::services::LakefsConfig;
 use crate::*;
 

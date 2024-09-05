@@ -146,7 +146,6 @@ impl LakefsCore {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
 pub(super) struct LakefsStatus {
     pub path: String,
     pub path_type: String,
@@ -158,14 +157,12 @@ pub(super) struct LakefsStatus {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
 pub(super) struct LakefsListResponse {
     pub pagination: Pagination,
     pub results: Vec<LakefsStatus>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
 pub(super) struct Pagination {
     pub has_more: bool,
     pub max_per_page: u64,

@@ -28,8 +28,8 @@ use log::debug;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
+use super::lister::LakefsLister;
 use crate::raw::*;
-use crate::services::lakefs::lister::LakefsLister;
 use crate::services::LakefsConfig;
 use crate::*;
 
@@ -229,8 +229,9 @@ impl Access for LakefsBackend {
 
                 let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                meta.set_content_length(decoded_response.size_bytes.unwrap());
+                if let Some(size_bytes) = decoded_response.size_bytes {
+                    meta.set_content_length(size_bytes);
+                }
                 meta.set_mode(EntryMode::FILE);
                 if let Some(v) = parse_content_disposition(resp.headers())? {
                     meta.set_content_disposition(v);

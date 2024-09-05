@@ -97,7 +97,9 @@ impl oio::PageList for LakefsLister {
             }
 
             if entry_type == EntryMode::FILE {
-                meta.set_content_length(status.size_bytes.unwrap());
+                if let Some(size_bytes) = status.size_bytes {
+                    meta.set_content_length(size_bytes);
+                }
             }
 
             let path = if entry_type == EntryMode::DIR {

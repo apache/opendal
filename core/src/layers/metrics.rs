@@ -71,15 +71,13 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct MetricsLayer {
-    interceptor: MetricsInterceptor,
+    path_label_level: usize,
 }
 
 impl Default for MetricsLayer {
     fn default() -> Self {
         Self {
-            interceptor: MetricsInterceptor {
-                path_label_level: 0,
-            },
+            path_label_level: 0,
         }
     }
 }
@@ -91,7 +89,7 @@ impl MetricsLayer {
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
     ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
     pub fn path_label(mut self, level: usize) -> Self {
-        self.interceptor.path_label_level = level;
+        self.path_label_level = level;
         self
     }
 }
@@ -100,7 +98,10 @@ impl<A: Access> Layer<A> for MetricsLayer {
     type LayeredAccess = observe::MetricsAccessor<A, MetricsInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
+        let interceptor = MetricsInterceptor {
+            path_label_level: self.path_label_level,
+        };
+        observe::MetricsLayer::new(interceptor).layer(inner)
     }
 }
 

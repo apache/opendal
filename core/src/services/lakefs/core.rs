@@ -171,10 +171,6 @@ impl LakefsCore {
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let res = self.send(req).await?;
-        println!(
-            "{:?}",
-            String::from_utf8(res.clone().into_body().to_vec()).unwrap()
-        );
 
         let res: PhysicalAddressForStagingArea =
             serde_json::from_reader(res.clone().into_body().reader())

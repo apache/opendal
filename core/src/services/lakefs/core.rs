@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
+use bytes::Buf;
 use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::Request;
 use http::Response;
 use http::{header, HeaderName};
 use serde::Deserialize;
+use std::fmt::Debug;
 
 use crate::raw::*;
 use crate::*;
@@ -156,14 +156,14 @@ impl LakefsCore {
             .to_string();
 
         let url = format!(
-            "{}/api/v1/repositories/{}/refs/{}/objects?path={}",
+            "{}/api/v1/repositories/{}/branches/{}/staging/backing?path={}&presign=true",
             self.endpoint,
             self.repository,
             self.branch,
             percent_encode_path(&p)
         );
 
-        let mut req = Request::post(&url);
+        let mut req = Request::get(&url);
 
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -179,8 +179,23 @@ impl LakefsCore {
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
+        req = req.header(CONTENT_LENGTH, body.len());
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        let res = self.send(req).await?;
+        println!(
+            "{:?}",
+            String::from_utf8(res.clone().into_body().to_vec()).unwrap()
+        );
+
+        let res: PhysicalAddressForStagingArea =
+            serde_json::from_reader(res.clone().into_body().reader())
+                .map_err(new_json_deserialize_error)?;
+
+        let req = Request::put(&res.presigned_url)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -214,4 +229,11 @@ pub(super) struct Pagination {
     pub max_per_page: u64,
     pub next_offset: String,
     pub results: u64,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub(super) struct PhysicalAddressForStagingArea {
+    pub physical_address: String,
+    pub presigned_url: String,
+    pub presigned_url_expiry: i64,
 }

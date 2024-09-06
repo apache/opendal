@@ -168,19 +168,6 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos)
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-        req = req.header(CONTENT_LENGTH, body.len());
-
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let res = self.send(req).await?;
@@ -193,8 +180,23 @@ impl LakefsCore {
             serde_json::from_reader(res.clone().into_body().reader())
                 .map_err(new_json_deserialize_error)?;
 
-        let req = Request::put(&res.presigned_url)
-            .body(body)
+        let mut req = Request::put(&res.presigned_url);
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+        req = req.header(CONTENT_LENGTH, body.len());
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+        let mut req = Request::put(&res.presigned_url)
+            .body(body.clone())
             .map_err(new_request_build_error)?;
 
         Ok(req)

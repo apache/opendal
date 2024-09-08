@@ -156,45 +156,19 @@ impl LakefsCore {
             .to_string();
 
         let url = format!(
-            "{}/api/v1/repositories/{}/branches/{}/staging/backing?path={}&presign=true",
+            "{}/api/v1/repositories/{}/branches/{}/objects?path={}",
             self.endpoint,
             self.repository,
             self.branch,
             percent_encode_path(&p)
         );
 
-        let mut req = Request::get(&url);
+        let mut req = Request::post(&url);
 
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        let res = self.send(req).await?;
-
-        let res: PhysicalAddressForStagingArea =
-            serde_json::from_reader(res.clone().into_body().reader())
-                .map_err(new_json_deserialize_error)?;
-
-        let mut req = Request::put(&res.presigned_url);
-        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-        req = req.header(CONTENT_LENGTH, body.len());
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos)
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-        let mut req = Request::put(&res.presigned_url)
-            .body(body.clone())
-            .map_err(new_request_build_error)?;
-
+        let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
 

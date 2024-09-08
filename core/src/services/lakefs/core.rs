@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
+use std::fmt::Debug;
+
+use http::header;
 use http::Request;
 use http::Response;
-use http::{header, HeaderName};
 use serde::Deserialize;
-use std::fmt::Debug;
 
 use crate::raw::*;
 use crate::*;

@@ -1,0 +1,9 @@
+.{
+    .name = "opendal",
+    .version = "0.0.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

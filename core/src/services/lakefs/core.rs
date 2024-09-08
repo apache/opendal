@@ -201,10 +201,3 @@ pub(super) struct Pagination {
     pub next_offset: String,
     pub results: u64,
 }
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-pub(super) struct PhysicalAddressForStagingArea {
-    pub physical_address: String,
-    pub presigned_url: String,
-    pub presigned_url_expiry: i64,
-}

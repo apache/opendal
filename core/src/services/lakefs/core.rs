@@ -147,7 +147,7 @@ impl LakefsCore {
     pub async fn upload_object(
         &self,
         path: &str,
-        args: &OpWrite,
+        _args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path)

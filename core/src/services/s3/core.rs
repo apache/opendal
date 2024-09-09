@@ -813,13 +813,14 @@ impl S3Core {
             write!(url, "&max-keys={}", limit).expect("write into string must succeed");
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", key_marker).expect("write into string must succeed");
+            write!(url, "&key-marker={}", percent_encode_path(key_marker))
+                .expect("write into string must succeed");
         }
         if !version_id_marker.is_empty() {
             write!(
                 url,
                 "&version-id-marker={}",
-                percent_encode_path(&version_id_marker)
+                percent_encode_path(version_id_marker)
             )
             .expect("write into string must succeed");
         }

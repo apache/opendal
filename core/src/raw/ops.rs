@@ -103,7 +103,7 @@ pub struct OpList {
     ///
     /// - If `false`, list operation will not return with object versions
     /// - If `true`, list operation will return with object versions if object versioning is supported
-    /// by the underlying service
+    ///   by the underlying service
     ///
     /// Default to `false`
     version: bool,

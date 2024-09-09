@@ -209,7 +209,7 @@ impl oio::PageList for S3ObjectVersionsLister {
             )?);
             if let Some(etag) = version_object.etag {
                 meta.set_etag(&etag);
-                meta.set_content_md5(&etag.trim_matches('"'));
+                meta.set_content_md5(etag.trim_matches('"'));
             }
 
             let entry = oio::Entry::new(&path, meta);

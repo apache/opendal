@@ -480,7 +480,7 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
     ///
     /// - If `false`, list operation will not return with object versions
     /// - If `true`, list operation will return with object versions if object versioning is supported
-    /// by the underlying service
+    ///   by the underlying service
     ///
     /// Default to `false`
     pub fn version(self, v: bool) -> Self {
@@ -543,7 +543,7 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     ///
     /// - If `false`, list operation will not return with object versions
     /// - If `true`, list operation will return with object versions if object versioning is supported
-    /// by the underlying service
+    ///   by the underlying service
     ///
     /// Default to `false`
     pub fn version(self, v: bool) -> Self {

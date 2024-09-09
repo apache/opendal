@@ -149,7 +149,7 @@ impl LakefsCore {
         path: &str,
         _args: &OpWrite,
         body: Buffer,
-    ) -> Result<Request<Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -168,11 +168,7 @@ impl LakefsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req.body(body).map_err(new_request_build_error)?;
-        Ok(req)
-    }
 
-    #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }

@@ -39,9 +39,7 @@ impl LakefsWriter {
 
 impl oio::OneShotWrite for LakefsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<()> {
-        let req = self.core.upload_object(&self.path, &self.op, bs).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self.core.upload_object(&self.path, &self.op, bs).await?;
 
         let status = resp.status();
 

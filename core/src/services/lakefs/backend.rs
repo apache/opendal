@@ -208,7 +208,7 @@ impl Access for LakefsBackend {
                 list: true,
                 read: true,
                 write: true,
-
+                delete: true,
                 ..Default::default()
             });
         am.into()
@@ -284,5 +284,22 @@ impl Access for LakefsBackend {
             RpWrite::default(),
             oio::OneShotWriter::new(LakefsWriter::new(self.core.clone(), path.to_string(), args)),
         ))
+    }
+
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        // This would delete the bucket, do not perform
+        if self.core.root == "/" && path == "/" {
+            return Ok(RpDelete::default());
+        }
+
+        let resp = self.core.delete_object(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

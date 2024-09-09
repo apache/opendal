@@ -59,7 +59,8 @@ use crate::*;
 /// # use tracing_subscriber::EnvFilter;
 ///
 /// # fn main() -> Result<()> {
-/// let tracer = opentelemetry_otlp::new_pipeline()
+/// use opentelemetry::trace::TracerProvider;
+/// let tracer_provider = opentelemetry_otlp::new_pipeline()
 ///     .tracing()
 ///     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
 ///     .with_trace_config(
@@ -67,6 +68,7 @@ use crate::*;
 ///             .with_resource(Resource::new(vec![KeyValue::new("service.name", "opendal_example")]))
 ///     )
 ///     .install_simple()?;
+/// let tracer = tracer_provider.tracer("opendal_tracer");
 /// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 ///
 /// tracing_subscriber::registry()
@@ -88,6 +90,7 @@ use crate::*;
 ///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes()).await?;
 ///         op.stat("test").await?;
 ///         op.read("test").await?;
+///        Ok::<(), opendal::Error>(())
 ///     })?;
 /// }
 ///

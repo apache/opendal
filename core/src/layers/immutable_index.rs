@@ -44,7 +44,7 @@ use crate::*;
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_iter::<services::Http>(HashMap::default())?
+/// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
 ///     .layer(iil)
 ///     .finish();
 /// Ok(())

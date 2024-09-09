@@ -476,10 +476,11 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.map(|args| args.with_concurrent(v))
     }
 
-    /// Version is used to control whether the version should be returned
+    /// The version is used to control whether the object versions should be returned.
     ///
-    /// If `false`, list operation will not return with version
-    /// If `true`, list operation will return with version if the underlying service is supported
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    /// by the underlying service
     ///
     /// Default to `false`
     pub fn version(self, v: bool) -> Self {
@@ -538,10 +539,11 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self.map(|args| args.with_concurrent(v))
     }
 
-    /// Version is used to control whether the version should be returned
+    /// The version is used to control whether the object versions should be returned.
     ///
-    /// If `false`, list operation will not return with version
-    /// If `true`, list operation will return with version if the underlying service is supported
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    /// by the underlying service
     ///
     /// Default to `false`
     pub fn version(self, v: bool) -> Self {

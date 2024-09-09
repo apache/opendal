@@ -102,7 +102,8 @@ pub struct OpList {
     /// The version is used to control whether the object versions should be returned.
     ///
     /// - If `false`, list operation will not return with object versions
-    /// - If `true`, list operation will return with object versions if the underlying service is supported
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    /// by the underlying service
     ///
     /// Default to `false`
     version: bool,
@@ -351,36 +352,36 @@ impl OpRead {
         &mut self.range
     }
 
-    /// Sets the content-disposition header that should be send back by the remote read operation.
+    /// Sets the content-disposition header that should be sent back by the remote read operation.
     pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());
         self
     }
 
-    /// Returns the content-disposition header that should be send back by the remote read
+    /// Returns the content-disposition header that should be sent back by the remote read
     /// operation.
     pub fn override_content_disposition(&self) -> Option<&str> {
         self.override_content_disposition.as_deref()
     }
 
-    /// Sets the cache-control header that should be send back by the remote read operation.
+    /// Sets the cache-control header that should be sent back by the remote read operation.
     pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
         self.override_cache_control = Some(cache_control.into());
         self
     }
 
-    /// Returns the cache-control header that should be send back by the remote read operation.
+    /// Returns the cache-control header that should be sent back by the remote read operation.
     pub fn override_cache_control(&self) -> Option<&str> {
         self.override_cache_control.as_deref()
     }
 
-    /// Sets the content-type header that should be send back by the remote read operation.
+    /// Sets the content-type header that should be sent back by the remote read operation.
     pub fn with_override_content_type(mut self, content_type: &str) -> Self {
         self.override_content_type = Some(content_type.into());
         self
     }
 
-    /// Returns the content-type header that should be send back by the remote read operation.
+    /// Returns the content-type header that should be sent back by the remote read operation.
     pub fn override_content_type(&self) -> Option<&str> {
         self.override_content_type.as_deref()
     }
@@ -544,13 +545,13 @@ impl OpStat {
         self.if_none_match.as_deref()
     }
 
-    /// Sets the content-disposition header that should be send back by the remote read operation.
+    /// Sets the content-disposition header that should be sent back by the remote read operation.
     pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());
         self
     }
 
-    /// Returns the content-disposition header that should be send back by the remote read
+    /// Returns the content-disposition header that should be sent back by the remote read
     /// operation.
     pub fn override_content_disposition(&self) -> Option<&str> {
         self.override_content_disposition.as_deref()

@@ -45,7 +45,7 @@ pub trait PageList: Send + Sync + Unpin + 'static {
 ///
 /// - Set `done` to `true` if all page have been fetched.
 /// - Update `token` if there is more page to fetch. `token` is not exposed to users, it's internal used only.
-/// - Update `key_marker` and `version_id_marker` if object version is enabled and there are more page to fetch.
+/// - Update `key_marker` and `version_id_marker` if object versioning is enabled and there are more page to fetch.
 /// similar to `token`, they should only be internal used
 /// - Push back into the entries for each entry fetched from underlying storage.
 ///

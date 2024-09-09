@@ -48,7 +48,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_dir_with_recursive_no_trailing_slash,
             test_list_file_with_recursive,
             test_list_root_with_recursive,
-            test_remove_all
+            test_remove_all,
+            test_list_files_with_version,
+            test_list_files_with_version_and_limit
         ))
     }
 
@@ -677,5 +679,97 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
     assert_eq!(entries["normal_dir/"], EntryMode::DIR);
     assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);
 
+    Ok(())
+}
+
+pub async fn test_list_files_with_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().list_with_version {
+        return Ok(());
+    }
+
+    let parent = TEST_FIXTURE.new_dir_path();
+    let file_name = TEST_FIXTURE.new_file_path();
+    let file_path = format!("{}{}", parent, file_name);
+    op.write(file_path.as_str(), "1").await?;
+    op.write(file_path.as_str(), "2").await?;
+
+    let mut ds = op.list_with(parent.as_str()).version(true).await?;
+    println!("{:?}", ds);
+    ds.retain(|de| de.path() != parent.as_str());
+
+    assert_eq!(ds.len(), 2);
+    assert_ne!(ds[0].metadata().version(), ds[1].metadata().version());
+    for de in ds {
+        assert_eq!(de.name(), file_name);
+        let meta = de.metadata();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+
+        // just ensure they don't panic
+        let _ = meta.content_length();
+        let _ = meta.version();
+        let _ = meta.last_modified();
+        let _ = meta.etag();
+        let _ = meta.content_md5();
+    }
+
+    Ok(())
+}
+
+// listing a directory with version, which contains more object versions than a page can take
+pub async fn test_list_files_with_version_and_limit(op: Operator) -> Result<()> {
+    // Gdrive think that this test is an abuse of their service and redirect us
+    // to an infinite loop. Let's ignore this test for gdrive.
+    if op.info().scheme() == Scheme::Gdrive {
+        return Ok(());
+    }
+    if !op.info().full_capability().list_with_version {
+        return Ok(());
+    }
+
+    let parent = "test_list_rich_dir/";
+    op.create_dir(parent).await?;
+
+    let expected: Vec<String> = (0..=10).map(|num| format!("{parent}file-{num}")).collect();
+    for path in expected.iter() {
+        // each file has 2 versions
+        op.write(path, "1").await?;
+        op.write(path, "2").await?;
+    }
+    let mut expected: Vec<String> = expected
+        .into_iter()
+        .flat_map(|v| std::iter::repeat(v).take(2))
+        .collect();
+    expected.push(parent.to_string());
+
+    let mut objects = op.lister_with(parent).version(true).limit(5).await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+    expected.sort_unstable();
+    actual.sort_unstable();
+
+    assert_eq!(actual, expected);
+
+    // List concurrently.
+    let mut objects = op
+        .lister_with(parent)
+        .version(true)
+        .limit(5)
+        .concurrent(5)
+        .metakey(Metakey::Complete)
+        .await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+    expected.sort_unstable();
+    actual.sort_unstable();
+
+    assert_eq!(actual, expected);
+
+    op.remove_all(parent).await?;
     Ok(())
 }

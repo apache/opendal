@@ -22,10 +22,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use flagset::FlagSet;
-
 use crate::raw::*;
 use crate::*;
+use flagset::FlagSet;
 
 /// Args for `create` operation.
 ///
@@ -100,6 +99,13 @@ pub struct OpList {
     /// - If this is set to > 1, the list operation will be concurrent,
     ///   and the maximum number of concurrent operations will be determined by this value.
     concurrent: usize,
+    /// The version is used to control whether the object versions should be returned.
+    ///
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if the underlying service is supported
+    ///
+    /// Default to `false`
+    version: bool,
 }
 
 impl Default for OpList {
@@ -111,6 +117,7 @@ impl Default for OpList {
             // By default, we want to know what's the mode of this entry.
             metakey: Metakey::Mode.into(),
             concurrent: 1,
+            version: false,
         }
     }
 }
@@ -183,6 +190,17 @@ impl OpList {
     /// Get the concurrent of list operation.
     pub fn concurrent(&self) -> usize {
         self.concurrent
+    }
+
+    /// Change the version of this list operation
+    pub fn with_version(mut self, version: bool) -> Self {
+        self.version = version;
+        self
+    }
+
+    /// Get the version of this list operation
+    pub fn version(&self) -> bool {
+        self.version
     }
 }
 

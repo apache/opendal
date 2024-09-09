@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::future::Future;
-
 use crate::raw::*;
 use crate::*;
+use std::collections::VecDeque;
+use std::future::Future;
 
 /// PageList is used to implement [`oio::List`] based on API supporting pagination. By implementing
 /// PageList, services don't need to care about the details of page list.
@@ -46,6 +45,8 @@ pub trait PageList: Send + Sync + Unpin + 'static {
 ///
 /// - Set `done` to `true` if all page have been fetched.
 /// - Update `token` if there is more page to fetch. `token` is not exposed to users, it's internal used only.
+/// - Update `key_marker` and `version_id_marker` if object version is enabled and there are more page to fetch.
+/// similar to `token`, they should only be internal used
 /// - Push back into the entries for each entry fetched from underlying storage.
 ///
 /// NOTE: `entries` is a `VecDeque` to avoid unnecessary memory allocation. Only `push_back` is allowed.
@@ -54,6 +55,11 @@ pub struct PageContext {
     pub done: bool,
     /// token is used by underlying storage services to fetch next page.
     pub token: String,
+    /// key_marker and version_id_marker are used together by underlying storage services to fetch
+    /// next page when object versioning is enabled
+    pub key_marker: String,
+    /// version_id_marker is used with key_marker
+    pub version_id_marker: String,
     /// entries are used to store entries fetched from underlying storage.
     ///
     /// Please always reuse the same `VecDeque` to avoid unnecessary memory allocation.
@@ -79,6 +85,8 @@ where
             ctx: PageContext {
                 done: false,
                 token: "".to_string(),
+                key_marker: "".to_string(),
+                version_id_marker: "".to_string(),
                 entries: VecDeque::new(),
             },
         }

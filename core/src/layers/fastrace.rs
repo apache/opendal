@@ -31,61 +31,55 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::FastraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::FastraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(FastraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// ## Real usage
 ///
-/// ```no_build
-/// use std::error::Error;
+/// ```no_run
+/// # use anyhow::Result;
+/// # use fastrace::prelude::*;
+/// # use opendal::layers::FastraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
 ///
-/// use anyhow::Result;
-/// use futures::executor::block_on;
-/// use fastrace::collector::Config;
-/// use fastrace::prelude::*;
-/// use opendal::layers::FastraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// # fn main() -> Result<()> {
+/// let reporter = fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
 ///
-/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
-///     let reporter =
-///         fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
-///             .unwrap();
-///     fastrace::set_reporter(reporter, Config::default());
-///
-///     {
-///         let root = Span::root("op", SpanContext::random());
-///         let runtime = tokio::runtime::Runtime::new()?;
-///         runtime.block_on(
-///             async {
-///                 let _ = dotenvy::dotenv();
-///                 let op = Operator::new(services::Memory::default())
-///                     .expect("init operator must succeed")
-///                     .layer(FastraceLayer)
-///                     .finish();
-///                 op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
-///                     .await
-///                     .expect("must succeed");
-///                 op.stat("test").await.expect("must succeed");
-///                 op.read("test").await.expect("must succeed");
-///             }
-///             .in_span(Span::enter_with_parent("test", &root)),
-///         );
-///     }
-///
-///     fastrace::flush();
-///
-///     Ok(())
+/// {
+///     let root = Span::root("op", SpanContext::random());
+///     let runtime = tokio::runtime::Runtime::new()?;
+///     runtime.block_on(
+///         async {
+///             let _ = dotenvy::dotenv();
+///             let op = Operator::new(services::Memory::default())?
+///                 .layer(FastraceLayer)
+///                 .finish();
+///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes()).await?;
+///             op.stat("test").await?;
+///             op.read("test").await?;
+///             Ok::<(), opendal::Error>(())
+///         }
+///         .in_span(Span::enter_with_parent("test", &root)),
+///     )?;
 /// }
+///
+/// fastrace::flush();
+///
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Output
@@ -96,15 +90,14 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```no_build
-/// extern crate fastrace_jaeger;
+/// ```no_run
+/// # use anyhow::Result;
 ///
-/// use fastrace::collector::Config;
-///
-/// let reporter =
-///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
-///         .unwrap();
-/// fastrace::set_reporter(reporter, Config::default());
+/// # fn main() -> Result<()> {
+/// let reporter = fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
+/// Ok(())
+/// # }
 /// ```
 ///
 /// For real-world usage, please take a look at [`fastrace-datadog`](https://crates.io/crates/fastrace-datadog) or [`fastrace-jaeger`](https://crates.io/crates/fastrace-jaeger) .

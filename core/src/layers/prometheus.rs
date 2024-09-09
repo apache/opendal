@@ -51,32 +51,31 @@ use crate::*;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-///     // Pick a builder and configure it.
-///     let builder = services::Memory::default();
-///     let registry = prometheus::default_registry();
+/// let registry = prometheus::default_registry();
 ///
-///     let op = Operator::new(builder)?
-///         .layer(PrometheusLayer::builder().register(registry).expect("register metrics successfully"))
-///         .finish();
-///     debug!("operator: {op:?}");
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(PrometheusLayer::builder().register(registry).expect("register metrics successfully"))
+///     .finish();
+/// debug!("operator: {op:?}");
 ///
-///     // Write data into object test.
-///     op.write("test", "Hello, World!").await?;
-///     // Read data from object.
-///     let bs = op.read("test").await?;
-///     info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+/// // Read data from object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
 ///
-///     // Get object metadata.
-///     let meta = op.stat("test").await?;
-///     info!("meta: {:?}", meta);
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
 ///
-///     // Export prometheus metrics.
-///     let mut buffer = Vec::<u8>::new();
-///     let encoder = prometheus::TextEncoder::new();
-///     encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
-///     println!("## Prometheus Metrics");
-///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
-///     Ok(())
+/// // Export prometheus metrics.
+/// let mut buffer = Vec::<u8>::new();
+/// let encoder = prometheus::TextEncoder::new();
+/// encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+/// println!("## Prometheus Metrics");
+/// println!("{}", String::from_utf8(buffer.clone()).unwrap());
+///
+/// Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]

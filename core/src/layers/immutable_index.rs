@@ -30,22 +30,25 @@ use crate::*;
 /// # Examples
 ///
 /// ```rust, no_run
-/// use std::collections::HashMap;
+/// # use std::collections::HashMap;
 ///
-/// use opendal::layers::ImmutableIndexLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// # use opendal::layers::ImmutableIndexLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
+/// # fn main() -> Result<()> {
 /// let mut iil = ImmutableIndexLayer::default();
 ///
 /// for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_map::<services::Http>(HashMap::default())
-///     .unwrap()
+/// let op = Operator::from_iter::<services::Http>(HashMap::default())?
 ///     .layer(iil)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {

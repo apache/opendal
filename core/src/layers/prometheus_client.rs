@@ -52,31 +52,30 @@ use crate::*;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-///     // Pick a builder and configure it.
-///     let builder = services::Memory::default();
-///     let mut registry = prometheus_client::registry::Registry::default();
+/// let mut registry = prometheus_client::registry::Registry::default();
 ///
-///     let op = Operator::new(builder)?
-///         .layer(PrometheusClientLayer::builder().register(&mut registry))
-///         .finish();
-///     debug!("operator: {op:?}");
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(PrometheusClientLayer::builder().register(&mut registry))
+///     .finish();
+/// debug!("operator: {op:?}");
 ///
-///     // Write data into object test.
-///     op.write("test", "Hello, World!").await?;
-///     // Read data from object.
-///     let bs = op.read("test").await?;
-///     info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+/// // Read data from object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
 ///
-///     // Get object metadata.
-///     let meta = op.stat("test").await?;
-///     info!("meta: {:?}", meta);
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
 ///
-///     // Export prometheus metrics.
-///     let mut buf = String::new();
-///     prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
-///     println!("## Prometheus Metrics");
-///     println!("{}", buf);
-///     Ok(())
+/// // Export prometheus metrics.
+/// let mut buf = String::new();
+/// prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
+/// println!("## Prometheus Metrics");
+/// println!("{}", buf);
+///
+/// Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]

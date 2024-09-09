@@ -45,16 +45,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::ChaosLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::ChaosLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct ChaosLayer {

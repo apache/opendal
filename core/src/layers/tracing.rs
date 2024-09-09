@@ -31,68 +31,73 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::TracingLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::TracingLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(TracingLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// ## Real usage
 ///
-/// ```no_build
-/// use std::error::Error;
+/// ```no_run
+/// # use anyhow::Result;
+/// # use opendal::layers::TracingLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opentelemetry::KeyValue;
+/// # use opentelemetry_sdk::trace;
+/// # use opentelemetry_sdk::Resource;
+/// # use tracing_subscriber::prelude::*;
+/// # use tracing_subscriber::EnvFilter;
 ///
-/// use anyhow::Result;
-/// use opendal::layers::TracingLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opentelemetry::global;
-/// use tracing::span;
-/// use tracing_subscriber::prelude::*;
-/// use tracing_subscriber::EnvFilter;
+/// # fn main() -> Result<()> {
+/// let tracer = opentelemetry_otlp::new_pipeline()
+///     .tracing()
+///     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+///     .with_trace_config(
+///         trace::Config::default()
+///             .with_resource(Resource::new(vec![KeyValue::new("service.name", "opendal_example")]))
+///     )
+///     .install_simple()?;
+/// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 ///
-/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
-///     let tracer = opentelemetry_jaeger::new_pipeline()
-///         .with_service_name("opendal_example")
-///         .install_simple()?;
-///     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-///     tracing_subscriber::registry()
-///         .with(EnvFilter::from_default_env())
-///         .with(opentelemetry)
-///         .try_init()?;
+/// tracing_subscriber::registry()
+///     .with(EnvFilter::from_default_env())
+///     .with(opentelemetry)
+///     .try_init()?;
 ///
+/// {
 ///     let runtime = tokio::runtime::Runtime::new()?;
-///
 ///     runtime.block_on(async {
-///         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
+///         let root = tracing::span!(tracing::Level::INFO, "app_start", work_units = 2);
 ///         let _enter = root.enter();
 ///
 ///         let _ = dotenvy::dotenv();
-///         let op = Operator::from_env::<services::S3>()
-///             .expect("init operator must succeed")
+///         let op = Operator::new(services::Memory::default())?
 ///             .layer(TracingLayer)
 ///             .finish();
 ///
-///         op.object("test")
-///             .write("0".repeat(16 * 1024 * 1024).into_bytes())
-///             .await
-///             .expect("must succeed");
-///         op.stat("test").await.expect("must succeed");
-///         op.read("test").await.expect("must succeed");
-///     });
-///
-///     // Shut down the current tracer provider. This will invoke the shutdown
-///     // method on all span processors. span processors should export remaining
-///     // spans before return.
-///     global::shutdown_tracer_provider();
-///     Ok(())
+///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes()).await?;
+///         op.stat("test").await?;
+///         op.read("test").await?;
+///     })?;
 /// }
+///
+/// // Shut down the current tracer provider.
+/// // This will invoke the shutdown method on all span processors.
+/// // span processors should export remaining spans before return.
+/// opentelemetry::global::shutdown_tracer_provider();
+///
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Output
@@ -103,8 +108,26 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```no_build
-/// extern crate tracing;
+/// ```no_run
+/// # use tracing::dispatcher;
+/// # use tracing::Event;
+/// # use tracing::Metadata;
+/// # use tracing::span::Attributes;
+/// # use tracing::span::Id;
+/// # use tracing::span::Record;
+/// # use tracing::subscriber::Subscriber;
+///
+/// # pub struct FooSubscriber;
+/// # impl Subscriber for FooSubscriber {
+/// #   fn enabled(&self, _: &Metadata) -> bool { false }
+/// #   fn new_span(&self, _: &Attributes) -> Id { Id::from_u64(0) }
+/// #   fn record(&self, _: &Id, _: &Record) {}
+/// #   fn record_follows_from(&self, _: &Id, _: &Id) {}
+/// #   fn event(&self, _: &Event) {}
+/// #   fn enter(&self, _: &Id) {}
+/// #   fn exit(&self, _: &Id) {}
+/// # }
+/// # impl FooSubscriber { fn new() -> Self { FooSubscriber } }
 ///
 /// let my_subscriber = FooSubscriber::new();
 /// tracing::subscriber::set_global_default(my_subscriber)

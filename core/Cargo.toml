@@ -154,6 +154,7 @@ services-icloud = ["internal-path-cache"]
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
 services-koofr = []
+services-lakefs = []
 services-libsql = ["dep:hrana-client-proto"]
 services-memcached = ["dep:bb8"]
 services-memory = []
@@ -200,7 +201,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-lakefs = []
+
 [lib]
 bench = false
 
@@ -374,22 +375,26 @@ probe = { version = "0.5.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.0.1", features = ["gloo-timers-sleep"] }
-tokio = { version = "1.27", features = ["time"] }
 getrandom = { version = "0.2", features = ["js"] }
+tokio = { version = "1.27", features = ["time"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
+fastrace-jaeger = "0.7"
 libtest-mimic = "0.7"
 opentelemetry = { version = "0.24", default-features = false, features = [
     "trace",
 ] }
+opentelemetry-otlp = "0.17"
+opentelemetry_sdk = "0.24"
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.25.0"
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
     "tracing-log",

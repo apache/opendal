@@ -45,16 +45,18 @@ use crate::Result;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::MimeGuessLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::MimeGuessLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(MimeGuessLayer::default())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]

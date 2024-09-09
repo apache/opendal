@@ -28,7 +28,7 @@ use crate::*;
 ///
 /// # Notes
 ///
-/// This layer will adding the following error context into all errors:
+/// This layer will add the following error context into all errors:
 ///
 /// - `service`: The [`Scheme`] of underlying service.
 /// - `operation`: The [`Operation`] of this operation

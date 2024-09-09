@@ -37,16 +37,18 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::OtelTraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::OtelTraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelTraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 pub struct OtelTraceLayer;
 

@@ -30,18 +30,19 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::AsyncBacktraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::AsyncBacktraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AsyncBacktraceLayer::default())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
-
 #[derive(Clone, Default)]
 pub struct AsyncBacktraceLayer;
 

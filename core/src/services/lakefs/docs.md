@@ -11,7 +11,7 @@ This service can be used to:
 - [x] read
 - [x] write
 - [ ] create_dir
-- [ ] delete
+- [x] delete
 - [ ] copy
 - [ ] rename
 - [x] list

@@ -117,13 +117,6 @@ impl S3Builder {
         self
     }
 
-    /// Set bucket versioning status of this backend
-    pub fn bucket_versioning_enabled(mut self, enabled: bool) -> Self {
-        self.config.bucket_versioning_enabled = enabled;
-
-        self
-    }
-
     /// Set endpoint of this backend.
     ///
     /// Endpoint must be full uri, e.g.
@@ -462,6 +455,13 @@ impl S3Builder {
     /// during minor updates.
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
         self
     }
 
@@ -864,7 +864,7 @@ impl Builder for S3Builder {
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_stat_with_override: self.config.disable_stat_with_override,
-                bucket_versioning_enabled: self.config.bucket_versioning_enabled,
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
@@ -938,7 +938,7 @@ impl Access for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_with_version: self.core.bucket_versioning_enabled,
+                list_with_version: self.core.enable_versioning,
 
                 presign: true,
                 presign_stat: true,
@@ -1037,12 +1037,20 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if self.core.bucket_versioning_enabled && args.version() {
+        if args.version() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning",
+            ));
+        }
+
+        let l = if args.version() {
             TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,
                 args.recursive(),
                 args.limit(),
+                args.start_after(),
             )))
         } else {
             TwoWays::One(PageLister::new(S3Lister::new(

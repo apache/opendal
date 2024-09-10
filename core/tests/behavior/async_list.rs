@@ -50,7 +50,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_root_with_recursive,
             test_remove_all,
             test_list_files_with_version,
-            test_list_files_with_version_and_limit
+            test_list_with_version_and_limit,
+            test_list_with_version_and_start_after
         ))
     }
 
@@ -715,7 +716,7 @@ pub async fn test_list_files_with_version(op: Operator) -> Result<()> {
 }
 
 // listing a directory with version, which contains more object versions than a page can take
-pub async fn test_list_files_with_version_and_limit(op: Operator) -> Result<()> {
+pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {
@@ -725,7 +726,7 @@ pub async fn test_list_files_with_version_and_limit(op: Operator) -> Result<()> 
         return Ok(());
     }
 
-    let parent = "test_list_rich_dir/";
+    let parent = "test_list_with_version_and_limit/";
     op.create_dir(parent).await?;
 
     let expected: Vec<String> = (0..=10).map(|num| format!("{parent}file-{num}")).collect();
@@ -770,5 +771,53 @@ pub async fn test_list_files_with_version_and_limit(op: Operator) -> Result<()> 
     assert_eq!(actual, expected);
 
     op.remove_all(parent).await?;
+    Ok(())
+}
+
+pub async fn test_list_with_version_and_start_after(op: Operator) -> Result<()> {
+    if !op.info().full_capability().list_with_version {
+        return Ok(());
+    }
+
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+
+    let given: Vec<String> = ["file-0", "file-1", "file-2", "file-3", "file-4", "file-5"]
+        .iter()
+        .map(|name| format!("{dir}{name}-{}", uuid::Uuid::new_v4()))
+        .collect();
+
+    given
+        .iter()
+        .map(|name| async {
+            op.write(name, "1").await.expect("write must succeed");
+            op.write(name, "2").await.expect("write must succeed");
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect::<Vec<_>>()
+        .await;
+
+    let mut objects = op
+        .lister_with(dir)
+        .version(true)
+        .start_after(&given[2])
+        .await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+
+    let expected: Vec<String> = given.into_iter().skip(3).collect();
+    let mut expected: Vec<String> = expected
+        .into_iter()
+        .flat_map(|v| std::iter::repeat(v).take(2))
+        .collect();
+
+    expected.sort_unstable();
+    actual.sort_unstable();
+    assert_eq!(expected, actual);
+
+    op.remove_all(dir).await?;
+
     Ok(())
 }

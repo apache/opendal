@@ -37,7 +37,7 @@ pub struct S3Config {
     /// required.
     pub bucket: String,
     /// is bucket versioning enabled for this bucket
-    pub bucket_versioning_enabled: bool,
+    pub enable_versioning: bool,
     /// endpoint of this backend.
     ///
     /// Endpoint must be full uri, e.g.

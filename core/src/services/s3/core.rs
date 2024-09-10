@@ -89,7 +89,7 @@ pub struct S3Core {
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
     pub disable_stat_with_override: bool,
-    pub bucket_versioning_enabled: bool,
+    pub enable_versioning: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,

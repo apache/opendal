@@ -17,9 +17,6 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use quick_xml::de;
-
 use super::core::S3Core;
 use super::core::{ListObjectVersionsOutput, ListObjectsOutput};
 use super::error::parse_error;
@@ -28,6 +25,8 @@ use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use bytes::Buf;
+use quick_xml::de;
 
 pub type S3Listers = TwoWays<oio::PageLister<S3Lister>, oio::PageLister<S3ObjectVersionsLister>>;
 
@@ -144,10 +143,17 @@ pub struct S3ObjectVersionsLister {
     prefix: String,
     delimiter: &'static str,
     limit: Option<usize>,
+    start_after: String,
 }
 
 impl S3ObjectVersionsLister {
-    pub fn new(core: Arc<S3Core>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<S3Core>,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+        start_after: Option<&str>,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
         Self {
@@ -155,19 +161,25 @@ impl S3ObjectVersionsLister {
             prefix: path.to_string(),
             delimiter,
             limit,
+            start_after: start_after.map_or("".to_owned(), String::from),
         }
     }
 }
 
 impl oio::PageList for S3ObjectVersionsLister {
     async fn next_page(&self, ctx: &mut PageContext) -> Result<()> {
+        let key_marker = if ctx.key_marker.is_empty() && !self.start_after.is_empty() {
+            build_abs_path(&self.core.root, &self.start_after)
+        } else {
+            ctx.key_marker.clone()
+        };
         let resp = self
             .core
             .s3_list_object_versions(
                 &self.prefix,
                 self.delimiter,
                 self.limit,
-                &ctx.key_marker,
+                &key_marker,
                 &ctx.version_id_marker,
             )
             .await?;

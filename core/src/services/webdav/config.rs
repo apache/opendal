@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

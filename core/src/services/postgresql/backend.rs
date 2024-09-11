@@ -15,16 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::str::FromStr;
+
+use sqlx::postgres::PgConnectOptions;
+use sqlx::PgPool;
+use tokio::sync::OnceCell;
+
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::PostgresqlConfig;
 use crate::*;
-use sqlx::postgres::PgConnectOptions;
-use sqlx::PgPool;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str::FromStr;
-use tokio::sync::OnceCell;
 
 impl Configurator for PostgresqlConfig {
     type Builder = PostgresqlBuilder;

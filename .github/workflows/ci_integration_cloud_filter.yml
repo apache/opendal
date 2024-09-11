@@ -25,9 +25,9 @@ on:
     branches:
       - main
     paths:
-      - "integrations/cloudfilter/**"
+      - "integrations/cloud_filter/**"
       - "core/**"
-      - ".github/workflows/ci_integration_cloudfilter.yml"
+      - ".github/workflows/ci_integration_cloud_filter.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -47,5 +47,5 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cargo clippy
-        working-directory: integrations/cloudfilter
+        working-directory: integrations/cloud_filter
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings

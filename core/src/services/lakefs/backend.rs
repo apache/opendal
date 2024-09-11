@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::{TimeZone, Utc};
+use chrono::TimeZone;
+use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;

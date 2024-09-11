@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::str::FromStr;
+
+use sqlx::mysql::MySqlConnectOptions;
+use sqlx::MySqlPool;
+use tokio::sync::OnceCell;
+
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::MysqlConfig;
 use crate::*;
-use sqlx::mysql::MySqlConnectOptions;
-use sqlx::MySqlPool;
-use std::fmt::Debug;
-use std::str::FromStr;
-use tokio::sync::OnceCell;
 
 impl Configurator for MysqlConfig {
     type Builder = MysqlBuilder;

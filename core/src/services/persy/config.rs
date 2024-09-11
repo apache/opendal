@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Config for persy service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

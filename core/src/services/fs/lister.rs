@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::Metadata;
-use crate::Result;
-use crate::{EntryMode, Metakey};
 use std::path::Path;
 use std::path::PathBuf;
+
+use crate::raw::*;
+use crate::EntryMode;
+use crate::Metadata;
+use crate::Metakey;
+use crate::Result;
 
 pub struct FsLister<P> {
     root: PathBuf,

@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Config for MemCached services support
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

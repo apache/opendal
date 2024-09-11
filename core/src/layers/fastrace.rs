@@ -55,7 +55,8 @@ use crate::*;
 /// # use opendal::Operator;
 ///
 /// # fn main() -> Result<()> {
-/// let reporter = fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// let reporter =
+///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
 /// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
 ///
 /// {
@@ -67,7 +68,8 @@ use crate::*;
 ///             let op = Operator::new(services::Memory::default())?
 ///                 .layer(FastraceLayer)
 ///                 .finish();
-///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes()).await?;
+///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
+///                 .await?;
 ///             op.stat("test").await?;
 ///             op.read("test").await?;
 ///             Ok::<(), opendal::Error>(())
@@ -94,7 +96,8 @@ use crate::*;
 /// # use anyhow::Result;
 ///
 /// # fn main() -> Result<()> {
-/// let reporter = fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// let reporter =
+///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
 /// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
 /// Ok(())
 /// # }

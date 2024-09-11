@@ -15,16 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::str::FromStr;
+
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::SqlitePool;
+use tokio::sync::OnceCell;
+
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::SqliteConfig;
 use crate::*;
-use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::SqlitePool;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str::FromStr;
-use tokio::sync::OnceCell;
 
 impl Configurator for SqliteConfig {
     type Builder = SqliteBuilder;

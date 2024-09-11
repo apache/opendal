@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
 
 use crate::raw::*;
 use crate::*;

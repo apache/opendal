@@ -2,17 +2,17 @@
 
 [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
-[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/test_behavior_integration_cloudfilter.yml?branch=main
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/test_behavior_integration_cloud_filter.yml?branch=main
 [actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
-[latest version]: https://img.shields.io/crates/v/cloudfilter_opendal.svg
-[crates.io]: https://crates.io/crates/cloudfilter_opendal
-[crate downloads]: https://img.shields.io/crates/d/cloudfilter_opendal.svg
+[latest version]: https://img.shields.io/crates/v/cloud_filter_opendal.svg
+[crates.io]: https://crates.io/crates/cloud_filter_opendal
+[crate downloads]: https://img.shields.io/crates/d/cloud_filter_opendal.svg
 [chat]: https://img.shields.io/discord/1081052318650339399
 [discord]: https://opendal.apache.org/discord
 
-`cloudfilter_opendal` integrates OpenDAL with [cloud sync engines](https://learn.microsoft.com/en-us/windows/win32/cfapi/build-a-cloud-file-sync-engine). It provides a way to access various cloud storage on Windows.
+`cloud_filter_opendal` integrates OpenDAL with [cloud sync engines](https://learn.microsoft.com/en-us/windows/win32/cfapi/build-a-cloud-file-sync-engine). It provides a way to access various cloud storage on Windows.
 
-Note that `cloudfilter_opendal` is a read-only service, and it is not recommended to use it in production.
+Note that `cloud_filter_opendal` is a read-only service, and it is not recommended to use it in production.
 
 ## Example
 
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let client_path = std::env::var("CLIENT_PATH").expect("$CLIENT_PATH is set");
 
     // Create a sync root id
-    let sync_root_id = SyncRootIdBuilder::new("cloudfilter_opendal")
+    let sync_root_id = SyncRootIdBuilder::new("cloud_filter_opendal")
         .user_security_id(SecurityId::current_user()?)
         .build();
 
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
     let handle = Handle::current();
     let connection = Session::new().connect_async(
         &client_path,
-        cloudfilter_opendal::CloudFilter::new(op, client_path.clone().into()),
+        cloud_filter_opendal::CloudFilter::new(op, client_path.clone().into()),
         move |f| handle.block_on(f),
     )?;
 

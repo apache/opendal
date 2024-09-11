@@ -12,7 +12,7 @@ Previously, `list("a/b")` would not return `a/b` even if it does exist. Since v0
 
 ### Refactoring of the metrics-related layer
 
-In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implemenationts. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similiar public APIs and exactly the same metrics value.
+In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implemenationts. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
 
 # Upgrade to v0.49
 

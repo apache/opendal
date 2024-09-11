@@ -30,9 +30,7 @@ runs:
     - name: Create bucket
       shell: bash
       working-directory: fixtures/s3
-      run: |
-        s3cmd mb s3://demo
-        s3cmd setversioning s3://demo enable
+      run: docker exec ceph-demo s3cmd mb s3://demo
 
     - name: Setup
       shell: bash
@@ -43,5 +41,4 @@ runs:
         OPENDAL_S3_ACCESS_KEY_ID=demo
         OPENDAL_S3_SECRET_ACCESS_KEY=demo
         OPENDAL_S3_REGION=us-east-1
-        OPENDAL_S3_ENABLE_VERSIONING=true
         EOF

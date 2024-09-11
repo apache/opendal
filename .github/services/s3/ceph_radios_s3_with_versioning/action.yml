@@ -15,32 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: minio_s3
-description: 'Behavior test for Minio S3.'
+name: ceph_rados_s3
+description: 'Behavior test for CEPH OBJECT GATEWAY S3'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup MinIO Server
+    - name: Setup Ceph Rados Server
       shell: bash
       working-directory: fixtures/s3
-      run: docker compose -f docker-compose-minio.yml up -d --wait
-    - name: Setup test bucket
+      run: docker compose -f docker-compose-ceph-rados.yml up -d --wait
+
+    # ceph/demo has support for CEPH_DEMO_BUCKET, but it doesn't work as expected.
+    - name: Create bucket
       shell: bash
-      env:
-        AWS_ACCESS_KEY_ID: "minioadmin"
-        AWS_SECRET_ACCESS_KEY: "minioadmin"
-        AWS_EC2_METADATA_DISABLED: "true"
+      working-directory: fixtures/s3
       run: |
-        aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+        docker exec ceph-demo s3cmd mb s3://demo
+        docker exec ceph-demo s3cmd setversioning s3://demo enable
 
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_S3_BUCKET=test
-        OPENDAL_S3_ENDPOINT=http://127.0.0.1:9000
-        OPENDAL_S3_ACCESS_KEY_ID=minioadmin
-        OPENDAL_S3_SECRET_ACCESS_KEY=minioadmin
+        OPENDAL_S3_BUCKET=demo
+        OPENDAL_S3_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_S3_ACCESS_KEY_ID=demo
+        OPENDAL_S3_SECRET_ACCESS_KEY=demo
         OPENDAL_S3_REGION=us-east-1
+        OPENDAL_S3_ENABLE_VERSIONING=true
         EOF

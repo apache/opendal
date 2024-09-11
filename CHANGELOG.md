@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci(bindings/go): add golangci-lint by @yuchanns in https://github.com/apache/opendal/pull/5060
 * ci(bindings/zig): Fix build and test of zig on 0.13 by @Xuanwo in https://github.com/apache/opendal/pull/5102
 * ci: Don't publish with all features by @Xuanwo in https://github.com/apache/opendal/pull/5108
+* ci: Fix upload-artifacts doesn't include hidden files by @Xuanwo in https://github.com/apache/opendal/pull/5112
 ### Chore
 * chore(bindings/go): bump ffi and sys version by @shoothzj in https://github.com/apache/opendal/pull/5055
 * chore: Bump backon to 1.0.0 by @Xuanwo in https://github.com/apache/opendal/pull/5056

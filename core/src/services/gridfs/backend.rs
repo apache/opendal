@@ -26,11 +26,10 @@ use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 use tokio::sync::OnceCell;
 
+use super::config::GridfsConfig;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
-
-use super::config::GridfsConfig;
 
 impl Configurator for GridfsConfig {
     type Builder = GridfsBuilder;

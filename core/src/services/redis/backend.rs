@@ -25,12 +25,13 @@ use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
 use redis::cluster_async::ClusterConnection;
+use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
+use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
-use redis::{AsyncCommands, ProtocolVersion};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

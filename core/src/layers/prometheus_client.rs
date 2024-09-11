@@ -103,24 +103,26 @@ impl PrometheusClientLayer {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    ///     let duration_seconds_buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
-    ///     let bytes_buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
-    ///     let op = Operator::new(builder)?
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .operation_duration_seconds_buckets(duration_seconds_buckets)
-    ///                 .operation_bytes_buckets(bytes_buckets)
-    ///                 .path_label(0)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
+    /// let duration_seconds_buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
+    /// let bytes_buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .operation_duration_seconds_buckets(duration_seconds_buckets)
+    ///             .operation_bytes_buckets(bytes_buckets)
+    ///             .path_label(0)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
     ///
-    ///     Ok(())
+    /// Ok(())
     /// # }
     /// ```
     pub fn builder() -> PrometheusClientLayerBuilder {
@@ -175,21 +177,22 @@ impl PrometheusClientLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
-    ///     let op = Operator::new(builder)?
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .operation_duration_seconds_buckets(buckets)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
+    /// let buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .operation_duration_seconds_buckets(buckets)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
     ///
-    ///     Ok(())
+    /// Ok(())
     /// # }
     /// ```
     pub fn operation_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
@@ -212,21 +215,22 @@ impl PrometheusClientLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    ///     let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
-    ///     let op = Operator::new(builder)?
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .operation_bytes_buckets(buckets)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
+    /// let buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .operation_bytes_buckets(buckets)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
     ///
-    ///     Ok(())
+    /// Ok(())
     /// # }
     /// ```
     pub fn operation_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
@@ -253,20 +257,20 @@ impl PrometheusClientLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    ///     let op = Operator::new(builder)?
-    ///         .layer(
-    ///             PrometheusClientLayer::builder()
-    ///                 .path_label(1)
-    ///                 .register(&mut registry)
-    ///         )
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .path_label(1)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
     ///
-    ///     Ok(())
+    /// Ok(())
     /// # }
     /// ```
     pub fn path_label(mut self, level: usize) -> Self {
@@ -287,16 +291,16 @@ impl PrometheusClientLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    ///     // Pick a builder and configure it.
-    ///     let builder = services::Memory::default();
-    ///     let mut registry = prometheus_client::registry::Registry::default();
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    ///     let op = Operator::new(builder)?
-    ///         .layer(PrometheusClientLayer::builder().register(&mut registry))
-    ///         .finish();
-    ///     debug!("operator: {op:?}");
+    /// let op = Operator::new(builder)?
+    ///     .layer(PrometheusClientLayer::builder().register(&mut registry))
+    ///     .finish();
+    /// debug!("operator: {op:?}");
     ///
-    ///     Ok(())
+    /// Ok(())
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {

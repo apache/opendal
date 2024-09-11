@@ -18,13 +18,14 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::{TimeZone, Utc};
+use chrono::TimeZone;
+use chrono::Utc;
 
+use super::core::LakefsCore;
+use super::core::LakefsListResponse;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-use super::core::{LakefsCore, LakefsListResponse};
-use super::error::parse_error;
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,

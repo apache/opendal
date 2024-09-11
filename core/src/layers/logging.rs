@@ -50,10 +50,10 @@ use crate::*;
 /// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
-///  let _ = Operator::new(services::Memory::default())?
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::default())
 ///     .finish();
-///  Ok(())
+/// Ok(())
 /// # }
 /// ```
 ///
@@ -104,10 +104,10 @@ use crate::*;
 /// }
 ///
 /// # fn main() -> Result<()> {
-///  let _ = Operator::new(services::Memory::default())?
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::new(MyLoggingInterceptor))
 ///     .finish();
-///  Ok(())
+/// Ok(())
 /// # }
 /// ```
 #[derive(Debug)]

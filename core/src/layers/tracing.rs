@@ -63,10 +63,9 @@ use crate::*;
 /// let tracer_provider = opentelemetry_otlp::new_pipeline()
 ///     .tracing()
 ///     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-///     .with_trace_config(
-///         trace::Config::default()
-///             .with_resource(Resource::new(vec![KeyValue::new("service.name", "opendal_example")]))
-///     )
+///     .with_trace_config(trace::Config::default().with_resource(Resource::new(vec![
+///         KeyValue::new("service.name", "opendal_example"),
+///     ])))
 ///     .install_simple()?;
 /// let tracer = tracer_provider.tracer("opendal_tracer");
 /// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -87,10 +86,11 @@ use crate::*;
 ///             .layer(TracingLayer)
 ///             .finish();
 ///
-///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes()).await?;
+///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
+///             .await?;
 ///         op.stat("test").await?;
 ///         op.read("test").await?;
-///        Ok::<(), opendal::Error>(())
+///         Ok::<(), opendal::Error>(())
 ///     })?;
 /// }
 ///
@@ -133,8 +133,7 @@ use crate::*;
 /// # impl FooSubscriber { fn new() -> Self { FooSubscriber } }
 ///
 /// let my_subscriber = FooSubscriber::new();
-/// tracing::subscriber::set_global_default(my_subscriber)
-///     .expect("setting tracing default failed");
+/// tracing::subscriber::set_global_default(my_subscriber).expect("setting tracing default failed");
 /// ```
 ///
 /// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).

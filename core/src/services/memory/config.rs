@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Config for memory.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

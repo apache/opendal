@@ -102,7 +102,14 @@ async def test_async_reader(service_name, operator, async_operator):
         assert read_content == content
 
     async with await async_operator.open(filename, "rb") as reader:
-        read_content = await reader.read(size + 1)
+        read_content = bytearray()
+        while True:
+            chunk = await reader.read(size + 1)
+            if not chunk:
+                break
+            read_content.extend(chunk)
+
+        read_content = bytes(read_content)
         assert read_content is not None
         assert read_content == content
 

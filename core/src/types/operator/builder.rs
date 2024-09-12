@@ -292,6 +292,8 @@ impl Operator {
             Scheme::HdfsNative => Self::from_iter::<services::HdfsNative>(iter)?.finish(),
             #[cfg(feature = "services-lakefs")]
             Scheme::Lakefs => Self::from_iter::<services::Lakefs>(iter)?.finish(),
+            #[cfg(feature = "services-nebula-graph")]
+            Scheme::NebulaGraph => Self::from_iter::<services::NebulaGraph>(iter)?.finish(),
             v => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

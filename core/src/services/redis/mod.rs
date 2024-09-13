@@ -23,5 +23,4 @@ mod core;
 pub use backend::RedisBuilder as Redis;
 
 mod config;
-
 pub use config::RedisConfig;

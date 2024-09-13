@@ -41,16 +41,16 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use anyhow::Result;
 /// # use opendal::layers::MetricsLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
+/// # use opendal::Result;
 ///
 /// # fn main() -> Result<()> {
-///     let _ = Operator::new(services::Memory::default())?
-///         .layer(MetricsLayer::default())
-///         .finish();
-///     Ok(())
+/// let _ = Operator::new(services::Memory::default())?
+///     .layer(MetricsLayer::default())
+///     .finish();
+/// Ok(())
 /// # }
 /// ```
 ///

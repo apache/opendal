@@ -18,9 +18,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use bytes::{Buf, Bytes};
-use futures::channel::{mpsc, oneshot};
-use futures::{SinkExt, StreamExt};
+use bytes::Buf;
+use bytes::Bytes;
+use futures::channel::mpsc;
+use futures::channel::oneshot;
+use futures::SinkExt;
+use futures::StreamExt;
 use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;

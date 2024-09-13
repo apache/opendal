@@ -51,15 +51,25 @@ use crate::*;
 /// For example, while using `TimeoutLayer` with `RetryLayer` at the same time, please make sure
 /// timeout layer showed up before retry layer.
 ///
-/// ```no_build
-///  let op = Operator::new(builder.clone())
-///     .unwrap()
+/// ```no_run
+/// # use std::time::Duration;
+///
+/// # use opendal::layers::RetryLayer;
+/// # use opendal::layers::TimeoutLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+///
+/// # fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .layer(RetryLayer::new())
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Examples
@@ -68,22 +78,24 @@ use crate::*;
 /// operations, 3 seconds timeout for all io operations.
 ///
 /// ```no_run
-/// use std::time::Duration;
+/// # use std::time::Duration;
 ///
-/// use anyhow::Result;
-/// use opendal::layers::TimeoutLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::TimeoutLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(
 ///         TimeoutLayer::default()
 ///             .with_timeout(Duration::from_secs(10))
 ///             .with_io_timeout(Duration::from_secs(3)),
 ///     )
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Implementation Notes

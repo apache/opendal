@@ -143,6 +143,57 @@ impl LakefsCore {
 
         self.client.send(req).await
     }
+
+    pub async fn upload_object(
+        &self,
+        path: &str,
+        _args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let url = format!(
+            "{}/api/v1/repositories/{}/branches/{}/objects?path={}",
+            self.endpoint,
+            self.repository,
+            self.branch,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::post(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub async fn delete_object(&self, path: &str, _args: &OpDelete) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let url = format!(
+            "{}/api/v1/repositories/{}/branches/{}/objects?path={}",
+            self.endpoint,
+            self.repository,
+            self.branch,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::delete(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]

@@ -22,7 +22,7 @@ use futures::FutureExt;
 use crate::raw::*;
 use crate::*;
 
-/// Add a Instrument await-tree for actor-based applications to the underlying services.
+/// Add an Instrument await-tree for actor-based applications to the underlying services.
 ///
 /// # AwaitTree
 ///
@@ -33,16 +33,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::AwaitTreeLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::AwaitTreeLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AwaitTreeLayer::new())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone, Default)]
 pub struct AwaitTreeLayer {}

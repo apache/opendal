@@ -20,7 +20,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::{TimeZone, Utc};
+use chrono::TimeZone;
+use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -29,6 +30,7 @@ use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
 use super::lister::LakefsLister;
+use super::writer::LakefsWriter;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
@@ -193,7 +195,7 @@ pub struct LakefsBackend {
 
 impl Access for LakefsBackend {
     type Reader = HttpBody;
-    type Writer = ();
+    type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -206,7 +208,8 @@ impl Access for LakefsBackend {
                 stat: true,
                 list: true,
                 read: true,
-
+                write: true,
+                delete: true,
                 ..Default::default()
             });
         am.into()
@@ -275,5 +278,29 @@ impl Access for LakefsBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(LakefsWriter::new(self.core.clone(), path.to_string(), args)),
+        ))
+    }
+
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        // This would delete the bucket, do not perform
+        if self.core.root == "/" && path == "/" {
+            return Ok(RpDelete::default());
+        }
+
+        let resp = self.core.delete_object(path, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

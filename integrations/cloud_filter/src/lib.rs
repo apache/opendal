@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! `cloudfilter_opendal` integrates OpenDAL with [cloud sync engines](https://learn.microsoft.com/en-us/windows/win32/cfapi/build-a-cloud-file-sync-engine).
+//! `cloud_filter_opendal` integrates OpenDAL with [cloud sync engines](https://learn.microsoft.com/en-us/windows/win32/cfapi/build-a-cloud-file-sync-engine).
 //! It provides a way to access various cloud storage on Windows.
 //!
-//! Note that `cloudfilter_opendal` is a read-only service, and it is not recommended to use it in production.
+//! Note that `cloud_filter_opendal` is a read-only service, and it is not recommended to use it in production.
 //!
 //! # Example
 //!
@@ -49,7 +49,7 @@
 //!     let client_path = std::env::var("CLIENT_PATH").expect("$CLIENT_PATH is set");
 //!
 //!     // Create a sync root id
-//!     let sync_root_id = SyncRootIdBuilder::new("cloudfilter_opendal")
+//!     let sync_root_id = SyncRootIdBuilder::new("cloud_filter_opendal")
 //!         .user_security_id(SecurityId::current_user()?)
 //!         .build();
 //!
@@ -69,7 +69,7 @@
 //!     let handle = Handle::current();
 //!     let connection = Session::new().connect_async(
 //!         &client_path,
-//!         cloudfilter_opendal::CloudFilter::new(op, client_path.clone().into()),
+//!         cloud_filter_opendal::CloudFilter::new(op, client_path.clone().into()),
 //!         move |f| handle.block_on(f),
 //!     )?;
 //!

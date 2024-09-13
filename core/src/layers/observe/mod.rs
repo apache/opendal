@@ -28,7 +28,6 @@
 //! | operation_duration_seconds   | Histogram | Histogram of time spent during opendal operations            | scheme, namespace, root, operation, path        |
 //! | operation_bytes.             | Histogram | Histogram of the bytes transferred during opendal operations | scheme, operation, root, operation, path        |
 //! | operation_errors_total       | Counter   | Error counter during opendal operations                      | scheme, operation, root, operation, path, error |
-//!
 
 mod metrics;
 

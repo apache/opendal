@@ -9,9 +9,9 @@ This service can be used to:
 
 - [x] stat
 - [x] read
-- [ ] write
+- [x] write
 - [ ] create_dir
-- [ ] delete
+- [x] delete
 - [ ] copy
 - [ ] rename
 - [x] list

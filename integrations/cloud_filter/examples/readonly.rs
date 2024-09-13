@@ -6,7 +6,7 @@ use cloud_filter::root::{
 use opendal::{services, Operator};
 use tokio::{runtime::Handle, signal};
 
-const PROVIDER_NAME: &str = "ro-cloudfilter";
+const PROVIDER_NAME: &str = "ro-cloud_filter";
 const DISPLAY_NAME: &str = "Read Only Cloud Filter";
 
 #[tokio::main]
@@ -45,7 +45,7 @@ async fn main() {
     let connection = Session::new()
         .connect_async(
             &client_path,
-            cloudfilter_opendal::CloudFilter::new(op, client_path.clone().into()),
+            cloud_filter_opendal::CloudFilter::new(op, client_path.clone().into()),
             move |f| handle.block_on(f),
         )
         .expect("create session");

@@ -62,12 +62,16 @@ pub use self::mime_guess::MimeGuessLayer;
 #[cfg(feature = "layers-prometheus")]
 mod prometheus;
 #[cfg(feature = "layers-prometheus")]
-pub use self::prometheus::{PrometheusLayer, PrometheusLayerBuilder};
+pub use self::prometheus::PrometheusLayer;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayerBuilder;
 
 #[cfg(feature = "layers-prometheus-client")]
 mod prometheus_client;
 #[cfg(feature = "layers-prometheus-client")]
-pub use self::prometheus_client::{PrometheusClientLayer, PrometheusClientLayerBuilder};
+pub use self::prometheus_client::PrometheusClientLayer;
+#[cfg(feature = "layers-prometheus-client")]
+pub use self::prometheus_client::PrometheusClientLayerBuilder;
 
 mod retry;
 pub use self::retry::RetryInterceptor;

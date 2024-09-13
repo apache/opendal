@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.11"
+version = "0.0.12"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -35,7 +35,7 @@ clap = { version = "4.5.7", features = ["derive", "env"] }
 env_logger = "0.11.2"
 futures-util = "0.3.30"
 log = "0.4.21"
-opendal = { version = "0.49.0", path = "../../core" }
+opendal = { version = "0.50.0", path = "../../core" }
 sharded-slab = "0.1.7"
 tokio = { version = "1.37.0", features = [
   "fs",
@@ -48,13 +48,13 @@ url = "2.5.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
-fuse3_opendal = { version = "0.0.6", path = "../../integrations/fuse3" }
+fuse3_opendal = { version = "0.0.7", path = "../../integrations/fuse3" }
 libc = "0.2.154"
 nix = { version = "0.29.0", features = ["user"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 cloud-filter = { version = "0.0.5" }
-cloudfilter_opendal = { version = "0.0.0", path = "../../integrations/cloudfilter" }
+cloud_filter_opendal = { version = "0.0.1", path = "../../integrations/cloud_filter" }
 
 [features]
 default = ["services-fs", "services-s3"]
@@ -62,7 +62,7 @@ services-fs = ["opendal/services-fs"]
 services-s3 = ["opendal/services-s3"]
 
 [dev-dependencies]
-opendal = { version = "0.49.0", path = "../../core", features = ["tests"] }
+opendal = { version = "0.50.0", path = "../../core", features = ["tests"] }
 tempfile = "3.10.1"
 test-context = "0.3.0"
 urlencoding = "2.1.3"

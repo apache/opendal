@@ -34,12 +34,12 @@ use cloud_filter::{
         SyncRootIdBuilder, SyncRootInfo,
     },
 };
-use cloudfilter_opendal::CloudFilter;
+use cloud_filter_opendal::CloudFilter;
 use libtest_mimic::{Arguments, Trial};
 use opendal::{raw::tests, Operator};
 use tokio::runtime::Handle;
 
-const PROVIDER_NAME: &str = "ro-cloudfilter";
+const PROVIDER_NAME: &str = "ro-cloud_filter";
 const DISPLAY_NAME: &str = "Test Cloud Filter";
 const ROOT_PATH: &str = "C:\\sync_root";
 

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.50.0] - 2024-09-11
+
+### Added
+* feat(core)!: make list return path itself by @meteorgan in https://github.com/apache/opendal/pull/4959
+* feat(services/oss): support role_arn and oidc_provider_arn by @tisonkun in https://github.com/apache/opendal/pull/5063
+* feat(services): add lakefs support by @liugddx in https://github.com/apache/opendal/pull/5086
+* feat: add list api for lakefs service. by @liugddx in https://github.com/apache/opendal/pull/5092
+* feat: add write api for lakefs service. by @liugddx in https://github.com/apache/opendal/pull/5100
+* feat: add delete api for lakefs service. by @liugddx in https://github.com/apache/opendal/pull/5107
+### Changed
+* refactor: use sqlx for sql services  by @tisonkun in https://github.com/apache/opendal/pull/5040
+* refactor(core)!: Add observe layer as building block by @Xuanwo in https://github.com/apache/opendal/pull/5064
+* refactor(layers/prometheus): rewrite prometheus layer based on observe mod by @koushiro in https://github.com/apache/opendal/pull/5069
+* refactor(bindings/java): replace `num_cpus` with `std::thread::available_parallelism` by @miroim in https://github.com/apache/opendal/pull/5080
+* refactor(layers/prometheus): provide builder APIs by @koushiro in https://github.com/apache/opendal/pull/5072
+* refactor(layers/prometheus-client): provide builder APIs by @koushiro in https://github.com/apache/opendal/pull/5073
+* refactor(layers/metrics): rewrite metrics layer using observe layer by @koushiro in https://github.com/apache/opendal/pull/5098
+### Fixed
+* fix(core): TimeoutLayer now needs enable tokio time by @Xuanwo in https://github.com/apache/opendal/pull/5057
+* fix(core): Fix failed list related tests by @Xuanwo in https://github.com/apache/opendal/pull/5058
+* fix(services/memory): blocking_scan right range by @meteorgan in https://github.com/apache/opendal/pull/5062
+* fix(core/services/mysql): Fix mysql Capability by @jackyyyyyssss in https://github.com/apache/opendal/pull/5067
+* fix: fix rust 1.76 error due to temporary value being dropped by @aawsome in https://github.com/apache/opendal/pull/5071
+* fix(service/fs): error due to temporary value being dropped by @miroim in https://github.com/apache/opendal/pull/5079
+* fix(core/services/hdfs): Fix the HDFS write failure when atomic_write_dir is set by @meteorgan in https://github.com/apache/opendal/pull/5039
+* fix(services/icloud): adjust error handling code to avoid having to write out result type explicitly by @koushiro in https://github.com/apache/opendal/pull/5091
+* fix(services/monoiofs): handle async cancel during file open by @NKID00 in https://github.com/apache/opendal/pull/5094
+### Docs
+* docs: Update binding-java.md by @tisonkun in https://github.com/apache/opendal/pull/5087
+### CI
+* ci(bindings/go): add golangci-lint by @yuchanns in https://github.com/apache/opendal/pull/5060
+* ci(bindings/zig): Fix build and test of zig on 0.13 by @Xuanwo in https://github.com/apache/opendal/pull/5102
+* ci: Don't publish with all features by @Xuanwo in https://github.com/apache/opendal/pull/5108
+* ci: Fix upload-artifacts doesn't include hidden files by @Xuanwo in https://github.com/apache/opendal/pull/5112
+### Chore
+* chore(bindings/go): bump ffi and sys version by @shoothzj in https://github.com/apache/opendal/pull/5055
+* chore: Bump backon to 1.0.0 by @Xuanwo in https://github.com/apache/opendal/pull/5056
+* chore(services/rocksdb): fix misuse rocksdb prefix iterator by @meteorgan in https://github.com/apache/opendal/pull/5059
+* chore(README): add Go binding badge by @yuchanns in https://github.com/apache/opendal/pull/5074
+* chore(deps): bump crate-ci/typos from 1.23.6 to 1.24.3 by @dependabot in https://github.com/apache/opendal/pull/5085
+* chore(layers/prometheus-client): export `PrometheusClientLayerBuilder` type by @koushiro in https://github.com/apache/opendal/pull/5093
+* chore(layers): check the examples when running tests by @koushiro in https://github.com/apache/opendal/pull/5104
+* chore(integrations/parquet): Bump parquet to 53 by @Xuanwo in https://github.com/apache/opendal/pull/5109
+* chore: Bump OpenDAL to 0.50.0 by @Xuanwo in https://github.com/apache/opendal/pull/5110
+
 ## [v0.49.2] - 2024-08-26
 
 ### Added
@@ -3960,6 +4005,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.50.0]: https://github.com/apache/opendal/compare/v0.49.2...v0.50.0
 [v0.49.2]: https://github.com/apache/opendal/compare/v0.49.1...v0.49.2
 [v0.49.1]: https://github.com/apache/opendal/compare/v0.49.0...v0.49.1
 [v0.49.0]: https://github.com/apache/opendal/compare/v0.48.0...v0.49.0

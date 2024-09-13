@@ -24,9 +24,13 @@ mod error;
 mod lister;
 
 #[cfg(feature = "services-lakefs")]
+mod writer;
+
+#[cfg(feature = "services-lakefs")]
 mod backend;
 #[cfg(feature = "services-lakefs")]
 pub use backend::LakefsBuilder as Lakefs;
 
 mod config;
+
 pub use config::LakefsConfig;

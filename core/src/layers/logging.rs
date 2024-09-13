@@ -43,16 +43,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::LoggingLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::LoggingLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::default())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Output
@@ -76,13 +78,14 @@ use crate::*;
 /// You can implement your own logging interceptor to customize the logging behavior.
 ///
 /// ```no_run
-/// use opendal::layers::LoggingInterceptor;
-/// use opendal::layers::LoggingLayer;
-/// use opendal::raw;
-/// use opendal::services;
-/// use opendal::Error;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::LoggingInterceptor;
+/// # use opendal::layers::LoggingLayer;
+/// # use opendal::raw;
+/// # use opendal::services;
+/// # use opendal::Error;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
 /// #[derive(Debug, Clone)]
 /// struct MyLoggingInterceptor;
@@ -100,10 +103,12 @@ use crate::*;
 ///     }
 /// }
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::new(MyLoggingInterceptor))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct LoggingLayer<I = DefaultLoggingInterceptor> {

@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+use std::vec::IntoIter;
+
 use super::Adapter;
 use super::Value;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
-use std::vec::IntoIter;
 
 /// The typed kv backend which implements Accessor for typed kv adapter.
 #[derive(Debug, Clone)]

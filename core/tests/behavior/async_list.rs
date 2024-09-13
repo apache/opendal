@@ -18,12 +18,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::*;
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+
+use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();

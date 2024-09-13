@@ -20,13 +20,15 @@ use http::Uri;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
 use redis::Client;
+use redis::ConnectionAddr;
 use redis::ConnectionInfo;
+use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
-use redis::{ConnectionAddr, ProtocolVersion};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
+
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

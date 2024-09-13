@@ -15,11 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{Buffer, Error, ErrorKind};
-use redis::aio::{ConnectionLike, ConnectionManager};
+use crate::Buffer;
+use crate::Error;
+use crate::ErrorKind;
+
+use redis::aio::ConnectionLike;
+use redis::aio::ConnectionManager;
+
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use redis::{from_redis_value, AsyncCommands, Client, RedisError};
+use redis::from_redis_value;
+use redis::AsyncCommands;
+use redis::Client;
+use redis::RedisError;
+
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -131,7 +140,7 @@ impl bb8::ManageConnection for RedisConnectionManager {
         };
         let pong: String = from_redis_value(&pong_value).map_err(format_redis_error)?;
 
-        if pong == String::from("PONG") {
+        if pong == "PONG" {
             Ok(())
         } else {
             Err(Error::new(ErrorKind::Unexpected, "PING ERROR"))

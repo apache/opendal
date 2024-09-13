@@ -28,7 +28,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
-
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -301,7 +300,7 @@ impl Adapter {
                     .map_err(|err| {
                         Error::new(ErrorKind::ConfigInvalid, "connect to redis failed")
                             .set_source(err)
-                    });
+                    })
             })
             .await?;
         pool.get().await.map_err(|err| match err {
@@ -335,7 +334,6 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
-                delete: true,
                 ..Default::default()
             },
         )

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: minio_s3
+name: minio_s3_with_versioning
 description: 'Behavior test for Minio S3 with bucket versioning enabled'
 
 runs:

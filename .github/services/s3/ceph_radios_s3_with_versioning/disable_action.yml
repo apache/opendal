@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: ceph_rados_s3
-description: 'Behavior test for CEPH OBJECT GATEWAY S3'
+name: ceph_rados_s3_with_versioning
+description: 'Behavior test for CEPH OBJECT GATEWAY S3 with bucket versioning enabled'
 
 runs:
   using: "composite"

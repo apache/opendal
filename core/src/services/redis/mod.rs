@@ -14,13 +14,12 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
 #[cfg(feature = "services-redis")]
 mod backend;
 #[cfg(feature = "services-redis")]
-mod core;
-
-#[cfg(feature = "services-redis")]
 pub use backend::RedisBuilder as Redis;
-
+#[cfg(feature = "services-redis")]
+mod core;
 mod config;
 pub use config::RedisConfig;

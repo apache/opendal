@@ -295,7 +295,7 @@ impl Adapter {
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                return bb8::Pool::builder()
+                bb8::Pool::builder()
                     .build(self.get_redis_connection_manager())
                     .await
                     .map_err(|err| {

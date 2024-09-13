@@ -144,6 +144,7 @@ pub struct S3ObjectVersionsLister {
     delimiter: &'static str,
     limit: Option<usize>,
     start_after: String,
+    abs_start_after: String,
 }
 
 impl S3ObjectVersionsLister {
@@ -155,32 +156,39 @@ impl S3ObjectVersionsLister {
         start_after: Option<&str>,
     ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
+        let start_after = start_after.unwrap_or_default().to_owned();
+        let abs_start_after = build_abs_path(core.root.as_str(), start_after.as_str());
 
         Self {
             core,
             prefix: path.to_string(),
             delimiter,
             limit,
-            start_after: start_after.map_or("".to_owned(), String::from),
+            start_after,
+            abs_start_after,
         }
     }
 }
 
 impl oio::PageList for S3ObjectVersionsLister {
     async fn next_page(&self, ctx: &mut PageContext) -> Result<()> {
-        let key_marker = if ctx.key_marker.is_empty() && !self.start_after.is_empty() {
-            build_abs_path(&self.core.root, &self.start_after)
+        let markers = ctx.token.rsplit_once(" ");
+        let (key_marker, version_id_marker) = if let Some(data) = markers {
+            data
+        } else if !self.start_after.is_empty() {
+            (self.abs_start_after.as_str(), "")
         } else {
-            ctx.key_marker.clone()
+            ("", "")
         };
+
         let resp = self
             .core
             .s3_list_object_versions(
                 &self.prefix,
                 self.delimiter,
                 self.limit,
-                &key_marker,
-                &ctx.version_id_marker,
+                key_marker,
+                version_id_marker,
             )
             .await?;
         if resp.status() != http::StatusCode::OK {
@@ -196,8 +204,11 @@ impl oio::PageList for S3ObjectVersionsLister {
         } else {
             false
         };
-        ctx.key_marker = output.next_key_marker.unwrap_or_default();
-        ctx.version_id_marker = output.next_version_id_marker.unwrap_or_default();
+        ctx.token = format!(
+            "{} {}",
+            output.next_key_marker.unwrap_or_default(),
+            output.next_version_id_marker.unwrap_or_default()
+        );
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(

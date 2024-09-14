@@ -37,33 +37,42 @@ pub enum RedisConnection {
     Cluster(ClusterConnection),
 }
 impl RedisConnection {
-    pub async fn get(&self, key: &str) -> crate::Result<Option<Buffer>> {
-        let result: Option<bytes::Bytes> = match self.clone() {
-            RedisConnection::Normal(mut conn) => conn.get(key).await.map_err(format_redis_error),
-            RedisConnection::Cluster(mut conn) => conn.get(key).await.map_err(format_redis_error),
+    pub async fn get(&mut self, key: &str) -> crate::Result<Option<Buffer>> {
+        let result: Option<bytes::Bytes> = match self {
+            RedisConnection::Normal(ref mut conn) => {
+                conn.get(key).await.map_err(format_redis_error)
+            }
+            RedisConnection::Cluster(ref mut conn) => {
+                conn.get(key).await.map_err(format_redis_error)
+            }
         }?;
         Ok(result.map(Buffer::from))
     }
 
-    pub async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> crate::Result<()> {
+    pub async fn set(
+        &mut self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> crate::Result<()> {
         let value = value.to_vec();
         if let Some(ttl) = ttl {
-            match self.clone() {
-                RedisConnection::Normal(mut conn) => conn
+            match self {
+                RedisConnection::Normal(ref mut conn) => conn
                     .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
-                RedisConnection::Cluster(mut conn) => conn
+                RedisConnection::Cluster(ref mut conn) => conn
                     .set_ex(key, value, ttl.as_secs())
                     .await
                     .map_err(format_redis_error)?,
             }
         } else {
-            match self.clone() {
-                RedisConnection::Normal(mut conn) => {
+            match self {
+                RedisConnection::Normal(ref mut conn) => {
                     conn.set(key, value).await.map_err(format_redis_error)?
                 }
-                RedisConnection::Cluster(mut conn) => {
+                RedisConnection::Cluster(ref mut conn) => {
                     conn.set(key, value).await.map_err(format_redis_error)?
                 }
             }
@@ -72,12 +81,12 @@ impl RedisConnection {
         Ok(())
     }
 
-    pub async fn delete(&self, key: &str) -> crate::Result<()> {
-        match self.clone() {
-            RedisConnection::Normal(mut conn) => {
+    pub async fn delete(&mut self, key: &str) -> crate::Result<()> {
+        match self {
+            RedisConnection::Normal(ref mut conn) => {
                 let _: () = conn.del(key).await.map_err(format_redis_error)?;
             }
-            RedisConnection::Cluster(mut conn) => {
+            RedisConnection::Cluster(ref mut conn) => {
                 let _: () = conn.del(key).await.map_err(format_redis_error)?;
             }
         }
@@ -85,12 +94,12 @@ impl RedisConnection {
         Ok(())
     }
 
-    pub async fn append(&self, key: &str, value: &[u8]) -> crate::Result<()> {
-        match self.clone() {
-            RedisConnection::Normal(mut conn) => {
+    pub async fn append(&mut self, key: &str, value: &[u8]) -> crate::Result<()> {
+        match self {
+            RedisConnection::Normal(ref mut conn) => {
                 () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
-            RedisConnection::Cluster(mut conn) => {
+            RedisConnection::Cluster(ref mut conn) => {
                 () = conn.append(key, value).await.map_err(format_redis_error)?;
             }
         }
@@ -127,13 +136,13 @@ impl bb8::ManageConnection for RedisConnectionManager {
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let pong_value = match conn.clone() {
-            RedisConnection::Normal(mut conn) => conn
+        let pong_value = match conn {
+            RedisConnection::Normal(ref mut conn) => conn
                 .send_packed_command(&redis::cmd("PING"))
                 .await
                 .map_err(format_redis_error)?,
 
-            RedisConnection::Cluster(mut conn) => conn
+            RedisConnection::Cluster(ref mut conn) => conn
                 .req_packed_command(&redis::cmd("PING"))
                 .await
                 .map_err(format_redis_error)?,

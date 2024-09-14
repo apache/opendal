@@ -341,26 +341,26 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, key: &str) -> Result<Option<Buffer>> {
-        let conn = self.conn().await?;
+        let mut conn = self.conn().await?;
         let result = conn.get(key).await?;
         Ok(result)
     }
 
     async fn set(&self, key: &str, value: Buffer) -> Result<()> {
-        let conn = self.conn().await?;
+        let mut conn = self.conn().await?;
         let value = value.to_vec();
         conn.set(key, value, self.default_ttl).await?;
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let conn = self.conn().await?;
+        let mut conn = self.conn().await?;
         conn.delete(key).await?;
         Ok(())
     }
 
     async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
-        let conn = self.conn().await?;
+        let mut conn = self.conn().await?;
         conn.append(key, value).await?;
         Ok(())
     }

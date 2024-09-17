@@ -362,7 +362,6 @@ mod tests {
             }),
             security: Some(HuggingfaceSecurity {
                 blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
-                name: "maelstrom/lib/maelstrom.jar".to_string(),
                 safe: true,
                 av_scan: Some(HuggingfaceAvScan {
                     virus_found: false,

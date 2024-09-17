@@ -234,6 +234,7 @@ OpenDAL is an active open-source project. We are always open to people who want 
 ### Rust Core
 
 - [apache/iceberg-rust](https://github.com/apache/iceberg-rust/): Native Rust implementation of [Apache Iceberg](https://iceberg.apache.org/), the open table format for analytic datasets.
+- [CrateDB](https://github.com/crate/crate): An open-source, distributed SQL database  for Real-Time Analytics and Hybrid Search
 - [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.

@@ -198,7 +198,6 @@ pub(super) struct HuggingfaceLastCommit {
 #[allow(dead_code)]
 pub(super) struct HuggingfaceSecurity {
     pub blob_id: String,
-    pub name: String,
     pub safe: bool,
     pub av_scan: Option<HuggingfaceAvScan>,
     pub pickle_import_scan: Option<HuggingfacePickleImportScan>,

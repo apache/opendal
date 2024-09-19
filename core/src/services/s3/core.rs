@@ -475,6 +475,10 @@ impl S3Core {
             req = self.insert_checksum_header(req, &checksum);
         }
 
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 

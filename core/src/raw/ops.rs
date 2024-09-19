@@ -600,6 +600,7 @@ pub struct OpWrite {
     content_disposition: Option<String>,
     cache_control: Option<String>,
     executor: Option<Executor>,
+    if_none_match: Option<String>,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -683,6 +684,17 @@ impl OpWrite {
     pub fn with_executor(mut self, executor: Executor) -> Self {
         self.executor = Some(executor);
         self
+    }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, s: &str) -> Self {
+        self.if_none_match = Some(s.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
     }
 
     /// Merge given executor into option.

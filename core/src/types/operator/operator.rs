@@ -1201,6 +1201,26 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `if_none_match`
+    ///
+    /// Set `if_none_match` for this `write` request.
+    ///
+    /// This feature can be used to check if the file already exists.
+    /// This prevents overwriting of existing objects with identical key names.
+    /// And must use the * (asterisk) value with this parameter
+    ///
+    /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let mut metadata = op.write_with("path/to/file", bs).if_none_match("*").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ```
@@ -1244,7 +1264,7 @@ impl Operator {
                 }
 
                 let context = WriteContext::new(inner, path, args, options);
-                let mut w = Writer::new(context).await?;
+                let mut w = Writer::new(context).await?;  // 这个函数就会调用S3的write函数
                 w.write(bs).await?;
                 w.close().await?;
                 Ok(())

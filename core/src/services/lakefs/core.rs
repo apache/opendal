@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::raw::*;
 use crate::*;
@@ -191,6 +191,37 @@ impl LakefsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub async fn copy_object(&self, path: &str, dest: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+        let d = build_abs_path(&self.root, dest)
+            .trim_end_matches('/')
+            .to_string();
+
+        let url = format!(
+            "{}/api/v1/repositories/{}/branches/{}/objects/copy?dest_path={}",
+            self.endpoint,
+            self.repository,
+            self.branch,
+            percent_encode_path(&d)
+        );
+
+        let mut req = Request::post(&url);
+
+        let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+        req = req.header(header::CONTENT_TYPE, "application/json");
+        let mut map = HashMap::new();
+        map.insert("src_path", p);
+
+        let req = req
+            .body(serde_json::to_vec(&map).unwrap().into())
+            .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

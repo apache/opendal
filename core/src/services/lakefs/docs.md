@@ -12,7 +12,7 @@ This service can be used to:
 - [x] write
 - [ ] create_dir
 - [x] delete
-- [ ] copy
+- [x] copy
 - [ ] rename
 - [x] list
 - [ ] ~~presign~~

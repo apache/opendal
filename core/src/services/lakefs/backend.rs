@@ -210,6 +210,7 @@ impl Access for LakefsBackend {
                 read: true,
                 write: true,
                 delete: true,
+                copy: true,
                 ..Default::default()
             });
         am.into()
@@ -300,6 +301,17 @@ impl Access for LakefsBackend {
         match status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED => Ok(RpCopy::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

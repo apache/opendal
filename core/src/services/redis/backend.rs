@@ -15,23 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::path::PathBuf;
-use std::time::Duration;
-
+use bb8::RunError;
 use http::Uri;
-use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
-use redis::cluster_async::ClusterConnection;
-use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
-use redis::RedisError;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::path::PathBuf;
+use std::time::Duration;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -39,6 +35,7 @@ use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
 
+use super::core::*;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
@@ -273,17 +270,11 @@ impl RedisBuilder {
 pub type RedisBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
-enum RedisConnection {
-    Normal(ConnectionManager),
-    Cluster(ClusterConnection),
-}
-
-#[derive(Clone)]
 pub struct Adapter {
     addr: String,
     client: Option<Client>,
     cluster_client: Option<ClusterClient>,
-    conn: OnceCell<RedisConnection>,
+    conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
 
     default_ttl: Option<Duration>,
 }
@@ -299,26 +290,39 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    async fn conn(&self) -> Result<RedisConnection> {
-        Ok(self
+    async fn conn(&self) -> Result<bb8::PooledConnection<'_, RedisConnectionManager>> {
+        let pool = self
             .conn
             .get_or_try_init(|| async {
-                if let Some(client) = self.client.clone() {
-                    ConnectionManager::new(client.clone())
-                        .await
-                        .map(RedisConnection::Normal)
-                } else {
-                    self.cluster_client
-                        .clone()
-                        .unwrap()
-                        .get_async_connection()
-                        .await
-                        .map(RedisConnection::Cluster)
-                }
+                bb8::Pool::builder()
+                    .build(self.get_redis_connection_manager())
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::ConfigInvalid, "connect to redis failed")
+                            .set_source(err)
+                    })
             })
-            .await
-            .map_err(format_redis_error)?
-            .clone())
+            .await?;
+        pool.get().await.map_err(|err| match err {
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
+            }
+            RunError::User(err) => err,
+        })
+    }
+
+    fn get_redis_connection_manager(&self) -> RedisConnectionManager {
+        if let Some(_client) = self.client.clone() {
+            RedisConnectionManager {
+                client: self.client.clone(),
+                cluster_client: None,
+            }
+        } else {
+            RedisConnectionManager {
+                client: None,
+                cluster_client: self.cluster_client.clone(),
+            }
+        }
     }
 }
 
@@ -337,69 +341,27 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, key: &str) -> Result<Option<Buffer>> {
-        let conn = self.conn().await?;
-        let result: Option<bytes::Bytes> = match conn {
-            RedisConnection::Normal(mut conn) => conn.get(key).await.map_err(format_redis_error),
-            RedisConnection::Cluster(mut conn) => conn.get(key).await.map_err(format_redis_error),
-        }?;
-        Ok(result.map(Buffer::from))
+        let mut conn = self.conn().await?;
+        let result = conn.get(key).await?;
+        Ok(result)
     }
 
     async fn set(&self, key: &str, value: Buffer) -> Result<()> {
-        let conn = self.conn().await?;
+        let mut conn = self.conn().await?;
         let value = value.to_vec();
-        match self.default_ttl {
-            Some(ttl) => match conn {
-                RedisConnection::Normal(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs())
-                    .await
-                    .map_err(format_redis_error)?,
-                RedisConnection::Cluster(mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs())
-                    .await
-                    .map_err(format_redis_error)?,
-            },
-            None => match conn {
-                RedisConnection::Normal(mut conn) => {
-                    conn.set(key, value).await.map_err(format_redis_error)?
-                }
-                RedisConnection::Cluster(mut conn) => {
-                    conn.set(key, value).await.map_err(format_redis_error)?
-                }
-            },
-        }
+        conn.set(key, value, self.default_ttl).await?;
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let conn = self.conn().await?;
-        match conn {
-            RedisConnection::Normal(mut conn) => {
-                let _: () = conn.del(key).await.map_err(format_redis_error)?;
-            }
-            RedisConnection::Cluster(mut conn) => {
-                let _: () = conn.del(key).await.map_err(format_redis_error)?;
-            }
-        }
+        let mut conn = self.conn().await?;
+        conn.delete(key).await?;
         Ok(())
     }
 
     async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
-        let conn = self.conn().await?;
-        match conn {
-            RedisConnection::Normal(mut conn) => {
-                () = conn.append(key, value).await.map_err(format_redis_error)?;
-            }
-            RedisConnection::Cluster(mut conn) => {
-                () = conn.append(key, value).await.map_err(format_redis_error)?;
-            }
-        }
+        let mut conn = self.conn().await?;
+        conn.append(key, value).await?;
         Ok(())
     }
-}
-
-pub fn format_redis_error(e: RedisError) -> Error {
-    Error::new(ErrorKind::Unexpected, e.category())
-        .set_source(e)
-        .set_temporary()
 }

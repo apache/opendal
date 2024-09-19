@@ -19,6 +19,7 @@
 mod backend;
 #[cfg(feature = "services-redis")]
 pub use backend::RedisBuilder as Redis;
-
 mod config;
+#[cfg(feature = "services-redis")]
+mod core;
 pub use config::RedisConfig;

@@ -92,6 +92,15 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
     }
 }
 
+impl<ONE: oio::List, TWO: oio::List> oio::List for TwoWays<ONE, TWO> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+        }
+    }
+}
+
 /// ThreeWays is used to implement traits that based on three ways.
 ///
 /// Users can wrap three different trait types together.

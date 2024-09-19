@@ -43,9 +43,10 @@ use reqwest::Url;
 use super::core::*;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
-use super::lister::S3Lister;
+use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
+use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
 use crate::*;
@@ -457,6 +458,13 @@ impl S3Builder {
         self
     }
 
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
+        self
+    }
+
     /// Check if `bucket` is valid
     /// `bucket` must be not empty and if `enable_virtual_host_style` is true
     /// it couldn't contain dot(.) character
@@ -856,6 +864,7 @@ impl Builder for S3Builder {
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_stat_with_override: self.config.disable_stat_with_override,
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
@@ -876,7 +885,7 @@ pub struct S3Backend {
 impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
-    type Lister = oio::PageLister<S3Lister>;
+    type Lister = S3Listers;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -929,6 +938,7 @@ impl Access for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
+                list_with_version: self.core.enable_versioning,
 
                 presign: true,
                 presign_stat: true,
@@ -1027,14 +1037,32 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = S3Lister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        if args.version() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning",
+            ));
+        }
+
+        let l = if args.version() {
+            TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        } else {
+            TwoWays::One(PageLister::new(S3Lister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

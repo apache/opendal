@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: minio_s3
-description: 'Behavior test for Minio S3.'
+name: minio_s3_with_versioning
+description: 'Behavior test for Minio S3 with bucket versioning enabled'
 
 runs:
   using: "composite"
@@ -33,6 +33,7 @@ runs:
         AWS_EC2_METADATA_DISABLED: "true"
       run: |
         aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+        aws --endpoint-url http://127.0.0.1:9000/ s3api put-bucket-versioning --bucket test --versioning-configuration Status=Enabled
 
     - name: Setup
       shell: bash
@@ -43,4 +44,5 @@ runs:
         OPENDAL_S3_ACCESS_KEY_ID=minioadmin
         OPENDAL_S3_SECRET_ACCESS_KEY=minioadmin
         OPENDAL_S3_REGION=us-east-1
+        OPENDAL_S3_ENABLE_VERSIONING=true
         EOF

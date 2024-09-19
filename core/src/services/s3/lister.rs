@@ -17,16 +17,18 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use quick_xml::de;
-
-use super::core::ListObjectsOutput;
 use super::core::S3Core;
+use super::core::{ListObjectVersionsOutput, ListObjectsOutput};
 use super::error::parse_error;
+use crate::raw::oio::PageContext;
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use bytes::Buf;
+use quick_xml::de;
+
+pub type S3Listers = TwoWays<oio::PageLister<S3Lister>, oio::PageLister<S3ObjectVersionsLister>>;
 
 pub struct S3Lister {
     core: Arc<S3Core>,
@@ -128,6 +130,113 @@ impl oio::PageList for S3Lister {
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
+        }
+
+        Ok(())
+    }
+}
+
+// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
+pub struct S3ObjectVersionsLister {
+    core: Arc<S3Core>,
+
+    prefix: String,
+    delimiter: &'static str,
+    limit: Option<usize>,
+    start_after: String,
+    abs_start_after: String,
+}
+
+impl S3ObjectVersionsLister {
+    pub fn new(
+        core: Arc<S3Core>,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+        start_after: Option<&str>,
+    ) -> Self {
+        let delimiter = if recursive { "" } else { "/" };
+        let start_after = start_after.unwrap_or_default().to_owned();
+        let abs_start_after = build_abs_path(core.root.as_str(), start_after.as_str());
+
+        Self {
+            core,
+            prefix: path.to_string(),
+            delimiter,
+            limit,
+            start_after,
+            abs_start_after,
+        }
+    }
+}
+
+impl oio::PageList for S3ObjectVersionsLister {
+    async fn next_page(&self, ctx: &mut PageContext) -> Result<()> {
+        let markers = ctx.token.rsplit_once(" ");
+        let (key_marker, version_id_marker) = if let Some(data) = markers {
+            data
+        } else if !self.start_after.is_empty() {
+            (self.abs_start_after.as_str(), "")
+        } else {
+            ("", "")
+        };
+
+        let resp = self
+            .core
+            .s3_list_object_versions(
+                &self.prefix,
+                self.delimiter,
+                self.limit,
+                key_marker,
+                version_id_marker,
+            )
+            .await?;
+        if resp.status() != http::StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let body = resp.into_body();
+        let output: ListObjectVersionsOutput =
+            de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+
+        ctx.done = if let Some(is_truncated) = output.is_truncated {
+            !is_truncated
+        } else {
+            false
+        };
+        ctx.token = format!(
+            "{} {}",
+            output.next_key_marker.unwrap_or_default(),
+            output.next_version_id_marker.unwrap_or_default()
+        );
+
+        for prefix in output.common_prefixes {
+            let de = oio::Entry::new(
+                &build_rel_path(&self.core.root, &prefix.prefix),
+                Metadata::new(EntryMode::DIR),
+            );
+            ctx.entries.push_back(de);
+        }
+
+        for version_object in output.version {
+            let mut path = build_rel_path(&self.core.root, &version_object.key);
+            if path.is_empty() {
+                path = "/".to_owned();
+            }
+
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            meta.set_version(&version_object.version_id);
+            meta.set_content_length(version_object.size);
+            meta.set_last_modified(parse_datetime_from_rfc3339(
+                version_object.last_modified.as_str(),
+            )?);
+            if let Some(etag) = version_object.etag {
+                meta.set_etag(&etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
+
+            let entry = oio::Entry::new(&path, meta);
+            ctx.entries.push_back(entry);
         }
 
         Ok(())

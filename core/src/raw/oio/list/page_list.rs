@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::future::Future;
-
 use crate::raw::*;
 use crate::*;
+use std::collections::VecDeque;
+use std::future::Future;
 
 /// PageList is used to implement [`oio::List`] based on API supporting pagination. By implementing
 /// PageList, services don't need to care about the details of page list.

@@ -269,12 +269,12 @@ impl kv::Adapter for Adapter {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvResponse {
-    pub(crate) errors: Vec<CfKvError>,
+pub(super) struct CfKvResponse {
+    pub(super) errors: Vec<CfKvError>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvScanResponse {
+pub(super) struct CfKvScanResponse {
     result: Vec<CfKvScanResult>,
     // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
@@ -292,8 +292,8 @@ struct CfKvScanResult {
 // }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvError {
-    pub(crate) code: i32,
+pub(super) struct CfKvError {
+    pub(super) code: i32,
 }
 
 #[cfg(test)]

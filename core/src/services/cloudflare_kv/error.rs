@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Parse error response into Error.
-pub(crate) async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -59,7 +59,7 @@ pub(crate) async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 pub(crate) fn parse_cfkv_error_code(errors: Vec<CfKvError>) -> Option<(ErrorKind, bool)> {

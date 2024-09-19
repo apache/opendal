@@ -205,7 +205,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Some(resp.into_body())),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -222,7 +222,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -236,7 +236,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -263,18 +263,18 @@ impl kv::Adapter for Adapter {
                     })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvResponse {
-    pub(crate) errors: Vec<CfKvError>,
+pub(super) struct CfKvResponse {
+    pub(super) errors: Vec<CfKvError>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvScanResponse {
+pub(super) struct CfKvScanResponse {
     result: Vec<CfKvScanResult>,
     // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
@@ -292,8 +292,8 @@ struct CfKvScanResult {
 // }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvError {
-    pub(crate) code: i32,
+pub(super) struct CfKvError {
+    pub(super) code: i32,
 }
 
 #[cfg(test)]

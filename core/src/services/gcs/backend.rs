@@ -497,7 +497,7 @@ impl Access for GcsBackend {
             }
         };
 
-        self.core.sign_query(&mut req, args.expire()).await?;
+        self.core.sign_query(&mut req, args.expire())?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

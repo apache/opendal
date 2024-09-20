@@ -114,7 +114,7 @@ impl VercelBlobCore {
         self.client.fetch(req).await
     }
 
-    pub async fn get_put_request(
+    pub fn get_put_request(
         &self,
         path: &str,
         size: Option<u64>,

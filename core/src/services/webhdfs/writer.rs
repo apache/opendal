@@ -176,10 +176,7 @@ impl oio::AppendWrite for WebhdfsWriter {
             _ => return Err(parse_error(resp)),
         }
 
-        let req = self
-            .backend
-            .webhdfs_append_request(&location, size, body)
-            .await?;
+        let req = self.backend.webhdfs_append_request(&location, size, body)?;
 
         let resp = self.backend.client.send(req).await?;
 

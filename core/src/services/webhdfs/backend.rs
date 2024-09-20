@@ -325,7 +325,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_append_request(
+    pub fn webhdfs_append_request(
         &self,
         location: &str,
         size: u64,
@@ -374,11 +374,7 @@ impl WebhdfsBackend {
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    async fn webhdfs_open_request(
-        &self,
-        path: &str,
-        range: &BytesRange,
-    ) -> Result<Request<Buffer>> {
+    fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
@@ -450,7 +446,7 @@ impl WebhdfsBackend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let req = self.webhdfs_open_request(path, &range).await?;
+        let req = self.webhdfs_open_request(path, &range)?;
         self.client.fetch(req).await
     }
 

@@ -259,7 +259,7 @@ impl Access for GhacBackend {
     ///
     /// In this way, we can support both self-hosted GHES and `github.com`.
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let req = self.ghac_query(path).await?;
+        let req = self.ghac_query(path)?;
 
         let resp = self.client.send(req).await?;
 
@@ -297,7 +297,7 @@ impl Access for GhacBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let req = self.ghac_query(path).await?;
+        let req = self.ghac_query(path)?;
 
         let resp = self.client.send(req).await?;
 
@@ -310,7 +310,7 @@ impl Access for GhacBackend {
             return Err(parse_error(resp));
         };
 
-        let req = self.ghac_get_location(&location, args.range()).await?;
+        let req = self.ghac_get_location(&location, args.range())?;
         let resp = self.client.fetch(req).await?;
 
         let status = resp.status();
@@ -327,7 +327,7 @@ impl Access for GhacBackend {
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let req = self.ghac_reserve(path).await?;
+        let req = self.ghac_reserve(path)?;
 
         let resp = self.client.send(req).await?;
 
@@ -363,7 +363,7 @@ impl Access for GhacBackend {
 }
 
 impl GhacBackend {
-    async fn ghac_query(&self, path: &str) -> Result<Request<Buffer>> {
+    fn ghac_query(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -382,11 +382,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    pub async fn ghac_get_location(
-        &self,
-        location: &str,
-        range: BytesRange,
-    ) -> Result<Request<Buffer>> {
+    pub fn ghac_get_location(&self, location: &str, range: BytesRange) -> Result<Request<Buffer>> {
         let mut req = Request::get(location);
 
         if !range.is_full() {
@@ -396,7 +392,7 @@ impl GhacBackend {
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    async fn ghac_reserve(&self, path: &str) -> Result<Request<Buffer>> {
+    fn ghac_reserve(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
@@ -420,7 +416,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    pub async fn ghac_upload(
+    pub fn ghac_upload(
         &self,
         cache_id: i64,
         offset: u64,
@@ -446,7 +442,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    pub async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<Buffer>> {
+    pub fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<Buffer>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let bs =

@@ -308,7 +308,7 @@ impl Access for ObsBackend {
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -324,7 +324,7 @@ impl Access for ObsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -354,7 +354,7 @@ impl Access for ObsBackend {
             StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 Ok(RpDelete::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -370,7 +370,7 @@ impl Access for ObsBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

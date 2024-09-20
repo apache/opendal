@@ -289,7 +289,7 @@ impl kv::Adapter for Adapter {
                 let d1_response = D1Response::parse(&bs)?;
                 Ok(d1_response.get_result(&self.value_field))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -311,7 +311,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -323,7 +323,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

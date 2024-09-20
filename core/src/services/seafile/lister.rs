@@ -108,7 +108,7 @@ impl oio::PageList for SeafileLister {
                 ctx.done = true;
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

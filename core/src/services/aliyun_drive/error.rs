@@ -22,12 +22,12 @@ use serde::Deserialize;
 use crate::*;
 
 #[derive(Default, Debug, Deserialize)]
-pub struct AliyunDriveError {
+struct AliyunDriveError {
     code: String,
     message: String,
 }
 
-pub async fn parse_error(res: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(res: Response<Buffer>) -> Error {
     let (parts, mut body) = res.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
     let (code, message) = serde_json::from_reader::<_, AliyunDriveError>(bs.clone().reader())
@@ -52,5 +52,5 @@ pub async fn parse_error(res: Response<Buffer>) -> Result<Error> {
     if retryable {
         err = err.set_temporary();
     }
-    Ok(err)
+    err
 }

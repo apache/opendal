@@ -332,7 +332,7 @@ impl Access for IpfsBackend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -348,7 +348,7 @@ impl Access for IpfsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -426,7 +426,7 @@ impl oio::PageList for DirStream {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

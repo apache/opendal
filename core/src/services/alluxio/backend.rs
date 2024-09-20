@@ -193,7 +193,7 @@ impl Access for AlluxioBackend {
         if !resp.status().is_success() {
             let (part, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)).await?);
+            return Err(parse_error(Response::from_parts(part, buf)));
         }
         Ok((RpRead::new(), resp.into_body()))
     }

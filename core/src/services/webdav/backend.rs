@@ -259,7 +259,7 @@ impl Access for WebdavBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -280,7 +280,7 @@ impl Access for WebdavBackend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -298,7 +298,7 @@ impl Access for WebdavBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -310,7 +310,7 @@ impl Access for WebdavBackend {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

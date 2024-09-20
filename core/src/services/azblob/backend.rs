@@ -546,7 +546,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -559,7 +559,7 @@ impl Access for AzblobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -586,7 +586,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -608,7 +608,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -651,7 +651,7 @@ impl Access for AzblobBackend {
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // get boundary from response header
@@ -701,7 +701,7 @@ impl Access for AzblobBackend {
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
                 results.push((path, Ok(RpDelete::default().into())));
             } else {
-                results.push((path, Err(parse_error(resp).await?)));
+                results.push((path, Err(parse_error(resp))));
             }
         }
         Ok(RpBatch::new(results))

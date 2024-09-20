@@ -55,7 +55,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -76,7 +76,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
                 Ok(resp.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -109,7 +109,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
                     checksum: None,
                 })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -131,7 +131,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

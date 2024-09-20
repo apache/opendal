@@ -55,9 +55,7 @@ impl oio::Write for GhacWriter {
         let resp = self.backend.client.send(req).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?);
+            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }
 
         self.size += size as u64;
@@ -75,9 +73,7 @@ impl oio::Write for GhacWriter {
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
+            Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
         }
     }
 }

@@ -53,9 +53,7 @@ impl oio::OneShotWrite for AzdlsWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => {}
             _ => {
-                return Err(parse_error(resp)
-                    .await?
-                    .with_operation("Backend::azdls_create_request"));
+                return Err(parse_error(resp).with_operation("Backend::azdls_create_request"));
             }
         }
 
@@ -70,9 +68,7 @@ impl oio::OneShotWrite for AzdlsWriter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdls_update_request")),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
         }
     }
 }
@@ -87,7 +83,7 @@ impl oio::AppendWrite for AzdlsWriter {
         match status {
             StatusCode::OK => Ok(parse_content_length(headers)?.unwrap_or_default()),
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -105,9 +101,7 @@ impl oio::AppendWrite for AzdlsWriter {
             match status {
                 StatusCode::CREATED | StatusCode::OK => {}
                 _ => {
-                    return Err(parse_error(resp)
-                        .await?
-                        .with_operation("Backend::azdls_create_request"));
+                    return Err(parse_error(resp).with_operation("Backend::azdls_create_request"));
                 }
             }
         }
@@ -123,9 +117,7 @@ impl oio::AppendWrite for AzdlsWriter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdls_update_request")),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
         }
     }
 }

@@ -31,7 +31,7 @@ struct AlluxioError {
     message: String,
 }
 
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -56,7 +56,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
 
     err = with_error_response_context(err, parts);
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]
@@ -66,8 +66,8 @@ mod tests {
     use super::*;
 
     /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-    #[tokio::test]
-    async fn test_parse_error() {
+    #[test]
+    fn test_parse_error() {
         let err_res = vec![
             (
                 r#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exist"}"#,
@@ -91,10 +91,9 @@ mod tests {
                 .body(body)
                 .unwrap();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(resp);
 
-            assert!(err.is_ok());
-            assert_eq!(err.unwrap().kind(), res.1);
+            assert_eq!(err.kind(), res.1);
         }
     }
 }

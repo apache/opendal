@@ -45,7 +45,7 @@ impl oio::OneShotWrite for DropboxWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

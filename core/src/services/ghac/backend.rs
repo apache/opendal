@@ -269,7 +269,7 @@ impl Access for GhacBackend {
                 serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         };
 
         let req = Request::get(location)
@@ -292,7 +292,7 @@ impl Access for GhacBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -307,7 +307,7 @@ impl Access for GhacBackend {
                 serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         };
 
         let req = self.ghac_get_location(&location, args.range()).await?;
@@ -321,7 +321,7 @@ impl Access for GhacBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -337,9 +337,7 @@ impl Access for GhacBackend {
                 serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
         } else {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
+            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve")));
         };
 
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
@@ -359,7 +357,7 @@ impl Access for GhacBackend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 }

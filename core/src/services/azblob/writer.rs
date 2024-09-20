@@ -79,12 +79,12 @@ impl oio::AppendWrite for AzblobWriter {
                         // do nothing
                     }
                     _ => {
-                        return Err(parse_error(resp).await?);
+                        return Err(parse_error(resp));
                     }
                 }
                 Ok(0)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -100,7 +100,7 @@ impl oio::AppendWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
@@ -118,7 +118,7 @@ impl oio::BlockWrite for AzblobWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -131,7 +131,7 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -144,7 +144,7 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

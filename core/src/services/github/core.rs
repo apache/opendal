@@ -102,7 +102,7 @@ impl GithubCore {
                 Ok(Some(resp.sha))
             }
             StatusCode::NOT_FOUND => Ok(None),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -230,7 +230,7 @@ impl GithubCore {
         match resp.status() {
             StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -264,7 +264,7 @@ impl GithubCore {
                 Ok(resp)
             }
             StatusCode::NOT_FOUND => Ok(ListResponse::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -291,7 +291,7 @@ impl GithubCore {
 
                 Ok(resp.tree)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

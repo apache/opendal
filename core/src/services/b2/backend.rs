@@ -293,7 +293,7 @@ impl Access for B2Backend {
                 let meta = parse_file_info(&resp.files[0]);
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -311,7 +311,7 @@ impl Access for B2Backend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -334,7 +334,7 @@ impl Access for B2Backend {
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpDelete::default()),
                     // Representative deleted
@@ -379,7 +379,7 @@ impl Access for B2Backend {
                 let file_id = resp.files[0].clone().file_id;
                 Ok(file_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }?;
 
         let Some(source_file_id) = source_file_id else {
@@ -392,7 +392,7 @@ impl Access for B2Backend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

@@ -191,7 +191,7 @@ impl Access for VercelBlobBackend {
 
                 parse_blob(&resp).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -207,7 +207,7 @@ impl Access for VercelBlobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -233,7 +233,7 @@ impl Access for VercelBlobBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

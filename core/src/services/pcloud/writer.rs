@@ -60,7 +60,7 @@ impl oio::OneShotWrite for PcloudWriter {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -186,7 +186,7 @@ impl Access for SupabaseBackend {
                     StatusCode::NOT_FOUND if path.ends_with('/') => {
                         Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                     }
-                    _ => Err(parse_error(resp).await?),
+                    _ => Err(parse_error(resp)),
                 }
             }
         }
@@ -202,7 +202,7 @@ impl Access for SupabaseBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -221,7 +221,7 @@ impl Access for SupabaseBackend {
             Ok(RpDelete::default())
         } else {
             // deleting not existing objects is ok
-            let e = parse_error(resp).await?;
+            let e = parse_error(resp);
             if e.kind() == ErrorKind::NotFound {
                 Ok(RpDelete::default())
             } else {

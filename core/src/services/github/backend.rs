@@ -217,7 +217,7 @@ impl Access for GithubBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -242,7 +242,7 @@ impl Access for GithubBackend {
 
                 Ok(RpStat::new(m))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -258,7 +258,7 @@ impl Access for GithubBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }

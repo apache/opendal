@@ -202,7 +202,7 @@ impl Access for ChainsafeBackend {
             StatusCode::OK => Ok(RpCreateDir::default()),
             // Allow 409 when creating a existing dir
             StatusCode::CONFLICT => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -219,7 +219,7 @@ impl Access for ChainsafeBackend {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(RpStat::new(parse_info(output.content)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -232,7 +232,7 @@ impl Access for ChainsafeBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -254,7 +254,7 @@ impl Access for ChainsafeBackend {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

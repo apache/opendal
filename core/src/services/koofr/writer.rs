@@ -47,7 +47,7 @@ impl oio::OneShotWrite for KoofrWriter {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

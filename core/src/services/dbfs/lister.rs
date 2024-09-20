@@ -47,7 +47,7 @@ impl oio::PageList for DbfsLister {
                 ctx.done = true;
                 return Ok(());
             }
-            let error = parse_error(response).await?;
+            let error = parse_error(response);
             return Err(error);
         }
 

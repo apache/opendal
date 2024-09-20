@@ -138,7 +138,7 @@ impl Access for DropboxBackend {
                 }
                 Ok(RpStat::new(metadata))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -153,7 +153,7 @@ impl Access for DropboxBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -177,7 +177,7 @@ impl Access for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpDelete::default()),
                     _ => Err(err),
@@ -206,7 +206,7 @@ impl Access for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpCopy::default()),
                     _ => Err(err),
@@ -223,7 +223,7 @@ impl Access for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpRename::default()),
                     _ => Err(err),
@@ -246,7 +246,7 @@ impl Access for DropboxBackend {
 
         let resp = self.core.dropbox_delete_batch(paths).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

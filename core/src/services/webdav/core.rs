@@ -113,7 +113,7 @@ impl WebdavCore {
 
         let resp = self.client.send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -346,7 +346,7 @@ impl WebdavCore {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -48,7 +48,7 @@ impl oio::OneShotWrite for WebdavWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

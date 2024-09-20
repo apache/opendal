@@ -250,7 +250,7 @@ impl WebhdfsBackend {
         let status = resp.status();
 
         if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -299,7 +299,7 @@ impl WebhdfsBackend {
 
                 Ok(resp.location)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -511,7 +511,7 @@ impl WebhdfsBackend {
             StatusCode::NOT_FOUND => {
                 self.create_dir("/", OpCreateDir::new()).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
         Ok(())
     }
@@ -576,7 +576,7 @@ impl Access for WebhdfsBackend {
                     ))
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -608,7 +608,7 @@ impl Access for WebhdfsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -624,7 +624,7 @@ impl Access for WebhdfsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -650,7 +650,7 @@ impl Access for WebhdfsBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

@@ -107,7 +107,7 @@ impl SeafileCore {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
 
@@ -148,7 +148,7 @@ impl SeafileCore {
                     }
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
             Ok(signer.auth_info.clone())
@@ -181,7 +181,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -213,7 +213,7 @@ impl SeafileCore {
 
                 Ok(download_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -258,7 +258,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -289,7 +289,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -325,7 +325,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -52,7 +52,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -74,7 +74,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
                 Ok(id.to_string())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -100,7 +100,7 @@ impl oio::MultipartWrite for UpyunWriter {
                 etag: "".to_string(),
                 checksum: None,
             }),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -114,7 +114,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

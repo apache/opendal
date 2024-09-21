@@ -34,7 +34,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_not_existing,
             test_delete_stream,
             test_remove_one_file,
-            test_delete_with_version
+            test_delete_with_version,
+            test_delete_with_not_existing_version
         ));
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -221,7 +222,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    //TODO: refactor these code after `write` can return metadata
+    //TODO: refactor these code after `write` operation can return metadata
     op.write(path.as_str(), content)
         .await
         .expect("write must success");
@@ -247,6 +248,26 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     let ret = op.stat_with(path.as_str()).version(version).await;
     assert!(ret.is_err());
     assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().versioning {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+
+    let ret = op
+        .delete_with(path.as_str())
+        .version("not-existing-version")
+        .await;
+    assert!(ret.is_err());
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
 }

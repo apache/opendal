@@ -42,7 +42,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_with_override_content_disposition,
             test_stat_with_override_content_type,
             test_stat_root,
-            test_stat_with_version
+            test_stat_with_version,
+            stat_with_not_existing_version
         ))
     }
 
@@ -507,6 +508,7 @@ pub async fn test_stat_with_version(op: Operator) -> Result<()> {
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
+    //TODO: refactor these code after `write` operation can return metadata
     op.write(path.as_str(), content.clone())
         .await
         .expect("write must success");
@@ -534,6 +536,26 @@ pub async fn test_stat_with_version(op: Operator) -> Result<()> {
         .await
         .expect("stat must success");
     assert_eq!(first_meta, meta);
+
+    Ok(())
+}
+
+pub async fn stat_with_not_existing_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().versioning {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content.clone())
+        .await
+        .expect("write must success");
+
+    let ret = op
+        .stat_with(path.as_str())
+        .version("not-existing-version")
+        .await;
+    assert!(ret.is_err());
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
 }

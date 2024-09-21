@@ -1207,16 +1207,19 @@ impl Operator {
     ///
     /// This feature can be used to check if the file already exists.
     /// This prevents overwriting of existing objects with identical key names.
-    /// And must use the * (asterisk) value with this parameter
+    /// Users can use *(asterisk) to verify if a file already exists by matching with any ETag.
+    /// Note: S3 only support use *(asterisk).
     ///
     /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
     /// ```no_run
-    /// # use opendal::Result;
+    /// # use opendal::{ErrorKind, Result};
     /// use opendal::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let mut metadata = op.write_with("path/to/file", bs).if_none_match("*").await?;
+    /// let res = op.write_with("path/to/file", bs).if_none_match("*").await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())
     /// # }
     /// ```
@@ -1264,7 +1267,7 @@ impl Operator {
                 }
 
                 let context = WriteContext::new(inner, path, args, options);
-                let mut w = Writer::new(context).await?;  // 这个函数就会调用S3的write函数
+                let mut w = Writer::new(context).await?;
                 w.write(bs).await?;
                 w.close().await?;
                 Ok(())

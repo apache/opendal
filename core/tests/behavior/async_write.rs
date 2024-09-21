@@ -44,6 +44,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_cache_control,
             test_write_with_content_type,
             test_write_with_content_disposition,
+            test_write_with_if_none_match,
             test_write_with_user_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
@@ -622,5 +623,26 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Write an exists file with if_none_match should match, else get a ConditionNotMatch error.
+pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_if_none_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let res = op
+        .write_with(&path, content.clone())
+        .if_none_match("*")
+        .await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
     Ok(())
 }

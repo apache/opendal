@@ -44,7 +44,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_with_special_chars,
             test_read_with_override_cache_control,
             test_read_with_override_content_disposition,
-            test_read_with_override_content_type
+            test_read_with_override_content_type,
+            test_read_with_version
         ))
     }
 
@@ -550,6 +551,40 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
+
+    Ok(())
+}
+
+pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().versioning {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content.clone())
+        .await
+        .expect("write must success");
+    let meta = op.stat(path.as_str()).await.expect("stat must success");
+    let version = meta.version().expect("must have version");
+
+    let data = op
+        .read_with(path.as_str())
+        .version(version)
+        .await
+        .expect("read must success");
+    assert_eq!(content, data.to_vec());
+
+    op.write(path.as_str(), "1")
+        .await
+        .expect("write must success");
+
+    // we can use read with version to get the first version data
+    let second_data = op
+        .read_with(path.as_str())
+        .version(version)
+        .await
+        .expect("read must success");
+    assert_eq!(content, second_data.to_vec());
 
     Ok(())
 }

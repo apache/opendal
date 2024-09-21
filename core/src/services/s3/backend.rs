@@ -938,7 +938,6 @@ impl Access for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_with_version: self.core.enable_versioning,
 
                 presign: true,
                 presign_stat: true,
@@ -947,6 +946,8 @@ impl Access for S3Backend {
 
                 batch: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
+
+                versioning: self.core.enable_versioning,
 
                 ..Default::default()
             });

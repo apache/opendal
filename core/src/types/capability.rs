@@ -134,8 +134,6 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list with recursive.
     pub list_with_recursive: bool,
-    /// If backend supports list with object version.
-    pub list_with_version: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -155,6 +153,9 @@ pub struct Capability {
 
     /// If operator supports blocking.
     pub blocking: bool,
+
+    /// If operator supports versioning
+    pub versioning: bool,
 }
 
 impl Debug for Capability {

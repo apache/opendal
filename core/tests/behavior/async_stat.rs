@@ -18,12 +18,11 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::*;
 use anyhow::Result;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
-
-use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -42,7 +41,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_with_override_cache_control,
             test_stat_with_override_content_disposition,
             test_stat_with_override_content_type,
-            test_stat_root
+            test_stat_root,
+            test_stat_with_version
         ))
     }
 
@@ -166,12 +166,12 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    // Stat not exist file should returns NotFound.
+    // Stat not exist file should return NotFound.
     let meta = op.stat(&path).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
-    // Stat not exist dir should also returns NotFound.
+    // Stat not exist dir should also return NotFound.
     if op.info().full_capability().create_dir {
         let meta = op.stat(&format!("{path}/")).await;
         assert!(meta.is_err());
@@ -496,6 +496,44 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
     let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
+
+    Ok(())
+}
+
+pub async fn test_stat_with_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().versioning {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(path.as_str(), content.clone())
+        .await
+        .expect("write must success");
+    let first_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let first_version = first_meta.version().expect("must have version");
+
+    let first_versioning_meta = op
+        .stat_with(path.as_str())
+        .version(first_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(first_meta, first_versioning_meta);
+
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let second_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let second_version = second_meta.version().expect("must have version");
+    assert_ne!(first_version, second_version);
+
+    // we can still `stat` with first_version after writing new data
+    let meta = op
+        .stat_with(path.as_str())
+        .version(first_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(first_meta, meta);
 
     Ok(())
 }

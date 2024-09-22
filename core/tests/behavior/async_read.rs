@@ -579,7 +579,7 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("write must success");
 
-    // we can use read with version to get the first version data
+    // After writing new data, we can still read the first version data
     let second_data = op
         .read_with(path.as_str())
         .version(version)

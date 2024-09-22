@@ -232,7 +232,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     op.delete(path.as_str()).await.expect("delete must success");
     assert!(!op.is_exist(path.as_str()).await?);
 
-    // after simple delete, we can still get the data using version
+    // After a simple delete, the data can still be accessed using its version.
     let meta = op
         .stat_with(path.as_str())
         .version(version)
@@ -240,7 +240,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
         .expect("stat must success");
     assert_eq!(version, meta.version().expect("must have version"));
 
-    // after delete with version, we can get the object with special version
+    // After deleting with the version, the data is removed permanently
     op.delete_with(path.as_str())
         .version(version)
         .await

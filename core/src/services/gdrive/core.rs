@@ -320,7 +320,7 @@ impl GdriveSigner {
                         - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
         }
@@ -389,7 +389,7 @@ impl PathQuery for GdrivePathQuery {
                     Ok(None)
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -413,7 +413,7 @@ impl PathQuery for GdrivePathQuery {
 
         let resp = self.client.send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();

@@ -402,7 +402,7 @@ impl AzfileCore {
                 continue;
             }
 
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         Ok(())

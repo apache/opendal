@@ -184,7 +184,7 @@ impl DbfsCore {
             StatusCode::NOT_FOUND => {
                 self.dbfs_create_dir(path).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
         Ok(())
     }

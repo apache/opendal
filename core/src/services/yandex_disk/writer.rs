@@ -54,7 +54,7 @@ impl oio::OneShotWrite for YandexDiskWriter {
 
         match status {
             StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

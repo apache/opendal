@@ -249,7 +249,7 @@ impl Access for PcloudBackend {
 
                 Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -267,7 +267,7 @@ impl Access for PcloudBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -303,7 +303,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpDelete::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -338,7 +338,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpCopy::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -368,7 +368,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

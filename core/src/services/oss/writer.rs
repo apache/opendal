@@ -57,7 +57,7 @@ impl oio::MultipartWrite for OssWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -85,7 +85,7 @@ impl oio::MultipartWrite for OssWriter {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -123,7 +123,7 @@ impl oio::MultipartWrite for OssWriter {
                     checksum: None,
                 })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -145,7 +145,7 @@ impl oio::MultipartWrite for OssWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -157,7 +157,7 @@ impl oio::MultipartWrite for OssWriter {
         match resp.status() {
             // OSS returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
@@ -181,7 +181,7 @@ impl oio::AppendWrite for OssWriter {
                 Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -198,7 +198,7 @@ impl oio::AppendWrite for OssWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

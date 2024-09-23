@@ -53,7 +53,7 @@ impl oio::PageList for AzdlsLister {
         }
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // Return self at the first page.

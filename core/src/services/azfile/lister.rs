@@ -53,7 +53,7 @@ impl oio::PageList for AzfileLister {
                 ctx.done = true;
                 return Ok(());
             }
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // Return self at the first page.

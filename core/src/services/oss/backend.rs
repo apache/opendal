@@ -499,7 +499,7 @@ impl Access for OssBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -515,7 +515,7 @@ impl Access for OssBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -541,7 +541,7 @@ impl Access for OssBackend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -562,7 +562,7 @@ impl Access for OssBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -641,7 +641,7 @@ impl Access for OssBackend {
 
             Ok(RpBatch::new(batched_result))
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 }

@@ -244,11 +244,7 @@ impl Adapter {
         Ok(req)
     }
 
-    async fn atomic_post_object_request(
-        &self,
-        path: &str,
-        value: Buffer,
-    ) -> Result<Request<Buffer>> {
+    fn atomic_post_object_request(&self, path: &str, value: Buffer) -> Result<Request<Buffer>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -405,7 +401,7 @@ impl kv::Adapter for Adapter {
 
         let _ = self.wait_for_resource(path, false).await;
 
-        let req = self.atomic_post_object_request(path, value).await?;
+        let req = self.atomic_post_object_request(path, value)?;
         let _res = self.client.send(req).await?;
         let _ = self.wait_for_resource(path, true).await;
 

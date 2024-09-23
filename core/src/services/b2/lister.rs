@@ -76,7 +76,7 @@ impl oio::PageList for B2Lister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

@@ -265,7 +265,7 @@ impl Access for KoofrBackend {
 
                 Ok(RpStat::new(md))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -280,7 +280,7 @@ impl Access for KoofrBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -302,7 +302,7 @@ impl Access for KoofrBackend {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -323,7 +323,7 @@ impl Access for KoofrBackend {
         let status = resp.status();
 
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let resp = self.core.copy(from, to).await?;
@@ -332,7 +332,7 @@ impl Access for KoofrBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -348,7 +348,7 @@ impl Access for KoofrBackend {
         let status = resp.status();
 
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let resp = self.core.move_object(from, to).await?;
@@ -357,7 +357,7 @@ impl Access for KoofrBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

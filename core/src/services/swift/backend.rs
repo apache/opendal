@@ -211,7 +211,7 @@ impl Access for SwiftBackend {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -225,7 +225,7 @@ impl Access for SwiftBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -246,7 +246,7 @@ impl Access for SwiftBackend {
         match status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpDelete::default()),
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -270,7 +270,7 @@ impl Access for SwiftBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

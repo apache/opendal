@@ -141,7 +141,7 @@ impl GcsCore {
         Ok(())
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+    pub fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
         if let Some(cred) = self.load_credential()? {
             self.signer
                 .sign_query(req, duration, &cred)

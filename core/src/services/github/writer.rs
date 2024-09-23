@@ -45,7 +45,7 @@ impl oio::OneShotWrite for GithubWriter {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

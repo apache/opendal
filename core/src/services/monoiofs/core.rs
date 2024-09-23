@@ -223,7 +223,7 @@ mod tests {
     async fn dispatch_concurrent(core: Arc<MonoiofsCore>) {
         let (tx, mut rx) = mpsc::unbounded();
 
-        async fn spawn_task(core: Arc<MonoiofsCore>, tx: UnboundedSender<u64>, sleep_millis: u64) {
+        fn spawn_task(core: Arc<MonoiofsCore>, tx: UnboundedSender<u64>, sleep_millis: u64) {
             tokio::spawn(async move {
                 let result = core
                     .dispatch(move || async move {
@@ -236,8 +236,8 @@ mod tests {
             });
         }
 
-        spawn_task(core.clone(), tx.clone(), 200).await;
-        spawn_task(core.clone(), tx.clone(), 20).await;
+        spawn_task(core.clone(), tx.clone(), 200);
+        spawn_task(core.clone(), tx.clone(), 20);
         drop(tx);
         let first = rx.next().await;
         let second = rx.next().await;

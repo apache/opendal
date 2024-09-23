@@ -55,7 +55,7 @@ impl oio::PageList for KoofrLister {
         match resp.status() {
             http::StatusCode::OK => {}
             _ => {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
 

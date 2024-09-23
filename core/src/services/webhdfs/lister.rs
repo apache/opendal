@@ -60,7 +60,7 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         } else {
             let resp = self
@@ -93,7 +93,7 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         };
 

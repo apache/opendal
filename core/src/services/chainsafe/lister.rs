@@ -70,7 +70,7 @@ impl oio::PageList for ChainsafeLister {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

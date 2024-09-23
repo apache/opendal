@@ -64,7 +64,7 @@ impl oio::PageList for UpyunLister {
                 return Ok(());
             }
             _ => {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
 

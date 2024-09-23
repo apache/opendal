@@ -57,7 +57,7 @@ impl oio::MultipartWrite for B2Writer {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -75,7 +75,7 @@ impl oio::MultipartWrite for B2Writer {
 
                 Ok(result.file_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -109,7 +109,7 @@ impl oio::MultipartWrite for B2Writer {
                     checksum: None,
                 })
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -135,7 +135,7 @@ impl oio::MultipartWrite for B2Writer {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -144,7 +144,7 @@ impl oio::MultipartWrite for B2Writer {
         match resp.status() {
             // b2 returns code 200 if abort succeeds.
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

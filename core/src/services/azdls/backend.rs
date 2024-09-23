@@ -261,7 +261,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -274,7 +274,7 @@ impl Access for AzdlsBackend {
         let resp = self.core.azdls_get_properties(path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let mut meta = parse_into_metadata(path, resp.headers())?;
@@ -320,7 +320,7 @@ impl Access for AzdlsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -342,7 +342,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -357,7 +357,7 @@ impl Access for AzdlsBackend {
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
 
@@ -367,7 +367,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

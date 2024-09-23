@@ -103,7 +103,7 @@ impl PcloudCore {
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -147,7 +147,7 @@ impl PcloudCore {
                         return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
         Ok(())

@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     execute(cfg).await
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
 async fn execute(cfg: Config) -> Result<()> {
     use std::env;
     use std::str::FromStr;
@@ -71,7 +71,7 @@ async fn execute(cfg: Config) -> Result<()> {
     let mut uid = nix::unistd::getuid().into();
     mount_options.uid(uid);
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
     let mut mount_handle = if nix::unistd::getuid().is_root() {
         if let Some(sudo_gid) = env::var("SUDO_GID")
             .ok()
@@ -99,9 +99,6 @@ async fn execute(cfg: Config) -> Result<()> {
             .mount_with_unprivileged(fs, cfg.mount_path)
             .await?
     };
-
-    #[cfg(target_os = "freebsd")]
-    let mut mount_handle = Fuse::new().mount(cfg.mount_path, backend).await?;
 
     let handle = &mut mount_handle;
     tokio::select! {
@@ -189,9 +186,4 @@ async fn execute(cfg: Config) -> Result<()> {
         .context("failed to unregister sync root")?;
 
     Ok(())
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "windows")))]
-async fn execute(_cfg: Config) -> Result<()> {
-    Err(anyhow!("platform not supported"))
 }

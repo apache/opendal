@@ -46,8 +46,8 @@ tokio = { version = "1.37.0", features = [
 ] }
 url = "2.5.0"
 
-[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
-fuse3 = { "version" = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
+fuse3 = { git = "https://github.com/oowl/fuse3", branch = "owl/macos-support-recreate", "features" = ["tokio-runtime", "unprivileged"] }
 fuse3_opendal = { version = "0.0.7", path = "../../integrations/fuse3" }
 libc = "0.2.154"
 nix = { version = "0.29.0", features = ["user"] }

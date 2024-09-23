@@ -30,7 +30,7 @@ fn build_operator(
     scheme: ocore::Scheme,
     map: HashMap<String, String>,
 ) -> PyResult<ocore::Operator> {
-    let mut op = ocore::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    let mut op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
     if !op.info().full_capability().blocking {
         let runtime = pyo3_asyncio::tokio::get_runtime();
         let _guard = runtime.enter();

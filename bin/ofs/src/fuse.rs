@@ -462,6 +462,11 @@ impl PathFilesystem for Fuse {
         Ok(())
     }
 
+    async fn opendir(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
+        log::debug!("opendir(path={:?}, flags=0x{:x})", path, flags);
+        Ok(ReplyOpen { fh: 0, flags })
+    }
+
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
         log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
 
@@ -793,6 +798,20 @@ impl PathFilesystem for Fuse {
             copied: u64::from(written),
         })
     }
+
+    async fn statfs(&self, _req: Request, path: &OsStr) -> Result<ReplyStatFs> {
+        log::debug!("statfs(path={:?})", path);
+        Ok(ReplyStatFs {
+            blocks: 1,
+            bfree: 0,
+            bavail: 0,
+            files: 1,
+            ffree: 0,
+            bsize: 4096,
+            namelen: u32::MAX,
+            frsize: 0,
+        })
+    }
 }
 
 const fn entry_mode2file_type(mode: EntryMode) -> FileType {
@@ -818,6 +837,10 @@ fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32
         gid,
         rdev: 0,
         blksize: 4096,
+        #[cfg(target_os = "macos")]
+        crtime: last_modified,
+        #[cfg(target_os = "macos")]
+        flags: 0,
     }
 }
 

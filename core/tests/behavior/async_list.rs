@@ -684,7 +684,7 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_files_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().list_with_versioning {
         return Ok(());
     }
 
@@ -722,7 +722,7 @@ pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
     if op.info().scheme() == Scheme::Gdrive {
         return Ok(());
     }
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().list_with_versioning {
         return Ok(());
     }
 
@@ -775,7 +775,7 @@ pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_with_version_and_start_after(op: Operator) -> Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().list_with_versioning {
         return Ok(());
     }
 

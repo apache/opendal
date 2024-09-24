@@ -557,7 +557,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 }
 
 pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().read_with_versioning {
         return Ok(());
     }
 
@@ -591,7 +591,7 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
 }
 
 pub async fn test_read_with_not_existing_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().read_with_versioning {
         return Ok(());
     }
 

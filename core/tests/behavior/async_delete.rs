@@ -216,13 +216,12 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().delete_with_versioning {
         return Ok(());
     }
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    //TODO: refactor these code after `write` operation can return metadata
     op.write(path.as_str(), content)
         .await
         .expect("write must success");
@@ -253,7 +252,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().versioning {
+    if !op.info().full_capability().delete_with_versioning {
         return Ok(());
     }
 

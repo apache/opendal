@@ -61,12 +61,14 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
-    /// if operator supports read with override cache control.
+    /// if operator supports stat with override cache control.
     pub stat_with_override_cache_control: bool,
-    /// if operator supports read with override content disposition.
+    /// if operator supports stat with override content disposition.
     pub stat_with_override_content_disposition: bool,
-    /// if operator supports read with override content type.
+    /// if operator supports stat with override content type.
     pub stat_with_override_content_type: bool,
+    /// if operator supports stat with versioning.
+    pub stat_with_versioning: bool,
 
     /// If operator supports read.
     pub read: bool,
@@ -80,6 +82,8 @@ pub struct Capability {
     pub read_with_override_content_disposition: bool,
     /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
+    /// if operator supports read with versioning.
+    pub read_with_versioning: bool,
 
     /// If operator supports write.
     pub write: bool,
@@ -119,6 +123,8 @@ pub struct Capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// if operator supports delete with versioning.
+    pub delete_with_versioning: bool,
 
     /// If operator supports copy.
     pub copy: bool,
@@ -134,6 +140,8 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list with recursive.
     pub list_with_recursive: bool,
+    /// if operator supports list with versioning.
+    pub list_with_versioning: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -153,9 +161,6 @@ pub struct Capability {
 
     /// If operator supports blocking.
     pub blocking: bool,
-
-    /// If operator supports versioning
-    pub versioning: bool,
 }
 
 impl Debug for Capability {

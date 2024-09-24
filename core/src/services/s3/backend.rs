@@ -902,14 +902,15 @@ impl Access for S3Backend {
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
                 stat_with_override_content_disposition: !self.core.disable_stat_with_override,
                 stat_with_override_content_type: !self.core.disable_stat_with_override,
+                stat_with_versioning: self.core.enable_versioning,
 
                 read: true,
-
                 read_with_if_match: true,
                 read_with_if_none_match: true,
                 read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
                 read_with_override_content_type: true,
+                read_with_versioning: self.core.enable_versioning,
 
                 write: true,
                 write_can_empty: true,
@@ -932,12 +933,15 @@ impl Access for S3Backend {
                 },
 
                 delete: true,
+                delete_with_versioning: self.core.enable_versioning,
+
                 copy: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
+                list_with_versioning: self.core.enable_versioning,
 
                 presign: true,
                 presign_stat: true,
@@ -946,8 +950,6 @@ impl Access for S3Backend {
 
                 batch: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
-
-                versioning: self.core.enable_versioning,
 
                 ..Default::default()
             });

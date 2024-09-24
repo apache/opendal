@@ -114,8 +114,10 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 
 	w, err := op.Writer(path)
 	assert.Nil(err)
-	assert.Nil(w.Write(contentA))
-	assert.Nil(w.Write(contentB))
+	_, err = w.Write(contentA)
+	assert.Nil(err)
+	_, err = w.Write(contentB)
+	assert.Nil(err)
 	assert.Nil(w.Close())
 
 	meta, err := op.Stat(path)

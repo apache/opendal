@@ -127,5 +127,6 @@ jobs:
       - name: Run tests
         env:
           OPENDAL_TEST: ${{ matrix.service }}
+          OPENDAL_FS_ROOT: "/tmp/opendal/"
         working-directory: bindings/go/tests/behavior_tests
         run: CGO_ENABLE=0 go test -v -run TestBehavior

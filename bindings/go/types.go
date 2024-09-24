@@ -89,6 +89,15 @@ var (
 		}[0],
 	}
 
+	typeResultOperatorWriter = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultWriterWrite = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{

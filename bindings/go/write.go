@@ -245,7 +245,7 @@ type operatorWriter func(op *opendalOperator, path string) (*opendalWriter, erro
 
 var withOperatorWriter = withFFI(ffiOpts{
 	sym:    symOperatorWriter,
-	rType:  &ffi.TypePointer,
+	rType:  &typeResultOperatorWriter,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWriter {
 	return func(op *opendalOperator, path string) (*opendalWriter, error) {

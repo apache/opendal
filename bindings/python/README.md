@@ -41,7 +41,7 @@ async def main():
 asyncio.run(main())
 ```
 
-s3 service example: 
+s3 service example:
 ```python
 import opendal
 

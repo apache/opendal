@@ -391,6 +391,69 @@ pub unsafe extern "C" fn opendal_operator_reader(
     }
 }
 
+/// \brief Blockingly create a writer for the specified path.
+///
+/// This function prepares a writer that can be used to write data to the specified path
+/// using the provided operator. If successful, it returns a valid writer; otherwise, it
+/// returns an error.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path where the writer will be used
+/// @see opendal_operator
+/// @see opendal_result_operator_writer
+/// @see opendal_error
+/// @return Returns opendal_result_operator_writer, containing a writer and an opendal_error.
+/// If the operation succeeds, the `writer` field holds a valid writer and the `error` field
+/// is null. Otherwise, the `writer` will be null and the `error` will be set correspondingly.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named op for example
+///
+/// opendal_result_operator_writer result = opendal_operator_writer(op, "/testpath");
+/// assert(result.error == NULL);
+/// opendal_writer *writer = result.writer;
+/// // Use the writer to write data...
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer(
+    op: *const opendal_operator,
+    path: *const c_char,
+) -> opendal_result_operator_writer {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+    let op = (*op).as_ref();
+
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    let writer = match op.writer(path) {
+        Ok(writer) => writer,
+        Err(err) => {
+            return opendal_result_operator_writer {
+                writer: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            }
+        }
+    };
+
+    opendal_result_operator_writer {
+        writer: Box::into_raw(Box::new(opendal_writer::new(writer.into_std_write()))),
+        error: std::ptr::null_mut(),
+    }
+}
+
 /// \brief Blockingly delete the object in `path`.
 ///
 /// Delete the object in `path` blockingly by `op_ptr`.

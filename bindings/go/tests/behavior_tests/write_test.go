@@ -35,6 +35,7 @@ func testsWrite(cap *opendal.Capability) []behaviorTest {
 		testWriteWithDirPath,
 		testWriteWithSpecialChars,
 		testWriteOverwrite,
+		testWriterWrite,
 	}
 }
 
@@ -98,4 +99,32 @@ func testWriteOverwrite(assert *require.Assertions, op *opendal.Operator, fixtur
 	assert.Nil(err, "read must succeed")
 	assert.NotEqual(contentOne, bs, "content_one must be overwrote")
 	assert.Equal(contentTwo, bs, "read content_two")
+}
+
+func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !op.Info().GetFullCapability().WriteCanMulti() {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	// StdWriter capacity is 256KB
+	size := uint(256 * 1024)
+	contentA := genFixedBytes(size)
+	contentB := genFixedBytes(size)
+
+	w, err := op.Writer(path)
+	assert.Nil(err)
+	assert.Nil(w.Write(contentA))
+	assert.Nil(w.Write(contentB))
+	assert.Nil(w.Close())
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(size*2), meta.ContentLength())
+
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(uint64(size*2), uint64(len(bs)), "read size")
+	assert.Equal(contentA, bs[:size], "read contentA")
+	assert.Equal(contentB, bs[size:], "read contentB")
 }

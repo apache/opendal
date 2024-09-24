@@ -89,6 +89,15 @@ var (
 		}[0],
 	}
 
+	typeResultWriterWrite = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultReaderRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -207,6 +216,18 @@ type opendalReader struct{}
 type resultOperatorReader struct {
 	reader *opendalReader
 	error  *opendalError
+}
+
+type opendalWriter struct{}
+
+type resultOperatorWriter struct {
+	writer *opendalWriter
+	error  *opendalError
+}
+
+type resultWriterWrite struct {
+	size  uint
+	error *opendalError
 }
 
 type resultReaderRead struct {

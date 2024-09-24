@@ -30,3 +30,7 @@ class RetryLayer(Layer):
         max_delay: Optional[float] = None,
         min_delay: Optional[float] = None,
     ) -> None: ...
+
+@final
+class ConcurrentLimitLayer(Layer):
+    def __init__(self, limit: int) -> None: ...

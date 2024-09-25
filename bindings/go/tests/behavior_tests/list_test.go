@@ -201,13 +201,21 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	assert.Nil(err)
 	defer obs.Close()
 	var paths []string
+	var foundParent bool
+	var foundDir bool
 	for obs.Next() {
 		entry := obs.Entry()
 		paths = append(paths, entry.Path())
-		assert.Equal(dir, entry.Path())
+		if entry.Path() == parent {
+			foundParent = true
+		} else if entry.Path() == dir {
+			foundDir = true
+		}
 	}
 	assert.Nil(obs.Error())
-	assert.Equal(1, len(paths), "parent should only got 1 entry")
+	assert.Equal(2, len(paths), "parent should only got 2 entry")
+	assert.Equal(foundParent, true, "parent should be found in list")
+	assert.Equal(foundDir, true, "dir should be found in list")
 
 	obs, err = op.List(dir)
 	assert.Nil(err)
@@ -215,7 +223,7 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	paths = nil
 	var foundFile bool
 	var foundDirPath bool
-	var foundDir bool
+	foundDir = false
 	for obs.Next() {
 		entry := obs.Entry()
 		paths = append(paths, entry.Path())

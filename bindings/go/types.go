@@ -287,6 +287,9 @@ func toOpendalBytes(data []byte) opendalBytes {
 	l := len(data)
 	if l > 0 {
 		ptr = &data[0]
+	} else {
+		var b byte
+		ptr = &b
 	}
 	return opendalBytes{
 		data: ptr,

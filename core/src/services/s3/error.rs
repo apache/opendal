@@ -41,7 +41,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
-        304 | 400 | 412 => (ErrorKind::ConditionNotMatch, false),
+        304 | 412 => (ErrorKind::ConditionNotMatch, false),
         // Service like R2 could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),

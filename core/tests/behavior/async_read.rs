@@ -557,7 +557,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 }
 
 pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_versioning {
+    if !op.info().full_capability().read_with_version {
         return Ok(());
     }
 
@@ -591,21 +591,30 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
 }
 
 pub async fn test_read_with_not_existing_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_versioning {
+    if !op.info().full_capability().read_with_version {
         return Ok(());
     }
 
+    // retrieve a valid version
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(path.as_str(), content.clone())
         .await
         .expect("write must success");
+    let version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
 
-    let ret = op
-        .read_with(path.as_str())
-        .version("not-existing-version")
-        .await;
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let ret = op.read_with(path.as_str()).version(&version).await;
     assert!(ret.is_err());
-    assert_eq!(ret.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }

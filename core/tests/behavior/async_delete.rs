@@ -216,7 +216,7 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_versioning {
+    if !op.info().full_capability().delete_with_version {
         return Ok(());
     }
 
@@ -252,21 +252,32 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_versioning {
+    if !op.info().full_capability().delete_with_version {
         return Ok(());
     }
+
+    // retrieve a valid version
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have stat")
+        .to_string();
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(path.as_str(), content)
         .await
         .expect("write must success");
-
     let ret = op
         .delete_with(path.as_str())
-        .version("not-existing-version")
+        .version(version.as_str())
         .await;
-    assert!(ret.is_err());
-    assert_eq!(ret.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    assert!(ret.is_ok());
 
     Ok(())
 }

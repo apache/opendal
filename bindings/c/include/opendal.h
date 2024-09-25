@@ -147,6 +147,12 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
+ * BlockingWriter is designed to write data into given path in an blocking
+ * manner.
+ */
+typedef struct BlockingWriter BlockingWriter;
+
+/**
  * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
  *
  * # Notes
@@ -431,6 +437,31 @@ typedef struct opendal_result_operator_reader {
 } opendal_result_operator_reader;
 
 /**
+ * \brief The result type returned by opendal's writer operation.
+ * \note The opendal_writer actually owns a pointer to
+ * a opendal::BlockingWriter, which is inside the Rust core code.
+ */
+typedef struct opendal_writer {
+  struct BlockingWriter *inner;
+} opendal_writer;
+
+/**
+ * \brief The result type returned by opendal_operator_writer().
+ * The result type for opendal_operator_writer(), the field `writer` contains the writer
+ * of the path, which is an iterator of the objects under the path. the field `code` represents
+ */
+typedef struct opendal_result_operator_writer {
+  /**
+   * The pointer for opendal_writer
+   */
+  struct opendal_writer *writer;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_operator_writer;
+
+/**
  * \brief The result type returned by opendal_operator_is_exist().
  *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
@@ -679,6 +710,22 @@ typedef struct opendal_result_reader_read {
    */
   struct opendal_error *error;
 } opendal_result_reader_read;
+
+/**
+ * \brief The result type returned by opendal_writer_write().
+ * The result type contains a size field, which is the size of the data written,
+ * which is zero on error. The error field is the error code and error message.
+ */
+typedef struct opendal_result_writer_write {
+  /**
+   * The write size if succeed.
+   */
+  uintptr_t size;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_writer_write;
 
 #ifdef __cplusplus
 extern "C" {
@@ -968,6 +1015,47 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
 struct opendal_result_operator_reader opendal_operator_reader(const struct opendal_operator *op,
+                                                              const char *path);
+
+/**
+ * \brief Blockingly create a writer for the specified path.
+ *
+ * This function prepares a writer that can be used to write data to the specified path
+ * using the provided operator. If successful, it returns a valid writer; otherwise, it
+ * returns an error.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path where the writer will be used
+ * @see opendal_operator
+ * @see opendal_result_operator_writer
+ * @see opendal_error
+ * @return Returns opendal_result_operator_writer, containing a writer and an opendal_error.
+ * If the operation succeeds, the `writer` field holds a valid writer and the `error` field
+ * is null. Otherwise, the `writer` will be null and the `error` will be set correspondingly.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator, named op for example
+ *
+ * opendal_result_operator_writer result = opendal_operator_writer(op, "/testpath");
+ * assert(result.error == NULL);
+ * opendal_writer *writer = result.writer;
+ * // Use the writer to write data...
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_operator_writer opendal_operator_writer(const struct opendal_operator *op,
                                                               const char *path);
 
 /**
@@ -1418,6 +1506,18 @@ struct opendal_result_reader_read opendal_reader_read(const struct opendal_reade
  * \brief Frees the heap memory used by the opendal_reader.
  */
 void opendal_reader_free(struct opendal_reader *ptr);
+
+/**
+ * \brief Write data to the writer.
+ */
+struct opendal_result_writer_write opendal_writer_write(const struct opendal_writer *writer,
+                                                        struct opendal_bytes bytes);
+
+/**
+ * \brief Frees the heap memory used by the opendal_writer.
+ * \note This function make sure all data have been stored.
+ */
+void opendal_writer_free(struct opendal_writer *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

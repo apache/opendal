@@ -107,8 +107,7 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 	}
 
 	path := fixture.NewFilePath()
-	// StdWriter capacity is 256KB
-	size := uint(256 * 1024)
+	size := uint(5 * 1024 * 1024)
 	contentA := genFixedBytes(size)
 	contentB := genFixedBytes(size)
 

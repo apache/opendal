@@ -15,10 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Write;
-
 use ::opendal as core;
-use opendal::Buffer;
 
 use super::*;
 
@@ -27,11 +24,11 @@ use super::*;
 /// a opendal::BlockingWriter, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_writer {
-    inner: *mut core::StdWriter,
+    inner: *mut core::BlockingWriter,
 }
 
 impl opendal_writer {
-    pub(crate) fn new(writer: core::StdWriter) -> Self {
+    pub(crate) fn new(writer: core::BlockingWriter) -> Self {
         Self {
             inner: Box::into_raw(Box::new(writer)),
         }
@@ -44,11 +41,10 @@ impl opendal_writer {
         bytes: opendal_bytes,
     ) -> opendal_result_writer_write {
         let inner = unsafe { &mut *(*writer).inner };
-        let buf: Buffer = bytes.into();
-        let n = inner.write(&buf.to_vec());
-        match n {
-            Ok(n) => opendal_result_writer_write {
-                size: n,
+        let size = bytes.len;
+        match inner.write(bytes) {
+            Ok(()) => opendal_result_writer_write {
+                size,
                 error: std::ptr::null_mut(),
             },
             Err(e) => opendal_result_writer_write {
@@ -62,10 +58,12 @@ impl opendal_writer {
     }
 
     /// \brief Frees the heap memory used by the opendal_writer.
+    /// \note This function make sure all data have been stored.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let mut w = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = w.close();
             let _ = unsafe { Box::from_raw(ptr) };
         }
     }

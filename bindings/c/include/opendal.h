@@ -147,6 +147,12 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
+ * BlockingWriter is designed to write data into given path in an blocking
+ * manner.
+ */
+typedef struct BlockingWriter BlockingWriter;
+
+/**
  * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
  *
  * # Notes
@@ -215,18 +221,6 @@ typedef struct OperatorInfo OperatorInfo;
  * StdReader also implements [`Send`] and [`Sync`].
  */
 typedef struct StdReader StdReader;
-
-/**
- * StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
- *
- * Users can use this adapter in cases where they need to use [`std::io::Write`] related trait.
- *
- * # Notes
- *
- * Files are automatically closed when they go out of scope. Errors detected on closing are ignored
- * by the implementation of Drop. Use the method `close` if these errors must be manually handled.
- */
-typedef struct StdWriter StdWriter;
 
 /**
  * \brief opendal_bytes carries raw-bytes with its length
@@ -448,7 +442,7 @@ typedef struct opendal_result_operator_reader {
  * a opendal::BlockingWriter, which is inside the Rust core code.
  */
 typedef struct opendal_writer {
-  struct StdWriter *inner;
+  struct BlockingWriter *inner;
 } opendal_writer;
 
 /**
@@ -1521,6 +1515,7 @@ struct opendal_result_writer_write opendal_writer_write(const struct opendal_wri
 
 /**
  * \brief Frees the heap memory used by the opendal_writer.
+ * \note This function make sure all data have been stored.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
 

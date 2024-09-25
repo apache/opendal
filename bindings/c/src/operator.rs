@@ -449,7 +449,7 @@ pub unsafe extern "C" fn opendal_operator_writer(
     };
 
     opendal_result_operator_writer {
-        writer: Box::into_raw(Box::new(opendal_writer::new(writer.into_std_write()))),
+        writer: Box::into_raw(Box::new(opendal_writer::new(writer))),
         error: std::ptr::null_mut(),
     }
 }

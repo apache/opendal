@@ -67,7 +67,7 @@ pub struct Capability {
     pub stat_with_override_content_disposition: bool,
     /// if operator supports stat with override content type.
     pub stat_with_override_content_type: bool,
-    /// if operator supports stat with versioning.
+    /// if operator supports stat with version.
     pub stat_with_version: bool,
 
     /// If operator supports read.
@@ -82,7 +82,7 @@ pub struct Capability {
     pub read_with_override_content_disposition: bool,
     /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
-    /// if operator supports read with versioning.
+    /// if operator supports read with version.
     pub read_with_version: bool,
 
     /// If operator supports write.
@@ -123,7 +123,7 @@ pub struct Capability {
 
     /// If operator supports delete.
     pub delete: bool,
-    /// if operator supports delete with versioning.
+    /// if operator supports delete with version.
     pub delete_with_version: bool,
 
     /// If operator supports copy.
@@ -140,7 +140,7 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list with recursive.
     pub list_with_recursive: bool,
-    /// if operator supports list with versioning.
+    /// if operator supports list with version.
     pub list_with_version: bool,
 
     /// If operator supports presign.

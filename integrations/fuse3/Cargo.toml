@@ -29,7 +29,7 @@ version = "0.0.7"
 
 [dependencies]
 bytes = "1.6.0"
-fuse3 = { version = "0.7.2", "features" = ["tokio-runtime", "unprivileged"] }
+fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }
 futures-util = "0.3.30"
 libc = "0.2.155"
 log = "0.4.21"

@@ -501,8 +501,9 @@ dependencies = [
 
 [[package]]
 name = "fuse3"
-version = "0.7.3"
-source = "git+https://github.com/oowl/fuse3?branch=owl/macos-support-recreate#ad7fa7b05afc5159c618d0a4db14beb839c4b89d"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "335dd07e2826edad49c2599ed8151c394d39d2f8efd62c07183816904414ac5c"
 dependencies = [
  "async-notify",
  "bincode",

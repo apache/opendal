@@ -204,6 +204,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-nebula-graph = []
 
 [lib]
 bench = false

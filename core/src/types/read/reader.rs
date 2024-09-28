@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
@@ -25,7 +24,6 @@ use futures::stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use crate::raw::*;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -94,9 +92,6 @@ use crate::*;
 #[derive(Clone)]
 pub struct Reader {
     ctx: Arc<ReadContext>,
-
-    /// Total size of the reader.
-    size: Arc<AtomicContentLength>,
 }
 
 impl Reader {
@@ -108,48 +103,7 @@ impl Reader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn new(ctx: ReadContext) -> Self {
-        Reader {
-            ctx: Arc::new(ctx),
-            size: Arc::new(AtomicContentLength::new()),
-        }
-    }
-
-    /// Parse users input range bounds into valid `Range<u64>`.
-    ///
-    /// To avoid duplicated stat call, we will cache the size of the reader.
-    async fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
-            Bound::Excluded(v) => v + 1,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound() {
-            Bound::Included(v) => v + 1,
-            Bound::Excluded(v) => *v,
-            Bound::Unbounded => match self.size.load() {
-                Some(v) => v,
-                None => {
-                    let mut op_stat = OpStat::new();
-
-                    if let Some(v) = self.ctx.args().version() {
-                        op_stat = op_stat.with_version(v);
-                    }
-
-                    let size = self
-                        .ctx
-                        .accessor()
-                        .stat(self.ctx.path(), op_stat)
-                        .await?
-                        .into_metadata()
-                        .content_length();
-                    self.size.store(size);
-                    size
-                }
-            },
-        };
-
-        Ok(start..end)
+        Reader { ctx: Arc::new(ctx) }
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -246,8 +200,7 @@ impl Reader {
     /// And the name `BufferStream` is not good enough to expose to users.
     /// Let's keep it inside for now.
     async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
-        let range = self.parse_range(range).await?;
-        Ok(BufferStream::new(self.ctx, range))
+        BufferStream::create(self.ctx, range).await
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -312,7 +265,7 @@ impl Reader {
         self,
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesAsyncReader> {
-        let range = self.parse_range(range).await?;
+        let range = self.ctx.parse_into_range(range).await?;
         Ok(FuturesAsyncReader::new(self.ctx, range))
     }
 
@@ -372,21 +325,19 @@ impl Reader {
         self,
         range: impl RangeBounds<u64>,
     ) -> Result<FuturesBytesStream> {
-        let range = self.parse_range(range).await?;
-        Ok(FuturesBytesStream::new(self.ctx, range))
+        FuturesBytesStream::new(self.ctx, range).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use bytes::Bytes;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
-    use crate::raw::MaybeSend;
+    use crate::raw::*;
     use crate::services;
     use crate::Operator;
 

@@ -63,7 +63,7 @@ impl FuturesAsyncReader {
     #[inline]
     pub(super) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
         let (start, end) = (range.start, range.end);
-        let stream = BufferStream::new(ctx.clone(), range);
+        let stream = BufferStream::new(ctx.clone(), start, Some(end - start));
 
         FuturesAsyncReader {
             ctx,
@@ -157,7 +157,11 @@ impl AsyncSeek for FuturesAsyncReader {
             self.buf.advance(cnt as _);
         } else {
             self.buf = Buffer::new();
-            self.stream = BufferStream::new(self.ctx.clone(), new_pos + self.start..self.end);
+            self.stream = BufferStream::new(
+                self.ctx.clone(),
+                new_pos + self.start,
+                Some(self.end - self.start - new_pos),
+            );
         }
 
         self.pos = new_pos;
@@ -177,8 +181,8 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_trait() -> Result<()> {
+    #[tokio::test]
+    async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,

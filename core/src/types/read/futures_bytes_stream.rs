@@ -16,7 +16,7 @@
 // under the License.
 
 use std::io;
-use std::ops::Range;
+use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
@@ -46,14 +46,13 @@ unsafe impl Sync for FuturesBytesStream {}
 
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
-    #[inline]
-    pub(crate) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        let stream = BufferStream::new(ctx, range);
+    pub(crate) async fn new(ctx: Arc<ReadContext>, range: impl RangeBounds<u64>) -> Result<Self> {
+        let stream = BufferStream::create(ctx, range).await?;
 
-        FuturesBytesStream {
+        Ok(FuturesBytesStream {
             stream,
             buf: Buffer::new(),
-        }
+        })
     }
 }
 
@@ -88,8 +87,8 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_trait() -> Result<()> {
+    #[tokio::test]
+    async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
@@ -97,7 +96,7 @@ mod tests {
             OpRead::new(),
             OpReader::new(),
         ));
-        let v = FuturesBytesStream::new(ctx, 4..8);
+        let v = FuturesBytesStream::new(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
 
@@ -121,7 +120,7 @@ mod tests {
             OpReader::new(),
         ));
 
-        let s = FuturesBytesStream::new(ctx, 4..8);
+        let s = FuturesBytesStream::new(ctx, 4..8).await?;
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
         assert_eq!(&bufs[0], "o".as_bytes());
         assert_eq!(&bufs[1], "Wor".as_bytes());
@@ -146,7 +145,7 @@ mod tests {
             OpReader::new().with_concurrent(3).with_chunk(1),
         ));
 
-        let s = FuturesBytesStream::new(ctx, 4..8);
+        let s = FuturesBytesStream::new(ctx, 4..8).await?;
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
         assert_eq!(&bufs[0], "o".as_bytes());
         assert_eq!(&bufs[1], "W".as_bytes());

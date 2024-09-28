@@ -30,17 +30,17 @@ pub struct SftpReader {
 
     file: File,
     chunk: usize,
-    size: usize,
+    size: Option<usize>,
     read: usize,
     buf: BytesMut,
 }
 
 impl SftpReader {
-    pub fn new(conn: PooledConnection<'static, Manager>, file: File, size: usize) -> Self {
+    pub fn new(conn: PooledConnection<'static, Manager>, file: File, size: Option<u64>) -> Self {
         Self {
             _conn: conn,
             file,
-            size,
+            size: size.map(|v| v as usize),
             chunk: 2 * 1024 * 1024,
             read: 0,
             buf: BytesMut::new(),
@@ -50,35 +50,15 @@ impl SftpReader {
 
 impl oio::Read for SftpReader {
     async fn read(&mut self) -> Result<Buffer> {
-        // let client = self.inner.connect().await?;
-        //
-        // let mut fs = client.fs();
-        // fs.set_cwd(&self.root);
-        //
-        // let path = fs
-        //     .canonicalize(&self.path)
-        //     .await
-        //     .map_err(parse_sftp_error)?;
-        //
-        // let mut f = client
-        //     .open(path.as_path())
-        //     .await
-        //     .map_err(parse_sftp_error)?;
-
-        // f.seek(SeekFrom::Start(offset))
-        //     .await
-        //     .map_err(new_std_io_error)?;
-
-        // let mut size = size;
-        // if size == 0 {
-        //     return Ok(Buffer::new());
-        // }
-
-        if self.read >= self.size {
+        if Some(self.read) >= self.size {
             return Ok(Buffer::new());
         }
 
-        let size = (self.size - self.read).min(self.chunk);
+        let size = if let Some(size) = self.size {
+            (size - self.read).min(self.chunk)
+        } else {
+            self.chunk
+        };
         self.buf.reserve(size);
 
         let Some(bytes) = self
@@ -87,10 +67,7 @@ impl oio::Read for SftpReader {
             .await
             .map_err(parse_sftp_error)?
         else {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "sftp read file reaching EoF",
-            ));
+            return Ok(Buffer::new());
         };
 
         self.read += bytes.len();

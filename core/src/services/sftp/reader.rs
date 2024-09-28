@@ -50,7 +50,7 @@ impl SftpReader {
 
 impl oio::Read for SftpReader {
     async fn read(&mut self) -> Result<Buffer> {
-        if Some(self.read) >= self.size {
+        if self.read >= self.size.unwrap_or(usize::MAX) {
             return Ok(Buffer::new());
         }
 
@@ -71,6 +71,8 @@ impl oio::Read for SftpReader {
         };
 
         self.read += bytes.len();
-        Ok(Buffer::from(bytes.freeze()))
+        self.buf = bytes;
+        let bs = self.buf.split();
+        Ok(Buffer::from(bs.freeze()))
     }
 }

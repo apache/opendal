@@ -63,7 +63,7 @@ impl oio::Read for SftpReader {
 
         let Some(bytes) = self
             .file
-            .read(size as u32, self.buf.split_to(size))
+            .read(size as u32, self.buf.split_off(0))
             .await
             .map_err(parse_sftp_error)?
         else {

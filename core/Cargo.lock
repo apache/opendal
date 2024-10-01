@@ -4780,9 +4780,9 @@ dependencies = [
 
 [[package]]
 name = "openssh-sftp-client"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "048be8afec5f72161c77f940db18a27acd99e26b532433e480361615830d03ae"
+checksum = "7cb57886c859b298b785e20c9cbcd6681fe9106aa4fd19c0e7e8ecd801948e1e"
 dependencies = [
  "bytes",
  "derive_destructure2",

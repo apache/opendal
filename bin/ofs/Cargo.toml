@@ -31,7 +31,7 @@ rust-version = "1.75"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4.5.7", features = ["derive", "env"] }
+clap = { version = "4.5.18", features = ["derive", "env"] }
 env_logger = "0.11.2"
 futures-util = "0.3.30"
 log = "0.4.21"

@@ -22,6 +22,7 @@ package org.apache.opendal.spring.config;
 import org.apache.opendal.spring.TestApplication;
 import org.apache.opendal.spring.core.OpenDALOperations;
 import org.apache.opendal.spring.core.OpenDALProperties;
+import org.apache.opendal.spring.core.OpenDALSerializerFactory;
 import org.apache.opendal.spring.core.OpenDALTemplate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ public class OpenDALAutoConfigurationTest {
     @Autowired
     private OpenDALOperations openDAL;
 
+    @Autowired
+    private OpenDALSerializerFactory openDALSerializerFactory;
+
     @Test
     public void propertiesBeanShouldBeDeclared() {
         Assertions.assertNotNull(openDALProperties);
@@ -51,5 +55,10 @@ public class OpenDALAutoConfigurationTest {
     public void beanShouldBeDeclared() {
         Assertions.assertNotNull(openDAL);
         Assertions.assertInstanceOf(OpenDALTemplate.class, openDAL);
+    }
+
+    @Test
+    public void serializerFactoryBeanShouldBeDeclared() {
+        Assertions.assertNotNull(openDALSerializerFactory);
     }
 }

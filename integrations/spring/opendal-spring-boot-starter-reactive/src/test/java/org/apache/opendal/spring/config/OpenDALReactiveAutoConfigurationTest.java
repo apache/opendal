@@ -21,6 +21,7 @@ package org.apache.opendal.spring.config;
 
 import org.apache.opendal.spring.TestReactiveApplication;
 import org.apache.opendal.spring.core.OpenDALProperties;
+import org.apache.opendal.spring.core.OpenDALSerializerFactory;
 import org.apache.opendal.spring.core.ReactiveOpenDALOperations;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ public class OpenDALReactiveAutoConfigurationTest {
     @Autowired
     private ReactiveOpenDALOperations openDALReactive;
 
+    @Autowired
+    private OpenDALSerializerFactory openDALSerializerFactory;
+
     @Test
     public void propertiesBeanShouldBeDeclared() {
         Assertions.assertNotNull(openDALProperties);
@@ -51,6 +55,11 @@ public class OpenDALReactiveAutoConfigurationTest {
     public void reactiveBeanShouldBeDeclared() {
         Assertions.assertNotNull(openDALReactive);
         Assertions.assertInstanceOf(ReactiveOpenDALOperations.class, openDALReactive);
+    }
+
+    @Test
+    public void serializerFactoryBeanShouldBeDeclared() {
+        Assertions.assertNotNull(openDALSerializerFactory);
     }
 
 }

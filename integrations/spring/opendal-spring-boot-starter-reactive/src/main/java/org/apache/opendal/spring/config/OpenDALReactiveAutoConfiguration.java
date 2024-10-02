@@ -19,6 +19,8 @@
 
 package org.apache.opendal.spring.config;
 
+import org.apache.opendal.spring.core.DefaultOpenDALSerializerFactory;
+import org.apache.opendal.spring.core.OpenDALSerializerFactory;
 import org.apache.opendal.spring.core.ReactiveOpenDALTemplate;
 import org.apache.opendal.spring.core.OpenDALProperties;
 import org.apache.opendal.spring.core.ReactiveOpenDALOperations;
@@ -40,5 +42,11 @@ public class OpenDALReactiveAutoConfiguration {
     @ConditionalOnMissingBean(ReactiveOpenDALOperations.class)
     public ReactiveOpenDALTemplate reactiveOpendalTemplate(OpenDALProperties openDALProperties) {
         return new ReactiveOpenDALTemplate(openDALProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "openDALSerializerFactory")
+    public OpenDALSerializerFactory openDALSerializerFactory() {
+        return new DefaultOpenDALSerializerFactory();
     }
 }

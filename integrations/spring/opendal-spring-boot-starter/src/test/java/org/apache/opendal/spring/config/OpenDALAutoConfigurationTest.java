@@ -19,8 +19,8 @@
 
 package org.apache.opendal.spring.config;
 
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.spring.TestApplication;
-import org.apache.opendal.spring.core.OpenDALOperations;
 import org.apache.opendal.spring.core.OpenDALProperties;
 import org.apache.opendal.spring.core.OpenDALSerializerFactory;
 import org.apache.opendal.spring.core.OpenDALTemplate;
@@ -37,7 +37,10 @@ public class OpenDALAutoConfigurationTest {
     private OpenDALProperties openDALProperties;
 
     @Autowired
-    private OpenDALOperations openDAL;
+    private OpenDALTemplate openDALTemplate;
+
+    @Autowired
+    private AsyncOperator asyncOperator;
 
     @Autowired
     private OpenDALSerializerFactory openDALSerializerFactory;
@@ -53,8 +56,13 @@ public class OpenDALAutoConfigurationTest {
 
     @Test
     public void beanShouldBeDeclared() {
-        Assertions.assertNotNull(openDAL);
-        Assertions.assertInstanceOf(OpenDALTemplate.class, openDAL);
+        Assertions.assertNotNull(openDALTemplate);
+        Assertions.assertInstanceOf(OpenDALTemplate.class, openDALTemplate);
+    }
+
+    @Test
+    public void asyncOperatorShouldBeDeclared() {
+        Assertions.assertNotNull(asyncOperator);
     }
 
     @Test

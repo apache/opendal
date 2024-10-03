@@ -19,9 +19,9 @@
 
 package org.apache.opendal.spring.config;
 
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.spring.TestReactiveApplication;
-import org.apache.opendal.spring.core.OpenDALProperties;
-import org.apache.opendal.spring.core.OpenDALSerializerFactory;
+import org.apache.opendal.spring.core.ReactiveOpenDALOperations;
 import org.apache.opendal.spring.core.ReactiveOpenDALTemplate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,37 +29,30 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
+
 @SpringJUnitConfig
 @SpringBootTest(classes = TestReactiveApplication.class)
-public class OpenDALReactiveAutoConfigurationTest {
-
-    @Autowired
-    private OpenDALProperties openDALProperties;
-
+public class OpenDALReactiveTemplateTest {
     @Autowired
     private ReactiveOpenDALTemplate openDALTemplate;
 
     @Autowired
-    private OpenDALSerializerFactory openDALSerializerFactory;
+    private AsyncOperator asyncOperator;
 
     @Test
-    public void propertiesBeanShouldBeDeclared() {
-        Assertions.assertNotNull(openDALProperties);
-
-        Assertions.assertEquals("fs", openDALProperties.getSchema());
-        Assertions.assertEquals(1, openDALProperties.getConf().size());
-        Assertions.assertEquals("/tmp", openDALProperties.getConf().get("root"));
+    public void simpleReactiveTest() throws ExecutionException, InterruptedException {
+        String path = "my";
+        ReactiveOpenDALOperations<Person> ops = openDALTemplate.ops(Person.class);
+        ops.write(path, new Person("Alice", 1)).block();
+        Person person = ops.read(path).block();
+        Assertions.assertEquals("Alice", person.name());
+        Assertions.assertEquals(1, person.age());
+        String content = new String(asyncOperator.read(path).get(), StandardCharsets.UTF_8);
+        Assertions.assertEquals("""
+            {"name":"Alice","age":1}""", content);
+        ops.delete(path).block();
+        Assertions.assertThrows(Exception.class, () -> ops.read(path).block());
     }
-
-    @Test
-    public void reactiveBeanShouldBeDeclared() {
-        Assertions.assertNotNull(openDALTemplate);
-        Assertions.assertInstanceOf(ReactiveOpenDALTemplate.class, openDALTemplate);
-    }
-
-    @Test
-    public void serializerFactoryBeanShouldBeDeclared() {
-        Assertions.assertNotNull(openDALSerializerFactory);
-    }
-
 }

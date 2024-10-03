@@ -20,28 +20,30 @@
 package org.apache.opendal.spring.core;
 
 import org.apache.opendal.AsyncOperator;
+import reactor.core.publisher.Mono;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-public class OpenDALTemplate {
+public class ReactiveOpenDALOperationsImpl<T> implements ReactiveOpenDALOperations<T> {
     private final AsyncOperator asyncOperator;
 
-    private final OpenDALSerializerFactory serializerFactory;
+    private final OpenDALSerializer<T> serializer;
 
-    private final Map<Class<?>, OpenDALOperations<?>> operationsMap = new ConcurrentHashMap<>();
-
-    public OpenDALTemplate(AsyncOperator asyncOperator, OpenDALSerializerFactory serializerFactory) {
+    public ReactiveOpenDALOperationsImpl(AsyncOperator asyncOperator, OpenDALSerializer<T> serializer) {
         this.asyncOperator = asyncOperator;
-        this.serializerFactory = serializerFactory;
+        this.serializer = serializer;
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> OpenDALOperations<T> ops(Class<T> clazz) {
-        return (OpenDALOperations<T>) operationsMap.computeIfAbsent(clazz, (k) -> {
-            OpenDALSerializer<T> serializer = (OpenDALSerializer<T>) serializerFactory.getSerializer(
-                k);
-            return new OpenDALOperationsImpl<>(asyncOperator, serializer);
-        });
+    @Override
+    public Mono<Void> write(String path, T entity) {
+        return Mono.fromFuture(asyncOperator.write(path, serializer.serialize(entity)));
+    }
+
+    @Override
+    public Mono<T> read(String path) {
+        return Mono.fromFuture(asyncOperator.read(path)).map(serializer::deserialize);
+    }
+
+    @Override
+    public Mono<Void> delete(String path) {
+        return Mono.fromFuture(asyncOperator.delete(path));
     }
 }

@@ -82,60 +82,6 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
- * BlockingOperator is the entry for all public blocking APIs.
- *
- * Read [`concepts`][docs::concepts] for know more about [`Operator`].
- *
- * # Examples
- *
- * ## Init backends
- *
- * Read more backend init examples in [`services`]
- *
- * ```rust,no_run
- * # use anyhow::Result;
- * use opendal::services::Fs;
- * use opendal::BlockingOperator;
- * use opendal::Operator;
- *
- * fn main() -> Result<()> {
- *     // Create fs backend builder.
- *     let builder = Fs::default().root("/tmp");
- *
- *     // Build an `BlockingOperator` to start operating the storage.
- *     let _: BlockingOperator = Operator::new(builder)?.finish().blocking();
- *
- *     Ok(())
- * }
- * ```
- *
- * ## Init backends with blocking layer
- *
- * Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
- * to wrap the async operator to make it blocking.
- * # use anyhow::Result;
- * use opendal::layers::BlockingLayer;
- * use opendal::services::S3;
- * use opendal::BlockingOperator;
- * use opendal::Operator;
- *
- * async fn test() -> Result<()> {
- *     // Create fs backend builder.
- *     let mut builder = S3::default().bucket("test").region("us-east-1");
- *
- *     // Build an `BlockingOperator` with blocking layer to start operating the storage.
- *     let _: BlockingOperator = Operator::new(builder)?
- *         .layer(BlockingLayer::create()?)
- *         .finish()
- *         .blocking();
- *
- *     Ok(())
- * }
- * ```
- */
-typedef struct BlockingOperator BlockingOperator;
-
-/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -188,6 +134,10 @@ typedef struct opendal_error {
  * @see opendal_list_entry_name()
  */
 typedef struct opendal_entry {
+  /**
+   * The pointer to the opendal::Entry in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   void *inner;
 } opendal_entry;
 
@@ -219,6 +169,10 @@ typedef struct opendal_result_lister_next {
  * @see opendal_operator_list()
  */
 typedef struct opendal_lister {
+  /**
+   * The pointer to the opendal::BlockingLister in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   void *inner;
 } opendal_lister;
 
@@ -259,7 +213,7 @@ typedef struct opendal_operator {
    * The pointer to the opendal::BlockingOperator in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  const struct BlockingOperator *ptr;
+  const void *inner;
 } opendal_operator;
 
 /**
@@ -297,7 +251,7 @@ typedef struct opendal_result_operator_new {
  */
 typedef struct opendal_operator_options {
   /**
-   * The pointer to the Rust HashMap<String, String>
+   * The pointer to the HashMap<String, String> in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -329,6 +283,10 @@ typedef struct opendal_result_read {
  * a opendal::BlockingReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
+  /**
+   * The pointer to the opendal::StdReader in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   void *inner;
 } opendal_reader;
 
@@ -355,6 +313,10 @@ typedef struct opendal_result_operator_reader {
  * an opendal::BlockingWriter, which is inside the Rust core code.
  */
 typedef struct opendal_writer {
+  /**
+   * The pointer to the opendal::BlockingWriter in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   void *inner;
 } opendal_writer;
 
@@ -436,6 +398,10 @@ typedef struct opendal_result_list {
  * of operator.
  */
 typedef struct opendal_operator_info {
+  /**
+   * The pointer to the opendal::OperatorInfo in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   void *inner;
 } opendal_operator_info;
 
@@ -658,7 +624,7 @@ void opendal_error_free(struct opendal_error *ptr);
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
  */
-struct opendal_result_lister_next opendal_lister_next(const struct opendal_lister *self);
+struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *self);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_lister
@@ -752,7 +718,7 @@ int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
  * opendal_operator_free(op);
  * ```
  */
-void opendal_operator_free(const struct opendal_operator *op);
+void opendal_operator_free(const struct opendal_operator *ptr);
 
 /**
  * \brief Construct an operator based on `scheme` and `options`
@@ -1411,7 +1377,7 @@ void opendal_entry_free(struct opendal_entry *ptr);
 /**
  * \brief Read data from the reader.
  */
-struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *self,
+struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
                                                       uint8_t *buf,
                                                       uintptr_t len);
 
@@ -1423,7 +1389,7 @@ void opendal_reader_free(struct opendal_reader *ptr);
 /**
  * \brief Write data to the writer.
  */
-struct opendal_result_writer_write opendal_writer_write(const struct opendal_writer *self,
+struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *self,
                                                         struct opendal_bytes bytes);
 
 /**

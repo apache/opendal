@@ -68,7 +68,9 @@ impl From<core::ErrorKind> for opendal_code {
             core::ErrorKind::RangeNotSatisfied => opendal_code::OPENDAL_RANGE_NOT_SATISFIED,
             // if this is triggered, check the [`core`] crate and add a
             // new error code accordingly
-            _ => panic!("The newly added ErrorKind in core crate is not handled in C bindings"),
+            _ => unimplemented!(
+                "The newly added ErrorKind in core crate is not handled in C bindings"
+            ),
         }
     }
 }

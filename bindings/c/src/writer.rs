@@ -25,11 +25,13 @@ use super::*;
 /// an opendal::BlockingWriter, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_writer {
+    /// The pointer to the opendal::BlockingWriter in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_writer {
-    fn deref_mut(&self) -> &mut core::BlockingWriter {
+    fn deref_mut(&mut self) -> &mut core::BlockingWriter {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::BlockingWriter) }
@@ -46,7 +48,7 @@ impl opendal_writer {
     /// \brief Write data to the writer.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write(
-        &self,
+        &mut self,
         bytes: opendal_bytes,
     ) -> opendal_result_writer_write {
         let size = bytes.len;
@@ -70,7 +72,7 @@ impl opendal_writer {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            let _ = (&*ptr).deref_mut().close();
+            let _ = (*ptr).deref_mut().close();
             let _ = unsafe { Box::from_raw((*ptr).inner as *mut core::BlockingWriter) };
             let _ = unsafe { Box::from_raw(ptr) };
         }

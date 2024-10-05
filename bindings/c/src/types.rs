@@ -77,7 +77,7 @@ impl Into<Buffer> for opendal_bytes {
 /// @see opendal_operator_options_set This function allow you to set the options
 #[repr(C)]
 pub struct opendal_operator_options {
-    /// The pointer to the Rust HashMap<String, String>
+    /// The pointer to the HashMap<String, String> in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
@@ -150,8 +150,8 @@ impl opendal_operator_options {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut HashMap<String, String>);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut HashMap<String, String>));
+            drop(Box::from_raw(ptr));
         }
     }
 }

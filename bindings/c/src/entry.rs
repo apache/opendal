@@ -28,6 +28,8 @@ use ::opendal as core;
 /// @see opendal_list_entry_name()
 #[repr(C)]
 pub struct opendal_entry {
+    /// The pointer to the opendal::Entry in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
@@ -77,8 +79,8 @@ impl opendal_entry {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_free(ptr: *mut opendal_entry) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut core::Entry);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut core::Entry));
+            drop(Box::from_raw(ptr));
         }
     }
 }

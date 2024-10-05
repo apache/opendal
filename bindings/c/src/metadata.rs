@@ -55,8 +55,8 @@ impl opendal_metadata {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut core::Metadata);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut core::Metadata));
+            drop(Box::from_raw(ptr));
         }
     }
 

@@ -26,6 +26,8 @@ use crate::opendal_operator;
 /// of operator.
 #[repr(C)]
 pub struct opendal_operator_info {
+    /// The pointer to the opendal::OperatorInfo in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
@@ -161,10 +163,8 @@ impl opendal_operator_info {
     /// opendal_operator_info_free(info);
     /// ```
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info_new(op: *const opendal_operator) -> *mut Self {
-        let op = (*op).as_ref();
-        let info = op.info();
-
+    pub unsafe extern "C" fn opendal_operator_info_new(op: &opendal_operator) -> *mut Self {
+        let info = op.deref().info();
         Box::into_raw(Box::new(Self {
             inner: Box::into_raw(Box::new(info)) as _,
         }))
@@ -174,8 +174,8 @@ impl opendal_operator_info {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_free(ptr: *mut Self) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut core::OperatorInfo);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut core::OperatorInfo));
+            drop(Box::from_raw(ptr));
         }
     }
 

@@ -29,11 +29,13 @@ use super::*;
 /// @see opendal_operator_list()
 #[repr(C)]
 pub struct opendal_lister {
+    /// The pointer to the opendal::BlockingLister in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_lister {
-    fn deref_mut(&self) -> &mut core::BlockingLister {
+    fn deref_mut(&mut self) -> &mut core::BlockingLister {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::BlockingLister) }
@@ -55,7 +57,7 @@ impl opendal_lister {
     /// For examples, please see the comment section of opendal_operator_list()
     /// @see opendal_operator_list()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&self) -> opendal_result_lister_next {
+    pub unsafe extern "C" fn opendal_lister_next(&mut self) -> opendal_result_lister_next {
         let e = self.deref_mut().next();
         if e.is_none() {
             return opendal_result_lister_next {
@@ -83,8 +85,8 @@ impl opendal_lister {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(ptr: *mut opendal_lister) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut core::BlockingLister);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut core::BlockingLister));
+            drop(Box::from_raw(ptr));
         }
     }
 }

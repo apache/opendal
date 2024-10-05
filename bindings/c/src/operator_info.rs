@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::c_char;
 use std::ffi::CString;
+use std::ffi::{c_char, c_void};
 
 use ::opendal as core;
 
@@ -26,7 +26,15 @@ use crate::opendal_operator;
 /// of operator.
 #[repr(C)]
 pub struct opendal_operator_info {
-    pub inner: *mut core::OperatorInfo,
+    inner: *mut c_void,
+}
+
+impl opendal_operator_info {
+    fn deref(&self) -> &core::OperatorInfo {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &*(self.inner as *mut core::OperatorInfo) }
+    }
 }
 
 /// \brief Capability is used to describe what operations are supported
@@ -158,15 +166,15 @@ impl opendal_operator_info {
         let info = op.info();
 
         Box::into_raw(Box::new(Self {
-            inner: Box::into_raw(Box::new(info)),
+            inner: Box::into_raw(Box::new(info)) as _,
         }))
     }
 
     /// \brief Free the heap-allocated opendal_operator_info
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_free(ptr: *mut Self) {
-        unsafe {
-            let _ = Box::from_raw((*ptr).inner);
+        if !ptr.is_null() {
+            let _ = Box::from_raw((*ptr).inner as *mut core::OperatorInfo);
             let _ = Box::from_raw(ptr);
         }
     }
@@ -176,7 +184,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_scheme(&self) -> *mut c_char {
-        let scheme = (*self.inner).scheme().to_string();
+        let scheme = self.deref().scheme().to_string();
         CString::new(scheme)
             .expect("CString::new failed in opendal_operator_info_get_root")
             .into_raw()
@@ -187,7 +195,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_root(&self) -> *mut c_char {
-        let root = (*self.inner).root();
+        let root = self.deref().root();
         CString::new(root)
             .expect("CString::new failed in opendal_operator_info_get_root")
             .into_raw()
@@ -199,7 +207,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_name(&self) -> *mut c_char {
-        let name = (*self.inner).name();
+        let name = self.deref().name();
         CString::new(name)
             .expect("CString::new failed in opendal_operator_info_get_name")
             .into_raw()
@@ -210,7 +218,7 @@ impl opendal_operator_info {
     pub unsafe extern "C" fn opendal_operator_info_get_full_capability(
         &self,
     ) -> opendal_capability {
-        let cap = (*self.inner).full_capability();
+        let cap = self.deref().full_capability();
         cap.into()
     }
 
@@ -219,7 +227,7 @@ impl opendal_operator_info {
     pub unsafe extern "C" fn opendal_operator_info_get_native_capability(
         &self,
     ) -> opendal_capability {
-        let cap = (*self.inner).native_capability();
+        let cap = self.deref().native_capability();
         cap.into()
     }
 }

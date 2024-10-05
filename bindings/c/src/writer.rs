@@ -16,33 +16,41 @@
 // under the License.
 
 use ::opendal as core;
+use std::ffi::c_void;
 
 use super::*;
 
 /// \brief The result type returned by opendal's writer operation.
 /// \note The opendal_writer actually owns a pointer to
-/// a opendal::BlockingWriter, which is inside the Rust core code.
+/// an opendal::BlockingWriter, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_writer {
-    inner: *mut core::BlockingWriter,
+    inner: *mut c_void,
+}
+
+impl opendal_writer {
+    fn deref_mut(&self) -> &mut core::BlockingWriter {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &mut *(self.inner as *mut core::BlockingWriter) }
+    }
 }
 
 impl opendal_writer {
     pub(crate) fn new(writer: core::BlockingWriter) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(writer)),
+            inner: Box::into_raw(Box::new(writer)) as _,
         }
     }
 
     /// \brief Write data to the writer.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write(
-        writer: *const Self,
+        &self,
         bytes: opendal_bytes,
     ) -> opendal_result_writer_write {
-        let inner = unsafe { &mut *(*writer).inner };
         let size = bytes.len;
-        match inner.write(bytes) {
+        match self.deref_mut().write(bytes) {
             Ok(()) => opendal_result_writer_write {
                 size,
                 error: std::ptr::null_mut(),
@@ -62,8 +70,8 @@ impl opendal_writer {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            let mut w = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = w.close();
+            let _ = (&*ptr).deref_mut().close();
+            let _ = unsafe { Box::from_raw((*ptr).inner as *mut core::BlockingWriter) };
             let _ = unsafe { Box::from_raw(ptr) };
         }
     }

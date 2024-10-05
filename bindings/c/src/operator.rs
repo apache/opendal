@@ -31,14 +31,14 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
         .unwrap()
 });
 
-/// \brief Used to access almost all OpenDAL APIs. It represents a
+/// \brief Used to access almost all OpenDAL APIs. It represents an
 /// operator that provides the unified interfaces provided by OpenDAL.
 ///
 /// @see opendal_operator_new This function construct the operator
 /// @see opendal_operator_free This function frees the heap memory of the operator
 ///
 /// \note The opendal_operator actually owns a pointer to
-/// a opendal::BlockingOperator, which is inside the Rust core code.
+/// an opendal::BlockingOperator, which is inside the Rust core code.
 ///
 /// \remark You may use the field `ptr` to check whether this is a NULL
 /// operator.
@@ -124,7 +124,7 @@ fn build_operator(
 /// each service, especially for the **Configuration Part**.
 ///
 /// @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
-/// @param options the pointer to the options for this operators, it could be NULL, which means no
+/// @param options the pointer to the options for this operator, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options
 /// @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
@@ -152,7 +152,7 @@ fn build_operator(
 ///
 /// # Safety
 ///
-/// The only unsafe case is passing a invalid c string pointer to the `scheme` argument.
+/// The only unsafe case is passing an invalid c string pointer to the `scheme` argument.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 
     let mut map = HashMap::<String, String>::default();
     if !options.is_null() {
-        for (k, v) in (*options).as_ref() {
+        for (k, v) in (*options).deref() {
             map.insert(k.to_string(), v.to_string());
         }
     }
@@ -195,9 +195,9 @@ pub unsafe extern "C" fn opendal_operator_new(
     }
 }
 
-/// \brief Blockingly write raw bytes to `path`.
+/// \brief Blocking write raw bytes to `path`.
 ///
-/// Write the `bytes` into the `path` blockingly by `op_ptr`.
+/// Write the `bytes` into the `path` blocking by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// \note It is important to notice that the `bytes` that is passes in will be consumed by this
@@ -257,9 +257,9 @@ pub unsafe extern "C" fn opendal_operator_write(
     }
 }
 
-/// \brief Blockingly read the data from `path`.
+/// \brief Blocking read the data from `path`.
 ///
-/// Read the data out from `path` blockingly by operator.
+/// Read the data out from `path` blocking by operator.
 ///
 /// @param op The opendal_operator created previously
 /// @param path The path you want to read the data out
@@ -322,9 +322,9 @@ pub unsafe extern "C" fn opendal_operator_read(
     }
 }
 
-/// \brief Blockingly read the data from `path`.
+/// \brief Blocking read the data from `path`.
 ///
-/// Read the data out from `path` blockingly by operator, returns
+/// Read the data out from `path` blocking by operator, returns
 /// an opendal_result_read with error code.
 ///
 /// @param op The opendal_operator created previously
@@ -391,7 +391,7 @@ pub unsafe extern "C" fn opendal_operator_reader(
     }
 }
 
-/// \brief Blockingly create a writer for the specified path.
+/// \brief Blocking create a writer for the specified path.
 ///
 /// This function prepares a writer that can be used to write data to the specified path
 /// using the provided operator. If successful, it returns a valid writer; otherwise, it
@@ -454,9 +454,9 @@ pub unsafe extern "C" fn opendal_operator_writer(
     }
 }
 
-/// \brief Blockingly delete the object in `path`.
+/// \brief Blocking delete the object in `path`.
 ///
-/// Delete the object in `path` blockingly by `op_ptr`.
+/// Delete the object in `path` blocking by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param op The opendal_operator created previously
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn opendal_operator_delete(
 /// @see opendal_result_is_exist
 /// @see opendal_error
 /// @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
-/// However, it the operation fails, the `is_exist` will contains false and the error will be set.
+/// However, it the operation fails, the `is_exist` will contain false and the error will be set.
 ///
 /// # Example
 ///
@@ -581,8 +581,8 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 /// @see opendal_result_stat
 /// @see opendal_metadata
 /// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
-/// If the operation succeeds, the `meta` field would holds a valid metadata and
-/// the `error` field should hold nullptr. Otherwise the metadata will contain a
+/// If the operation succeeds, the `meta` field would hold a valid metadata and
+/// the `error` field should hold nullptr. Otherwise, the metadata will contain a
 /// NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
 ///
 /// # Example
@@ -630,9 +630,9 @@ pub unsafe extern "C" fn opendal_operator_stat(
     }
 }
 
-/// \brief Blockingly list the objects in `path`.
+/// \brief Blocking list the objects in `path`.
 ///
-/// List the object in `path` blockingly by `op_ptr`, return a result with a
+/// List the object in `path` blocking by `op_ptr`, return a result with an
 /// opendal_lister. Users should call opendal_lister_next() on the
 /// lister.
 ///
@@ -640,8 +640,8 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// @param path The designated path you want to list
 /// @see opendal_lister
 /// @return Returns opendal_result_list, containing a lister and an opendal_error.
-/// If the operation succeeds, the `lister` field would holds a valid lister and
-/// the `error` field should hold nullptr. Otherwise the `lister`` will contain a
+/// If the operation succeeds, the `lister` field would hold a valid lister and
+/// the `error` field should hold nullptr. Otherwise, the `lister`` will contain a
 /// NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
 ///
 /// # Example
@@ -701,9 +701,9 @@ pub unsafe extern "C" fn opendal_operator_list(
     }
 }
 
-/// \brief Blockingly create the directory in `path`.
+/// \brief Blocking create the directory in `path`.
 ///
-/// Create the directory in `path` blockingly by `op_ptr`.
+/// Create the directory in `path` blocking by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param op The opendal_operator created previously
@@ -751,9 +751,9 @@ pub unsafe extern "C" fn opendal_operator_create_dir(
     }
 }
 
-/// \brief Blockingly rename the object in `path`.
+/// \brief Blocking rename the object in `path`.
 ///
-/// Rename the object in `src` to `dest` blockingly by `op`.
+/// Rename the object in `src` to `dest` blocking by `op`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param op The opendal_operator created previously
@@ -814,9 +814,9 @@ pub unsafe extern "C" fn opendal_operator_rename(
     }
 }
 
-/// \brief Blockingly copy the object in `path`.
+/// \brief Blocking copy the object in `path`.
 ///
-/// Copy the object in `src` to `dest` blockingly by `op`.
+/// Copy the object in `src` to `dest` blocking by `op`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param op The opendal_operator created previously

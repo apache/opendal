@@ -82,17 +82,6 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
- * BlockingLister is designed to list entries at given path in a blocking
- * manner.
- *
- * Users can construct Lister by [`BlockingOperator::lister`] or [`BlockingOperator::lister_with`].
- *
- * - Lister implements `Iterator<Item = Result<Entry>>`.
- * - Lister will return `None` if there is no more entries or error has been returned.
- */
-typedef struct BlockingLister BlockingLister;
-
-/**
  * BlockingOperator is the entry for all public blocking APIs.
  *
  * Read [`concepts`][docs::concepts] for know more about [`Operator`].
@@ -147,82 +136,6 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
- * BlockingWriter is designed to write data into given path in an blocking
- * manner.
- */
-typedef struct BlockingWriter BlockingWriter;
-
-/**
- * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
- *
- * # Notes
- *
- * Entry returned by [`Lister`] or [`BlockingLister`] may carry some already known metadata.
- * Lister by default only make sure that `Mode` is fetched. To make sure the entry contains
- * metadata you want, please use `list_with` or `lister_with` and `metakey`.
- *
- * For example:
- *
- * ```no_run
- * # use anyhow::Result;
- * use opendal::EntryMode;
- * use opendal::Metakey;
- * use opendal::Operator;
- * # async fn test(op: Operator) -> Result<()> {
- * let mut entries = op
- *     .list_with("dir/")
- *     .metakey(Metakey::ContentLength | Metakey::LastModified)
- *     .await?;
- * for entry in entries {
- *     let meta = entry.metadata();
- *     match meta.mode() {
- *         EntryMode::FILE => {
- *             println!(
- *                 "Handling file {} with size {}",
- *                 entry.path(),
- *                 meta.content_length()
- *             )
- *         }
- *         EntryMode::DIR => {
- *             println!("Handling dir {}", entry.path())
- *         }
- *         EntryMode::Unknown => continue,
- *     }
- * }
- * # Ok(())
- * # }
- * ```
- */
-typedef struct Entry Entry;
-
-typedef struct HashMap_String__String HashMap_String__String;
-
-/**
- * Metadata carries all metadata associated with a path.
- *
- * # Notes
- *
- * mode and content_length are required metadata that all services
- * should provide during `stat` operation. But in `list` operation,
- * a.k.a., `Entry`'s content length could be `None`.
- */
-typedef struct Metadata Metadata;
-
-/**
- * Metadata for operator, users can use this metadata to get information of operator.
- */
-typedef struct OperatorInfo OperatorInfo;
-
-/**
- * StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
- *
- * Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
- *
- * StdReader also implements [`Send`] and [`Sync`].
- */
-typedef struct StdReader StdReader;
-
-/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -275,7 +188,7 @@ typedef struct opendal_error {
  * @see opendal_list_entry_name()
  */
 typedef struct opendal_entry {
-  struct Entry *inner;
+  void *inner;
 } opendal_entry;
 
 /**
@@ -306,7 +219,7 @@ typedef struct opendal_result_lister_next {
  * @see opendal_operator_list()
  */
 typedef struct opendal_lister {
-  struct BlockingLister *inner;
+  void *inner;
 } opendal_lister;
 
 /**
@@ -325,18 +238,18 @@ typedef struct opendal_metadata {
    * The pointer to the opendal::Metadata in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  struct Metadata *inner;
+  void *inner;
 } opendal_metadata;
 
 /**
- * \brief Used to access almost all OpenDAL APIs. It represents a
+ * \brief Used to access almost all OpenDAL APIs. It represents an
  * operator that provides the unified interfaces provided by OpenDAL.
  *
  * @see opendal_operator_new This function construct the operator
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator actually owns a pointer to
- * a opendal::BlockingOperator, which is inside the Rust core code.
+ * an opendal::BlockingOperator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
@@ -387,7 +300,7 @@ typedef struct opendal_operator_options {
    * The pointer to the Rust HashMap<String, String>
    * Only touch this on judging whether it is NULL.
    */
-  struct HashMap_String__String *inner;
+  void *inner;
 } opendal_operator_options;
 
 /**
@@ -416,7 +329,7 @@ typedef struct opendal_result_read {
  * a opendal::BlockingReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
-  struct StdReader *inner;
+  void *inner;
 } opendal_reader;
 
 /**
@@ -439,10 +352,10 @@ typedef struct opendal_result_operator_reader {
 /**
  * \brief The result type returned by opendal's writer operation.
  * \note The opendal_writer actually owns a pointer to
- * a opendal::BlockingWriter, which is inside the Rust core code.
+ * an opendal::BlockingWriter, which is inside the Rust core code.
  */
 typedef struct opendal_writer {
-  struct BlockingWriter *inner;
+  void *inner;
 } opendal_writer;
 
 /**
@@ -523,7 +436,7 @@ typedef struct opendal_result_list {
  * of operator.
  */
 typedef struct opendal_operator_info {
-  struct OperatorInfo *inner;
+  void *inner;
 } opendal_operator_info;
 
 /**
@@ -750,7 +663,7 @@ struct opendal_result_lister_next opendal_lister_next(const struct opendal_liste
 /**
  * \brief Free the heap-allocated metadata used by opendal_lister
  */
-void opendal_lister_free(const struct opendal_lister *p);
+void opendal_lister_free(struct opendal_lister *ptr);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_metadata
@@ -850,7 +763,7 @@ void opendal_operator_free(const struct opendal_operator *op);
  * each service, especially for the **Configuration Part**.
  *
  * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
- * @param options the pointer to the options for this operators, it could be NULL, which means no
+ * @param options the pointer to the options for this operator, it could be NULL, which means no
  * option is set
  * @see opendal_operator_options
  * @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
@@ -878,15 +791,15 @@ void opendal_operator_free(const struct opendal_operator *op);
  *
  * # Safety
  *
- * The only unsafe case is passing a invalid c string pointer to the `scheme` argument.
+ * The only unsafe case is passing an invalid c string pointer to the `scheme` argument.
  */
 struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
 
 /**
- * \brief Blockingly write raw bytes to `path`.
+ * \brief Blocking write raw bytes to `path`.
  *
- * Write the `bytes` into the `path` blockingly by `op_ptr`.
+ * Write the `bytes` into the `path` blocking by `op_ptr`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * \note It is important to notice that the `bytes` that is passes in will be consumed by this
@@ -934,9 +847,9 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
                                              struct opendal_bytes bytes);
 
 /**
- * \brief Blockingly read the data from `path`.
+ * \brief Blocking read the data from `path`.
  *
- * Read the data out from `path` blockingly by operator.
+ * Read the data out from `path` blocking by operator.
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to read the data out
@@ -977,9 +890,9 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
                                                  const char *path);
 
 /**
- * \brief Blockingly read the data from `path`.
+ * \brief Blocking read the data from `path`.
  *
- * Read the data out from `path` blockingly by operator, returns
+ * Read the data out from `path` blocking by operator, returns
  * an opendal_result_read with error code.
  *
  * @param op The opendal_operator created previously
@@ -1018,7 +931,7 @@ struct opendal_result_operator_reader opendal_operator_reader(const struct opend
                                                               const char *path);
 
 /**
- * \brief Blockingly create a writer for the specified path.
+ * \brief Blocking create a writer for the specified path.
  *
  * This function prepares a writer that can be used to write data to the specified path
  * using the provided operator. If successful, it returns a valid writer; otherwise, it
@@ -1059,9 +972,9 @@ struct opendal_result_operator_writer opendal_operator_writer(const struct opend
                                                               const char *path);
 
 /**
- * \brief Blockingly delete the object in `path`.
+ * \brief Blocking delete the object in `path`.
  *
- * Delete the object in `path` blockingly by `op_ptr`.
+ * Delete the object in `path` blocking by `op_ptr`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param op The opendal_operator created previously
@@ -1115,7 +1028,7 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator *op,
  * @see opendal_result_is_exist
  * @see opendal_error
  * @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
- * However, it the operation fails, the `is_exist` will contains false and the error will be set.
+ * However, it the operation fails, the `is_exist` will contain false and the error will be set.
  *
  * # Example
  *
@@ -1155,8 +1068,8 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  * @see opendal_result_stat
  * @see opendal_metadata
  * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
- * If the operation succeeds, the `meta` field would holds a valid metadata and
- * the `error` field should hold nullptr. Otherwise the metadata will contain a
+ * If the operation succeeds, the `meta` field would hold a valid metadata and
+ * the `error` field should hold nullptr. Otherwise, the metadata will contain a
  * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
  *
  * # Example
@@ -1186,9 +1099,9 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
                                                  const char *path);
 
 /**
- * \brief Blockingly list the objects in `path`.
+ * \brief Blocking list the objects in `path`.
  *
- * List the object in `path` blockingly by `op_ptr`, return a result with a
+ * List the object in `path` blocking by `op_ptr`, return a result with an
  * opendal_lister. Users should call opendal_lister_next() on the
  * lister.
  *
@@ -1196,8 +1109,8 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  * @param path The designated path you want to list
  * @see opendal_lister
  * @return Returns opendal_result_list, containing a lister and an opendal_error.
- * If the operation succeeds, the `lister` field would holds a valid lister and
- * the `error` field should hold nullptr. Otherwise the `lister`` will contain a
+ * If the operation succeeds, the `lister` field would hold a valid lister and
+ * the `error` field should hold nullptr. Otherwise, the `lister`` will contain a
  * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
  *
  * # Example
@@ -1239,9 +1152,9 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
                                                  const char *path);
 
 /**
- * \brief Blockingly create the directory in `path`.
+ * \brief Blocking create the directory in `path`.
  *
- * Create the directory in `path` blockingly by `op_ptr`.
+ * Create the directory in `path` blocking by `op_ptr`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param op The opendal_operator created previously
@@ -1277,9 +1190,9 @@ struct opendal_error *opendal_operator_create_dir(const struct opendal_operator 
                                                   const char *path);
 
 /**
- * \brief Blockingly rename the object in `path`.
+ * \brief Blocking rename the object in `path`.
  *
- * Rename the object in `src` to `dest` blockingly by `op`.
+ * Rename the object in `src` to `dest` blocking by `op`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param op The opendal_operator created previously
@@ -1324,9 +1237,9 @@ struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
                                               const char *dest);
 
 /**
- * \brief Blockingly copy the object in `path`.
+ * \brief Blocking copy the object in `path`.
  *
- * Copy the object in `src` to `dest` blockingly by `op`.
+ * Copy the object in `src` to `dest` blocking by `op`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param op The opendal_operator created previously
@@ -1468,7 +1381,7 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
 /**
  * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
-void opendal_operator_options_free(const struct opendal_operator_options *options);
+void opendal_operator_options_free(struct opendal_operator_options *ptr);
 
 /**
  * \brief Path of entry.
@@ -1498,7 +1411,7 @@ void opendal_entry_free(struct opendal_entry *ptr);
 /**
  * \brief Read data from the reader.
  */
-struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *reader,
+struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *self,
                                                       uint8_t *buf,
                                                       uintptr_t len);
 
@@ -1510,7 +1423,7 @@ void opendal_reader_free(struct opendal_reader *ptr);
 /**
  * \brief Write data to the writer.
  */
-struct opendal_result_writer_write opendal_writer_write(const struct opendal_writer *writer,
+struct opendal_result_writer_write opendal_writer_write(const struct opendal_writer *self,
                                                         struct opendal_bytes bytes);
 
 /**

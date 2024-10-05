@@ -174,8 +174,8 @@ impl opendal_operator_info {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_free(ptr: *mut Self) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut core::OperatorInfo);
+            let _ = Box::from_raw(ptr);
         }
     }
 

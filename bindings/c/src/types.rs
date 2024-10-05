@@ -150,8 +150,8 @@ impl opendal_operator_options {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut HashMap<String, String>);
+            let _ = Box::from_raw(ptr);
         }
     }
 }

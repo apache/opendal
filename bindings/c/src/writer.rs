@@ -29,7 +29,7 @@ pub struct opendal_writer {
 }
 
 impl opendal_writer {
-    fn deref(&self) -> &mut core::BlockingWriter {
+    fn deref_mut(&self) -> &mut core::BlockingWriter {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::BlockingWriter) }
@@ -50,7 +50,7 @@ impl opendal_writer {
         bytes: opendal_bytes,
     ) -> opendal_result_writer_write {
         let size = bytes.len;
-        match self.deref().write(bytes) {
+        match self.deref_mut().write(bytes) {
             Ok(()) => opendal_result_writer_write {
                 size,
                 error: std::ptr::null_mut(),
@@ -70,8 +70,8 @@ impl opendal_writer {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            let _ = (&*ptr).deref().close();
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = (&*ptr).deref_mut().close();
+            let _ = unsafe { Box::from_raw((*ptr).inner as *mut core::BlockingWriter) };
             let _ = unsafe { Box::from_raw(ptr) };
         }
     }

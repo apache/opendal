@@ -33,7 +33,7 @@ pub struct opendal_lister {
 }
 
 impl opendal_lister {
-    fn deref(&self) -> &mut core::BlockingLister {
+    fn deref_mut(&self) -> &mut core::BlockingLister {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::BlockingLister) }
@@ -56,7 +56,7 @@ impl opendal_lister {
     /// @see opendal_operator_list()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_next(&self) -> opendal_result_lister_next {
-        let e = self.deref().next();
+        let e = self.deref_mut().next();
         if e.is_none() {
             return opendal_result_lister_next {
                 entry: std::ptr::null_mut(),
@@ -83,8 +83,8 @@ impl opendal_lister {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(ptr: *mut opendal_lister) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut core::BlockingLister);
+            let _ = Box::from_raw(ptr);
         }
     }
 }

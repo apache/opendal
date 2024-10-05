@@ -32,10 +32,10 @@ pub struct opendal_entry {
 }
 
 impl opendal_entry {
-    fn deref(&self) -> &mut core::Entry {
+    fn deref(&self) -> &core::Entry {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::Entry) }
+        unsafe { &*(self.inner as *mut core::Entry) }
     }
 }
 
@@ -77,8 +77,8 @@ impl opendal_entry {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_free(ptr: *mut opendal_entry) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut core::Entry);
+            let _ = Box::from_raw(ptr);
         }
     }
 }

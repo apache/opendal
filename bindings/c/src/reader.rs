@@ -32,7 +32,7 @@ pub struct opendal_reader {
 }
 
 impl opendal_reader {
-    fn deref(&self) -> &mut core::StdReader {
+    fn deref_mut(&self) -> &mut core::StdReader {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::StdReader) }
@@ -58,7 +58,7 @@ impl opendal_reader {
         }
 
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
-        match self.deref().read(buf) {
+        match self.deref_mut().read(buf) {
             Ok(n) => opendal_result_reader_read {
                 size: n,
                 error: std::ptr::null_mut(),
@@ -77,8 +77,8 @@ impl opendal_reader {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut core::StdReader);
+            let _ = Box::from_raw(ptr);
         }
     }
 }

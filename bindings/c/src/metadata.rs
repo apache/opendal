@@ -35,10 +35,10 @@ pub struct opendal_metadata {
 }
 
 impl opendal_metadata {
-    fn deref(&self) -> &mut core::Metadata {
+    fn deref(&self) -> &core::Metadata {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::Metadata) }
+        unsafe { &*(self.inner as *mut core::Metadata) }
     }
 }
 
@@ -55,8 +55,8 @@ impl opendal_metadata {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
         if !ptr.is_null() {
-            let _ = unsafe { Box::from_raw((*ptr).inner) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            let _ = Box::from_raw((*ptr).inner as *mut core::Metadata);
+            let _ = Box::from_raw(ptr);
         }
     }
 

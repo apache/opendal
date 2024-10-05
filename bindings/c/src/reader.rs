@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ffi::c_void;
 use std::io::Read;
 
 use ::opendal as core;
@@ -27,32 +28,37 @@ use super::*;
 /// a opendal::BlockingReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
-    inner: *mut core::StdReader,
+    inner: *mut c_void,
+}
+
+impl opendal_reader {
+    fn deref(&self) -> &mut core::StdReader {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &mut *(self.inner as *mut core::StdReader) }
+    }
 }
 
 impl opendal_reader {
     pub(crate) fn new(reader: core::StdReader) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader)),
+            inner: Box::into_raw(Box::new(reader)) as _,
         }
     }
 
     /// \brief Read data from the reader.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_read(
-        reader: *const Self,
+        &self,
         buf: *mut u8,
         len: usize,
     ) -> opendal_result_reader_read {
         if buf.is_null() {
-            panic!("The buffer given is pointing at NULL");
+            panic!("buf is NULL");
         }
 
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
-
-        let inner = unsafe { &mut *(*reader).inner };
-        let n = inner.read(buf);
-        match n {
+        match self.deref().read(buf) {
             Ok(n) => opendal_result_reader_read {
                 size: n,
                 error: std::ptr::null_mut(),

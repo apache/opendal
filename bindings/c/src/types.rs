@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::os::raw::c_char;
 
 use opendal::Buffer;
@@ -78,7 +79,21 @@ impl Into<Buffer> for opendal_bytes {
 pub struct opendal_operator_options {
     /// The pointer to the Rust HashMap<String, String>
     /// Only touch this on judging whether it is NULL.
-    inner: *mut HashMap<String, String>,
+    inner: *mut c_void,
+}
+
+impl opendal_operator_options {
+    pub(crate) fn deref(&self) -> &HashMap<String, String> {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &*(self.inner as *mut HashMap<String, String>) }
+    }
+
+    pub(crate) fn deref_mut(&mut self) -> &mut HashMap<String, String> {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &mut *(self.inner as *mut HashMap<String, String>) }
+    }
 }
 
 impl opendal_operator_options {
@@ -92,9 +107,8 @@ impl opendal_operator_options {
     pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
         let options = Self {
-            inner: Box::into_raw(Box::new(map)),
+            inner: Box::into_raw(Box::new(map)) as _,
         };
-
         Box::into_raw(Box::new(options))
     }
 
@@ -129,20 +143,15 @@ impl opendal_operator_options {
             .to_str()
             .unwrap()
             .to_string();
-        (*self.inner).insert(k, v);
-    }
-
-    /// Returns a reference to the underlying [`HashMap<String, String>`]
-    pub(crate) fn as_ref(&self) -> &HashMap<String, String> {
-        unsafe { &*(self.inner) }
+        self.deref_mut().insert(k, v);
     }
 
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_options_free(
-        options: *const opendal_operator_options,
-    ) {
-        let _ = unsafe { Box::from_raw((*options).inner) };
-        let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
+    pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
+        if !ptr.is_null() {
+            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = unsafe { Box::from_raw(ptr) };
+        }
     }
 }

@@ -17,18 +17,7 @@
  * under the License.
  */
 
-package org.apache.opendal.spring.core;
+package org.apache.opendal.spring.config;
 
-import reactor.core.publisher.Mono;
-
-
-/**
- * Interface that specified a basic set of Apache OpenDALOperations, implemented by {@link ReactiveOpenDALTemplate}.
- */
-public interface ReactiveOpenDALOperations<T> {
-    Mono<Void> write(String path, T entity);
-
-    Mono<T> read(String path);
-
-    Mono<Void> delete(String path);
+public record Person(String name, int age) {
 }

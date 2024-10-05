@@ -19,8 +19,21 @@
 
 package org.apache.opendal.spring.core;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Interface that specified a basic set of Apache OpenDAL, implemented by {@link OpenDALTemplate}.
  */
-public interface OpenDALOperations {
+public interface OpenDALOperations<T> {
+    void write(String path, T entity);
+
+    T read(String path);
+
+    void delete(String path);
+
+    CompletableFuture<Void> writeAsync(String path, T entity);
+
+    CompletableFuture<T> readAsync(String path);
+
+    CompletableFuture<Void> deleteAsync(String path);
 }

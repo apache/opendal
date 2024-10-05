@@ -21,10 +21,27 @@ package org.apache.opendal.spring.core;
 
 import org.apache.opendal.AsyncOperator;
 
-public class ReactiveOpenDALTemplate implements ReactiveOpenDALOperations {
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class ReactiveOpenDALTemplate {
     private final AsyncOperator asyncOperator;
 
-    public ReactiveOpenDALTemplate(OpenDALProperties openDALProperties) {
-        this.asyncOperator = AsyncOperator.of(openDALProperties.getSchema(), openDALProperties.getConf());
+    private final OpenDALSerializerFactory serializerFactory;
+
+    private final Map<Class<?>, ReactiveOpenDALOperations<?>> operationsMap = new ConcurrentHashMap<>();
+
+    public ReactiveOpenDALTemplate(AsyncOperator asyncOperator, OpenDALSerializerFactory serializerFactory) {
+        this.asyncOperator = asyncOperator;
+        this.serializerFactory = serializerFactory;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> ReactiveOpenDALOperations<T> ops(Class<T> clazz) {
+        return (ReactiveOpenDALOperations<T>) operationsMap.computeIfAbsent(clazz, (k) -> {
+            OpenDALSerializer<T> serializer = (OpenDALSerializer<T>) serializerFactory.getSerializer(
+                k);
+            return new ReactiveOpenDALOperationsImpl<>(asyncOperator, serializer);
+        });
     }
 }

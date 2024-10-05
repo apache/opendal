@@ -73,6 +73,12 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
                             + "\nTest {} is running."
                             + "\n--------------------------------------------------------------------------------",
                     testName);
+        } else {
+            log.warn(
+                    "\n================================================================================"
+                            + "\nTest {} is skipped because OPENDAL_TEST is not set."
+                            + "\n--------------------------------------------------------------------------------",
+                    context.getDisplayName());
         }
     }
 

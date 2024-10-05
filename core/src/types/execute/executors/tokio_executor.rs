@@ -23,7 +23,7 @@ use crate::*;
 pub struct TokioExecutor {}
 
 impl Execute for TokioExecutor {
-    /// Tokio's JoinHandle has it's own `abort` support, so dropping handle won't cancel the task.
+    /// Tokio's JoinHandle has its own `abort` support, so dropping handle won't cancel the task.
     fn execute(&self, f: BoxedStaticFuture<()>) {
         let _handle = tokio::task::spawn(f);
     }
@@ -54,7 +54,7 @@ mod tests {
         });
 
         sleep(Duration::from_secs(2)).await;
-        // Task must has been finished even without await task.
+        // Task must have been finished even without await task.
         assert!(finished.load(Ordering::Relaxed))
     }
 }

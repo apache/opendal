@@ -73,8 +73,8 @@ impl opendal_writer {
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
             let _ = (*ptr).deref_mut().close();
-            let _ = unsafe { Box::from_raw((*ptr).inner as *mut core::BlockingWriter) };
-            let _ = unsafe { Box::from_raw(ptr) };
+            drop(Box::from_raw((*ptr).inner as *mut core::BlockingWriter));
+            drop(Box::from_raw(ptr));
         }
     }
 }

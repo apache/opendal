@@ -99,10 +99,6 @@ typedef struct opendal_bytes {
    * The length of the byte array
    */
   uintptr_t len;
-  /**
-   * The capacity of the byte array
-   */
-  uintptr_t capacity;
 } opendal_bytes;
 
 /**

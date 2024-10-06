@@ -34,8 +34,6 @@ pub struct opendal_bytes {
     pub data: *const u8,
     /// The length of the byte array
     pub len: usize,
-    /// The capacity of the byte array
-    pub capacity: usize,
 }
 
 impl opendal_bytes {
@@ -44,13 +42,8 @@ impl opendal_bytes {
         let vec = buf.to_vec();
         let data = vec.as_ptr();
         let len = vec.len();
-        let capacity = vec.capacity();
         std::mem::forget(vec);
-        Self {
-            data,
-            len,
-            capacity,
-        }
+        Self { data, len }
     }
 
     /// \brief Frees the heap memory used by the opendal_bytes
@@ -58,7 +51,7 @@ impl opendal_bytes {
     pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
         if !ptr.is_null() {
             let data_mut = (*ptr).data as *mut u8;
-            drop(Vec::from_raw_parts(data_mut, (*ptr).len, (*ptr).capacity));
+            drop(Vec::from_raw_parts(data_mut, (*ptr).len, (*ptr).len));
             drop(Box::from_raw(ptr));
         }
     }

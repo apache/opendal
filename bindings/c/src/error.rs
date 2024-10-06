@@ -121,7 +121,7 @@ impl opendal_error {
                 drop(Vec::from_raw_parts(
                     data_mut,
                     (*message_ptr).len,
-                    (*message_ptr).len,
+                    (*message_ptr).capacity,
                 ));
             }
 

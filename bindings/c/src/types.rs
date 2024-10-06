@@ -48,21 +48,18 @@ impl opendal_bytes {
 
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
-        if !bs.is_null() {
-            let data_mut = unsafe { (*bs).data as *mut u8 };
-            // free the vector
-            let _ = unsafe { Vec::from_raw_parts(data_mut, (*bs).len, (*bs).len) };
-            // free the pointer
-            let _ = unsafe { Box::from_raw(bs) };
+    pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
+        if !ptr.is_null() {
+            let data_mut = (*ptr).data as *mut u8;
+            drop(Vec::from_raw_parts(data_mut, (*ptr).len, (*ptr).len));
+            drop(Box::from_raw(ptr));
         }
     }
 }
 
-#[allow(clippy::from_over_into)]
-impl Into<Buffer> for opendal_bytes {
-    fn into(self) -> Buffer {
-        let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
+impl From<opendal_bytes> for Buffer {
+    fn from(v: opendal_bytes) -> Self {
+        let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
         Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }
 }
@@ -77,7 +74,7 @@ impl Into<Buffer> for opendal_bytes {
 /// @see opendal_operator_options_set This function allow you to set the options
 #[repr(C)]
 pub struct opendal_operator_options {
-    /// The pointer to the Rust HashMap<String, String>
+    /// The pointer to the HashMap<String, String> in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
@@ -150,8 +147,8 @@ impl opendal_operator_options {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut HashMap<String, String>);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut HashMap<String, String>));
+            drop(Box::from_raw(ptr));
         }
     }
 }

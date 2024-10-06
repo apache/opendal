@@ -28,11 +28,13 @@ use super::*;
 /// a opendal::BlockingReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
+    /// The pointer to the opendal::StdReader in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_reader {
-    fn deref_mut(&self) -> &mut core::StdReader {
+    fn deref_mut(&mut self) -> &mut core::StdReader {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &mut *(self.inner as *mut core::StdReader) }
@@ -49,15 +51,12 @@ impl opendal_reader {
     /// \brief Read data from the reader.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_read(
-        &self,
+        &mut self,
         buf: *mut u8,
         len: usize,
     ) -> opendal_result_reader_read {
-        if buf.is_null() {
-            panic!("buf is NULL");
-        }
-
-        let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+        assert!(!buf.is_null());
+        let buf = std::slice::from_raw_parts_mut(buf, len);
         match self.deref_mut().read(buf) {
             Ok(n) => opendal_result_reader_read {
                 size: n,
@@ -77,8 +76,8 @@ impl opendal_reader {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         if !ptr.is_null() {
-            let _ = Box::from_raw((*ptr).inner as *mut core::StdReader);
-            let _ = Box::from_raw(ptr);
+            drop(Box::from_raw((*ptr).inner as *mut core::StdReader));
+            drop(Box::from_raw(ptr));
         }
     }
 }

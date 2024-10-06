@@ -94,6 +94,7 @@ maturin develop
 Run some tests:
 
 ```shell
+# Ensure the dependencies are installed
 maturin develop -E test
 # To run `test_write.py` and use `fs` operator
 OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp pytest -vk test_write

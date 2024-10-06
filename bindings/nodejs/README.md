@@ -26,6 +26,25 @@ pnpm run build:theme
 pnpm run docs
 ```
 
+## Tests
+
+Services behavior tests read necessary configs from env vars or the `.env` file.
+
+You can copy [.env.example](/.env.example) to `$(pwd)/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
+
+Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
+
+```properties
+OPENDAL_TEST=fs
+OPENDAL_FS_ROOT=/tmp
+```
+
+You can run service behavior tests of enabled with the following command:
+
+```shell
+pnpm build && pnpm test
+```
+
 ## Usage
 
 ```javascript

@@ -25,6 +25,7 @@ import java.util.Map;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Layer;
+import org.apache.opendal.layer.ConcurrentLimitLayer;
 import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +37,16 @@ public class LayerTest {
         final Layer retryLayer = RetryLayer.builder().build();
         @Cleanup final AsyncOperator op = AsyncOperator.of("memory", conf);
         @Cleanup final AsyncOperator layeredOp = op.layer(retryLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testOperatorWithConcurrentLimitLayer() {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/opendal/");
+        final Layer concurrentLimitLayer = new ConcurrentLimitLayer(1024);
+        @Cleanup final AsyncOperator op = AsyncOperator.of("memory", conf);
+        @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
         assertThat(layeredOp.info).isNotNull();
     }
 }

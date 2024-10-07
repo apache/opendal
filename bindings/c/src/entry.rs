@@ -27,26 +27,26 @@ use ::opendal as core;
 /// @see opendal_list_entry_path()
 /// @see opendal_list_entry_name()
 #[repr(C)]
-pub struct opendal_entry {
+pub struct opendal_entry (
     /// The pointer to the opendal::Entry in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    inner: *mut c_void,
-}
+    *mut c_void
+);
 
 impl opendal_entry {
     fn deref(&self) -> &core::Entry {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &*(self.inner as *mut core::Entry) }
+        unsafe { &*(self.0 as *mut core::Entry) }
     }
 }
 
 impl opendal_entry {
     /// Used to convert the Rust type into C type
     pub(crate) fn new(entry: core::Entry) -> Self {
-        Self {
-            inner: Box::into_raw(Box::new(entry)) as _,
-        }
+        Self (
+             Box::into_raw(Box::new(entry)) as _,
+        )
     }
 
     /// \brief Path of entry.
@@ -79,7 +79,7 @@ impl opendal_entry {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_free(ptr: *mut opendal_entry) {
         if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::Entry));
+            drop(Box::from_raw((*ptr).0 as *mut core::Entry));
             drop(Box::from_raw(ptr));
         }
     }

@@ -9,9 +9,9 @@
 A simple read and write example
 
 ```C
-#include "assert.h"
+#include <assert.h>
+#include <stdio.h>
 #include "opendal.h"
-#include "stdio.h"
 
 int main()
 {
@@ -37,7 +37,7 @@ int main()
     assert(read_bytes->len == 24);
 
     /* Lets print it out */
-    for (int i = 0; i < 24; ++i) {
+    for (size_t i = 0; i < 24; ++i) {
         printf("%c", read_bytes->data[i]);
     }
     printf("\n");

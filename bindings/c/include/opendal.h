@@ -138,7 +138,7 @@ typedef struct opendal_entry {
    * The pointer to the opendal::Entry in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  void *inner;
+  void *_0;
 } opendal_entry;
 
 /**

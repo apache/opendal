@@ -27,10 +27,10 @@ use ::opendal as core;
 /// @see opendal_list_entry_path()
 /// @see opendal_list_entry_name()
 #[repr(C)]
-pub struct opendal_entry (
+pub struct opendal_entry(
     /// The pointer to the opendal::Entry in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    *mut c_void
+    *mut c_void,
 );
 
 impl opendal_entry {
@@ -44,9 +44,7 @@ impl opendal_entry {
 impl opendal_entry {
     /// Used to convert the Rust type into C type
     pub(crate) fn new(entry: core::Entry) -> Self {
-        Self (
-             Box::into_raw(Box::new(entry)) as _,
-        )
+        Self(Box::into_raw(Box::new(entry)) as _)
     }
 
     /// \brief Path of entry.

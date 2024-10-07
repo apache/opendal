@@ -49,6 +49,7 @@ var (
 		Elements: &[]*ffi.Type{
 			&ffi.TypePointer,
 			&ffi.TypePointer,
+			&ffi.TypePointer,
 			nil,
 		}[0],
 	}
@@ -257,8 +258,9 @@ type resultStat struct {
 type opendalMetadata struct{}
 
 type opendalBytes struct {
-	data *byte
-	len  uintptr
+	data     *byte
+	len      uintptr
+	capacity uintptr
 }
 
 type opendalError struct {
@@ -292,8 +294,9 @@ func toOpendalBytes(data []byte) opendalBytes {
 		ptr = &b
 	}
 	return opendalBytes{
-		data: ptr,
-		len:  uintptr(l),
+		data:     ptr,
+		len:      uintptr(l),
+		capacity: uintptr(l),
 	}
 }
 

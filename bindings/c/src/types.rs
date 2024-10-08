@@ -59,9 +59,9 @@ impl opendal_bytes {
 
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
-        if !bs.is_null() {
-            let bs = &mut *bs;
+    pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
+        if !ptr.is_null() {
+            let bs = &mut *ptr;
             if !bs.data.is_null() {
                 drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
                 bs.data = std::ptr::null_mut();

@@ -120,7 +120,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);
 
-    opendal_bytes_free(r.data);
+    opendal_bytes_free(&r.data);
 
     // The directory "tmpdir/" should exist and should be a directory
     error = opendal_operator_create_dir(this->p, "tmpdir/");

@@ -82,8 +82,8 @@ test "Opendal BDD test" {
     defer opendal.c.opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    const r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
-    defer opendal.c.opendal_bytes_free(r.data);
+    var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
+    defer opendal.c.opendal_bytes_free(&r.data);
     try testing.expect(r.@"error" == null);
     try testing.expectEqual(std.mem.len(testkit.content), r.data.len);
 

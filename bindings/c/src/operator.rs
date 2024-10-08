@@ -265,7 +265,7 @@ pub unsafe extern "C" fn opendal_operator_write(
 ///
 /// opendal_bytes bytes = r.data;
 /// assert(bytes.len == 13);
-/// opendal_bytes_free(bytes);
+/// opendal_bytes_free(&bytes);
 /// ```
 ///
 /// # Safety

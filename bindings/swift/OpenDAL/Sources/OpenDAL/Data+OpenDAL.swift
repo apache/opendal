@@ -25,9 +25,9 @@ extension Data {
     /// This can be used to read data from Rust with zero-copying.
     /// The underlying buffer will be freed when the data gets
     /// deallocated.
-    init(openDALBytes: opendal_bytes) {
-        let address = UnsafeRawPointer(openDALBytes.data)!
-        let length = Int(openDALBytes.len)
+    init(openDALBytes: UnsafeMutablePointer<opendal_bytes>) {
+        let address = UnsafeRawPointer(openDALBytes.pointee.data)!
+        let length = Int(openDALBytes.pointee.len)
         self.init(
             bytesNoCopy: .init(mutating: address),
             count: length,

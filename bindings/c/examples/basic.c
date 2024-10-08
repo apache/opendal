@@ -53,7 +53,7 @@ int main()
     printf("\n");
 
     /* the opendal_bytes read is heap allocated, please free it */
-    opendal_bytes_free(read_bytes);
+    opendal_bytes_free(&read_bytes);
 
     /* the operator_ptr is also heap allocated */
     opendal_operator_free(op);

@@ -59,21 +59,24 @@ impl opendal_bytes {
 
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_bytes_free(bs: opendal_bytes) {
-        drop(bs);
+    pub unsafe extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
+        if !bs.is_null() {
+            let bs = &mut *bs;
+            if !bs.data.is_null() {
+                drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
+                bs.data = std::ptr::null_mut();
+                bs.len = 0;
+                bs.capacity = 0;
+            }
+        }
     }
 }
 
 impl Drop for opendal_bytes {
     fn drop(&mut self) {
-        if !self.data.is_null() {
-            unsafe {
-                // Safety: the data is not null, and the capacity is correct
-                drop(Vec::from_raw_parts(self.data, self.len, self.capacity));
-            }
-            self.data = std::ptr::null_mut();
-            self.len = 0;
-            self.capacity = 0;
+        unsafe {
+            // Safety: the pointer is always valid
+            Self::opendal_bytes_free(self);
         }
     }
 }

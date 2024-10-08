@@ -26,8 +26,8 @@ extension Data {
     /// The underlying buffer will be freed when the data gets
     /// deallocated.
     init(openDALBytes: opendal_bytes) {
-        let address = UnsafeRawPointer(openDALBytes.pointee.data)!
-        let length = Int(openDALBytes.pointee.len)
+        let address = UnsafeRawPointer(openDALBytes.data)!
+        let length = Int(openDALBytes.len)
         self.init(
             bytesNoCopy: .init(mutating: address),
             count: length,

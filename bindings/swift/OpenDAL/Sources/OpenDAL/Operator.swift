@@ -57,11 +57,13 @@ public class Operator {
         self.nativeOp = UnsafePointer(ret.op)!
     }
 
-    public func blockingWrite(_ data: Data, to path: String) throws {
-        let ret = data.withUnsafeBytes { dataPointer in
+    public func blockingWrite(_ data: inout Data, to path: String) throws {
+        let ret = data.withUnsafeMutableBytes { dataPointer in
             let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count))
-            return opendal_operator_write(nativeOp, path, bytes)
+            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count), capacity: UInt(dataPointer.count))
+            return withUnsafePointer(to: bytes) { bytesPointer in
+                opendal_operator_write(nativeOp, path, bytesPointer)
+            }
         }
 
         if let err = ret {

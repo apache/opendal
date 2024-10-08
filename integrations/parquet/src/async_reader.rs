@@ -24,8 +24,8 @@ use futures::FutureExt;
 use opendal::Reader;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::errors::{ParquetError, Result as ParquetResult};
-use parquet::file::footer::{decode_footer, decode_metadata};
 use parquet::file::metadata::ParquetMetaData;
+use parquet::file::metadata::ParquetMetaDataReader;
 use parquet::file::FOOTER_SIZE;
 
 const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
@@ -156,40 +156,12 @@ impl AsyncFileReader for AsyncReader {
 
     fn get_metadata(&mut self) -> BoxFuture<'_, ParquetResult<std::sync::Arc<ParquetMetaData>>> {
         async move {
-            let prefetched_footer_content = self
-                .inner
-                .read(self.content_length - self.prefetch_footer_size as u64..self.content_length)
-                .await
-                .map_err(|err| ParquetError::External(Box::new(err)))?;
-            let prefetched_footer_length = prefetched_footer_content.len();
+            let reader =
+                ParquetMetaDataReader::new().with_prefetch_hint(Some(self.prefetch_footer_size));
+            let size = self.content_length as usize;
+            let meta = reader.load_and_finish(self, size).await?;
 
-            // Decode the metadata length from the last 8 bytes of the file.
-            let metadata_length = {
-                let buf = &prefetched_footer_content
-                    .slice((prefetched_footer_length - FOOTER_SIZE)..prefetched_footer_length);
-                // Safety: checked above.
-                let buf: [u8; 8] = buf.to_vec().try_into().unwrap();
-                decode_footer(&buf)?
-            };
-
-            // Try to read the metadata from the `prefetched_footer_content`.
-            // Otherwise, fetch exact metadata from the remote.
-            let buf = if prefetched_footer_length >= metadata_length + FOOTER_SIZE {
-                prefetched_footer_content.slice(
-                    (prefetched_footer_length - metadata_length - FOOTER_SIZE)
-                        ..(prefetched_footer_length - FOOTER_SIZE),
-                )
-            } else {
-                self.inner
-                    .read(
-                        self.content_length - metadata_length as u64 - FOOTER_SIZE as u64
-                            ..self.content_length - FOOTER_SIZE as u64,
-                    )
-                    .await
-                    .map_err(|err| ParquetError::External(Box::new(err)))?
-            };
-
-            Ok(Arc::new(decode_metadata(&buf.to_vec())?))
+            Ok(Arc::new(meta))
         }
         .boxed()
     }

@@ -60,9 +60,7 @@ impl opendal_bytes {
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
     pub unsafe extern "C" fn opendal_bytes_free(bs: opendal_bytes) {
-        if !bs.data.is_null() {
-            drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
-        }
+        drop(bs);
     }
 }
 
@@ -74,12 +72,14 @@ impl Drop for opendal_bytes {
                 drop(Vec::from_raw_parts(self.data, self.len, self.capacity));
             }
             self.data = std::ptr::null_mut();
+            self.len = 0;
+            self.capacity = 0;
         }
     }
 }
 
-impl From<opendal_bytes> for Buffer {
-    fn from(v: opendal_bytes) -> Self {
+impl From<&opendal_bytes> for Buffer {
+    fn from(v: &opendal_bytes) -> Self {
         let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
         Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }

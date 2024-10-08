@@ -59,11 +59,11 @@ test "Opendal BDD test" {
 
     // When Blocking write path "test" with content "Hello, World!"
     const data: opendal.c.opendal_bytes = .{
-        .data = testkit.content,
+        .data = @constCast(testkit.content),
         .len = std.mem.len(testkit.content),
         .capacity = std.mem.len(testkit.content),
     };
-    const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, data);
+    const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, &data);
     try testing.expectEqual(result, null);
 
     // The blocking file "test" should exist
@@ -85,11 +85,11 @@ test "Opendal BDD test" {
     const r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
     defer opendal.c.opendal_bytes_free(r.data);
     try testing.expect(r.@"error" == null);
-    try testing.expectEqual(std.mem.len(testkit.content), r.data.*.len);
+    try testing.expectEqual(std.mem.len(testkit.content), r.data.len);
 
     var count: usize = 0;
-    while (count < r.data.*.len) : (count += 1) {
-        try testing.expectEqual(testkit.content[count], r.data.*.data[count]);
+    while (count < r.data.len) : (count += 1) {
+        try testing.expectEqual(testkit.content[count], r.data.data[count]);
     }
 }
 

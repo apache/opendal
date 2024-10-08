@@ -82,7 +82,7 @@ impl From<core::ErrorKind> for opendal_code {
 /// represents no error has taken placed**. If any error has taken place, the caller should check
 /// the error code and print the error message.
 ///
-/// The error code is represented in opendal_code, which is a enum on different type of errors.
+/// The error code is represented in opendal_code, which is an enum on different type of errors.
 /// The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
 ///
 /// \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
@@ -114,7 +114,7 @@ impl opendal_error {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
         if !ptr.is_null() {
-            drop(Box::from_raw(ptr))
+            drop(Box::from_raw(ptr));
         }
     }
 }

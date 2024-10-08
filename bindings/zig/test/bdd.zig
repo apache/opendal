@@ -57,11 +57,13 @@ test "Opendal BDD test" {
     var testkit = OpendalBDDTest.init();
     defer testkit.deinit();
 
+    const allocator = std.heap.page_allocator;
+    const dupe_content = try allocator.dupeZ(u8, std.mem.span(testkit.content));
     // When Blocking write path "test" with content "Hello, World!"
     const data: opendal.c.opendal_bytes = .{
-        .data = @constCast(testkit.content),
-        .len = std.mem.len(testkit.content),
-        .capacity = std.mem.len(testkit.content),
+        .data = dupe_content.ptr,
+        .len = dupe_content.len,
+        .capacity = dupe_content.len,
     };
     const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, &data);
     try testing.expectEqual(result, null);

@@ -1314,7 +1314,7 @@ struct opendal_capability opendal_operator_info_get_native_capability(const stru
 /**
  * \brief Frees the heap memory used by the opendal_bytes
  */
-void opendal_bytes_free(struct opendal_bytes *bs);
+void opendal_bytes_free(struct opendal_bytes *ptr);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

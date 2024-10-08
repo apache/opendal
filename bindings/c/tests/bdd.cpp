@@ -61,7 +61,7 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_error* error = opendal_operator_write(this->p, this->path.c_str(), data);
+    opendal_error* error = opendal_operator_write(this->p, this->path.c_str(), &data);
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
@@ -85,9 +85,9 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
     EXPECT_EQ(r.error, nullptr);
-    EXPECT_EQ(r.data->len, this->content.length());
-    for (int i = 0; i < r.data->len; i++) {
-        EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
+    EXPECT_EQ(r.data.len, this->content.length());
+    for (int i = 0; i < r.data.len; i++) {
+        EXPECT_EQ(this->content[i], (char)(r.data.data[i]));
     }
 
     // The blocking file should be deleted
@@ -99,7 +99,7 @@ TEST_F(OpendalBddTest, FeatureTest)
 
     opendal_result_operator_writer writer = opendal_operator_writer(this->p, this->path.c_str());
     EXPECT_EQ(writer.error, nullptr);
-    opendal_result_writer_write w = opendal_writer_write(writer.writer, data);
+    opendal_result_writer_write w = opendal_writer_write(writer.writer, &data);
     EXPECT_EQ(w.error, nullptr);
     EXPECT_EQ(w.size, this->content.length());
     opendal_writer_free(writer.writer);
@@ -120,7 +120,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);
 
-    opendal_bytes_free(r.data);
+    opendal_bytes_free(&r.data);
 
     // The directory "tmpdir/" should exist and should be a directory
     error = opendal_operator_create_dir(this->p, "tmpdir/");

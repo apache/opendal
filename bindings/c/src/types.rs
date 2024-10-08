@@ -31,7 +31,7 @@ use opendal::Buffer;
 #[repr(C)]
 pub struct opendal_bytes {
     /// Pointing to the byte array on heap
-    pub data: *const u8,
+    pub data: *mut u8,
     /// The length of the byte array
     pub len: usize,
     /// The capacity of the byte array
@@ -39,17 +39,21 @@ pub struct opendal_bytes {
 }
 
 impl opendal_bytes {
-    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
-    pub(crate) fn new(buf: Buffer) -> Self {
-        let vec = buf.to_vec();
-        let mut buf = std::mem::ManuallyDrop::new(vec);
-        let data = buf.as_mut_ptr();
-        let len = buf.len();
-        let capacity = buf.capacity();
+    pub(crate) fn empty() -> Self {
         Self {
-            data,
-            len,
-            capacity,
+            data: std::ptr::null_mut(),
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
+    pub(crate) fn new(b: Buffer) -> Self {
+        let mut b = std::mem::ManuallyDrop::new(b.to_vec());
+        Self {
+            data: b.as_mut_ptr(),
+            len: b.len(),
+            capacity: b.capacity(),
         }
     }
 
@@ -57,20 +61,28 @@ impl opendal_bytes {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
         if !ptr.is_null() {
-            // transmuting `*const u8` to `*mut u8` is undefined behavior in any cases
-            // however, fields type of `opendal_bytes` is already related to the zig binding
-            // it should be fixed later
-            let _ = Vec::from_raw_parts((*ptr).data as *mut u8, (*ptr).len, (*ptr).capacity);
-            // it is too weird that call `Box::new` outside `opendal_bytes::new` but dealloc it here
-            // also, boxing `opendal_bytes` might not be necessary
-            // `data` points to heap, so `opendal_bytes` could be passed as a stack value
-            let _ = Box::from_raw(ptr);
+            let bs = &mut *ptr;
+            if !bs.data.is_null() {
+                drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
+                bs.data = std::ptr::null_mut();
+                bs.len = 0;
+                bs.capacity = 0;
+            }
         }
     }
 }
 
-impl From<opendal_bytes> for Buffer {
-    fn from(v: opendal_bytes) -> Self {
+impl Drop for opendal_bytes {
+    fn drop(&mut self) {
+        unsafe {
+            // Safety: the pointer is always valid
+            Self::opendal_bytes_free(self);
+        }
+    }
+}
+
+impl From<&opendal_bytes> for Buffer {
+    fn from(v: &opendal_bytes) -> Self {
         let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
         Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }

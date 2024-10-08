@@ -68,8 +68,7 @@ func (op *Operator) Read(path string) ([]byte, error) {
 	data := parseBytes(bytes)
 	if len(data) > 0 {
 		free := getFFI[bytesFree](op.ctx, symBytesFree)
-		free(bytes)
-
+		free(&bytes)
 	}
 	return data, nil
 }
@@ -203,17 +202,17 @@ func (r *Reader) Close() error {
 
 const symOperatorRead = "opendal_operator_read"
 
-type operatorRead func(op *opendalOperator, path string) (*opendalBytes, error)
+type operatorRead func(op *opendalOperator, path string) (opendalBytes, error)
 
 var withOperatorRead = withFFI(ffiOpts{
 	sym:    symOperatorRead,
 	rType:  &typeResultRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorRead {
-	return func(op *opendalOperator, path string) (*opendalBytes, error) {
+	return func(op *opendalOperator, path string) (opendalBytes, error) {
 		bytePath, err := unix.BytePtrFromString(path)
 		if err != nil {
-			return nil, err
+			return opendalBytes{}, err
 		}
 		var result resultRead
 		ffiCall(

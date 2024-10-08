@@ -24,7 +24,7 @@ test "Opendal BDD test" {
     const c_str = [*:0]const u8; // define a type for 'const char*' in C
 
     const OpendalBDDTest = struct {
-        p: [*c]const opendal.c.opendal_operator,
+        p: [*c]opendal.c.opendal_operator,
         scheme: c_str,
         path: c_str,
         content: c_str,
@@ -57,13 +57,15 @@ test "Opendal BDD test" {
     var testkit = OpendalBDDTest.init();
     defer testkit.deinit();
 
+    const allocator = std.heap.page_allocator;
+    const dupe_content = try allocator.dupeZ(u8, std.mem.span(testkit.content));
     // When Blocking write path "test" with content "Hello, World!"
     const data: opendal.c.opendal_bytes = .{
-        .data = testkit.content,
-        // c_str does not have len field (.* is ptr)
-        .len = std.mem.len(testkit.content),
+        .data = dupe_content.ptr,
+        .len = dupe_content.len,
+        .capacity = dupe_content.len,
     };
-    const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, data);
+    const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, &data);
     try testing.expectEqual(result, null);
 
     // The blocking file "test" should exist
@@ -82,14 +84,14 @@ test "Opendal BDD test" {
     defer opendal.c.opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    const r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
-    defer opendal.c.opendal_bytes_free(r.data);
+    var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
+    defer opendal.c.opendal_bytes_free(&r.data);
     try testing.expect(r.@"error" == null);
-    try testing.expectEqual(std.mem.len(testkit.content), r.data.*.len);
+    try testing.expectEqual(std.mem.len(testkit.content), r.data.len);
 
     var count: usize = 0;
-    while (count < r.data.*.len) : (count += 1) {
-        try testing.expectEqual(testkit.content[count], r.data.*.data[count]);
+    while (count < r.data.len) : (count += 1) {
+        try testing.expectEqual(testkit.content[count], r.data.data[count]);
     }
 }
 

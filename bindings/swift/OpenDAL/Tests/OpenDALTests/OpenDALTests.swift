@@ -28,8 +28,8 @@ final class OpenDALTests: XCTestCase {
             ]
         )
 
-        let testContents = Data([1, 2, 3, 4])
-        try op.blockingWrite(testContents, to: "test")
+        var testContents = Data([1, 2, 3, 4])
+        try op.blockingWrite(&testContents, to: "test")
 
         let readContents = try op.blockingRead("test")
 

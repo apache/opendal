@@ -19,7 +19,6 @@
 extern crate napi_derive;
 
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::io::Read;
 use std::str::FromStr;
 use std::time::Duration;
@@ -741,7 +740,12 @@ impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
         let buf = buf.as_mut();
-        let n = self.inner.read(buf).map_err(format_napi_error)?;
+        let n = self.inner.read(buf).map_err(|err| {
+            format_napi_error(
+                opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
+                    .set_source(err),
+            )
+        })?;
         Ok(n)
     }
 }
@@ -1200,8 +1204,9 @@ impl AsRef<str> for ErrorCode {
     }
 }
 
-impl From<opendal::Error> for ErrorCode {
-    fn from(err: opendal::Error) -> Self {
+/// Format opendal error to napi error.
+fn format_napi_error(err: opendal::Error) -> Error<ErrorCode> {
+    Error::new(
         match err.kind() {
             opendal::ErrorKind::Unexpected => ErrorCode::Unexpected,
             opendal::ErrorKind::Unsupported => ErrorCode::Unsupported,
@@ -1216,11 +1221,7 @@ impl From<opendal::Error> for ErrorCode {
             opendal::ErrorKind::ConditionNotMatch => ErrorCode::ConditionNotMatch,
             opendal::ErrorKind::RangeNotSatisfied => ErrorCode::RangeNotSatisfied,
             kind => unimplemented!("error kind not supported: {:?}", kind),
-        }
-    }
-}
-
-/// Format opendal error to napi error.
-fn format_napi_error(err: opendal::Error) -> Error<ErrorCode> {
-    Error::new(err.kind().into(), err.to_string())
+        },
+        err.to_string(),
+    )
 }

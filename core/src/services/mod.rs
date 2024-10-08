@@ -145,6 +145,9 @@ pub use monoiofs::*;
 mod mysql;
 pub use self::mysql::*;
 
+mod nebula_graph;
+pub use nebula_graph::*;
+
 mod obs;
 pub use obs::*;
 

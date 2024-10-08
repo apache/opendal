@@ -740,12 +740,7 @@ impl BlockingReader {
     #[napi]
     pub fn read(&mut self, mut buf: Buffer) -> Result<usize> {
         let buf = buf.as_mut();
-        let n = self.inner.read(buf).map_err(|err| {
-            format_napi_error(
-                opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
-                    .set_source(err),
-            )
-        })?;
+        let n = self.inner.read(buf).map_err(format_io_error)?;
         Ok(n)
     }
 }
@@ -767,24 +762,7 @@ impl Reader {
     #[napi]
     pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
         let buf = buf.as_mut();
-        let n = self
-            .inner
-            .read(buf)
-            .await
-            .map_err(|e| {
-                opendal::Error::new(
-                    match e.kind() {
-                        std::io::ErrorKind::NotFound => opendal::ErrorKind::NotFound,
-                        std::io::ErrorKind::PermissionDenied => {
-                            opendal::ErrorKind::PermissionDenied
-                        }
-                        _ => opendal::ErrorKind::Unexpected,
-                    },
-                    "failed to read bytes",
-                )
-                .set_source(e)
-            })
-            .map_err(format_napi_error)?;
+        let n = self.inner.read(buf).await.map_err(format_io_error)?;
         Ok(n)
     }
 }
@@ -1202,6 +1180,20 @@ impl AsRef<str> for ErrorCode {
             ErrorCode::RangeNotSatisfied => "RangeNotSatisfied",
         }
     }
+}
+
+fn format_io_error(e: std::io::Error) -> Error<ErrorCode> {
+    format_napi_error(
+        opendal::Error::new(
+            match e.kind() {
+                std::io::ErrorKind::NotFound => opendal::ErrorKind::NotFound,
+                std::io::ErrorKind::PermissionDenied => opendal::ErrorKind::PermissionDenied,
+                _ => opendal::ErrorKind::Unexpected,
+            },
+            "failed to read bytes",
+        )
+        .set_source(e),
+    )
 }
 
 /// Format opendal error to napi error.

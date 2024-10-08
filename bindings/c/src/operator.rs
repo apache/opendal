@@ -226,7 +226,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 pub unsafe extern "C" fn opendal_operator_write(
     op: &opendal_operator,
     path: *const c_char,
-    bytes: opendal_bytes,
+    bytes: &opendal_bytes,
 ) -> *mut opendal_error {
     assert!(!path.is_null());
     let path = std::ffi::CStr::from_ptr(path)

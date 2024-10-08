@@ -49,7 +49,7 @@ impl opendal_writer {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write(
         &mut self,
-        bytes: opendal_bytes,
+        bytes: &opendal_bytes,
     ) -> opendal_result_writer_write {
         let size = bytes.len;
         match self.deref_mut().write(bytes) {

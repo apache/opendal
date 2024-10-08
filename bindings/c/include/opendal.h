@@ -113,7 +113,7 @@ typedef struct opendal_bytes {
  * represents no error has taken placed**. If any error has taken place, the caller should check
  * the error code and print the error message.
  *
- * The error code is represented in opendal_code, which is a enum on different type of errors.
+ * The error code is represented in opendal_code, which is an enum on different type of errors.
  * The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
  *
  * \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
@@ -814,7 +814,7 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  */
 struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
                                              const char *path,
-                                             struct opendal_bytes bytes);
+                                             const struct opendal_bytes *bytes);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -1395,7 +1395,7 @@ void opendal_reader_free(struct opendal_reader *ptr);
  * \brief Write data to the writer.
  */
 struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *self,
-                                                        struct opendal_bytes bytes);
+                                                        const struct opendal_bytes *bytes);
 
 /**
  * \brief Frees the heap memory used by the opendal_writer.

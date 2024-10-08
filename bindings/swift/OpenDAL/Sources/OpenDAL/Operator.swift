@@ -81,7 +81,7 @@ public class Operator {
     }
 
     public func blockingRead(_ path: String) throws -> Data {
-        let ret = opendal_operator_read(nativeOp, path)
+        var ret = opendal_operator_read(nativeOp, path)
         if let err = ret.error {
             defer {
                 opendal_error_free(err)
@@ -95,6 +95,6 @@ public class Operator {
             )
         }
 
-        return Data(openDALBytes: ret.data)
+        return withUnsafeMutablePointer(to: &ret.data) { Data(openDALBytes: $0) }
     }
 }

@@ -844,7 +844,7 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
  *
  * opendal_bytes bytes = r.data;
  * assert(bytes.len == 13);
- * opendal_bytes_free(bytes);
+ * opendal_bytes_free(&bytes);
  * ```
  *
  * # Safety
@@ -1314,7 +1314,7 @@ struct opendal_capability opendal_operator_info_get_native_capability(const stru
 /**
  * \brief Frees the heap memory used by the opendal_bytes
  */
-void opendal_bytes_free(struct opendal_bytes bs);
+void opendal_bytes_free(struct opendal_bytes *bs);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

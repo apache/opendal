@@ -287,10 +287,10 @@ var withBytesFree = withFFI(ffiOpts{
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&typeBytes},
 }, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) bytesFree {
-	return func(b opendalBytes) {
+	return func(b *opendalBytes) {
 		ffiCall(
 			nil,
-			b,
+			unsafe.Pointer(&b),
 		)
 	}
 })

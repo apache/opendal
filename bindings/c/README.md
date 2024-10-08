@@ -32,13 +32,13 @@ int main()
 
     /* We can read it out, make sure the data is the same */
     opendal_result_read r = opendal_operator_read(op, "/testpath");
-    opendal_bytes* read_bytes = r.data;
+    opendal_bytes read_bytes = r.data;
     assert(r.error == NULL);
-    assert(read_bytes->len == 24);
+    assert(read_bytes.len == 24);
 
     /* Lets print it out */
     for (int i = 0; i < 24; ++i) {
-        printf("%c", read_bytes->data[i]);
+        printf("%c", read_bytes.data[i]);
     }
     printf("\n");
 

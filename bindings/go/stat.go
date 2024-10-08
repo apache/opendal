@@ -96,7 +96,6 @@ func (op *Operator) Stat(path string) (*Metadata, error) {
 //	} else {
 //		fmt.Println("The file does not exist")
 //	}
-//
 func (op *Operator) IsExist(path string) (bool, error) {
 	isExist := getFFI[operatorIsExist](op.ctx, symOperatorIsExist)
 	return isExist(op.inner, path)

@@ -24,7 +24,7 @@ test "Opendal BDD test" {
     const c_str = [*:0]const u8; // define a type for 'const char*' in C
 
     const OpendalBDDTest = struct {
-        p: [*c]const opendal.c.opendal_operator,
+        p: [*c]opendal.c.opendal_operator,
         scheme: c_str,
         path: c_str,
         content: c_str,
@@ -60,8 +60,8 @@ test "Opendal BDD test" {
     // When Blocking write path "test" with content "Hello, World!"
     const data: opendal.c.opendal_bytes = .{
         .data = testkit.content,
-        // c_str does not have len field (.* is ptr)
         .len = std.mem.len(testkit.content),
+        .capacity = std.mem.len(testkit.content),
     };
     const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, data);
     try testing.expectEqual(result, null);

@@ -47,7 +47,7 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 pub struct opendal_operator {
     /// The pointer to the opendal::BlockingOperator in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    inner: *const c_void,
+    inner: *mut c_void,
 }
 
 impl opendal_operator {
@@ -263,8 +263,9 @@ pub unsafe extern "C" fn opendal_operator_write(
 /// opendal_result_read r = opendal_operator_read(op, "testpath");
 /// assert(r.error == NULL);
 ///
-/// opendal_bytes *bytes = r.data;
-/// assert(bytes->len == 13);
+/// opendal_bytes bytes = r.data;
+/// assert(bytes.len == 13);
+/// opendal_bytes_free(bytes);
 /// ```
 ///
 /// # Safety
@@ -286,15 +287,12 @@ pub unsafe extern "C" fn opendal_operator_read(
         .to_str()
         .expect("malformed path");
     match op.deref().read(path) {
-        Ok(d) => {
-            let v = Box::new(opendal_bytes::new(d));
-            opendal_result_read {
-                data: Box::into_raw(v),
-                error: std::ptr::null_mut(),
-            }
-        }
+        Ok(b) => opendal_result_read {
+            data: opendal_bytes::new(b),
+            error: std::ptr::null_mut(),
+        },
         Err(e) => opendal_result_read {
-            data: std::ptr::null_mut(),
+            data: opendal_bytes::empty(),
             error: opendal_error::new(e),
         },
     }

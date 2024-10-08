@@ -94,7 +94,7 @@ typedef struct opendal_bytes {
   /**
    * Pointing to the byte array on heap
    */
-  const uint8_t *data;
+  uint8_t *data;
   /**
    * The length of the byte array
    */
@@ -217,7 +217,7 @@ typedef struct opendal_operator {
    * The pointer to the opendal::BlockingOperator in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  const void *inner;
+  void *inner;
 } opendal_operator;
 
 /**
@@ -273,7 +273,7 @@ typedef struct opendal_result_read {
   /**
    * The byte array with length returned by read operations
    */
-  struct opendal_bytes *data;
+  struct opendal_bytes data;
   /**
    * The error, if ok, it is null
    */
@@ -842,8 +842,9 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
  * opendal_result_read r = opendal_operator_read(op, "testpath");
  * assert(r.error == NULL);
  *
- * opendal_bytes *bytes = r.data;
- * assert(bytes->len == 13);
+ * opendal_bytes bytes = r.data;
+ * assert(bytes.len == 13);
+ * opendal_bytes_free(bytes);
  * ```
  *
  * # Safety
@@ -1313,7 +1314,7 @@ struct opendal_capability opendal_operator_info_get_native_capability(const stru
 /**
  * \brief Frees the heap memory used by the opendal_bytes
  */
-void opendal_bytes_free(struct opendal_bytes *ptr);
+void opendal_bytes_free(struct opendal_bytes bs);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

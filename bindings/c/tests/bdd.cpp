@@ -85,9 +85,9 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
     EXPECT_EQ(r.error, nullptr);
-    EXPECT_EQ(r.data->len, this->content.length());
-    for (int i = 0; i < r.data->len; i++) {
-        EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
+    EXPECT_EQ(r.data.len, this->content.length());
+    for (int i = 0; i < r.data.len; i++) {
+        EXPECT_EQ(this->content[i], (char)(r.data.data[i]));
     }
 
     // The blocking file should be deleted

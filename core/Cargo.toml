@@ -385,6 +385,7 @@ getrandom = { version = "0.2", features = ["js"] }
 tokio = { version = "1.27", features = ["time"] }
 
 [dev-dependencies]
+codspeed-criterion-compat = { version = "2.6.0", features = ["async", "async_tokio"] }
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }

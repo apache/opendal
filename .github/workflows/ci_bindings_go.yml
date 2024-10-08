@@ -39,39 +39,94 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  checks: write
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
-
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: "v1.60"
+          working-directory: bindings/go
+  matrix:
+    needs: [ lint ]
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        name: Setup Matrix
+        run: |
+          MATRIX=$(yq -o=json -I=0 "." .github/scripts/test_go_binding/matrix.yaml | sed 's/ //g')
+          echo "Matrix:"
+          echo "$MATRIX" | jq .
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+  test:
+    needs: [ matrix ]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+            repository: "apache/opendal-go-services"
+            path: "tools"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-
-      - name: Build c binding
-        working-directory: bindings/c
-        run: make build
-
-      - name: Check diff
-        run: git diff --exit-code
-
-      - name: Generate pkg-config file
+      - name: Setup Target
+        env:
+          TARGET: ${{ matrix.build.target }}
+        run: rustup target add $TARGET
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Setup Service
+        env:
+          OPENDAL_FEATURES: "layers-blocking,services-${{ matrix.service }}"
         run: |
-          echo "libdir=$(pwd)/bindings/c/target/debug/" >> opendal_c.pc
-          echo "includedir=$(pwd)/bindings/c/include/" >> opendal_c.pc
-          echo "Name: opendal_c" >> opendal_c.pc
-          echo "Description: opendal c binding" >> opendal_c.pc
-          echo "Version: 0.0.1" >> opendal_c.pc
-          echo "Libs: -L\${libdir} -lopendal_c" >> opendal_c.pc
-          echo "Cflags: -I\${includedir}" >> opendal_c.pc
-
-          echo "PKG_CONFIG_PATH=$(pwd)" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$(pwd)/bindings/c/target/debug" >> $GITHUB_ENV
-
+          python -m pip install toml
+          python tools/.github/scripts/setup_features.py
+      - name: Build C Binding
+        working-directory: bindings/c
+        env:
+          VERSION: "latest"
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.build.target }}
+          CC: ${{ matrix.build.cc }}
+        run: |
+          cargo build --target $TARGET  --release
+          sudo apt install zstd
+          DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
+          mkdir $DIR
+          zstd -22 ./target/$TARGET/release/libopendal_c.so -o $DIR/libopendal_c.$TARGET.so.zst
+      - name: Build Go Artifact
+        working-directory: tools/internal/generate
+        env:
+          MATRIX: ${{ needs.matrix.outputs.matrix }}
+          VERSION: "latest"
+        run: |
+          go run generate.go
+      - name: Setup Go Workspace
+        env:
+          SERVICE: ${{ matrix.service }}
+        working-directory: bindings/go/tests
+        run: |
+          go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
       - name: Run tests
-        working-directory: bindings/go
-        run: go test -tags dynamic .
+        env:
+          OPENDAL_TEST: ${{ matrix.service }}
+          OPENDAL_FS_ROOT: "/tmp/opendal/"
+        working-directory: bindings/go/tests/behavior_tests
+        run: CGO_ENABLE=0 go test -v -run TestBehavior

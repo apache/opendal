@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-azfile")]
+mod core;
+#[cfg(feature = "services-azfile")]
+mod error;
+#[cfg(feature = "services-azfile")]
+mod lister;
+#[cfg(feature = "services-azfile")]
+mod writer;
+
+#[cfg(feature = "services-azfile")]
+mod backend;
+#[cfg(feature = "services-azfile")]
 pub use backend::AzfileBuilder as Azfile;
 
-mod backend;
-mod core;
-mod error;
-mod lister;
-mod writer;
+mod config;
+pub use config::AzfileConfig;

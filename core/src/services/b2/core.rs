@@ -120,7 +120,7 @@ impl B2Core {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
             Ok(signer.auth_info.clone())
@@ -184,7 +184,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -228,7 +228,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -328,7 +328,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

@@ -29,6 +29,7 @@ use fuse3::Result;
 use futures_util::stream;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
+use opendal::raw::normalize_path;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
@@ -375,6 +376,11 @@ impl PathFilesystem for Filesystem {
         Err(libc::EOPNOTSUPP.into())
     }
 
+    async fn opendir(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
+        log::debug!("opendir(path={:?}, flags=0x{:x})", path, flags);
+        Ok(ReplyOpen { fh: 0, flags })
+    }
+
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
         log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
 
@@ -575,11 +581,21 @@ impl PathFilesystem for Filesystem {
 
         let mut current_dir = PathBuf::from(path);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
+        let path = current_dir.to_string_lossy().to_string();
         let children = self
             .op
             .lister(&current_dir.to_string_lossy())
             .await
             .map_err(opendal_error2errno)?
+            .filter_map(move |entry| {
+                let dir = normalize_path(path.as_str());
+                async move {
+                    match entry {
+                        Ok(e) if e.path() == dir => None,
+                        _ => Some(entry),
+                    }
+                }
+            })
             .enumerate()
             .map(|(i, entry)| {
                 entry
@@ -697,12 +713,22 @@ impl PathFilesystem for Filesystem {
         let uid = self.uid;
         let gid = self.gid;
 
+        let path = current_dir.to_string_lossy().to_string();
         let children = self
             .op
-            .lister_with(&current_dir.to_string_lossy())
+            .lister_with(&path)
             .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
+            .filter_map(move |entry| {
+                let dir = normalize_path(path.as_str());
+                async move {
+                    match entry {
+                        Ok(e) if e.path() == dir => None,
+                        _ => Some(entry),
+                    }
+                }
+            })
             .enumerate()
             .map(move |(i, entry)| {
                 entry
@@ -800,6 +826,20 @@ impl PathFilesystem for Filesystem {
             copied: u64::from(written),
         })
     }
+
+    async fn statfs(&self, _req: Request, path: &OsStr) -> Result<ReplyStatFs> {
+        log::debug!("statfs(path={:?})", path);
+        Ok(ReplyStatFs {
+            blocks: 1,
+            bfree: 0,
+            bavail: 0,
+            files: 1,
+            ffree: 0,
+            bsize: 4096,
+            namelen: u32::MAX,
+            frsize: 0,
+        })
+    }
 }
 
 const fn entry_mode2file_type(mode: EntryMode) -> FileType {
@@ -834,6 +874,10 @@ const fn dummy_file_attr(kind: FileType, now: SystemTime, uid: u32, gid: u32) ->
         gid,
         rdev: 0,
         blksize: 4096,
+        #[cfg(target_os = "macos")]
+        crtime: now,
+        #[cfg(target_os = "macos")]
+        flags: 0,
     }
 }
 

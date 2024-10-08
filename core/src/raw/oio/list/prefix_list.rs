@@ -49,15 +49,6 @@ impl<L> PrefixLister<L> {
     }
 }
 
-#[inline]
-fn starts_with_not_eq(entry: &oio::Entry, prefix: &str) -> bool {
-    match entry.path().strip_prefix(prefix) {
-        None => false,
-        Some("") => false,
-        Some(_) => true,
-    }
-}
-
 impl<L> oio::List for PrefixLister<L>
 where
     L: oio::List,
@@ -65,7 +56,7 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             match self.lister.next().await {
-                Ok(Some(e)) if !starts_with_not_eq(&e, &self.prefix) => continue,
+                Ok(Some(e)) if !e.path().starts_with(&self.prefix) => continue,
                 v => return v,
             }
         }
@@ -79,7 +70,7 @@ where
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             match self.lister.next() {
-                Ok(Some(e)) if !starts_with_not_eq(&e, &self.prefix) => continue,
+                Ok(Some(e)) if !e.path().starts_with(&self.prefix) => continue,
                 v => return v,
             }
         }

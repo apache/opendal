@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::parse_blob;
 use super::core::Blob;
@@ -34,28 +32,16 @@ use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
 use crate::raw::*;
+use crate::services::VercelBlobConfig;
 use crate::*;
 
-/// Config for backblaze VercelBlob services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct VercelBlobConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// vercel blob token.
-    pub token: String,
-}
-
-impl Debug for VercelBlobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
+impl Configurator for VercelBlobConfig {
+    type Builder = VercelBlobBuilder;
+    fn into_builder(self) -> Self::Builder {
+        VercelBlobBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -81,7 +67,7 @@ impl VercelBlobBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -95,9 +81,10 @@ impl VercelBlobBuilder {
     ///
     /// Get from Vercel environment variable `BLOB_READ_WRITE_TOKEN`.
     /// It is required.
-    pub fn token(&mut self, token: &str) -> &mut Self {
-        self.config.token = token.to_string();
-
+    pub fn token(mut self, token: &str) -> Self {
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 
@@ -107,7 +94,7 @@ impl VercelBlobBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -115,44 +102,23 @@ impl VercelBlobBuilder {
 
 impl Builder for VercelBlobBuilder {
     const SCHEME: Scheme = Scheme::VercelBlob;
-    type Accessor = VercelBlobBackend;
-
-    /// Converts a HashMap into an VercelBlobBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of VercelBlobBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = VercelBlobConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an VercelBlobBuilder instance with the deserialized config.
-        VercelBlobBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = VercelBlobConfig;
 
     /// Builds the backend and returns the result of VercelBlobBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
         // Handle token.
-        if self.config.token.is_empty() {
+        let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::VercelBlob));
-        }
+        };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -164,7 +130,7 @@ impl Builder for VercelBlobBuilder {
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
                 root,
-                token: self.config.token.clone(),
+                token,
                 client,
             }),
         })
@@ -185,7 +151,7 @@ impl Access for VercelBlobBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::VercelBlob)
             .set_root(&self.core.root)
@@ -208,7 +174,7 @@ impl Access for VercelBlobBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -225,7 +191,7 @@ impl Access for VercelBlobBackend {
 
                 parse_blob(&resp).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -241,7 +207,7 @@ impl Access for VercelBlobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -267,7 +233,7 @@ impl Access for VercelBlobBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

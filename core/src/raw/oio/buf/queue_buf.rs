@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::collections::VecDeque;
 use std::mem;
+
+use bytes::Buf;
 
 use crate::*;
 

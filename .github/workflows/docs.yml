@@ -22,7 +22,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
       - main
@@ -40,8 +40,8 @@ concurrency:
 env:
   # This same toolchain for rust 1.79.0 but nightly so we can use new features.
   RUST_DOC_TOOLCHAIN: nightly-2024-06-13
-  # Enable cfg docs to make sure docs are built.
-  RUSTDOCFLAGS: "--cfg docs"
+  # Enable cfg docsrs to make sure docs are built.
+  RUSTDOCFLAGS: "--cfg docsrs"
 
 jobs:
   build-rust-doc:
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Build OpenDAL doc
         working-directory: core
@@ -87,7 +87,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Build and test
         working-directory: bindings/java
@@ -111,7 +111,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
@@ -144,7 +144,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -406,8 +406,33 @@ jobs:
           name: virtiofs-opendal-docs
           path: ./integrations/virtiofs/target/doc
 
+  build-parquet-opendal-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build parquet-opendal doc
+        working-directory: "integrations/parquet"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: object-parquet-docs
+          path: ./integrations/parquet/target/doc
+
   build-website:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs:
       - build-rust-doc
       - build-java-doc
@@ -423,6 +448,7 @@ jobs:
       - build-fuse3-opendal-doc
       - build-unftp-sbe-opendal-doc
       - build-virtiofs-opendal-doc
+      - build-parquet-opendal-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -435,7 +461,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
 

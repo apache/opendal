@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::{buf::IoBuf, dispatcher::Dispatcher};
-use std::{future::Future, path::PathBuf};
+use std::future::Future;
+use std::path::PathBuf;
+
+use compio::buf::IoBuf;
+use compio::dispatcher::Dispatcher;
 
 use crate::raw::*;
 use crate::*;

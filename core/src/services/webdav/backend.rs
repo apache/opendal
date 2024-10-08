@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -24,43 +23,22 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
+use crate::services::WebdavConfig;
 use crate::*;
 
-/// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct WebdavConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// username of this backend
-    pub username: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-    /// token of this backend
-    pub token: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// WebDAV Service doesn't support copy.
-    pub disable_copy: bool,
-}
-
-impl Debug for WebdavConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavConfig");
-
-        d.field("endpoint", &self.endpoint)
-            .field("username", &self.username)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
+impl Configurator for WebdavConfig {
+    type Builder = WebdavBuilder;
+    fn into_builder(self) -> Self::Builder {
+        WebdavBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -86,7 +64,7 @@ impl WebdavBuilder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -99,7 +77,7 @@ impl WebdavBuilder {
     /// set the username for Webdav
     ///
     /// default: no username
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_owned());
         }
@@ -109,7 +87,7 @@ impl WebdavBuilder {
     /// set the password for Webdav
     ///
     /// default: no password
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_owned());
         }
@@ -119,15 +97,15 @@ impl WebdavBuilder {
     /// set the bearer token for Webdav
     ///
     /// default: no access token
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
-            self.config.token = Some(token.to_owned());
+            self.config.token = Some(token.to_string());
         }
         self
     }
 
     /// Set root path of http backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -143,7 +121,7 @@ impl WebdavBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -151,19 +129,9 @@ impl WebdavBuilder {
 
 impl Builder for WebdavBuilder {
     const SCHEME: Scheme = Scheme::Webdav;
-    type Accessor = WebdavBackend;
+    type Config = WebdavConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = WebdavConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        WebdavBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.config.endpoint {
@@ -187,7 +155,7 @@ impl Builder for WebdavBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -206,8 +174,6 @@ impl Builder for WebdavBuilder {
         if let Some(token) = &self.config.token {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
-
-        debug!("backend build finished: {:?}", &self);
 
         let core = Arc::new(WebdavCore {
             endpoint: endpoint.to_string(),
@@ -243,7 +209,7 @@ impl Access for WebdavBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.core.root)
@@ -268,7 +234,7 @@ impl Access for WebdavBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -293,7 +259,7 @@ impl Access for WebdavBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -314,7 +280,7 @@ impl Access for WebdavBackend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -332,7 +298,7 @@ impl Access for WebdavBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -344,7 +310,7 @@ impl Access for WebdavBackend {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

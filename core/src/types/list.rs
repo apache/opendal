@@ -90,8 +90,8 @@ pub struct Lister {
 /// use opendal::Entry;
 /// use opendal::Result;
 ///
-/// assert_eq!(256, size_of::<(String, Result<opendal::raw::RpStat>)>());
-/// assert_eq!(256, size_of::<Option<Entry>>());
+/// assert_eq!(304, size_of::<(String, Result<opendal::raw::RpStat>)>());
+/// assert_eq!(304, size_of::<Option<Entry>>());
 /// ```
 ///
 /// So let's ignore this lint:
@@ -298,9 +298,7 @@ mod tests {
     async fn test_invalid_lister() -> Result<()> {
         let _ = tracing_subscriber::fmt().try_init();
 
-        let mut builder = Azblob::default();
-
-        builder
+        let builder = Azblob::default()
             .container("container")
             .account_name("account_name")
             .account_key("account_key")

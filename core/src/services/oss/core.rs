@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -28,6 +29,7 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
+use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -41,7 +43,7 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
 
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
@@ -49,6 +51,8 @@ mod constants {
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
+
+    pub const X_OSS_META_PREFIX: &str = "x-oss-meta-";
 }
 
 pub struct OssCore {
@@ -156,6 +160,85 @@ impl OssCore {
         }
         req
     }
+
+    fn insert_metadata_headers(
+        &self,
+        mut req: http::request::Builder,
+        size: Option<u64>,
+        args: &OpWrite,
+    ) -> Result<http::request::Builder> {
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                if !self.check_user_metadata_key(key) {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "the format of the user metadata key is invalid, please refer the document",
+                    ));
+                }
+                req = req.header(format!("{}{}", constants::X_OSS_META_PREFIX, key), value)
+            }
+        }
+
+        Ok(req)
+    }
+
+    // According to https://help.aliyun.com/zh/oss/developer-reference/putobject
+    // there are some limits in user defined metadata key
+    fn check_user_metadata_key(&self, key: &str) -> bool {
+        key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    }
+
+    /// parse_metadata will parse http headers(including standards http headers
+    /// and user defined metadata header) into Metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_metadata_prefix` is the prefix of user defined metadata key
+    ///
+    /// # Notes
+    ///
+    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+    pub fn parse_metadata(
+        &self,
+        path: &str,
+        user_metadata_prefix: &str,
+        headers: &HeaderMap,
+    ) -> Result<Metadata> {
+        let mut m = parse_into_metadata(path, headers)?;
+
+        let data: HashMap<String, String> = headers
+            .iter()
+            .filter_map(|(key, _)| {
+                key.as_str()
+                    .strip_prefix(user_metadata_prefix)
+                    .and_then(|stripped_key| {
+                        parse_header_to_str(headers, key)
+                            .unwrap_or(None)
+                            .map(|val| (stripped_key.to_string(), val.to_string()))
+                    })
+            })
+            .collect();
+        if !data.is_empty() {
+            m.with_user_metadata(data);
+        }
+
+        Ok(m)
+    }
 }
 
 impl OssCore {
@@ -174,19 +257,7 @@ impl OssCore {
 
         let mut req = Request::put(&url);
 
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
+        req = self.insert_metadata_headers(req, size, args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -214,19 +285,7 @@ impl OssCore {
 
         let mut req = Request::post(&url);
 
-        req = req.header(CONTENT_LENGTH, size);
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
+        req = self.insert_metadata_headers(req, Some(size), args)?;
 
         // set sse headers
         req = self.insert_sse_headers(req);
@@ -408,19 +467,6 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_put_object(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
     pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
@@ -593,7 +639,7 @@ impl OssCore {
         self.send(req).await
     }
 
-    /// Abort an on-going multipart upload.
+    /// Abort an ongoing multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
     pub async fn oss_abort_multipart_upload(
         &self,
@@ -835,7 +881,6 @@ mod tests {
         <ETag>"8C315065167132444177411FDA14****"</ETag>
     </Part>
 </CompleteMultipartUpload>"#
-                .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
         )
     }
 

@@ -53,7 +53,13 @@ impl oio::PageList for AzdlsLister {
         }
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
+        }
+
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
         }
 
         // Check whether this list is done.
@@ -90,7 +96,7 @@ impl oio::PageList for AzdlsLister {
                 .with_last_modified(parse_datetime_from_rfc2822(&object.last_modified)?);
 
             let mut path = build_rel_path(&self.core.root, &object.name);
-            if mode == EntryMode::DIR {
+            if mode.is_dir() {
                 path += "/"
             };
 

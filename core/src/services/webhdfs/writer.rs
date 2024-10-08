@@ -51,7 +51,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -77,7 +77,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -104,14 +104,14 @@ impl oio::BlockWrite for WebhdfsWriter {
             let status = resp.status();
 
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
         // delete the path file
         let resp = self.backend.webhdfs_delete(&self.path).await?;
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // rename concat file to path
@@ -124,7 +124,7 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -133,7 +133,7 @@ impl oio::BlockWrite for WebhdfsWriter {
             let resp = self.backend.webhdfs_delete(&block_id.to_string()).await?;
             match resp.status() {
                 StatusCode::OK => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
         Ok(())
@@ -170,23 +170,20 @@ impl oio::AppendWrite for WebhdfsWriter {
                     StatusCode::CREATED | StatusCode::OK => {
                         location = self.backend.webhdfs_init_append_request(&self.path).await?;
                     }
-                    _ => return Err(parse_error(resp).await?),
+                    _ => return Err(parse_error(resp)),
                 }
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
 
-        let req = self
-            .backend
-            .webhdfs_append_request(&location, size, body)
-            .await?;
+        let req = self.backend.webhdfs_append_request(&location, size, body)?;
 
         let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -57,6 +57,7 @@ pub use operator::OperatorInfo;
 
 mod builder;
 pub use builder::Builder;
+pub use builder::Configurator;
 
 mod error;
 pub use error::Error;

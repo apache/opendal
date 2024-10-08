@@ -50,8 +50,15 @@ where
     }
 
     /// Configure root within this backend.
-    pub fn with_root(mut self, root: &str) -> Self {
-        self.root = normalize_root(root);
+    pub fn with_root(self, root: &str) -> Self {
+        self.with_normalized_root(normalize_root(root))
+    }
+
+    /// Configure root within this backend.
+    ///
+    /// This method assumes root is normalized.
+    pub(crate) fn with_normalized_root(mut self, root: String) -> Self {
+        self.root = root;
         self
     }
 }
@@ -64,7 +71,7 @@ impl<S: Adapter> Access for Backend<S> {
     type Lister = HierarchyLister<KvLister>;
     type BlockingLister = HierarchyLister<KvLister>;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am: AccessorInfo = self.kv.metadata().into();
         am.set_root(&self.root);
 
@@ -84,7 +91,7 @@ impl<S: Adapter> Access for Backend<S> {
 
         am.set_native_capability(cap);
 
-        am
+        am.into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -202,8 +209,11 @@ impl KvLister {
             } else {
                 EntryMode::FILE
             };
-
-            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+            let mut path = build_rel_path(&self.root, &v);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+            oio::Entry::new(&path, Metadata::new(mode))
         })
     }
 }
@@ -242,10 +252,9 @@ impl<S> KvWriter<S> {
 unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let ret = bs.len();
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.buffer.push(bs);
-        Ok(ret)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -260,10 +269,9 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let ret = bs.len();
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.buffer.push(bs);
-        Ok(ret)
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {

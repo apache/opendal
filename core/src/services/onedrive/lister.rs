@@ -74,7 +74,7 @@ impl oio::PageList for OnedriveLister {
                 ctx.done = true;
                 return Ok(());
             }
-            let error = parse_error(resp).await?;
+            let error = parse_error(resp);
             return Err(error);
         }
 

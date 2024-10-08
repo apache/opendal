@@ -101,7 +101,7 @@ impl AliyunDriveCore {
         }
         let res = self.client.send(req).await?;
         if !res.status().is_success() {
-            return Err(parse_error(res).await?);
+            return Err(parse_error(res));
         }
         Ok(res.into_body())
     }
@@ -377,19 +377,6 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/list", self.endpoint))
-            .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
-    }
-
-    pub async fn get(&self, file_id: &str) -> Result<Buffer> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
-        let body = serde_json::to_vec(&FileRequest {
-            drive_id: &drive_id,
-            file_id,
-        })
-        .map_err(new_json_serialize_error)?;
-        let req = Request::post(format!("{}/adrive/v1.0/openFile/get", self.endpoint))
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await

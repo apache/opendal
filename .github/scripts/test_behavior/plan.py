@@ -35,6 +35,7 @@ LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
 BIN = ["ofs"]
 
+
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
 
@@ -246,6 +247,7 @@ def generate_language_binding_cases(
     cases = [v for v in cases if v["service"] in hint.services]
     return cases
 
+
 def generate_bin_cases(
     cases: list[dict[str, str]], hint: Hint, bin: str
 ) -> list[dict[str, str]]:
@@ -302,7 +304,9 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
         language_cases = generate_language_binding_cases(cases, hint, language)
         if len(language_cases) > 0:
             jobs["components"][f"binding_{language}"] = True
-            jobs[f"binding_{language}"].append({"os": "ubuntu-latest", "cases": language_cases})
+            jobs[f"binding_{language}"].append(
+                {"os": "ubuntu-latest", "cases": language_cases}
+            )
 
     for bin in BIN:
         jobs[f"bin_{bin}"] = []

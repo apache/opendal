@@ -118,7 +118,7 @@ impl<A: Access> Layer<A> for CompleteLayer {
 
 /// Provide complete wrapper for backend.
 pub struct CompleteAccessor<A: Access> {
-    meta: AccessorInfo,
+    meta: Arc<AccessorInfo>,
     inner: Arc<A>,
 }
 
@@ -195,10 +195,7 @@ impl<A: Access> CompleteAccessor<A> {
         if path.ends_with('/') && capability.list_with_recursive {
             let (_, mut l) = self
                 .inner
-                .list(
-                    path.trim_end_matches('/'),
-                    OpList::default().with_recursive(true).with_limit(1),
-                )
+                .list(path, OpList::default().with_recursive(true).with_limit(1))
                 .await?;
 
             return if oio::List::next(&mut l).await?.is_some() {
@@ -246,10 +243,9 @@ impl<A: Access> CompleteAccessor<A> {
 
         // Otherwise, we can simulate stat a dir path via `list`.
         if path.ends_with('/') && capability.list_with_recursive {
-            let (_, mut l) = self.inner.blocking_list(
-                path.trim_end_matches('/'),
-                OpList::default().with_recursive(true).with_limit(1),
-            )?;
+            let (_, mut l) = self
+                .inner
+                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
 
             return if oio::BlockingList::next(&mut l)?.is_some() {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
@@ -380,13 +376,14 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.meta.clone();
+    // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
+    fn metadata(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.meta).clone();
         let cap = meta.full_capability_mut();
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
-        meta
+        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -654,7 +651,7 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -689,13 +686,12 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        let n = w.write(bs)?;
 
-        Ok(n)
+        w.write(bs)
     }
 
     fn close(&mut self) -> Result<()> {
@@ -731,11 +727,11 @@ mod tests {
         type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut info = AccessorInfo::default();
             info.set_native_capability(self.capability);
 
-            info
+            info.into()
         }
 
         async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {

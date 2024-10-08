@@ -42,18 +42,17 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create Huggingface backend builder
-    let mut builder = Huggingface::default();
-    
-    // set the type of Huggingface repository
-    builder.repo_type("dataset");
-    // set the id of Huggingface repository
-    builder.repo_id("databricks/databricks-dolly-15k");
-    // set the revision of Huggingface repository
-    builder.revision("main");
-    // set the root for Huggingface, all operations will happen under this root
-    builder.root("/path/to/dir");
-    // set the token for accessing the repository
-    builder.token("access_token");
+    let mut builder = Huggingface::default()
+        // set the type of Huggingface repository
+        .repo_type("dataset")
+        // set the id of Huggingface repository
+        .repo_id("databricks/databricks-dolly-15k")
+        // set the revision of Huggingface repository
+        .revision("main")
+        // set the root for Huggingface, all operations will happen under this root
+        .root("/path/to/dir")
+        // set the token for accessing the repository
+        .token("access_token");
 
     let op: Operator = Operator::new(builder)?.finish();
 

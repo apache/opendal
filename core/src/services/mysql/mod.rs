@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-mysql")]
 mod backend;
+#[cfg(feature = "services-mysql")]
 pub use backend::MysqlBuilder as Mysql;
-pub use backend::MysqlConfig;
+
+mod config;
+pub use config::MysqlConfig;

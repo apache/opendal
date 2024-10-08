@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use http::header;
 use http::Request;
@@ -50,7 +51,7 @@ impl Access for VercelArtifactsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
             .set_native_capability(Capability {
@@ -63,7 +64,7 @@ impl Access for VercelArtifactsBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -77,7 +78,7 @@ impl Access for VercelArtifactsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(res).await?),
+            _ => Err(parse_error(res)),
         }
     }
 
@@ -91,7 +92,7 @@ impl Access for VercelArtifactsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }

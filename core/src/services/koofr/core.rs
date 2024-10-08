@@ -86,7 +86,7 @@ impl KoofrCore {
                 let status = resp.status();
 
                 if status != StatusCode::OK {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
 
                 let bs = resp.into_body();
@@ -133,7 +133,7 @@ impl KoofrCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -211,11 +211,11 @@ impl KoofrCore {
                     // When the directory already exists, Koofr returns 400 Bad Request.
                     // We should treat it as success.
                     StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => Ok(()),
-                    _ => Err(parse_error(resp).await?),
+                    _ => Err(parse_error(resp)),
                 }
             }
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

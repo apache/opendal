@@ -35,18 +35,17 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Seafile::default();
-
-    // set the storage bucket for OpenDAL
-    builder.root("/");
-    // set the endpoint for OpenDAL
-    builder.endpoint("http://127.0.0.1:80");
-    // set the username for OpenDAL
-    builder.username("xxxxxxxxxx");
-    // set the password name for OpenDAL
-    builder.password("opendal");
-    // set the repo_name for OpenDAL
-    builder.repo_name("xxxxxxxxxxxxx");
+    let mut builder = Seafile::default()
+        // set the storage bucket for OpenDAL
+        .root("/")
+        // set the endpoint for OpenDAL
+        .endpoint("http://127.0.0.1:80")
+        // set the username for OpenDAL
+        .username("xxxxxxxxxx")
+        // set the password name for OpenDAL
+        .password("opendal")
+        // set the repo_name for OpenDAL
+        .repo_name("xxxxxxxxxxxxx");
 
     let op: Operator = Operator::new(builder)?.finish();
 

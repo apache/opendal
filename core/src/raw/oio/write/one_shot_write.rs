@@ -50,16 +50,15 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 }
 
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         match &self.buffer {
             Some(_) => Err(Error::new(
                 ErrorKind::Unsupported,
                 "OneShotWriter doesn't support multiple write",
             )),
             None => {
-                let size = bs.len();
                 self.buffer = Some(bs);
-                Ok(size)
+                Ok(())
             }
         }
     }

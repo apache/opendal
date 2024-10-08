@@ -42,7 +42,7 @@ impl oio::OneShotWrite for IpmfsWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

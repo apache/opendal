@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
+use std::ops::{Bound, Range, RangeBounds};
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -68,6 +68,38 @@ impl ReadContext {
     pub fn options(&self) -> &OpReader {
         &self.options
     }
+
+    /// Parse the range bounds into a range.
+    pub(crate) async fn parse_into_range(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<Range<u64>> {
+        let start = match range.start_bound() {
+            Bound::Included(v) => *v,
+            Bound::Excluded(v) => v + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(v) => v + 1,
+            Bound::Excluded(v) => *v,
+            Bound::Unbounded => {
+                let mut op_stat = OpStat::new();
+
+                if let Some(v) = self.args().version() {
+                    op_stat = op_stat.with_version(v);
+                }
+
+                self.accessor()
+                    .stat(self.path(), op_stat)
+                    .await?
+                    .into_metadata()
+                    .content_length()
+            }
+        };
+
+        Ok(start..end)
+    }
 }
 
 /// ReadGenerator is used to generate new readers.
@@ -83,62 +115,65 @@ pub struct ReadGenerator {
     ctx: Arc<ReadContext>,
 
     offset: u64,
-    end: u64,
+    size: Option<u64>,
 }
 
 impl ReadGenerator {
     /// Create a new ReadGenerator.
     #[inline]
-    pub fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        Self {
-            ctx,
-            offset: range.start,
-            end: range.end,
+    pub fn new(ctx: Arc<ReadContext>, offset: u64, size: Option<u64>) -> Self {
+        Self { ctx, offset, size }
+    }
+
+    /// Generate next range to read.
+    fn next_range(&mut self) -> Option<BytesRange> {
+        if self.size == Some(0) {
+            return None;
         }
+
+        let next_offset = self.offset;
+        let next_size = match self.size {
+            // Given size is None, read all data.
+            None => {
+                // Update size to Some(0) to indicate that there is no more data to read.
+                self.size = Some(0);
+                None
+            }
+            Some(remaining) => {
+                // If chunk is set, read data in chunks.
+                let read_size = self
+                    .ctx
+                    .options
+                    .chunk()
+                    .map_or(remaining, |chunk| remaining.min(chunk as u64));
+                // Update (offset, size) before building future.
+                self.offset += read_size;
+                self.size = Some(remaining - read_size);
+                Some(read_size)
+            }
+        };
+
+        Some(BytesRange::new(next_offset, next_size))
     }
 
     /// Generate next reader.
     pub async fn next_reader(&mut self) -> Result<Option<oio::Reader>> {
-        if self.offset >= self.end {
+        let Some(range) = self.next_range() else {
             return Ok(None);
-        }
+        };
 
-        let offset = self.offset;
-        let mut size = (self.end - self.offset) as usize;
-        if let Some(chunk) = self.ctx.options.chunk() {
-            size = size.min(chunk)
-        }
-
-        // Update self.offset before building future.
-        self.offset += size as u64;
-        let args = self
-            .ctx
-            .args
-            .clone()
-            .with_range(BytesRange::new(offset, Some(size as u64)));
+        let args = self.ctx.args.clone().with_range(range);
         let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         Ok(Some(r))
     }
 
     /// Generate next blocking reader.
     pub fn next_blocking_reader(&mut self) -> Result<Option<oio::BlockingReader>> {
-        if self.offset >= self.end {
+        let Some(range) = self.next_range() else {
             return Ok(None);
-        }
+        };
 
-        let offset = self.offset;
-        let mut size = (self.end - self.offset) as usize;
-        if let Some(chunk) = self.ctx.options.chunk() {
-            size = size.min(chunk)
-        }
-
-        // Update self.offset before building future.
-        self.offset += size as u64;
-        let args = self
-            .ctx
-            .args
-            .clone()
-            .with_range(BytesRange::new(offset, Some(size as u64)));
+        let args = self.ctx.args.clone().with_range(range);
         let (_, r) = self.ctx.acc.blocking_read(&self.ctx.path, args)?;
         Ok(Some(r))
     }
@@ -146,7 +181,6 @@ impl ReadGenerator {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use bytes::Bytes;
 
@@ -154,7 +188,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_reader() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -168,7 +202,7 @@ mod tests {
             OpRead::new(),
             OpReader::new().with_chunk(3),
         ));
-        let mut generator = ReadGenerator::new(ctx, 0..10);
+        let mut generator = ReadGenerator::new(ctx, 0, Some(10));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
             readers.push(r);
@@ -178,9 +212,35 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_next_reader_without_size() -> Result<()> {
+        let op = Operator::via_iter(Scheme::Memory, [])?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
+
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new().with_chunk(3),
+        ));
+        let mut generator = ReadGenerator::new(ctx, 0, None);
+        let mut readers = vec![];
+        while let Some(r) = generator.next_reader().await? {
+            readers.push(r);
+        }
+
+        pretty_assertions::assert_eq!(readers.len(), 1);
+        Ok(())
+    }
+
     #[test]
     fn test_next_blocking_reader() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.blocking().write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -193,7 +253,7 @@ mod tests {
             OpRead::new(),
             OpReader::new().with_chunk(3),
         ));
-        let mut generator = ReadGenerator::new(ctx, 0..10);
+        let mut generator = ReadGenerator::new(ctx, 0, Some(10));
         let mut readers = vec![];
         while let Some(r) = generator.next_blocking_reader()? {
             readers.push(r);

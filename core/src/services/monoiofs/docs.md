@@ -2,14 +2,14 @@
 
 This service can be used to:
 
-- [ ] stat
-- [ ] read
-- [ ] write
-- [ ] append
-- [ ] create_dir
-- [ ] delete
-- [ ] copy
-- [ ] rename
+- [x] stat
+- [x] read
+- [x] write
+- [x] append
+- [x] create_dir
+- [x] delete
+- [x] copy
+- [x] rename
 - [ ] list
 - [ ] ~~presign~~
 - [ ] blocking
@@ -32,11 +32,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create monoiofs backend builder.
-    let mut builder = Monoiofs::default();
-    // Set the root for monoiofs, all operations will happen under this root.
-    //
-    // NOTE: the root must be absolute path.
-    builder.root("/tmp");
+    let mut builder = Monoiofs::default()
+        // Set the root for monoiofs, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/tmp");
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder)?.finish();

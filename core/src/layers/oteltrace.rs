@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::FutureExt;
 use opentelemetry::global;
@@ -30,22 +31,24 @@ use opentelemetry::KeyValue;
 use crate::raw::*;
 use crate::*;
 
-/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operations.
+/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
 ///
 /// Examples
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::OtelTraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::OtelTraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelTraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 pub struct OtelTraceLayer;
 
@@ -75,7 +78,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn metadata(&self) -> Arc<AccessorInfo> {
         let tracer = global::tracer("opendal");
         tracer.in_span("metadata", |_cx| self.inner.info())
     }
@@ -284,7 +287,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.write(bs)
     }
 
@@ -298,7 +301,7 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 

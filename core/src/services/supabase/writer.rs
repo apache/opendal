@@ -56,7 +56,7 @@ impl oio::OneShotWrite for SupabaseWriter {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

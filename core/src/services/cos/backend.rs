@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -26,37 +25,23 @@ use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::CosLister;
 use super::writer::CosWriter;
+use super::writer::CosWriters;
 use crate::raw::*;
-use crate::services::cos::writer::CosWriters;
+use crate::services::CosConfig;
 use crate::*;
 
-/// Tencent-Cloud COS services support.
-#[derive(Default, Deserialize, Clone)]
-#[serde(default)]
-pub struct CosConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    secret_id: Option<String>,
-    secret_key: Option<String>,
-    bucket: Option<String>,
-    disable_config_load: bool,
-}
-
-impl Debug for CosConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CosConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("secret_id", &"<redacted>")
-            .field("secret_key", &"<redacted>")
-            .field("bucket", &self.bucket)
-            .finish_non_exhaustive()
+impl Configurator for CosConfig {
+    type Builder = CosBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CosBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -80,10 +65,12 @@ impl CosBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -95,7 +82,7 @@ impl CosBuilder {
     /// # Examples
     ///
     /// - `https://cos.ap-singapore.myqcloud.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
@@ -106,7 +93,7 @@ impl CosBuilder {
     /// Set secret_id of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_id(&mut self, secret_id: &str) -> &mut Self {
+    pub fn secret_id(mut self, secret_id: &str) -> Self {
         if !secret_id.is_empty() {
             self.config.secret_id = Some(secret_id.to_string());
         }
@@ -117,7 +104,7 @@ impl CosBuilder {
     /// Set secret_key of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_key(&mut self, secret_key: &str) -> &mut Self {
+    pub fn secret_key(mut self, secret_key: &str) -> Self {
         if !secret_key.is_empty() {
             self.config.secret_key = Some(secret_key.to_string());
         }
@@ -127,7 +114,7 @@ impl CosBuilder {
 
     /// Set bucket of this backend.
     /// The param is required.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
             self.config.bucket = Some(bucket.to_string());
         }
@@ -141,7 +128,7 @@ impl CosBuilder {
     /// For examples:
     ///
     /// - envs like `TENCENTCLOUD_SECRET_ID`
-    pub fn disable_config_load(&mut self) -> &mut Self {
+    pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
     }
@@ -152,7 +139,7 @@ impl CosBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -160,22 +147,12 @@ impl CosBuilder {
 
 impl Builder for CosBuilder {
     const SCHEME: Scheme = Scheme::Cos;
-    type Accessor = CosBackend;
+    type Config = CosConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CosConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let bucket = match &self.config.bucket {
@@ -207,7 +184,7 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -221,10 +198,10 @@ impl Builder for CosBuilder {
             cfg = cfg.from_env();
         }
 
-        if let Some(v) = self.config.secret_id.take() {
+        if let Some(v) = self.config.secret_id {
             cfg.secret_id = Some(v);
         }
-        if let Some(v) = self.config.secret_key.take() {
+        if let Some(v) = self.config.secret_key {
             cfg.secret_key = Some(v);
         }
 
@@ -232,7 +209,6 @@ impl Builder for CosBuilder {
 
         let signer = TencentCosSigner::new();
 
-        debug!("backend build finished");
         Ok(CosBackend {
             core: Arc::new(CosCore {
                 bucket: bucket.clone(),
@@ -260,7 +236,7 @@ impl Access for CosBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Cos)
             .set_root(&self.core.root)
@@ -309,7 +285,7 @@ impl Access for CosBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -319,7 +295,7 @@ impl Access for CosBackend {
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -335,7 +311,7 @@ impl Access for CosBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -365,7 +341,7 @@ impl Access for CosBackend {
             StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 Ok(RpDelete::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -381,7 +357,7 @@ impl Access for CosBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

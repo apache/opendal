@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -28,36 +27,17 @@ use serde::Deserialize;
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::CloudflareKvConfig;
 use crate::ErrorKind;
 use crate::*;
 
-/// Cloudflare Kv Service Support.
-#[derive(Default, Deserialize, Clone)]
-pub struct CloudflareKvConfig {
-    /// The token used to authenticate with CloudFlare.
-    token: Option<String>,
-    /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
-    account_id: Option<String>,
-    /// The namespace ID. Used as URI path parameter.
-    namespace_id: Option<String>,
-
-    /// Root within this backend.
-    root: Option<String>,
-}
-
-impl Debug for CloudflareKvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("CloudflareKvConfig");
-
-        ds.field("root", &self.root);
-        ds.field("account_id", &self.account_id);
-        ds.field("namespace_id", &self.namespace_id);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
+impl Configurator for CloudflareKvConfig {
+    type Builder = CloudflareKvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CloudflareKvBuilder {
+            config: self,
+            http_client: None,
         }
-
-        ds.finish()
     }
 }
 
@@ -80,7 +60,7 @@ impl Debug for CloudflareKvBuilder {
 
 impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string())
         }
@@ -88,7 +68,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the account ID used to authenticate with CloudFlare.
-    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+    pub fn account_id(mut self, account_id: &str) -> Self {
         if !account_id.is_empty() {
             self.config.account_id = Some(account_id.to_string())
         }
@@ -96,7 +76,7 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the namespace ID.
-    pub fn namespace_id(&mut self, namespace_id: &str) -> &mut Self {
+    pub fn namespace_id(mut self, namespace_id: &str) -> Self {
         if !namespace_id.is_empty() {
             self.config.namespace_id = Some(namespace_id.to_string())
         }
@@ -104,30 +84,22 @@ impl CloudflareKvBuilder {
     }
 
     /// Set the root within this backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 }
 
 impl Builder for CloudflareKvBuilder {
     const SCHEME: Scheme = Scheme::CloudflareKv;
+    type Config = CloudflareKvConfig;
 
-    type Accessor = CloudflareKvBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CloudflareKvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let authorization = match &self.config.token {
             Some(token) => format_authorization_by_bearer(token)?,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
@@ -147,7 +119,7 @@ impl Builder for CloudflareKvBuilder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -169,14 +141,14 @@ impl Builder for CloudflareKvBuilder {
             account_id, namespace_id
         );
 
-        Ok(kv::Backend::new(Adapter {
+        Ok(CloudflareKvBackend::new(Adapter {
             authorization,
             account_id,
             namespace_id,
             client,
             url_prefix,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -233,7 +205,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Some(resp.into_body())),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -250,7 +222,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -264,7 +236,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -291,18 +263,18 @@ impl kv::Adapter for Adapter {
                     })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvResponse {
-    pub(crate) errors: Vec<CfKvError>,
+pub(super) struct CfKvResponse {
+    pub(super) errors: Vec<CfKvError>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvScanResponse {
+pub(super) struct CfKvScanResponse {
     result: Vec<CfKvScanResult>,
     // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
@@ -320,8 +292,8 @@ struct CfKvScanResult {
 // }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvError {
-    pub(crate) code: i32,
+pub(super) struct CfKvError {
+    pub(super) code: i32,
 }
 
 #[cfg(test)]

@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{Operator, Result};
+use opendal::Operator;
+use opendal::Result;
 
 async fn example(op: Operator) -> Result<()> {
     let mut w = op.writer("test.txt").await?;

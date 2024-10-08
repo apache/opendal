@@ -59,7 +59,7 @@ impl<S: Adapter> Access for Backend<S> {
     type Lister = HierarchyLister<KvLister>;
     type BlockingLister = HierarchyLister<KvLister>;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();
         let mut am: AccessorInfo = AccessorInfo::default();
         am.set_root(&self.root);
@@ -91,7 +91,7 @@ impl<S: Adapter> Access for Backend<S> {
 
         am.set_native_capability(cap);
 
-        am
+        am.into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -211,8 +211,11 @@ impl KvLister {
             } else {
                 EntryMode::FILE
             };
-
-            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+            let mut path = build_rel_path(&self.root, &v);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+            oio::Entry::new(&path, Metadata::new(mode))
         })
     }
 }
@@ -275,12 +278,11 @@ impl<S> KvWriter<S> {
 }
 
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let size = bs.len();
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let mut buf = self.buf.take().unwrap_or_default();
         buf.push(bs);
         self.buf = Some(buf);
-        Ok(size)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -303,12 +305,11 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
-        let size = bs.len();
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let mut buf = self.buf.take().unwrap_or_default();
         buf.push(bs);
         self.buf = Some(buf);
-        Ok(size)
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {

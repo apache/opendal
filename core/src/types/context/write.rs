@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use std::sync::Arc;
 
 /// WriteContext holds the immutable context for give write operation.
 pub struct WriteContext {
@@ -136,7 +136,9 @@ impl WriteGenerator<oio::Writer> {
     /// Write the entire buffer into writer.
     pub async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         let Some(chunk_size) = self.chunk_size else {
-            return self.w.write_dyn(bs).await;
+            let size = bs.len();
+            self.w.write_dyn(bs).await?;
+            return Ok(size);
         };
 
         if self.buffer.len() + bs.len() < chunk_size {
@@ -153,10 +155,8 @@ impl WriteGenerator<oio::Writer> {
         if !self.exact {
             let fill_size = bs.len();
             self.buffer.push(bs);
-            let mut buf = self.buffer.take().collect();
-            let written = self.w.write_dyn(buf.clone()).await?;
-            buf.advance(written);
-            self.buffer.push(buf);
+            let buf = self.buffer.take().collect();
+            self.w.write_dyn(buf).await?;
             return Ok(fill_size);
         }
 
@@ -167,10 +167,8 @@ impl WriteGenerator<oio::Writer> {
         // Action:
         // - write existing buffer in chunk_size to make more rooms for writing data.
         if self.buffer.len() >= chunk_size {
-            let mut buf = self.buffer.take().collect();
-            let written = self.w.write_dyn(buf.clone()).await?;
-            buf.advance(written);
-            self.buffer.push(buf);
+            let buf = self.buffer.take().collect();
+            self.w.write_dyn(buf).await?;
         }
 
         // Condition
@@ -192,8 +190,8 @@ impl WriteGenerator<oio::Writer> {
                 break;
             }
 
-            let written = self.w.write_dyn(self.buffer.clone().collect()).await?;
-            self.buffer.advance(written);
+            let buf = self.buffer.take().collect();
+            self.w.write_dyn(buf).await?;
         }
 
         self.w.close().await
@@ -225,7 +223,9 @@ impl WriteGenerator<oio::BlockingWriter> {
     /// Write the entire buffer into writer.
     pub fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         let Some(chunk_size) = self.chunk_size else {
-            return self.w.write(bs);
+            let size = bs.len();
+            self.w.write(bs)?;
+            return Ok(size);
         };
 
         if self.buffer.len() + bs.len() < chunk_size {
@@ -242,10 +242,8 @@ impl WriteGenerator<oio::BlockingWriter> {
         if !self.exact {
             let fill_size = bs.len();
             self.buffer.push(bs);
-            let mut buf = self.buffer.take().collect();
-            let written = self.w.write(buf.clone())?;
-            buf.advance(written);
-            self.buffer.push(buf);
+            let buf = self.buffer.take().collect();
+            self.w.write(buf)?;
             return Ok(fill_size);
         }
 
@@ -256,10 +254,8 @@ impl WriteGenerator<oio::BlockingWriter> {
         // Action:
         // - write existing buffer in chunk_size to make more rooms for writing data.
         if self.buffer.len() >= chunk_size {
-            let mut buf = self.buffer.take().collect();
-            let written = self.w.write(buf.clone())?;
-            buf.advance(written);
-            self.buffer.push(buf);
+            let buf = self.buffer.take().collect();
+            self.w.write(buf)?;
         }
 
         // Condition
@@ -281,8 +277,8 @@ impl WriteGenerator<oio::BlockingWriter> {
                 break;
             }
 
-            let written = self.w.write(self.buffer.clone().collect())?;
-            self.buffer.advance(written);
+            let buf = self.buffer.take().collect();
+            self.w.write(buf)?;
         }
 
         self.w.close()
@@ -291,9 +287,8 @@ impl WriteGenerator<oio::BlockingWriter> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::raw::oio::Write;
     use bytes::Buf;
+    use bytes::BufMut;
     use bytes::Bytes;
     use log::debug;
     use pretty_assertions::assert_eq;
@@ -304,18 +299,20 @@ mod tests {
     use sha2::Sha256;
     use tokio::sync::Mutex;
 
+    use super::*;
+    use crate::raw::oio::Write;
+
     struct MockWriter {
         buf: Arc<Mutex<Vec<u8>>>,
     }
 
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", &bs.len());
 
-            let chunk = bs.chunk();
             let mut buf = self.buf.lock().await;
-            buf.extend_from_slice(chunk);
-            Ok(chunk.len())
+            buf.put(bs);
+            Ok(())
         }
 
         async fn close(&mut self) -> Result<()> {
@@ -466,83 +463,6 @@ mod tests {
         // content > chunk size, but can send all chunks in the queue.
         let content = new_content(15);
         assert_eq!(15, w.write(content.clone().into()).await?);
-
-        w.close().await?;
-
-        let buf = buf.lock().await;
-        assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
-        Ok(())
-    }
-
-    struct PartialWriter {
-        buf: Arc<Mutex<Vec<u8>>>,
-    }
-
-    impl Write for PartialWriter {
-        async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
-            let mut buf = self.buf.lock().await;
-
-            if Buffer::count(&bs) > 1 {
-                // Always leaves last buffer for non-contiguous buffer.
-                let mut written = 0;
-                while Buffer::count(&bs) > 1 {
-                    let chunk = bs.chunk();
-                    buf.extend_from_slice(chunk);
-                    written += chunk.len();
-                    bs.advance(chunk.len());
-                }
-                Ok(written)
-            } else {
-                let chunk = bs.chunk();
-                buf.extend_from_slice(chunk);
-                Ok(chunk.len())
-            }
-        }
-
-        async fn close(&mut self) -> Result<()> {
-            Ok(())
-        }
-
-        async fn abort(&mut self) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_inexact_buf_writer_partial_send() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
-
-        let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
-            Box::new(PartialWriter { buf: buf.clone() }),
-            Some(10),
-            false,
-        );
-
-        let mut rng = thread_rng();
-        let mut expected = vec![];
-
-        let mut new_content = |size| {
-            let mut content = vec![0; size];
-            rng.fill_bytes(&mut content);
-            expected.extend_from_slice(&content);
-            Bytes::from(content)
-        };
-
-        // content < chunk size.
-        let content = new_content(5);
-        assert_eq!(5, w.write(content.into()).await?);
-        // Non-contiguous buffer.
-        let content = Buffer::from(vec![new_content(3), new_content(2)]);
-        assert_eq!(5, w.write(content).await?);
 
         w.close().await?;
 

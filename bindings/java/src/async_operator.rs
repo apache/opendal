@@ -66,7 +66,7 @@ fn intern_constructor(
 ) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_map(scheme, map)?;
+    let mut op = Operator::via_iter(scheme, map)?;
     if !op.info().full_capability().blocking {
         let layer = executor_or_default(env, executor)?.enter_with(BlockingLayer::create)?;
         op = op.layer(layer);

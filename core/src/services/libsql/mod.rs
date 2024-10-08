@@ -15,8 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::LibsqlBuilder as Libsql;
-pub use backend::LibsqlConfig;
-
+#[cfg(feature = "services-libsql")]
 mod error;
+
+#[cfg(feature = "services-libsql")]
+mod backend;
+#[cfg(feature = "services-libsql")]
+pub use backend::LibsqlBuilder as Libsql;
+
+mod config;
+pub use config::LibsqlConfig;

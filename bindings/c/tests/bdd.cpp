@@ -90,6 +90,20 @@ TEST_F(OpendalBddTest, FeatureTest)
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
 
+    // The blocking file should be deleted
+    error = opendal_operator_delete(this->p, this->path.c_str());
+    EXPECT_EQ(error, nullptr);
+    e = opendal_operator_is_exist(this->p, this->path.c_str());
+    EXPECT_EQ(e.error, nullptr);
+    EXPECT_FALSE(e.is_exist);
+
+    opendal_result_operator_writer writer = opendal_operator_writer(this->p, this->path.c_str());
+    EXPECT_EQ(writer.error, nullptr);
+    opendal_result_writer_write w = opendal_writer_write(writer.writer, data);
+    EXPECT_EQ(w.error, nullptr);
+    EXPECT_EQ(w.size, this->content.length());
+    opendal_writer_free(writer.writer);
+
     // The blocking file "test" must have content "Hello, World!" and read into buffer
     int length = this->content.length();
     unsigned char buffer[this->content.length()];
@@ -101,13 +115,6 @@ TEST_F(OpendalBddTest, FeatureTest)
         EXPECT_EQ(this->content[i], buffer[i]);
     }
     opendal_reader_free(reader.reader);
-
-    // The blocking file should be deleted
-    error = opendal_operator_delete(this->p, this->path.c_str());
-    EXPECT_EQ(error, nullptr);
-    e = opendal_operator_is_exist(this->p, this->path.c_str());
-    EXPECT_EQ(e.error, nullptr);
-    EXPECT_FALSE(e.is_exist);
 
     // The deletion operation should be idempotent
     error = opendal_operator_delete(this->p, this->path.c_str());

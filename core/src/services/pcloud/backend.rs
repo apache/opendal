@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -33,34 +31,16 @@ use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
+use crate::services::PcloudConfig;
 use crate::*;
 
-/// Config for backblaze Pcloud services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct PcloudConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    ///pCloud  endpoint address.
-    pub endpoint: String,
-    /// pCloud username.
-    pub username: Option<String>,
-    /// pCloud password.
-    pub password: Option<String>,
-}
-
-impl Debug for PcloudConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("username", &self.username);
-
-        ds.finish()
+impl Configurator for PcloudConfig {
+    type Builder = PcloudBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PcloudBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -86,7 +66,7 @@ impl PcloudBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -101,7 +81,7 @@ impl PcloudBuilder {
     /// ref to [doc.pcloud.com](https://docs.pcloud.com/)
     ///
     /// It is required. e.g. `https://api.pcloud.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = endpoint.to_string();
 
         self
@@ -110,7 +90,7 @@ impl PcloudBuilder {
     /// Pcloud username.
     ///
     /// It is required. your pCloud login email, e.g. `example@gmail.com`
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         self.config.username = if username.is_empty() {
             None
         } else {
@@ -123,7 +103,7 @@ impl PcloudBuilder {
     /// Pcloud password.
     ///
     /// It is required. your pCloud login password, e.g. `password`
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -139,7 +119,7 @@ impl PcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -147,31 +127,10 @@ impl PcloudBuilder {
 
 impl Builder for PcloudBuilder {
     const SCHEME: Scheme = Scheme::Pcloud;
-    type Accessor = PcloudBackend;
-
-    /// Converts a HashMap into an PcloudBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of PcloudBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = PcloudConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an PcloudBuilder instance with the deserialized config.
-        PcloudBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = PcloudConfig;
 
     /// Builds the backend and returns the result of PcloudBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -200,7 +159,7 @@ impl Builder for PcloudBuilder {
                 .with_context("service", Scheme::Pcloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -235,7 +194,7 @@ impl Access for PcloudBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Pcloud)
             .set_root(&self.core.root)
@@ -257,7 +216,7 @@ impl Access for PcloudBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -290,7 +249,7 @@ impl Access for PcloudBackend {
 
                 Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -308,7 +267,7 @@ impl Access for PcloudBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -344,7 +303,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpDelete::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -379,7 +338,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpCopy::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -409,7 +368,7 @@ impl Access for PcloudBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

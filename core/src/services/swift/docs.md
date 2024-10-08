@@ -35,16 +35,15 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create Swift backend builder
-    let mut builder = Swift::default();
-    
-    // Set the root for swift, all operations will happen under this root
-    builder.root("/path/to/dir");
-    // set the endpoint of Swift backend
-    builder.endpoint("https://openstack-controller.example.com:8080/v1/account");
-    // set the container name of Swift workspace
-    builder.container("container");
-    // set the auth token for builder
-    builder.token("token");
+    let mut builder = Swift::default() 
+        // Set the root for swift, all operations will happen under this root
+        .root("/path/to/dir")
+        // set the endpoint of Swift backend
+        .endpoint("https://openstack-controller.example.com:8080/v1/account")
+        // set the container name of Swift workspace
+        .container("container")
+        // set the auth token for builder
+        .token("token");
 
     let op: Operator = Operator::new(builder)?.finish();
 

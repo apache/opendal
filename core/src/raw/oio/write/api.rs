@@ -15,58 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::future::Future;
 use std::ops::DerefMut;
 
 use crate::raw::*;
 use crate::*;
-
-/// WriteOperation is the name for APIs of Writer.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum WriteOperation {
-    /// Operation for [`Write::write`]
-    Write,
-    /// Operation for [`Write::close`]
-    Close,
-    /// Operation for [`Write::abort`]
-    Abort,
-
-    /// Operation for [`BlockingWrite::write`]
-    BlockingWrite,
-    /// Operation for [`BlockingWrite::close`]
-    BlockingClose,
-}
-
-impl WriteOperation {
-    /// Convert self into static str.
-    pub fn into_static(self) -> &'static str {
-        self.into()
-    }
-}
-
-impl Display for WriteOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.into_static())
-    }
-}
-
-impl From<WriteOperation> for &'static str {
-    fn from(v: WriteOperation) -> &'static str {
-        use WriteOperation::*;
-
-        match v {
-            Write => "Writer::write",
-            Close => "Writer::close",
-            Abort => "Writer::abort",
-
-            BlockingWrite => "BlockingWriter::write",
-            BlockingClose => "BlockingWriter::close",
-        }
-    }
-}
 
 /// Writer is a type erased [`Write`]
 pub type Writer = Box<dyn WriteDyn>;
@@ -77,31 +30,19 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// # Behavior
     ///
-    /// - `Ok(n)` means `n` bytes has been written successfully.
+    /// - `Ok(())` means all bytes has been written successfully.
     /// - `Err(err)` means error happens and no bytes has been written.
-    ///
-    /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
-    /// repeatedly until all bytes has been written.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend;
-    #[cfg(target_arch = "wasm32")]
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>>;
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Close the writer and make sure all data has been flushed.
-    #[cfg(not(target_arch = "wasm32"))]
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
-    #[cfg(target_arch = "wasm32")]
-    fn close(&mut self) -> impl Future<Output = Result<()>>;
 
     /// Abort the pending writer.
-    #[cfg(not(target_arch = "wasm32"))]
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
-    #[cfg(target_arch = "wasm32")]
-    fn abort(&mut self) -> impl Future<Output = Result<()>>;
 }
 
 impl Write for () {
-    async fn write(&mut self, _: Buffer) -> Result<usize> {
+    async fn write(&mut self, _: Buffer) -> Result<()> {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
@@ -121,7 +62,7 @@ impl Write for () {
 }
 
 pub trait WriteDyn: Unpin + Send + Sync {
-    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<usize>>;
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>>;
 
     fn close_dyn(&mut self) -> BoxedFuture<Result<()>>;
 
@@ -129,7 +70,7 @@ pub trait WriteDyn: Unpin + Send + Sync {
 }
 
 impl<T: Write + ?Sized> WriteDyn for T {
-    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<usize>> {
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>> {
         Box::pin(self.write(bs))
     }
 
@@ -143,7 +84,7 @@ impl<T: Write + ?Sized> WriteDyn for T {
 }
 
 impl<T: WriteDyn + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.deref_mut().write_dyn(bs).await
     }
 
@@ -170,14 +111,14 @@ pub trait BlockingWrite: Send + Sync + 'static {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    fn write(&mut self, bs: Buffer) -> Result<usize>;
+    fn write(&mut self, bs: Buffer) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -195,7 +136,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         (**self).write(bs)
     }
 

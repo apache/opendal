@@ -42,7 +42,7 @@ impl Operator {
             .map_err(format_magnus_error)?;
         let options = options.unwrap_or_default();
 
-        let op = od::Operator::via_map(scheme, options)
+        let op = od::Operator::via_iter(scheme, options)
             .map_err(format_magnus_error)?
             .blocking();
         Ok(Operator(op))

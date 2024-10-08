@@ -55,7 +55,7 @@ impl oio::PageList for AzblobLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -83,11 +83,9 @@ impl oio::PageList for AzblobLister {
         }
 
         for object in output.blobs.blob {
-            let path = build_rel_path(&self.core.root, &object.name);
-
-            // azblob could return the dir itself in contents.
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.name);
+            if path.is_empty() {
+                path = "/".to_string();
             }
 
             let meta = Metadata::new(EntryMode::from_path(&path))

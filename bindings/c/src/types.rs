@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::os::raw::c_char;
 
 use opendal::Buffer;
@@ -33,35 +34,44 @@ pub struct opendal_bytes {
     pub data: *const u8,
     /// The length of the byte array
     pub len: usize,
+    /// The capacity of the byte array
+    pub capacity: usize,
 }
 
 impl opendal_bytes {
     /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
     pub(crate) fn new(buf: Buffer) -> Self {
         let vec = buf.to_vec();
-        let data = vec.as_ptr();
-        let len = vec.len();
-        std::mem::forget(vec);
-        Self { data, len }
+        let mut buf = std::mem::ManuallyDrop::new(vec);
+        let data = buf.as_mut_ptr();
+        let len = buf.len();
+        let capacity = buf.capacity();
+        Self {
+            data,
+            len,
+            capacity,
+        }
     }
 
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
-        if !bs.is_null() {
-            let data_mut = unsafe { (*bs).data as *mut u8 };
-            // free the vector
-            let _ = unsafe { Vec::from_raw_parts(data_mut, (*bs).len, (*bs).len) };
-            // free the pointer
-            let _ = unsafe { Box::from_raw(bs) };
+    pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
+        if !ptr.is_null() {
+            // transmuting `*const u8` to `*mut u8` is undefined behavior in any cases
+            // however, fields type of `opendal_bytes` is already related to the zig binding
+            // it should be fixed later
+            let _ = Vec::from_raw_parts((*ptr).data as *mut u8, (*ptr).len, (*ptr).capacity);
+            // it is too weird that call `Box::new` outside `opendal_bytes::new` but dealloc it here
+            // also, boxing `opendal_bytes` might not be necessary
+            // `data` points to heap, so `opendal_bytes` could be passed as a stack value
+            let _ = Box::from_raw(ptr);
         }
     }
 }
 
-#[allow(clippy::from_over_into)]
-impl Into<Buffer> for opendal_bytes {
-    fn into(self) -> Buffer {
-        let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
+impl From<opendal_bytes> for Buffer {
+    fn from(v: opendal_bytes) -> Self {
+        let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
         Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }
 }
@@ -76,9 +86,23 @@ impl Into<Buffer> for opendal_bytes {
 /// @see opendal_operator_options_set This function allow you to set the options
 #[repr(C)]
 pub struct opendal_operator_options {
-    /// The pointer to the Rust HashMap<String, String>
+    /// The pointer to the HashMap<String, String> in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    inner: *mut HashMap<String, String>,
+    inner: *mut c_void,
+}
+
+impl opendal_operator_options {
+    pub(crate) fn deref(&self) -> &HashMap<String, String> {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &*(self.inner as *mut HashMap<String, String>) }
+    }
+
+    pub(crate) fn deref_mut(&mut self) -> &mut HashMap<String, String> {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &mut *(self.inner as *mut HashMap<String, String>) }
+    }
 }
 
 impl opendal_operator_options {
@@ -92,9 +116,8 @@ impl opendal_operator_options {
     pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
         let options = Self {
-            inner: Box::into_raw(Box::new(map)),
+            inner: Box::into_raw(Box::new(map)) as _,
         };
-
         Box::into_raw(Box::new(options))
     }
 
@@ -129,20 +152,15 @@ impl opendal_operator_options {
             .to_str()
             .unwrap()
             .to_string();
-        (*self.inner).insert(k, v);
-    }
-
-    /// Returns a reference to the underlying [`HashMap<String, String>`]
-    pub(crate) fn as_ref(&self) -> &HashMap<String, String> {
-        unsafe { &*(self.inner) }
+        self.deref_mut().insert(k, v);
     }
 
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_options_free(
-        options: *const opendal_operator_options,
-    ) {
-        let _ = unsafe { Box::from_raw((*options).inner) };
-        let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
+    pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
+        if !ptr.is_null() {
+            drop(Box::from_raw((*ptr).inner as *mut HashMap<String, String>));
+            drop(Box::from_raw(ptr));
+        }
     }
 }

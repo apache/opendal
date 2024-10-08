@@ -421,7 +421,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_complete_put_block_list_request(
+    pub fn azblob_complete_put_block_list_request(
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
@@ -469,9 +469,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let mut req = self
-            .azblob_complete_put_block_list_request(path, block_ids, args)
-            .await?;
+        let mut req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
 
         self.sign(&mut req).await?;
 

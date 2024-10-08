@@ -15,10 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-azdls")]
+mod core;
+#[cfg(feature = "services-azdls")]
+mod error;
+#[cfg(feature = "services-azdls")]
+mod lister;
+#[cfg(feature = "services-azdls")]
+mod writer;
+
+#[cfg(feature = "services-azdls")]
 mod backend;
+#[cfg(feature = "services-azdls")]
 pub use backend::AzdlsBuilder as Azdls;
 
-mod core;
-mod error;
-mod lister;
-mod writer;
+mod config;
+pub use config::AzdlsConfig;

@@ -17,8 +17,9 @@
 
 use std::sync::Arc;
 
+use futures::select;
+use futures::Future;
 use futures::FutureExt;
-use futures::{select, Future};
 
 use crate::raw::*;
 use crate::*;
@@ -155,14 +156,14 @@ impl<W: RangeWrite> RangeWriter<W> {
 }
 
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let location = match self.location.clone() {
             Some(location) => location,
             None => {
                 // Fill cache with the first write.
                 if self.cache.is_none() {
-                    let size = self.fill_cache(bs);
-                    return Ok(size);
+                    self.fill_cache(bs);
+                    return Ok(());
                 }
 
                 let location = self.w.initiate_range().await?;
@@ -187,8 +188,8 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
             .await?;
         self.cache = None;
         self.next_offset += length;
-        let size = self.fill_cache(bs);
-        Ok(size)
+        self.fill_cache(bs);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

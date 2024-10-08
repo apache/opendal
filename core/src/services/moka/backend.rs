@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
@@ -23,46 +22,16 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::Deserialize;
 
 use crate::raw::adapters::typed_kv;
-use crate::raw::ConfigDeserializer;
+use crate::raw::*;
+use crate::services::MokaConfig;
 use crate::*;
 
-/// Config for Mokaservices support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MokaConfig {
-    /// Name for this cache instance.
-    pub name: Option<String>,
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
-    /// Sets the segments number of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub num_segments: Option<usize>,
-}
-
-impl Debug for MokaConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MokaConfig")
-            .field("name", &self.name)
-            .field("max_capacity", &self.max_capacity)
-            .field("time_to_live", &self.time_to_live)
-            .field("time_to_idle", &self.time_to_idle)
-            .field("num_segments", &self.num_segments)
-            .finish_non_exhaustive()
+impl Configurator for MokaConfig {
+    type Builder = MokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MokaBuilder { config: self }
     }
 }
 
@@ -75,7 +44,7 @@ pub struct MokaBuilder {
 
 impl MokaBuilder {
     /// Name for this cache instance.
-    pub fn name(&mut self, v: &str) -> &mut Self {
+    pub fn name(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.name = Some(v.to_owned());
         }
@@ -85,7 +54,7 @@ impl MokaBuilder {
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub fn max_capacity(&mut self, v: u64) -> &mut Self {
+    pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
             self.config.max_capacity = Some(v);
         }
@@ -95,7 +64,7 @@ impl MokaBuilder {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_live = Some(v);
         }
@@ -105,7 +74,7 @@ impl MokaBuilder {
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
         }
@@ -115,25 +84,29 @@ impl MokaBuilder {
     /// Sets the segments number of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub fn segments(&mut self, v: usize) -> &mut Self {
+    pub fn segments(mut self, v: usize) -> Self {
         assert!(v != 0);
         self.config.num_segments = Some(v);
+        self
+    }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
         self
     }
 }
 
 impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
-    type Accessor = MokaBackend;
+    type Config = MokaConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        MokaBuilder {
-            config: MokaConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, typed_kv::Value, _> =
@@ -154,9 +127,15 @@ impl Builder for MokaBuilder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MokaBackend::new(Adapter {
+
+        let mut backend = MokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
@@ -231,7 +210,7 @@ impl typed_kv::Adapter for Adapter {
         if path.is_empty() {
             Ok(keys.collect())
         } else {
-            Ok(keys.filter(|k| k.starts_with(path) && k != path).collect())
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }

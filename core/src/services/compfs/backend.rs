@@ -15,28 +15,40 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::{dispatcher::Dispatcher, fs::OpenOptions};
+use std::io::Cursor;
+use std::sync::Arc;
 
-use super::{core::CompfsCore, lister::CompfsLister, reader::CompfsReader, writer::CompfsWriter};
+use compio::dispatcher::Dispatcher;
+use compio::fs::OpenOptions;
 
+use super::core::CompfsCore;
+use super::lister::CompfsLister;
+use super::reader::CompfsReader;
+use super::writer::CompfsWriter;
 use crate::raw::*;
+use crate::services::CompfsConfig;
 use crate::*;
 
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
+impl Configurator for CompfsConfig {
+    type Builder = CompfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CompfsBuilder { config: self }
+    }
+}
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
 pub struct CompfsBuilder {
-    root: Option<PathBuf>,
+    config: CompfsConfig,
 }
 
 impl CompfsBuilder {
     /// Set root for Compfs
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
-            Some(PathBuf::from(root))
+            Some(root.to_string())
         };
 
         self
@@ -45,24 +57,29 @@ impl CompfsBuilder {
 
 impl Builder for CompfsBuilder {
     const SCHEME: Scheme = Scheme::Compfs;
-    type Accessor = CompfsBackend;
+    type Config = CompfsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CompfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = match self.root.take() {
+    fn build(self) -> Result<impl Access> {
+        let root = match self.config.root {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "root is not specified",
             )),
         }?;
+
+        // If root dir does not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.as_str())
+                        .set_source(e)
+                })?;
+            }
+        }
+
         let dispatcher = Dispatcher::new().map_err(|_| {
             Error::new(
                 ErrorKind::Unexpected,
@@ -70,7 +87,7 @@ impl Builder for CompfsBuilder {
             )
         })?;
         let core = CompfsCore {
-            root,
+            root: root.into(),
             dispatcher,
             buf_pool: oio::PooledBuf::new(16),
         };
@@ -93,7 +110,7 @@ impl Access for CompfsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Compfs)
             .set_root(&self.core.root.to_string_lossy())
@@ -116,7 +133,7 @@ impl Access for CompfsBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -151,11 +168,17 @@ impl Access for CompfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = self.core.prepare_path(path);
-
-        self.core
-            .exec(move || async move { compio::fs::remove_file(path).await })
-            .await?;
+        if path.ends_with('/') {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_dir(path).await })
+                .await?;
+        } else {
+            let path = self.core.prepare_path(path);
+            self.core
+                .exec(move || async move { compio::fs::remove_file(path).await })
+                .await?;
+        }
 
         Ok(RpDelete::default())
     }

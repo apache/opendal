@@ -15,18 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use async_tls::TlsConnector;
 use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
 use log::debug;
-use serde::Deserialize;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
@@ -43,29 +42,13 @@ use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+use crate::services::FtpConfig;
 use crate::*;
 
-/// Config for Ftpservices support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct FtpConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// user of this backend
-    pub user: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-}
-
-impl Debug for FtpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FtpConfig")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
+impl Configurator for FtpConfig {
+    type Builder = FtpBuilder;
+    fn into_builder(self) -> Self::Builder {
+        FtpBuilder { config: self }
     }
 }
 
@@ -86,7 +69,7 @@ impl Debug for FtpBuilder {
 
 impl FtpBuilder {
     /// set endpoint for ftp backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -97,7 +80,7 @@ impl FtpBuilder {
     }
 
     /// set root path for ftp backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -108,7 +91,7 @@ impl FtpBuilder {
     }
 
     /// set user for ftp backend.
-    pub fn user(&mut self, user: &str) -> &mut Self {
+    pub fn user(mut self, user: &str) -> Self {
         self.config.user = if user.is_empty() {
             None
         } else {
@@ -119,7 +102,7 @@ impl FtpBuilder {
     }
 
     /// set password for ftp backend.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = if password.is_empty() {
             None
         } else {
@@ -132,9 +115,9 @@ impl FtpBuilder {
 
 impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
-    type Accessor = FtpBackend;
+    type Config = FtpConfig;
 
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -170,7 +153,7 @@ impl Builder for FtpBuilder {
             }
         };
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
 
         let user = match &self.config.user {
             None => "".to_string(),
@@ -182,8 +165,6 @@ impl Builder for FtpBuilder {
             Some(v) => v.clone(),
         };
 
-        debug!("ftp backend finished: {:?}", &self);
-
         Ok(FtpBackend {
             endpoint,
             root,
@@ -192,13 +173,6 @@ impl Builder for FtpBuilder {
             enable_secure,
             pool: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        FtpBuilder {
-            config: FtpConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
     }
 }
 
@@ -289,7 +263,7 @@ impl Access for FtpBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
@@ -310,7 +284,7 @@ impl Access for FtpBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -501,27 +475,27 @@ mod build_test {
     #[test]
     fn test_build() {
         // ftps scheme, should suffix with default port 21
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftps://ftp_server.local");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftps://ftp_server.local")
+            .build();
         assert!(b.is_ok());
 
         // ftp scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp://ftp_server.local:1234");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp://ftp_server.local:1234")
+            .build();
         assert!(b.is_ok());
 
         // no scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp_server.local:8765")
+            .build();
         assert!(b.is_ok());
 
         // invalid scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("invalidscheme://ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("invalidscheme://ftp_server.local:8765")
+            .build();
         assert!(b.is_err());
         let e = b.unwrap_err();
         assert_eq!(e.kind(), ErrorKind::ConfigInvalid);

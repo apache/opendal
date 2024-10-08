@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use std::sync::Arc;
+
+use bytes::Buf;
 
 use crate::raw::*;
 use crate::*;
@@ -141,6 +142,7 @@ impl Writer {
             let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
+
         Ok(())
     }
 
@@ -153,12 +155,8 @@ impl Writer {
     /// Optimize this function to avoid unnecessary copy.
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
-        let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-        Ok(())
+        let bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
+        self.write(bs).await
     }
 
     /// Abort the writer and clean up all written data.
@@ -188,9 +186,8 @@ impl Writer {
     /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
     /// requires an owned [`Buffer`], which involves an extra copy operation.
     ///
-    /// FuturesAsyncWriters are automatically closed when they go out of scope. Errors detected on
-    /// closing are ignored by the implementation of Drop. Use the method `close` if these errors
-    /// must be manually handled.
+    /// FuturesAsyncWriter is required to call `close()` to make sure all
+    /// data have been written to the storage.
     ///
     /// # Examples
     ///

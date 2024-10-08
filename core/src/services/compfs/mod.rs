@@ -15,12 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![allow(dead_code)] // TODO: Remove this after backend is implemented
-
-mod backend;
+#[cfg(feature = "services-compfs")]
 mod core;
+#[cfg(feature = "services-compfs")]
 mod lister;
+#[cfg(feature = "services-compfs")]
 mod reader;
+#[cfg(feature = "services-compfs")]
 mod writer;
 
+#[cfg(feature = "services-compfs")]
+mod backend;
+#[cfg(feature = "services-compfs")]
 pub use backend::CompfsBuilder as Compfs;
+
+mod config;
+pub use config::CompfsConfig;

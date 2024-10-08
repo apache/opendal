@@ -125,7 +125,7 @@ impl AlluxioCore {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -160,7 +160,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -184,7 +184,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -204,7 +204,7 @@ impl AlluxioCore {
         match status {
             StatusCode::OK => Ok(()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 if err.kind() == ErrorKind::NotFound {
                     return Ok(());
                 }
@@ -232,7 +232,7 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -258,7 +258,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(file_info)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -284,7 +284,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
                 Ok(file_infos)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -320,7 +320,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(size)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -337,7 +337,7 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

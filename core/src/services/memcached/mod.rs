@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::MemcachedBuilder as Memcached;
-pub use backend::MemcachedConfig;
+#[cfg(feature = "services-memcached")]
 mod binary;
+
+#[cfg(feature = "services-memcached")]
+mod backend;
+#[cfg(feature = "services-memcached")]
+pub use backend::MemcachedBuilder as Memcached;
+
+mod config;
+pub use config::MemcachedConfig;

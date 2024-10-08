@@ -48,7 +48,7 @@ struct GcsErrorDetail {
 }
 
 /// Parse error response into Error.
-pub fn parse_error(resp: Response<Buffer>) -> Error {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 

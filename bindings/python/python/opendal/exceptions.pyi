@@ -69,4 +69,3 @@ class ConditionNotMatch(Error):
     """Condition not match"""
 
     pass
-

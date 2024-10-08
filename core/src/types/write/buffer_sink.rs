@@ -163,14 +163,14 @@ impl futures::Sink<Buffer> for BufferSink {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::raw::*;
     use crate::*;
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_trait() {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default()).unwrap();
+        let op = Operator::via_iter(Scheme::Memory, []).unwrap();
 
         let acc = op.into_inner();
         let ctx = Arc::new(WriteContext::new(

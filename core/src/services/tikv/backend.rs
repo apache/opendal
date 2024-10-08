@@ -15,17 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
 use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
+use crate::raw::Access;
+use crate::services::TikvConfig;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;
@@ -33,33 +32,10 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-/// Config for Tikv services support.
-#[derive(Default, Deserialize, Clone)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct TikvConfig {
-    /// network address of the TiKV service.
-    pub endpoints: Option<Vec<String>>,
-    /// whether using insecure connection to TiKV
-    pub insecure: bool,
-    /// certificate authority file path
-    pub ca_path: Option<String>,
-    /// cert path
-    pub cert_path: Option<String>,
-    /// key path
-    pub key_path: Option<String>,
-}
-
-impl Debug for TikvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("TikvConfig");
-
-        d.field("endpoints", &self.endpoints)
-            .field("insecure", &self.insecure)
-            .field("ca_path", &self.ca_path)
-            .field("cert_path", &self.cert_path)
-            .field("key_path", &self.key_path)
-            .finish()
+impl Configurator for TikvConfig {
+    type Builder = TikvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        TikvBuilder { config: self }
     }
 }
 
@@ -81,7 +57,7 @@ impl Debug for TikvBuilder {
 
 impl TikvBuilder {
     /// Set the network address of the TiKV service.
-    pub fn endpoints(&mut self, endpoints: Vec<String>) -> &mut Self {
+    pub fn endpoints(mut self, endpoints: Vec<String>) -> Self {
         if !endpoints.is_empty() {
             self.config.endpoints = Some(endpoints)
         }
@@ -89,13 +65,13 @@ impl TikvBuilder {
     }
 
     /// Set the insecure connection to TiKV.
-    pub fn insecure(&mut self) -> &mut Self {
+    pub fn insecure(mut self) -> Self {
         self.config.insecure = true;
         self
     }
 
     /// Set the certificate authority file path.
-    pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
+    pub fn ca_path(mut self, ca_path: &str) -> Self {
         if !ca_path.is_empty() {
             self.config.ca_path = Some(ca_path.to_string())
         }
@@ -103,7 +79,7 @@ impl TikvBuilder {
     }
 
     /// Set the certificate file path.
-    pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
+    pub fn cert_path(mut self, cert_path: &str) -> Self {
         if !cert_path.is_empty() {
             self.config.cert_path = Some(cert_path.to_string())
         }
@@ -111,7 +87,7 @@ impl TikvBuilder {
     }
 
     /// Set the key file path.
-    pub fn key_path(&mut self, key_path: &str) -> &mut Self {
+    pub fn key_path(mut self, key_path: &str) -> Self {
         if !key_path.is_empty() {
             self.config.key_path = Some(key_path.to_string())
         }
@@ -121,17 +97,10 @@ impl TikvBuilder {
 
 impl Builder for TikvBuilder {
     const SCHEME: Scheme = Scheme::Tikv;
-    type Accessor = TikvBackend;
+    type Config = TikvConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = TikvConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        TikvBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoints = self.config.endpoints.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let endpoints = self.config.endpoints.ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "endpoints is required but not set",

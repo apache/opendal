@@ -47,7 +47,7 @@ impl Access for GdriveBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
@@ -67,7 +67,7 @@ impl Access for GdriveBackend {
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -81,7 +81,7 @@ impl Access for GdriveBackend {
         let resp = self.core.gdrive_stat(path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -115,7 +115,7 @@ impl Access for GdriveBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -145,7 +145,7 @@ impl Access for GdriveBackend {
         let resp = self.core.gdrive_trash(&file_id).await?;
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         self.core.path_cache.remove(&path).await;
@@ -180,7 +180,7 @@ impl Access for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
 
             self.core.path_cache.remove(&to_path).await;
@@ -206,7 +206,7 @@ impl Access for GdriveBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -219,7 +219,7 @@ impl Access for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
 
             self.core.path_cache.remove(&target).await;
@@ -247,7 +247,7 @@ impl Access for GdriveBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

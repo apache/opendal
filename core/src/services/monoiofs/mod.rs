@@ -15,6 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-monoiofs")]
+mod core;
+#[cfg(feature = "services-monoiofs")]
+mod reader;
+#[cfg(feature = "services-monoiofs")]
+mod writer;
+
+#[cfg(feature = "services-monoiofs")]
 mod backend;
+#[cfg(feature = "services-monoiofs")]
 pub use backend::MonoiofsBuilder as Monoiofs;
-pub use backend::MonoiofsConfig;
+
+mod config;
+pub use config::MonoiofsConfig;

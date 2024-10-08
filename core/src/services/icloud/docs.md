@@ -53,13 +53,13 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Icloud::default();
-    builder.root("/");
-    builder.apple_id("<apple_id>");
-    builder.password("<password>");
-    builder.trust_token("<trust_token>");
-    builder.ds_web_auth_token("<ds_web_auth_token>");
-    builder.is_china_mainland(true);
+    let mut builder = Icloud::default()
+      .root("/")
+      .apple_id("<apple_id>")
+      .password("<password>")
+      .trust_token("<trust_token>")
+      .ds_web_auth_token("<ds_web_auth_token>")
+      .is_china_mainland(true);
 
     Ok(())
 }

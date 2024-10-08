@@ -114,7 +114,7 @@ impl VercelBlobCore {
         self.client.fetch(req).await
     }
 
-    pub async fn get_put_request(
+    pub fn get_put_request(
         &self,
         path: &str,
         size: Option<u64>,
@@ -178,7 +178,7 @@ impl VercelBlobCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -259,7 +259,7 @@ impl VercelBlobCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();

@@ -17,8 +17,9 @@
 
 use std::sync::Arc;
 
+use futures::select;
+use futures::Future;
 use futures::FutureExt;
-use futures::{select, Future};
 
 use crate::raw::*;
 use crate::*;
@@ -49,6 +50,12 @@ pub trait PositionWrite: Send + Sync + Unpin + 'static {
         offset: u64,
         buf: Buffer,
     ) -> impl Future<Output = Result<()>> + MaybeSend;
+
+    /// close is used to close the underlying file.
+    fn close(&self) -> impl Future<Output = Result<()>> + MaybeSend;
+
+    /// abort is used to abort the underlying abort.
+    fn abort(&self) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 struct WriteInput<W: PositionWrite> {
@@ -118,10 +125,10 @@ impl<W: PositionWrite> PositionWriter<W> {
 }
 
 impl<W: PositionWrite> oio::Write for PositionWriter<W> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         if self.cache.is_none() {
-            let size = self.fill_cache(bs);
-            return Ok(size);
+            let _ = self.fill_cache(bs);
+            return Ok(());
         }
 
         let bytes = self.cache.clone().expect("pending write must exist");
@@ -138,8 +145,8 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
             .await?;
         self.cache = None;
         self.next_offset += length;
-        let size = self.fill_cache(bs);
-        Ok(size)
+        let _ = self.fill_cache(bs);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -151,10 +158,14 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
             self.w.write_all_at(offset, buffer).await?;
             self.cache = None;
         }
+        self.w.close().await?;
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.tasks.clear();
+        self.cache = None;
+        self.w.abort().await?;
         Ok(())
     }
 }
@@ -214,6 +225,14 @@ mod tests {
             );
             test.bytes.extend(input);
 
+            Ok(())
+        }
+
+        async fn close(&self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn abort(&self) -> Result<()> {
             Ok(())
         }
     }

@@ -18,7 +18,7 @@
 [package]
 description = "Use OpenDAL as a backend to access data in various service with WebDAV protocol"
 name = "dav-server-opendalfs"
-version = "0.0.5"
+version = "0.2.0"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -30,12 +30,12 @@ rust-version = "1.75"
 [dependencies]
 anyhow = "1"
 bytes = { version = "1.4.0" }
-dav-server = { version = "0.6.0" }
+dav-server = { version = "0.7.0" }
 futures = "0.3"
-opendal = { version = "0.47.0", path = "../../core" }
+opendal = { version = "0.50.0", path = "../../core" }
 
 [dev-dependencies]
-opendal = { version = "0.47.0", path = "../../core", features = [
+opendal = { version = "0.50.0", path = "../../core", features = [
   "services-fs",
 ] }
 tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "io-std"] }

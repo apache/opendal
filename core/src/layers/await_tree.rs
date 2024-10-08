@@ -16,13 +16,13 @@
 // under the License.
 
 use await_tree::InstrumentAwait;
-use futures::{Future, FutureExt};
-use oio::{ListOperation, ReadOperation, WriteOperation};
+use futures::Future;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
 
-/// Add a Instrument await-tree for actor-based applications to the underlying services.
+/// Add an Instrument await-tree for actor-based applications to the underlying services.
 ///
 /// # AwaitTree
 ///
@@ -33,16 +33,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::AwaitTreeLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::AwaitTreeLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AwaitTreeLayer::new())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone, Default)]
 pub struct AwaitTreeLayer {}
@@ -179,7 +181,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .instrument_await(format!("opendal::{}", ReadOperation::Read))
+            .instrument_await(format!("opendal::{}", Operation::ReaderRead))
             .await
     }
 }
@@ -191,27 +193,27 @@ impl<R: oio::BlockingRead> oio::BlockingRead for AwaitTreeWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>> + MaybeSend {
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .write(bs)
-            .instrument_await(format!("opendal::{}", WriteOperation::Write.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterWrite.into_static()))
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()
-            .instrument_await(format!("opendal::{}", WriteOperation::Abort.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterAbort.into_static()))
     }
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .close()
-            .instrument_await(format!("opendal::{}", WriteOperation::Close.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterClose.into_static()))
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for AwaitTreeWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 
@@ -224,7 +226,7 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .instrument_await(format!("opendal::{}", ListOperation::Next))
+            .instrument_await(format!("opendal::{}", Operation::ListerNext))
             .await
     }
 }

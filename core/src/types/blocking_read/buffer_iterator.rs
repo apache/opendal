@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
+use std::ops::RangeBounds;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -30,8 +30,8 @@ struct IteratingReader {
 impl IteratingReader {
     /// Create a new iterating reader.
     #[inline]
-    fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        let generator = ReadGenerator::new(ctx.clone(), range);
+    fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
+        let generator = ReadGenerator::new(ctx.clone(), range.offset(), range.size());
         Self {
             generator,
             reader: None,
@@ -73,9 +73,9 @@ pub struct BufferIterator {
 impl BufferIterator {
     /// Create a new buffer iterator.
     #[inline]
-    pub fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
+    pub fn new(ctx: Arc<ReadContext>, range: impl RangeBounds<u64>) -> Self {
         Self {
-            inner: IteratingReader::new(ctx, range),
+            inner: IteratingReader::new(ctx, range.into()),
         }
     }
 }

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -25,72 +24,65 @@ use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::PersyConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
+impl Configurator for PersyConfig {
+    type Builder = PersyBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PersyBuilder { config: self }
+    }
+}
+
 /// persy service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PersyBuilder {
-    /// That path to the persy data file. The directory in the path must already exist.
-    datafile: Option<String>,
-    /// That name of the persy segment.
-    segment: Option<String>,
-    /// That name of the persy index.
-    index: Option<String>,
+    config: PersyConfig,
 }
 
 impl PersyBuilder {
     /// Set the path to the persy data directory. Will create if not exists.
-    pub fn datafile(&mut self, path: &str) -> &mut Self {
-        self.datafile = Some(path.into());
+    pub fn datafile(mut self, path: &str) -> Self {
+        self.config.datafile = Some(path.into());
         self
     }
 
     /// Set the name of the persy segment. Will create if not exists.
-    pub fn segment(&mut self, path: &str) -> &mut Self {
-        self.segment = Some(path.into());
+    pub fn segment(mut self, path: &str) -> Self {
+        self.config.segment = Some(path.into());
         self
     }
 
     /// Set the name of the persy index. Will create if not exists.
-    pub fn index(&mut self, path: &str) -> &mut Self {
-        self.index = Some(path.into());
+    pub fn index(mut self, path: &str) -> Self {
+        self.config.index = Some(path.into());
         self
     }
 }
 
 impl Builder for PersyBuilder {
     const SCHEME: Scheme = Scheme::Persy;
-    type Accessor = PersyBackend;
+    type Config = PersyConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = PersyBuilder::default();
-
-        map.get("datafile").map(|v| builder.datafile(v));
-        map.get("segment").map(|v| builder.segment(v));
-        map.get("index").map(|v| builder.index(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datafile_path = self.datafile.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datafile_path = self.config.datafile.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
-        let segment_name = self.segment.take().ok_or_else(|| {
+        let segment_name = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
         let segment = segment_name.clone();
 
-        let index_name = self.index.take().ok_or_else(|| {
+        let index_name = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;

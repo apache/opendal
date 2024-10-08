@@ -19,13 +19,10 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
-/// Add timeout for every operations to avoid slow or unexpected hang operations.
+/// Add timeout for every operation to avoid slow or unexpected hang operations.
 ///
 /// For example, a dead connection could hang a databases sql query. TimeoutLayer
 /// will break this connection and returns an error so users can handle it by
@@ -54,15 +51,25 @@ use crate::*;
 /// For example, while using `TimeoutLayer` with `RetryLayer` at the same time, please make sure
 /// timeout layer showed up before retry layer.
 ///
-/// ```no_build
-///  let op = Operator::new(builder.clone())
-///     .unwrap()
+/// ```no_run
+/// # use std::time::Duration;
+///
+/// # use opendal::layers::RetryLayer;
+/// # use opendal::layers::TimeoutLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+///
+/// # fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .layer(RetryLayer::new())
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Examples
@@ -71,22 +78,24 @@ use crate::*;
 /// operations, 3 seconds timeout for all io operations.
 ///
 /// ```no_run
-/// use std::time::Duration;
+/// # use std::time::Duration;
 ///
-/// use anyhow::Result;
-/// use opendal::layers::TimeoutLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::TimeoutLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(
 ///         TimeoutLayer::default()
 ///             .with_timeout(Duration::from_secs(10))
 ///             .with_io_timeout(Duration::from_secs(3)),
 ///     )
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Implementation Notes
@@ -345,31 +354,31 @@ impl<R> TimeoutWrapper<R> {
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, ReadOperation::Read.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::ReaderRead.into_static(), fut).await
     }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, WriteOperation::Write.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterWrite.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, WriteOperation::Close.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterClose.into_static(), fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, WriteOperation::Abort.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::WriterAbort.into_static(), fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, ListOperation::Next.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::ListerNext.into_static(), fut).await
     }
 }
 
@@ -400,7 +409,7 @@ mod tests {
         type BlockingWriter = ();
         type BlockingLister = ();
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
@@ -408,7 +417,7 @@ mod tests {
                 ..Default::default()
             });
 
-            am
+            am.into()
         }
 
         /// This function will build a reader that always return pending.

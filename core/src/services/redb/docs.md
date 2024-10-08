@@ -30,9 +30,9 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Redb::default();
-    builder.datadir("/tmp/opendal/redb");
-    builder.table("opendal-redb");
+    let mut builder = Redb::default()
+        .datadir("/tmp/opendal/redb")
+        .table("opendal-redb");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

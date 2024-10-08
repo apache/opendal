@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,7 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::parse_info;
 use super::core::ChainsafeCore;
@@ -34,33 +32,16 @@ use super::lister::ChainsafeLister;
 use super::writer::ChainsafeWriter;
 use super::writer::ChainsafeWriters;
 use crate::raw::*;
+use crate::services::ChainsafeConfig;
 use crate::*;
 
-/// Config for backblaze Chainsafe services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct ChainsafeConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// api_key of this backend.
-    pub api_key: Option<String>,
-    /// bucket_id of this backend.
-    ///
-    /// required.
-    pub bucket_id: String,
-}
-
-impl Debug for ChainsafeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("ChainsafeConfig");
-
-        d.field("root", &self.root)
-            .field("bucket_id", &self.bucket_id);
-
-        d.finish_non_exhaustive()
+impl Configurator for ChainsafeConfig {
+    type Builder = ChainsafeBuilder;
+    fn into_builder(self) -> Self::Builder {
+        ChainsafeBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -86,7 +67,7 @@ impl ChainsafeBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -99,7 +80,7 @@ impl ChainsafeBuilder {
     /// api_key of this backend.
     ///
     /// required.
-    pub fn api_key(&mut self, api_key: &str) -> &mut Self {
+    pub fn api_key(mut self, api_key: &str) -> Self {
         self.config.api_key = if api_key.is_empty() {
             None
         } else {
@@ -110,7 +91,7 @@ impl ChainsafeBuilder {
     }
 
     /// Set bucket_id name of this backend.
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -122,7 +103,7 @@ impl ChainsafeBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -130,31 +111,10 @@ impl ChainsafeBuilder {
 
 impl Builder for ChainsafeBuilder {
     const SCHEME: Scheme = Scheme::Chainsafe;
-    type Accessor = ChainsafeBackend;
-
-    /// Converts a HashMap into an ChainsafeBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of ChainsafeBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = ChainsafeConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an ChainsafeBuilder instance with the deserialized config.
-        ChainsafeBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = ChainsafeConfig;
 
     /// Builds the backend and returns the result of ChainsafeBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -176,7 +136,7 @@ impl Builder for ChainsafeBuilder {
                 .with_context("service", Scheme::Chainsafe)),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -210,7 +170,7 @@ impl Access for ChainsafeBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Chainsafe)
             .set_root(&self.core.root)
@@ -230,7 +190,7 @@ impl Access for ChainsafeBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -242,7 +202,7 @@ impl Access for ChainsafeBackend {
             StatusCode::OK => Ok(RpCreateDir::default()),
             // Allow 409 when creating a existing dir
             StatusCode::CONFLICT => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -259,7 +219,7 @@ impl Access for ChainsafeBackend {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(RpStat::new(parse_info(output.content)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -272,7 +232,7 @@ impl Access for ChainsafeBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -294,7 +254,7 @@ impl Access for ChainsafeBackend {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

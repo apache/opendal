@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -25,7 +24,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -38,47 +36,16 @@ use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::b2::core::B2Signer;
 use crate::services::b2::core::ListFileNamesResponse;
+use crate::services::B2Config;
 use crate::*;
 
-/// Config for backblaze b2 services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct B2Config {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// keyID of this backend.
-    ///
-    /// - If application_key_id is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub application_key_id: Option<String>,
-    /// applicationKey of this backend.
-    ///
-    /// - If application_key is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub application_key: Option<String>,
-    /// bucket of this backend.
-    ///
-    /// required.
-    pub bucket: String,
-    /// bucket id of this backend.
-    ///
-    /// required.
-    pub bucket_id: String,
-}
-
-impl Debug for B2Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("B2Config");
-
-        d.field("root", &self.root)
-            .field("application_key_id", &self.application_key_id)
-            .field("bucket_id", &self.bucket_id)
-            .field("bucket", &self.bucket);
-
-        d.finish_non_exhaustive()
+impl Configurator for B2Config {
+    type Builder = B2Builder;
+    fn into_builder(self) -> Self::Builder {
+        B2Builder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -104,7 +71,7 @@ impl B2Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -115,7 +82,7 @@ impl B2Builder {
     }
 
     /// application_key_id of this backend.
-    pub fn application_key_id(&mut self, application_key_id: &str) -> &mut Self {
+    pub fn application_key_id(mut self, application_key_id: &str) -> Self {
         self.config.application_key_id = if application_key_id.is_empty() {
             None
         } else {
@@ -126,7 +93,7 @@ impl B2Builder {
     }
 
     /// application_key of this backend.
-    pub fn application_key(&mut self, application_key: &str) -> &mut Self {
+    pub fn application_key(mut self, application_key: &str) -> Self {
         self.config.application_key = if application_key.is_empty() {
             None
         } else {
@@ -138,7 +105,7 @@ impl B2Builder {
 
     /// Set bucket name of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         self.config.bucket = bucket.to_string();
 
         self
@@ -146,7 +113,7 @@ impl B2Builder {
 
     /// Set bucket id of this backend.
     /// You can find it in <https://secure.backblaze.com/b2_buckets.html>
-    pub fn bucket_id(&mut self, bucket_id: &str) -> &mut Self {
+    pub fn bucket_id(mut self, bucket_id: &str) -> Self {
         self.config.bucket_id = bucket_id.to_string();
 
         self
@@ -158,7 +125,7 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -166,31 +133,10 @@ impl B2Builder {
 
 impl Builder for B2Builder {
     const SCHEME: Scheme = Scheme::B2;
-    type Accessor = B2Backend;
-
-    /// Converts a HashMap into an B2Builder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of B2Builder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = B2Config::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an B2Builder instance with the deserialized config.
-        B2Builder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -232,7 +178,7 @@ impl Builder for B2Builder {
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -274,7 +220,7 @@ impl Access for B2Backend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::B2)
             .set_root(&self.core.root)
@@ -316,7 +262,7 @@ impl Access for B2Backend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
@@ -347,7 +293,7 @@ impl Access for B2Backend {
                 let meta = parse_file_info(&resp.files[0]);
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -365,7 +311,7 @@ impl Access for B2Backend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -388,7 +334,7 @@ impl Access for B2Backend {
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpDelete::default()),
                     // Representative deleted
@@ -433,7 +379,7 @@ impl Access for B2Backend {
                 let file_id = resp.files[0].clone().file_id;
                 Ok(file_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }?;
 
         let Some(source_file_id) = source_file_id else {
@@ -446,7 +392,7 @@ impl Access for B2Backend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

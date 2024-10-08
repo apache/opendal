@@ -24,6 +24,5 @@ import dotenv from 'dotenv'
 import { runner } from './suites/index.mjs'
 import { loadTestSchemeFromEnv } from './utils.mjs'
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env'), debug: true })
-
+dotenv.config({ path: path.resolve(__dirname, '../.env'), debug: true })
 runner('Behavior Test', loadTestSchemeFromEnv())

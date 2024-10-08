@@ -50,17 +50,20 @@ use crate::*;
 ///
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::ThrottleLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// ```no_run
+/// # use opendal::layers::ThrottleLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
+/// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
@@ -191,7 +194,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
@@ -226,7 +229,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {

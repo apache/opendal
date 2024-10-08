@@ -560,7 +560,7 @@ export class Operator {
    */
   presignStat(path: string, expires: number): Promise<PresignedRequest>
   /** Add a layer to this operator. */
-  layer(layer: ExternalObject<Layer>): this
+  layer(layer: ExternalObject<Layer>): Operator
 }
 /** Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata. */
 export class Entry {

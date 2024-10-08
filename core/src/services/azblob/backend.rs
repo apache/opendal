@@ -30,7 +30,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -40,6 +39,7 @@ use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::services::azblob::writer::AzblobWriters;
+use crate::services::AzblobConfig;
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
@@ -54,66 +54,13 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
-/// Azure Storage Blob services support.
-#[derive(Default, Deserialize, Clone)]
-pub struct AzblobConfig {
-    /// The root of Azblob service backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-
-    /// The container name of Azblob service backend.
-    pub container: String,
-
-    /// The endpoint of Azblob service backend.
-    ///
-    /// Endpoint must be full uri, e.g.
-    ///
-    /// - Azblob: `https://accountname.blob.core.windows.net`
-    /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-    pub endpoint: Option<String>,
-
-    /// The account name of Azblob service backend.
-    pub account_name: Option<String>,
-
-    /// The account key of Azblob service backend.
-    pub account_key: Option<String>,
-
-    /// The encryption key of Azblob service backend.
-    pub encryption_key: Option<String>,
-
-    /// The encryption key sha256 of Azblob service backend.
-    pub encryption_key_sha256: Option<String>,
-
-    /// The encryption algorithm of Azblob service backend.
-    pub encryption_algorithm: Option<String>,
-
-    /// The sas token of Azblob service backend.
-    pub sas_token: Option<String>,
-
-    /// The maximum batch operations of Azblob service backend.
-    pub batch_max_operations: Option<usize>,
-}
-
-impl Debug for AzblobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobConfig");
-
-        ds.field("root", &self.root);
-        ds.field("container", &self.container);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
+impl Configurator for AzblobConfig {
+    type Builder = AzblobBuilder;
+    fn into_builder(self) -> Self::Builder {
+        AzblobBuilder {
+            config: self,
+            http_client: None,
         }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
     }
 }
 
@@ -138,16 +85,18 @@ impl AzblobBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
 
     /// Set container name of this backend.
-    pub fn container(&mut self, container: &str) -> &mut Self {
+    pub fn container(mut self, container: &str) -> Self {
         self.config.container = container.to_string();
 
         self
@@ -159,7 +108,7 @@ impl AzblobBuilder {
     ///
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -172,7 +121,7 @@ impl AzblobBuilder {
     ///
     /// - If account_name is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_name(&mut self, account_name: &str) -> &mut Self {
+    pub fn account_name(mut self, account_name: &str) -> Self {
         if !account_name.is_empty() {
             self.config.account_name = Some(account_name.to_string());
         }
@@ -184,7 +133,7 @@ impl AzblobBuilder {
     ///
     /// - If account_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn account_key(&mut self, account_key: &str) -> &mut Self {
+    pub fn account_key(mut self, account_key: &str) -> Self {
         if !account_key.is_empty() {
             self.config.account_key = Some(account_key.to_string());
         }
@@ -204,7 +153,7 @@ impl AzblobBuilder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn encryption_key(&mut self, v: &str) -> &mut Self {
+    pub fn encryption_key(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.encryption_key = Some(v.to_string());
         }
@@ -224,7 +173,7 @@ impl AzblobBuilder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn encryption_key_sha256(&mut self, v: &str) -> &mut Self {
+    pub fn encryption_key_sha256(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.encryption_key_sha256 = Some(v.to_string());
         }
@@ -244,7 +193,7 @@ impl AzblobBuilder {
     ///
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
-    pub fn encryption_algorithm(&mut self, v: &str) -> &mut Self {
+    pub fn encryption_algorithm(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.encryption_algorithm = Some(v.to_string());
         }
@@ -265,7 +214,7 @@ impl AzblobBuilder {
     /// Function that helps the user to set the server-side customer-provided encryption key, the key's SHA256, and the algorithm.
     /// See [Server-side encryption with customer-provided keys (CPK)](https://learn.microsoft.com/en-us/azure/storage/blobs/encryption-customer-provided-keys)
     /// for more info.
-    pub fn server_side_encryption_with_customer_key(&mut self, key: &[u8]) -> &mut Self {
+    pub fn server_side_encryption_with_customer_key(mut self, key: &[u8]) -> Self {
         // Only AES256 is supported for now
         self.config.encryption_algorithm = Some("AES256".to_string());
         self.config.encryption_key = Some(BASE64_STANDARD.encode(key));
@@ -281,7 +230,7 @@ impl AzblobBuilder {
     ///
     /// See [Grant limited access to Azure Storage resources using shared access signatures (SAS)](https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview)
     /// for more info.
-    pub fn sas_token(&mut self, sas_token: &str) -> &mut Self {
+    pub fn sas_token(mut self, sas_token: &str) -> Self {
         if !sas_token.is_empty() {
             self.config.sas_token = Some(sas_token.to_string());
         }
@@ -295,13 +244,13 @@ impl AzblobBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
         self.config.batch_max_operations = Some(batch_max_operations);
 
         self
@@ -350,7 +299,7 @@ impl AzblobBuilder {
         let mut builder = AzblobBuilder::default();
 
         if let Some(sas_token) = conn_map.get("SharedAccessSignature") {
-            builder.sas_token(sas_token);
+            builder = builder.sas_token(sas_token);
         } else {
             let account_name = conn_map.get("AccountName").ok_or_else(|| {
                 Error::new(
@@ -359,7 +308,7 @@ impl AzblobBuilder {
                 )
                 .with_operation("Builder::from_connection_string")
             })?;
-            builder.account_name(account_name);
+            builder = builder.account_name(account_name);
             let account_key = conn_map.get("AccountKey").ok_or_else(|| {
                 Error::new(
                     ErrorKind::ConfigInvalid,
@@ -367,11 +316,11 @@ impl AzblobBuilder {
                 )
                 .with_operation("Builder::from_connection_string")
             })?;
-            builder.account_key(account_key);
+            builder = builder.account_key(account_key);
         }
 
         if let Some(v) = conn_map.get("BlobEndpoint") {
-            builder.endpoint(v);
+            builder = builder.endpoint(v);
         } else if let Some(v) = conn_map.get("EndpointSuffix") {
             let protocol = conn_map.get("DefaultEndpointsProtocol").unwrap_or(&"https");
             let account_name = builder
@@ -386,7 +335,7 @@ impl AzblobBuilder {
                     .with_operation("Builder::from_connection_string")
                 })?
                 .clone();
-            builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
+            builder = builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
         }
 
         Ok(builder)
@@ -395,22 +344,12 @@ impl AzblobBuilder {
 
 impl Builder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
-    type Accessor = AzblobBackend;
+    type Config = AzblobConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = AzblobConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        AzblobBuilder {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
@@ -430,7 +369,7 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -498,7 +437,6 @@ impl Builder for AzblobBuilder {
             .batch_max_operations
             .unwrap_or(AZBLOB_BATCH_LIMIT);
 
-        debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
                 root,
@@ -557,7 +495,7 @@ impl Access for AzblobBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
@@ -598,7 +536,7 @@ impl Access for AzblobBackend {
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -608,7 +546,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -621,7 +559,7 @@ impl Access for AzblobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -648,7 +586,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -670,7 +608,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -713,7 +651,7 @@ impl Access for AzblobBackend {
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // get boundary from response header
@@ -763,7 +701,7 @@ impl Access for AzblobBackend {
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
                 results.push((path, Ok(RpDelete::default().into())));
             } else {
-                results.push((path, Err(parse_error(resp).await?)));
+                results.push((path, Err(parse_error(resp))));
             }
         }
         Ok(RpBatch::new(results))
@@ -772,9 +710,8 @@ impl Access for AzblobBackend {
 
 #[cfg(test)]
 mod tests {
+    use super::infer_storage_name_from_endpoint;
     use super::AzblobBuilder;
-    use crate::services::azblob::backend::infer_storage_name_from_endpoint;
-    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
@@ -788,75 +725,6 @@ mod tests {
         let endpoint = "https://account.blob.core.windows.net/";
         let storage_name = infer_storage_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_key_infer_account_name() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.chinacloudapi.cn");
-        azblob_builder.container("container");
-        azblob_builder.account_key("account-key");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.chinacloudapi.cn"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(
-            azblob_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-    }
-
-    #[test]
-    fn test_no_key_wont_infer_account_name() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.windows.net");
-        azblob_builder.container("container");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.windows.net"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(azblob_builder.config.account_key, None);
-    }
-
-    #[test]
-    fn test_builder_from_endpoint_and_sas() {
-        let mut azblob_builder = AzblobBuilder::default();
-        azblob_builder.endpoint("https://storagesample.blob.core.usgovcloudapi.net");
-        azblob_builder.container("container");
-        azblob_builder.account_name("storagesample");
-        azblob_builder.account_key("account-key");
-        azblob_builder.sas_token("sas");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
-
-        assert_eq!(
-            azblob.core.endpoint,
-            "https://storagesample.blob.core.usgovcloudapi.net"
-        );
-
-        assert_eq!(azblob.core.container, "container".to_string());
-
-        assert_eq!(
-            azblob_builder.config.account_key.unwrap(),
-            "account-key".to_string()
-        );
-
-        assert_eq!(azblob_builder.config.sas_token.unwrap(), "sas".to_string());
     }
 
     #[test]
@@ -908,7 +776,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         assert_eq!(
             builder.config.endpoint.unwrap(),
@@ -929,7 +797,7 @@ AccountKey=account-key;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         // SAS should be preferred over shared key
         assert_eq!(builder.config.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");

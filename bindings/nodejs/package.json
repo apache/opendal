@@ -1,7 +1,7 @@
 {
   "name": "opendal",
   "author": "Apache OpenDAL <dev@opendal.apache.org>",
-  "version": "0.47.0",
+  "version": "0.47.5",
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
@@ -58,7 +58,7 @@
     "prettier": "^2.8.4",
     "typedoc": "^0.25",
     "typescript": "^5.0.2",
-    "vitest": "^0.34.6"
+    "vitest": "^1.6.0"
   },
   "engines": {
     "node": ">= 10"

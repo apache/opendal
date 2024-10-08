@@ -73,7 +73,7 @@ impl oio::PageList for OssLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -93,9 +93,9 @@ impl oio::PageList for OssLister {
         }
 
         for object in output.contents {
-            let path = build_rel_path(&self.core.root, &object.key);
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.key);
+            if path.is_empty() {
+                path = "/".to_string();
             }
             if self.start_after.as_ref() == Some(&path) {
                 continue;

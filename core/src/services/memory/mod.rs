@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-memory")]
 mod backend;
+#[cfg(feature = "services-memory")]
 pub use backend::MemoryBuilder as Memory;
-pub use backend::MemoryConfig;
+
+mod config;
+pub use config::MemoryConfig;

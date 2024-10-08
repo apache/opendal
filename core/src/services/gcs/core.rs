@@ -25,7 +25,6 @@ use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
@@ -38,7 +37,8 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 
 use super::uri::percent_encode_path;
@@ -53,10 +53,14 @@ pub struct GcsCore {
     pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
+    pub token: Option<String>,
+    pub scope: String,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsCore {
@@ -73,44 +77,58 @@ static BACKOFF: Lazy<ExponentialBuilder> =
     Lazy::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
-    async fn load_token(&self) -> Result<GoogleToken> {
+    async fn load_token(&self) -> Result<Option<GoogleToken>> {
+        if let Some(token) = &self.token {
+            return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
+        }
+
         let cred = { || self.token_loader.load() }
-            .retry(&*BACKOFF)
+            .retry(*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
-    fn load_credential(&self) -> Result<GoogleCredential> {
+    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_token().await?;
-
-        self.signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)?;
+        if let Some(cred) = self.load_token().await? {
+            self.signer
+                .sign(req, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -123,12 +141,14 @@ impl GcsCore {
         Ok(())
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential()?;
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)?;
+    pub fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        if let Some(cred) = self.load_credential()? {
+            self.signer
+                .sign_query(req, duration, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -503,22 +523,6 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
-            self.endpoint, self.bucket, p
-        );
-
-        let mut req = Request::post(&url)
-            .header(CONTENT_LENGTH, 0)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
     pub async fn gcs_upload_part(
         &self,
         path: &str,
@@ -600,64 +604,6 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
-    }
-
-    pub fn gcs_upload_in_resumable_upload(
-        &self,
-        location: &str,
-        size: u64,
-        written: u64,
-        body: Buffer,
-    ) -> Result<Request<Buffer>> {
-        let mut req = Request::put(location);
-
-        let range_header = format!("bytes {}-{}/*", written, written + size - 1);
-
-        req = req
-            .header(CONTENT_LENGTH, size)
-            .header(CONTENT_RANGE, range_header);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn gcs_complete_resumable_upload(
-        &self,
-        location: &str,
-        written: u64,
-        size: u64,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let mut req = Request::post(location)
-            .header(CONTENT_LENGTH, size)
-            .header(
-                CONTENT_RANGE,
-                format!(
-                    "bytes {}-{}/{}",
-                    written,
-                    written + size - 1,
-                    written + size
-                ),
-            )
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
-        self.send(req).await
-    }
-
-    pub async fn gcs_abort_resumable_upload(&self, location: &str) -> Result<Response<Buffer>> {
-        let mut req = Request::delete(location)
-            .header(CONTENT_LENGTH, 0)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
         self.send(req).await
     }
 }

@@ -28,11 +28,13 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.47.3"
+version = "0.50.0"
+
+[lints.clippy]
+unused_async = "warn"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docs"]
 
 [workspace]
 default-members = ["."]
@@ -42,7 +44,7 @@ members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.75"
-version = "0.47.3"
+version = "0.50.0"
 
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
@@ -79,12 +81,14 @@ executors-tokio = ["tokio/rt"]
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
+# Enable layers mime_guess support
+layers-mime-guess = ["dep:mime_guess"]
 # Enable layers prometheus support, with tikv/prometheus-rs crate
 layers-prometheus = ["dep:prometheus"]
 # Enable layers prometheus support, with prometheus-client crate
 layers-prometheus-client = ["dep:prometheus-client"]
-# Enable layers minitrace support.
-layers-minitrace = ["dep:minitrace"]
+# Enable layers fastrace support.
+layers-fastrace = ["dep:fastrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 # Enable layers oteltrace support.
@@ -134,7 +138,7 @@ services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
-services-fs = ["tokio/fs"]
+services-fs = ["tokio/fs", "internal-tokio-rt"]
 services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
   "dep:reqsign",
@@ -153,14 +157,15 @@ services-icloud = ["internal-path-cache"]
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
 services-koofr = []
+services-lakefs = []
 services-libsql = ["dep:hrana-client-proto"]
 services-memcached = ["dep:bb8"]
 services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
 services-mongodb = ["dep:mongodb"]
-services-monoiofs = ["dep:monoio"]
-services-mysql = ["dep:mysql_async"]
+services-monoiofs = ["dep:monoio", "dep:flume"]
+services-mysql = ["dep:sqlx", "sqlx?/mysql"]
 services-obs = [
   "dep:reqsign",
   "reqsign?/services-huaweicloud",
@@ -174,9 +179,9 @@ services-oss = [
 ]
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
-services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
+services-postgresql = ["dep:sqlx", "sqlx?/postgres"]
 services-redb = ["dep:redb", "internal-tokio-rt"]
-services-redis = ["dep:redis", "redis?/tokio-rustls-comp"]
+services-redis = ["dep:redis", "dep:bb8", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
@@ -188,7 +193,7 @@ services-s3 = [
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
 services-sled = ["dep:sled", "internal-tokio-rt"]
-services-sqlite = ["dep:rusqlite", "dep:r2d2", "internal-tokio-rt"]
+services-sqlite = ["dep:sqlx", "sqlx?/sqlite"]
 services-supabase = []
 services-surrealdb = ["dep:surrealdb"]
 services-swift = []
@@ -199,6 +204,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-nebula-graph = []
 
 [lib]
 bench = false
@@ -225,7 +231,7 @@ async-tls = { version = "0.13.0", optional = true }
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
-backon = "0.4.4"
+backon = { version = "1.2", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
@@ -243,7 +249,7 @@ md-5 = "0.10"
 # TODO: remove once_cell when lazy_lock is stable: https://doc.rust-lang.org/std/cell/struct.LazyCell.html
 once_cell = "1"
 percent-encoding = "2"
-quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.2", features = [
   "stream",
 ], default-features = false }
@@ -261,31 +267,31 @@ rand = { version = "0.8", optional = true }
 # Services
 # general dependencies.
 bb8 = { version = "0.8", optional = true }
-prost = { version = "0.11", optional = true }
-r2d2 = { version = "0.8", optional = true }
+prost = { version = "0.13", optional = true }
 sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
+sqlx = { version = "0.8.0", features = [
+  "runtime-tokio-rustls",
+], optional = true }
 
 # For http based services.
 reqsign = { version = "0.16", default-features = false, optional = true }
 
 # for services-atomic-server
-atomic_lib = { version = "0.34.5", optional = true }
-# for services-postgres
-bb8-postgres = { version = "0.8.1", optional = true }
-tokio-postgres = { version = "0.7.8", optional = true }
+atomic_lib = { version = "0.39.0", optional = true }
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
 # for services-dashmap
-dashmap = { version = "5.4", optional = true }
+dashmap = { version = "6", optional = true }
 # for services-etcd
-etcd-client = { version = "0.12", optional = true, features = ["tls"] }
+etcd-client = { version = "0.14", optional = true, features = ["tls"] }
 # for services-foundationdb
-foundationdb = { version = "0.8.0", features = [
+foundationdb = { version = "0.9.0", features = [
   "embedded-fdb-include",
+  "fdb-7_3",
 ], optional = true }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
@@ -298,35 +304,29 @@ mini-moka = { version = "0.10", optional = true }
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb
-mongodb = { version = "2.8.1", optional = true, features = ["tokio-runtime"] }
-# for services-mysql
-mysql_async = { version = "0.32.2", default-features = false, features = [
-  "default-rustls",
-], optional = true }
+mongodb = { version = "3", optional = true }
 # for services-sftp
-openssh = { version = "0.10.0", optional = true }
-openssh-sftp-client = { version = "0.14.0", optional = true, features = [
+openssh = { version = "0.11.0", optional = true }
+openssh-sftp-client = { version = "0.15.0", optional = true, features = [
   "openssh",
   "tracing",
 ] }
 # for services-persy
 persy = { version = "1.4.6", optional = true }
 # for services-redb
-redb = { version = "1.1.0", optional = true }
+redb = { version = "2", optional = true }
 # for services-redis
-redis = { version = "0.23.1", features = [
+redis = { version = "0.26", features = [
   "cluster-async",
   "tokio-comp",
   "connection-manager",
 ], optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
-# for services-sqlite
-rusqlite = { version = "0.31.0", optional = true, features = ["bundled"] }
 # for services-sled
 sled = { version = "0.34.7", optional = true }
 # for services-ftp
-suppaftp = { version = "5.3.1", default-features = false, features = [
+suppaftp = { version = "6", default-features = false, features = [
   "async-secure",
   "rustls",
   "async-rustls",
@@ -334,7 +334,7 @@ suppaftp = { version = "5.3.1", default-features = false, features = [
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
 # for services-hdfs-native
-hdfs-native = { version = "0.9.4", optional = true }
+hdfs-native = { version = "0.10", optional = true }
 # for services-surrealdb
 surrealdb = { version = "1.3.0", optional = true, features = ["protocol-http"] }
 # for services-compfs
@@ -347,21 +347,29 @@ compio = { version = "0.11.0", optional = true, features = [
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
 # for services-monoiofs
-monoio = { version = "0.2.3", optional = true, features = ["sync"] }
+flume = { version = "0.11", optional = true }
+monoio = { version = "0.2.4", optional = true, features = [
+  "sync",
+  "mkdirat",
+  "unlinkat",
+  "renameat",
+] }
 
 # Layers
 # for layers-async-backtrace
 async-backtrace = { version = "0.2.6", optional = true }
 # for layers-await-tree
-await-tree = { version = "0.1.1", optional = true }
+await-tree = { version = "0.2", optional = true }
 # for layers-throttle
 governor = { version = "0.6.0", optional = true, features = ["std"] }
 # for layers-metrics
 metrics = { version = "0.23", optional = true }
-# for layers-minitrace
-minitrace = { version = "0.6", optional = true }
+# for layers-mime-guess
+mime_guess = { version = "2.0.5", optional = true }
+# for layers-fastrace
+fastrace = { version = "0.7.1", optional = true }
 # for layers-opentelemetry
-opentelemetry = { version = "0.21.0", optional = true }
+opentelemetry = { version = "0.25", optional = true }
 # for layers-prometheus
 prometheus = { version = "0.13", features = ["process"], optional = true }
 # for layers-prometheus-client
@@ -372,21 +380,27 @@ tracing = { version = "0.1", optional = true }
 probe = { version = "0.5.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+backon = { version = "1.2", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
+tokio = { version = "1.27", features = ["time"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-libtest-mimic = "0.6"
-minitrace = { version = "0.6", features = ["enable"] }
-opentelemetry = { version = "0.21", default-features = false, features = [
+fastrace = { version = "0.7", features = ["enable"] }
+fastrace-jaeger = "0.7"
+libtest-mimic = "0.7"
+opentelemetry = { version = "0.25", default-features = false, features = [
   "trace",
 ] }
+opentelemetry-otlp = "0.25"
+opentelemetry_sdk = "0.25"
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.26.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

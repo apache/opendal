@@ -30,10 +30,14 @@ version = "0.0.0"
 [dependencies]
 anyhow = { version = "1.0.86", features = ["std"] }
 libc = "0.2.139"
-snafu = "0.8.3"
-vhost = "0.11.0"
-vhost-user-backend = "0.14.0"
-virtio-bindings = "0.2.1"
+log = "0.4.22"
+opendal = { version = "0.50.0", path = "../../core" }
+sharded-slab = "0.1.7"
+snafu = "0.8.4"
+tokio = { version = "1.39.2", features = ["rt-multi-thread"] }
+vhost = "0.10.0"
+vhost-user-backend = "0.13.1"
+virtio-bindings = { version = "0.2.1", features = ["virtio-v5_0_0"] }
 virtio-queue = "0.11.0"
 vm-memory = { version = "0.14.0", features = [
   "backend-mmap",

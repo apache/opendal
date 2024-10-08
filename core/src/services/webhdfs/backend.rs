@@ -16,7 +16,8 @@
 // under the License.
 
 use core::fmt::Debug;
-use std::collections::HashMap;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use bytes::Buf;
 use http::header::CONTENT_LENGTH;
@@ -36,29 +37,30 @@ use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
+use crate::services::WebhdfsConfig;
 use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
+
+impl Configurator for WebhdfsConfig {
+    type Builder = WebhdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        WebhdfsBuilder { config: self }
+    }
+}
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct WebhdfsBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
-    delegation: Option<String>,
-    disable_list_batch: bool,
-    /// atomic_write_dir of this backend
-    pub atomic_write_dir: Option<String>,
+    config: WebhdfsConfig,
 }
 
 impl Debug for WebhdfsBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("atomic_write_dir", &self.atomic_write_dir)
-            .finish_non_exhaustive()
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("WebhdfsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -70,10 +72,12 @@ impl WebhdfsBuilder {
     /// # Note
     ///
     /// The root will be automatically created if not exists.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -88,10 +92,10 @@ impl WebhdfsBuilder {
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `http://` to it.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // trim tailing slash so we can accept `http://127.0.0.1:9870/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
         self
     }
@@ -102,9 +106,9 @@ impl WebhdfsBuilder {
     /// # Note
     /// The builder prefers using delegation token over username.
     /// If both are set, delegation token will be used.
-    pub fn delegation(&mut self, delegation: &str) -> &mut Self {
+    pub fn delegation(mut self, delegation: &str) -> Self {
         if !delegation.is_empty() {
-            self.delegation = Some(delegation.to_string());
+            self.config.delegation = Some(delegation.to_string());
         }
         self
     }
@@ -114,9 +118,9 @@ impl WebhdfsBuilder {
     /// # Note
     ///
     /// When listing a directory, the backend will default to use batch listing.
-    /// If disable, the backend will list all files/directories in one request.
-    pub fn disable_list_batch(&mut self) -> &mut Self {
-        self.disable_list_batch = true;
+    /// If disabled, the backend will list all files/directories in one request.
+    pub fn disable_list_batch(mut self) -> Self {
+        self.config.disable_list_batch = true;
         self
     }
 
@@ -125,8 +129,8 @@ impl WebhdfsBuilder {
     /// # Notes
     ///
     /// If not set, write multi not support, eg: `.opendal_tmp/`.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
-        self.atomic_write_dir = if dir.is_empty() {
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
+        self.config.atomic_write_dir = if dir.is_empty() {
             None
         } else {
             Some(String::from(dir))
@@ -137,22 +141,7 @@ impl WebhdfsBuilder {
 
 impl Builder for WebhdfsBuilder {
     const SCHEME: Scheme = Scheme::Webhdfs;
-    type Accessor = WebhdfsBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = WebhdfsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("delegation").map(|v| builder.delegation(v));
-        map.get("disable_list_batch")
-            .filter(|v| v == &"true")
-            .map(|_| builder.disable_list_batch());
-        map.get("atomic_write_dir")
-            .map(|v| builder.atomic_write_dir(v));
-
-        builder
-    }
+    type Config = WebhdfsConfig;
 
     /// build the backend
     ///
@@ -160,15 +149,15 @@ impl Builder for WebhdfsBuilder {
     ///
     /// when building backend, the built backend will check if the root directory
     /// exits.
-    /// if the directory does not exits, the directory will be automatically created
-    fn build(&mut self) -> Result<Self::Accessor> {
+    /// if the directory does not exit, the directory will be automatically created
+    fn build(self) -> Result<impl Access> {
         debug!("start building backend: {:?}", self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
         // check scheme
-        let endpoint = match self.endpoint.take() {
+        let endpoint = match self.config.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint
@@ -180,11 +169,11 @@ impl Builder for WebhdfsBuilder {
         };
         debug!("backend use endpoint {}", endpoint);
 
-        let atomic_write_dir = self.atomic_write_dir.take();
+        let atomic_write_dir = self.config.atomic_write_dir;
 
         let auth = self
+            .config
             .delegation
-            .take()
             .map(|dt| format!("delegation_token={dt}"));
 
         let client = HttpClient::new()?;
@@ -196,7 +185,7 @@ impl Builder for WebhdfsBuilder {
             client,
             root_checker: OnceCell::new(),
             atomic_write_dir,
-            disable_list_batch: self.disable_list_batch,
+            disable_list_batch: self.config.disable_list_batch,
         };
 
         Ok(backend)
@@ -261,7 +250,7 @@ impl WebhdfsBackend {
         let status = resp.status();
 
         if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -310,7 +299,7 @@ impl WebhdfsBackend {
 
                 Ok(resp.location)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -336,7 +325,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_append_request(
+    pub fn webhdfs_append_request(
         &self,
         location: &str,
         size: u64,
@@ -385,11 +374,7 @@ impl WebhdfsBackend {
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    async fn webhdfs_open_request(
-        &self,
-        path: &str,
-        range: &BytesRange,
-    ) -> Result<Request<Buffer>> {
+    fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
@@ -461,7 +446,7 @@ impl WebhdfsBackend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let req = self.webhdfs_open_request(path, &range).await?;
+        let req = self.webhdfs_open_request(path, &range)?;
         self.client.fetch(req).await
     }
 
@@ -522,7 +507,7 @@ impl WebhdfsBackend {
             StatusCode::NOT_FOUND => {
                 self.create_dir("/", OpCreateDir::new()).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
         Ok(())
     }
@@ -536,7 +521,7 @@ impl Access for WebhdfsBackend {
     type BlockingWriter = ();
     type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
@@ -556,7 +541,7 @@ impl Access for WebhdfsBackend {
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     /// Create a file or directory
@@ -587,7 +572,7 @@ impl Access for WebhdfsBackend {
                     ))
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -619,7 +604,7 @@ impl Access for WebhdfsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -635,7 +620,7 @@ impl Access for WebhdfsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -661,7 +646,7 @@ impl Access for WebhdfsBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

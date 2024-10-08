@@ -15,11 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-gdrive")]
 mod backend;
-mod builder;
+#[cfg(feature = "services-gdrive")]
 mod core;
+#[cfg(feature = "services-gdrive")]
 mod error;
-
-pub use builder::GdriveBuilder as Gdrive;
+#[cfg(feature = "services-gdrive")]
 mod lister;
+#[cfg(feature = "services-gdrive")]
 mod writer;
+
+#[cfg(feature = "services-gdrive")]
+mod builder;
+#[cfg(feature = "services-gdrive")]
+pub use builder::GdriveBuilder as Gdrive;
+
+mod config;
+pub use config::GdriveConfig;

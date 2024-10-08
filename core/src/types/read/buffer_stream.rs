@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
+use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -40,8 +40,8 @@ pub struct StreamingReader {
 impl StreamingReader {
     /// Create a new streaming reader.
     #[inline]
-    fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        let generator = ReadGenerator::new(ctx.clone(), range);
+    fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
+        let generator = ReadGenerator::new(ctx.clone(), range.offset(), range.size());
         Self {
             generator,
             reader: None,
@@ -86,7 +86,7 @@ impl ChunkedReader {
     /// # Notes
     ///
     /// We don't need to handle `Executor::timeout` since we are outside of the layer.
-    fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
+    fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
         let tasks = ConcurrentTasks::new(
             ctx.args().executor().cloned().unwrap_or_default(),
             ctx.options().concurrent(),
@@ -99,7 +99,7 @@ impl ChunkedReader {
                 })
             },
         );
-        let generator = ReadGenerator::new(ctx, range);
+        let generator = ReadGenerator::new(ctx, range.offset(), range.size());
         Self {
             generator,
             tasks,
@@ -132,7 +132,7 @@ impl oio::Read for ChunkedReader {
 /// The underlying reader is either a StreamingReader or a ChunkedReader.
 ///
 /// - If chunk is None, BufferStream will use StreamingReader to iterate
-/// data in streaming way.
+///   data in streaming way.
 /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
 pub struct BufferStream {
     state: State,
@@ -144,16 +144,39 @@ enum State {
 }
 
 impl BufferStream {
-    /// Create a new buffer stream.
-    pub fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
+    /// Create a new buffer stream with already calculated offset and size.
+    pub fn new(ctx: Arc<ReadContext>, offset: u64, size: Option<u64>) -> Self {
+        debug_assert!(
+            size.is_some() || ctx.options().chunk().is_none(),
+            "size must be known if chunk is set"
+        );
+
         let reader = if ctx.options().chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(ctx, range))
+            TwoWays::Two(ChunkedReader::new(ctx, BytesRange::new(offset, size)))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, range))
+            TwoWays::One(StreamingReader::new(ctx, BytesRange::new(offset, size)))
         };
+
         Self {
             state: State::Idle(Some(reader)),
         }
+    }
+
+    /// Create a new buffer stream with given range bound.
+    ///
+    /// If users is going to perform chunked read but the read size is unknown, we will parse
+    /// into range first.
+    pub async fn create(ctx: Arc<ReadContext>, range: impl RangeBounds<u64>) -> Result<Self> {
+        let reader = if ctx.options().chunk().is_some() {
+            let range = ctx.parse_into_range(range).await?;
+            TwoWays::Two(ChunkedReader::new(ctx, range.into()))
+        } else {
+            TwoWays::One(StreamingReader::new(ctx, range.into()))
+        };
+
+        Ok(Self {
+            state: State::Idle(Some(reader)),
+        })
     }
 }
 
@@ -189,7 +212,6 @@ impl Stream for BufferStream {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::sync::Arc;
 
     use bytes::Buf;
@@ -199,16 +221,16 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_trait() -> Result<()> {
-        let acc = Operator::via_map(Scheme::Memory, HashMap::default())?.into_inner();
+    #[tokio::test]
+    async fn test_trait() -> Result<()> {
+        let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
             "test".to_string(),
             OpRead::new(),
             OpReader::new(),
         ));
-        let v = BufferStream::new(ctx, 4..8);
+        let v = BufferStream::create(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
 
@@ -217,7 +239,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_buffer_stream() -> Result<()> {
-        let op = Operator::via_map(Scheme::Memory, HashMap::default())?;
+        let op = Operator::via_iter(Scheme::Memory, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -232,7 +254,7 @@ mod tests {
             OpReader::new(),
         ));
 
-        let s = BufferStream::new(ctx, 4..8);
+        let s = BufferStream::create(ctx, 4..8).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();
         assert_eq!(bufs.len(), 1);
         assert_eq!(bufs[0].chunk(), "o".as_bytes());

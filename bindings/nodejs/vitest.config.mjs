@@ -24,6 +24,7 @@ export default defineConfig({
   test: {
     name: pkg.name,
     cache: false,
+    watch: false,
     globals: true,
     environment: 'node',
     dir: 'tests',

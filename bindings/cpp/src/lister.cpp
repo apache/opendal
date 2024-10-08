@@ -17,9 +17,20 @@
  * under the License.
  */
 
-#pragma once
-
 #include "lister.hpp"
-#include "metadata.hpp"
-#include "operator.hpp"
-#include "reader.hpp"
+
+#include "lib.rs.h"
+
+namespace opendal {
+
+Lister::Lister(rust::Box<opendal::ffi::Lister> &&lister) noexcept
+    : raw_lister_(std::move(lister)) {}
+
+std::optional<Entry> Lister::next() {
+  if (auto entry = raw_lister_->next(); entry.has_value) {
+    return std::move(entry.value);
+  }
+  return std::nullopt;
+}
+
+}  // namespace opendal

@@ -219,13 +219,25 @@ jobs:
           ghcup install cabal --set
           cabal update
 
+      - name: Setup cache
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-cabal
+        with:
+          path: ~/.cabal
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
       - name: Build Docs
         working-directory: "bindings/haskell"
         run: |
-          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
+          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source -j
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs

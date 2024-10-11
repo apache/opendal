@@ -212,11 +212,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Haskell toolchain
-        uses: haskell/actions/setup@v2
-        with:
-          ghc-version: '9.6.5'
-          cabal-version: '3.10.1.0'
+      - name: Setup Haskell toolchain (ghc-9.2.8)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          ghcup install ghc 9.2.8 --set
+          ghcup install cabal --set
+          cabal update
 
       - name: Setup cache
         uses: actions/cache@v3

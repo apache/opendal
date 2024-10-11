@@ -237,7 +237,7 @@ jobs:
       - name: Build Docs
         working-directory: "bindings/haskell"
         run: |
-          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
+          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source -j
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs

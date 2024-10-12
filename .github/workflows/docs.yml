@@ -281,6 +281,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache OPAM dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.opam
+          key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-doc-
+            ${{ runner.os }}-opam-
+
+      - name: Cache Dune build artifacts
+        uses: actions/cache@v3
+        with:
+          path: bindings/ocaml/_build
+          key: ${{ runner.os }}-dune-doc-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}
+          restore-keys: |
+            ${{ runner.os }}-dune-doc-
+            ${{ runner.os }}-dune-
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:

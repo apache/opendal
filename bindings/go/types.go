@@ -284,7 +284,7 @@ type opendalResultListerNext struct {
 
 type opendalEntry struct{}
 
-func toOpendalBytes(data []byte) opendalBytes {
+func toOpendalBytes(data []byte) *opendalBytes {
 	var ptr *byte
 	l := len(data)
 	if l > 0 {
@@ -293,10 +293,10 @@ func toOpendalBytes(data []byte) opendalBytes {
 		var b byte
 		ptr = &b
 	}
-	return opendalBytes{
+	return &opendalBytes{
 		data:     ptr,
 		len:      uintptr(l),
-		capacity: uintptr(l),
+		capacity: uintptr(cap(data)),
 	}
 }
 

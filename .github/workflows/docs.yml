@@ -276,7 +276,7 @@ jobs:
           path: ./bindings/cpp/build/docs_doxygen/html
 
   build-ocaml-doc:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4

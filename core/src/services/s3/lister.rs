@@ -23,6 +23,7 @@ use super::error::parse_error;
 use crate::raw::oio::PageContext;
 use crate::raw::*;
 use crate::EntryMode;
+use crate::Error;
 use crate::Metadata;
 use crate::Result;
 use bytes::Buf;
@@ -84,8 +85,14 @@ impl oio::PageList for S3Lister {
         }
         let bs = resp.into_body();
 
-        let output: ListObjectsOutput =
-            de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+        let output: ListObjectsOutput = de::from_reader(bs.reader())
+            .map_err(new_xml_deserialize_error)
+            // Allow S3 list to retry on XML deserialization errors.
+            //
+            // This is because the S3 list API may return incomplete XML data under high load.
+            // We are confident that our XML decoding logic is correct. When this error occurs,
+            // we allow retries to obtain the correct data.
+            .map_err(Error::set_temporary)?;
 
         // Try our best to check whether this list is done.
         //
@@ -196,8 +203,14 @@ impl oio::PageList for S3ObjectVersionsLister {
         }
 
         let body = resp.into_body();
-        let output: ListObjectVersionsOutput =
-            de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+        let output: ListObjectVersionsOutput = de::from_reader(body.reader())
+            .map_err(new_xml_deserialize_error)
+            // Allow S3 list to retry on XML deserialization errors.
+            //
+            // This is because the S3 list API may return incomplete XML data under high load.
+            // We are confident that our XML decoding logic is correct. When this error occurs,
+            // we allow retries to obtain the correct data.
+            .map_err(Error::set_temporary)?;
 
         ctx.done = if let Some(is_truncated) = output.is_truncated {
             !is_truncated

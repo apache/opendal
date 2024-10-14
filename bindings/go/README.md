@@ -210,7 +210,7 @@ geomean          129.7µ
 
 ## Development
 
-The guid is based on Linux. For other platforms, please adjust the commands accordingly.
+The guide is based on Linux. For other platforms, please adjust the commands accordingly.
 
 To develop the Go binding, you need to have the following dependencies installed:
 

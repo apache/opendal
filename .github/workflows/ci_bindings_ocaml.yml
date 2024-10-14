@@ -22,7 +22,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - main
@@ -34,7 +34,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Wait for https://github.com/ocaml/setup-ocaml/issues/872 fixes
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout PR

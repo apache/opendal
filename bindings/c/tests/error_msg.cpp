@@ -59,7 +59,7 @@ TEST_F(OpendalErrorTest, ErrorReadTest)
     ASSERT_GT(error_msg->len, 0);
 
     // the opendal_bytes read is heap allocated, please free it
-    opendal_bytes_free(r.data);
+    opendal_bytes_free(&r.data);
 
     // free the error
     opendal_error_free(r.error);

@@ -38,7 +38,7 @@ var (
 	typeResultRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
-			&ffi.TypePointer,
+			&typeBytes,
 			&ffi.TypePointer,
 			nil,
 		}[0],
@@ -217,7 +217,7 @@ type resultOperatorNew struct {
 type opendalOperator struct{}
 
 type resultRead struct {
-	data  *opendalBytes
+	data  opendalBytes
 	error *opendalError
 }
 
@@ -284,7 +284,7 @@ type opendalResultListerNext struct {
 
 type opendalEntry struct{}
 
-func toOpendalBytes(data []byte) opendalBytes {
+func toOpendalBytes(data []byte) *opendalBytes {
 	var ptr *byte
 	l := len(data)
 	if l > 0 {
@@ -293,15 +293,15 @@ func toOpendalBytes(data []byte) opendalBytes {
 		var b byte
 		ptr = &b
 	}
-	return opendalBytes{
+	return &opendalBytes{
 		data:     ptr,
 		len:      uintptr(l),
-		capacity: uintptr(l),
+		capacity: uintptr(cap(data)),
 	}
 }
 
-func parseBytes(b *opendalBytes) (data []byte) {
-	if b == nil || b.len == 0 {
+func parseBytes(b opendalBytes) (data []byte) {
+	if b.len == 0 {
 		return nil
 	}
 	data = make([]byte, b.len)

@@ -123,6 +123,9 @@ jobs:
           SERVICE: ${{ matrix.service }}
         working-directory: bindings/go/tests
         run: |
+          go work init
+          go work use ..
+          go work use ./behavior_tests
           go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
       - name: Run tests
         env:

@@ -208,6 +208,70 @@ geomean          129.7µ
 - [x] Copy
 - [x] Rename
 
+## Development
+
+The guid is based on Linux. For other platforms, please adjust the commands accordingly.
+
+To develop the Go binding, you need to have the following dependencies installed:
+
+- zstd
+- Rust toolchain
+- Go
+
+We use `go workspace` to manage and build the dependencies. To set up the workspace, run the following commands:
+
+```bash
+mkdir opendal_workspace
+cd opendal_workspace
+git clone --depth 1 git@github.com:apache/opendal.git
+git clone --depth 1 git@github.com:apache/opendal-go-services.git
+
+go work init
+go work use ./opendal/bindings/go
+go work use ./opendal/bindings/go/tests/behavior_tests
+# use the backend you want to test, e.g., fs or memory
+go work use ./opendal-go-services/fs
+go work use ./opendal-go-services/memory
+
+cat <<EOF > ./make_test.sh
+#!/bin/bash
+
+architecture=\$(uname -m)
+if [ "\$architecture" = "x86_64" ]; then
+    ARCH="x86_64"
+elif [ "\$architecture" = "aarch64" ] || [ "\$architecture" = "arm64" ]; then
+    ARCH="arm64"
+else
+    ARCH="unknown"
+fi
+
+cd opendal/bindings/c
+cargo build
+cd -
+zstd -19 opendal/bindings/c/target/debug/libopendal_c.so -o opendal-go-services/fs/libopendal_c.linux.\$ARCH.so.zst
+
+go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
+EOF
+
+chmod +x ./make_test.sh
+
+cd -
+```
+
+To build and run tests, run the following commands:
+
+```bash
+cd opendal_workspace
+
+# specify the backend to test
+export OPENDAL_TEST=fs
+export OPENDAL_FS_ROOT=/tmp/opendal
+
+# build the C binding and run the tests
+./make_test.sh
+
+cd -
+```
 
 ## License and Trademarks
 

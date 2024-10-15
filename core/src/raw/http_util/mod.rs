@@ -24,6 +24,7 @@
 
 mod client;
 pub use client::HttpClient;
+pub use client::CREDENTIAL_CLIENT;
 
 mod body;
 pub use body::HttpBody;

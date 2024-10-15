@@ -381,7 +381,7 @@ impl Builder for OssBuilder {
             })?
         };
 
-        let loader = AliyunLoader::new(client.client(), cfg);
+        let loader = AliyunLoader::new(CREDENTIAL_CLIENT.clone(), cfg);
 
         let signer = AliyunOssSigner::new(bucket);
 

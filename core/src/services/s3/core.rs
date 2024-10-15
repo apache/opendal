@@ -97,8 +97,6 @@ pub struct S3Core {
     pub client: HttpClient,
     pub batch_max_operations: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
-
-    pub(crate) default_http_client: reqwest::Client,
 }
 
 impl Debug for S3Core {
@@ -116,7 +114,7 @@ impl S3Core {
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = self
             .loader
-            .load_credential(self.default_http_client.clone())
+            .load_credential(CREDENTIAL_CLIENT.clone())
             .await
             .map_err(new_request_credential_error)?;
 

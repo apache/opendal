@@ -25,12 +25,16 @@ use std::sync::Arc;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use once_cell::sync::Lazy;
 use raw::oio::Read;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::HttpBody;
 use crate::*;
+
+/// Http client used across opendal for loading credentials.
+pub static CREDENTIAL_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| reqwest::Client::new());
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]

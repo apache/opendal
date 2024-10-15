@@ -28,7 +28,7 @@
 //!
 //! Currently, `opendal-compat` supports the following versions:
 //!
-//! - [`v0_50_to_v0_49`]
+//! - [`v0_50_to_v0_49()`]
 //!
 //! Please refer to the specific function for more information.
 

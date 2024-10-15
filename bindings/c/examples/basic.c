@@ -37,7 +37,7 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_error* error = opendal_operator_write(op, "/testpath", data);
+    opendal_error* error = opendal_operator_write(op, "/testpath", &data);
     assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */

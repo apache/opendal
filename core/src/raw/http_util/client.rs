@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::future;
 use std::mem;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use futures::TryStreamExt;
 use http::Request;
@@ -34,7 +35,7 @@ use crate::*;
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    client: reqwest::Client,
+    fetcher: Arc<dyn HttpFetch>,
 }
 
 /// We don't want users to know details about our clients.
@@ -47,26 +48,24 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        Self::build(reqwest::ClientBuilder::new())
+        let fetcher = Arc::new(ReqwestHttpFetcher::new());
+        Ok(Self { fetcher })
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
-    pub fn with(client: reqwest::Client) -> Self {
-        Self { client }
+    pub fn with(client: impl HttpFetch + 'static) -> Self {
+        let fetcher = Arc::new(client);
+        Self { fetcher }
     }
 
     /// Build a new http client in async context.
+    #[deprecated]
     pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        Ok(Self {
-            client: builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-            })?,
-        })
-    }
-
-    /// Get the async client from http client.
-    pub fn client(&self) -> reqwest::Client {
-        self.client.clone()
+        let client = builder.build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
+        })?;
+        let fetcher = Arc::new(ReqwestHttpFetcher::with(client));
+        Ok(Self { fetcher })
     }
 
     /// Send a request in async way.
@@ -78,6 +77,34 @@ impl HttpClient {
 
     /// Fetch a request in async way.
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.fetcher.fetch(req).await
+    }
+}
+
+#[async_trait::async_trait]
+pub trait HttpFetch: Send + Sync {
+    /// Fetch a request in async way.
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>>;
+}
+
+#[derive(Clone)]
+struct ReqwestHttpFetcher {
+    client: reqwest::Client,
+}
+
+impl ReqwestHttpFetcher {
+    pub fn new() -> Self {
+        Self::with(reqwest::Client::new())
+    }
+
+    pub fn with(client: reqwest::Client) -> Self {
+        Self { client }
+    }
+}
+
+#[async_trait::async_trait]
+impl HttpFetch for ReqwestHttpFetcher {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();

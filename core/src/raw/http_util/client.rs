@@ -34,7 +34,7 @@ use super::HttpBody;
 use crate::*;
 
 /// Http client used across opendal for loading credentials.
-pub static CREDENTIAL_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| reqwest::Client::new());
+pub static CREDENTIAL_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]

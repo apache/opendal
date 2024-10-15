@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! `opendal-compat` provides compatibility functions for opendal.
+//! `opendal_compat` provides compatibility functions for opendal.
 //!
 //! OpenDAL is widely used across the entire big data ecosystem. Various projects may utilize
 //! different versions of OpenDAL. This crate provides compatibility functions to assist users
@@ -26,7 +26,7 @@
 //! and each module contains only one function that converts from the latest version to the
 //! previous version.
 //!
-//! Currently, `opendal-compat` supports the following versions:
+//! Currently, `opendal_compat` supports the following versions:
 //!
 //! - [`v0_50_to_v0_49()`]
 //!

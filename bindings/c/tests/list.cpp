@@ -119,9 +119,3 @@ TEST_F(OpendalListTest, ListEmptyDirTest) { }
 
 // todo: Try list a directory that does not exist
 TEST_F(OpendalListTest, ListNotExistDirTest) { }
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

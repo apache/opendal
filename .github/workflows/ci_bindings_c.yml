@@ -44,31 +44,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install gtest manually
-        run: |
-          sudo apt-get update
-          sudo apt-get install libgtest-dev valgrind
-          cd /usr/src/gtest
-          sudo cmake CMakeLists.txt
-          sudo make
-          sudo cp lib/*.a /usr/lib
-          sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
-          sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
       - name: Build C binding
         working-directory: "bindings/c"
-        run: make build
+        run: |
+          mkdir build
+          cmake .. -DTEST_ENABLE_ASAN=ON
+          make -j$(nproc)
 
       - name: Check diff
         run: git diff --exit-code
 
       - name: Build and Run tests
         working-directory: "bindings/c"
-        run: make test
-
-      - name: Build and Run memory-leak tests
-        working-directory: "bindings/c"
-        run: make memory_leak
+        run: ./build/tests

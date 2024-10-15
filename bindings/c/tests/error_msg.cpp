@@ -64,9 +64,3 @@ TEST_F(OpendalErrorTest, ErrorReadTest)
     // free the error
     opendal_error_free(r.error);
 }
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

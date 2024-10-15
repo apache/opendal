@@ -22,6 +22,7 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
+option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
 set(GOOGLETEST_VERSION 1.15.2)
 
 # force the compiler to support these standards
@@ -60,6 +61,12 @@ add_custom_target(cargo_build
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
 
+# cmake target for static lib
+add_library(opendal_c_static INTERFACE)
+target_link_libraries(opendal_c_static INTERFACE ${OPENDAL_STATIC_LIB})
+target_include_directories(opendal_c_static INTERFACE include)
+add_dependencies(opendal_c_static cargo_build)
+
 # cmake target for shared lib
 add_library(opendal_c_shared INTERFACE)
 target_link_libraries(opendal_c_shared INTERFACE ${OPENDAL_SHARED_LIB})
@@ -74,14 +81,10 @@ add_executable(error_handle examples/error_handle.c)
 target_link_libraries(error_handle opendal_c_shared)
 
 # test targets
-add_executable(bdd tests/bdd.cpp)
-target_link_libraries(bdd opendal_c_shared gtest)
-
-add_executable(error_msg tests/error_msg.cpp)
-target_link_libraries(error_msg opendal_c_shared gtest)
-
-add_executable(list tests/list.cpp)
-target_link_libraries(list opendal_c_shared gtest)
-
-add_executable(opinfo tests/opinfo.cpp)
-target_link_libraries(opinfo opendal_c_shared gtest)
+file(GLOB TEST_SRCS tests/*.cpp)
+add_executable(tests ${TEST_SRCS})
+target_link_libraries(tests opendal_c_shared gtest_main)
+if (TEST_ENABLE_ASAN)
+    target_compile_options(tests PRIVATE -fsanitize=address)
+    target_link_options(tests PRIVATE -fsanitize=address)
+endif()

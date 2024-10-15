@@ -51,7 +51,7 @@ jobs:
       - name: Build C binding
         working-directory: "bindings/c"
         run: |
-          mkdir build
+          mkdir build && cd build
           cmake .. -DTEST_ENABLE_ASAN=ON
           make -j$(nproc)
 

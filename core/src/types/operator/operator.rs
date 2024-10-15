@@ -69,11 +69,13 @@ pub struct Operator {
 
 /// # Operator basic API.
 impl Operator {
-    pub(crate) fn inner(&self) -> &Accessor {
+    /// Fetch the internal accessor.
+    pub fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
-    pub(crate) fn from_inner(accessor: Accessor) -> Self {
+    /// Convert inner accessor into operator.
+    pub fn from_inner(accessor: Accessor) -> Self {
         let limit = accessor
             .info()
             .full_capability()
@@ -86,7 +88,8 @@ impl Operator {
         }
     }
 
-    pub(crate) fn into_inner(self) -> Accessor {
+    /// Convert operator into inner accessor.
+    pub fn into_inner(self) -> Accessor {
         self.accessor
     }
 

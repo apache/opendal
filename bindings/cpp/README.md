@@ -65,9 +65,8 @@ Support for more package managers is coming soon!
 
 ### Prerequisites
 
-- CMake >= 3.10
+- CMake >= 3.22
 - C++ compiler with C++17 support
-- The boost library
 
 ### Build
 

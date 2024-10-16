@@ -166,6 +166,7 @@ services-moka = ["dep:moka"]
 services-mongodb = ["dep:mongodb"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-mysql = ["dep:sqlx", "sqlx?/mysql"]
+services-nebula-graph = ["dep:rust-nebula", "dep:bb8", "dep:snowflaked"]
 services-obs = [
   "dep:reqsign",
   "reqsign?/services-huaweicloud",
@@ -204,7 +205,6 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-nebula-graph = []
 
 [lib]
 bench = false
@@ -346,6 +346,9 @@ compio = { version = "0.11.0", optional = true, features = [
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
+# for services-nebula-graph
+rust-nebula = { version = "^0.0.2", optional = true, features = ["graph"] }
+snowflaked = { version = "1", optional = true, features = ["sync"] }
 # for services-monoiofs
 flume = { version = "0.11", optional = true }
 monoio = { version = "0.2.4", optional = true, features = [

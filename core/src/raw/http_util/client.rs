@@ -39,7 +39,8 @@ use crate::*;
 /// Http client used across opendal for loading credentials.
 /// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
 /// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
-pub static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+#[allow(dead_code)]
+pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Box<dyn HttpFetchDyn>;

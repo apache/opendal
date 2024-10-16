@@ -54,7 +54,7 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let fetcher = Arc::new(ReqwestHttpFetcher::new());
+        let fetcher = Arc::new(reqwest::Client::new());
         Ok(Self { fetcher })
     }
 
@@ -70,7 +70,7 @@ impl HttpClient {
         let client = builder.build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
         })?;
-        let fetcher = Arc::new(ReqwestHttpFetcher::with(client));
+        let fetcher = Arc::new(client);
         Ok(Self { fetcher })
     }
 
@@ -93,23 +93,8 @@ pub trait HttpFetch: Send + Sync + Unpin + 'static {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>>;
 }
 
-#[derive(Clone)]
-struct ReqwestHttpFetcher {
-    client: reqwest::Client,
-}
-
-impl ReqwestHttpFetcher {
-    pub fn new() -> Self {
-        Self::with(reqwest::Client::new())
-    }
-
-    pub fn with(client: reqwest::Client) -> Self {
-        Self { client }
-    }
-}
-
 #[async_trait::async_trait]
-impl HttpFetch for ReqwestHttpFetcher {
+impl HttpFetch for reqwest::Client {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
@@ -119,7 +104,6 @@ impl HttpFetch for ReqwestHttpFetcher {
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
-            .client
             .request(
                 parts.method,
                 reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),

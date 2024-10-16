@@ -205,7 +205,7 @@ impl Builder for CosBuilder {
             cfg.secret_key = Some(v);
         }
 
-        let cred_loader = TencentCosCredentialLoader::new(CREDENTIAL_CLIENT.clone(), cfg);
+        let cred_loader = TencentCosCredentialLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
 
         let signer = TencentCosSigner::new();
 

@@ -292,7 +292,7 @@ impl Builder for GcsBuilder {
             DEFAULT_GCS_SCOPE
         };
 
-        let mut token_loader = GoogleTokenLoader::new(scope, CREDENTIAL_CLIENT.clone());
+        let mut token_loader = GoogleTokenLoader::new(scope, GLOBAL_REQWEST_CLIENT.clone());
         if let Some(account) = &self.config.service_account {
             token_loader = token_loader.with_service_account(account);
         }

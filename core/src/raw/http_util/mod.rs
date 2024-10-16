@@ -24,7 +24,7 @@
 
 mod client;
 pub use client::HttpClient;
-pub use client::CREDENTIAL_CLIENT;
+pub(crate) use client::GLOBAL_REQWEST_CLIENT;
 
 mod body;
 pub use body::HttpBody;

@@ -34,7 +34,9 @@ use super::HttpBody;
 use crate::*;
 
 /// Http client used across opendal for loading credentials.
-pub static CREDENTIAL_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+/// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
+/// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
+pub static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -57,7 +59,7 @@ impl HttpClient {
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
-    pub fn with(client: impl HttpFetch + 'static) -> Self {
+    pub fn with(client: impl HttpFetch) -> Self {
         let fetcher = Arc::new(client);
         Self { fetcher }
     }
@@ -86,7 +88,7 @@ impl HttpClient {
 }
 
 #[async_trait::async_trait]
-pub trait HttpFetch: Send + Sync {
+pub trait HttpFetch: Send + Sync + Unpin + 'static {
     /// Fetch a request in async way.
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>>;
 }

@@ -105,7 +105,7 @@ pub trait HttpFetch: Send + Sync + Unpin + 'static {
 }
 
 /// HttpFetchDyn is the dyn version of [`HttpFetch`]
-/// which make it possible to use as `Box<dyn HttpFetchDyn>`.
+/// which make it possible to use as `Arc<dyn HttpFetchDyn>`.
 /// User should never implement this trait, but use `HttpFetch` instead.
 pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
     /// The dyn version of [`HttpFetch::fetch`].

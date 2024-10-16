@@ -49,8 +49,8 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CARGO_DIST_DIR "${PROJECT_SOURCE_DIR}/target/release")
 endif()
 
-set(OPENDAL_STATIC_LIB "${CARGO_DIST_DIR}/libopendal_c.a")
-set(OPENDAL_SHARED_LIB "${CARGO_DIST_DIR}/libopendal_c.so")
+set(OPENDAL_STATIC_LIB "${CARGO_DIST_DIR}/libopendal_c${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(OPENDAL_SHARED_LIB "${CARGO_DIST_DIR}/libopendal_c${CMAKE_SHARED_LIBRARY_SUFFIX}")
 message(NOTICE "-- OpenDAL C static lib: ${OPENDAL_STATIC_LIB}")
 message(NOTICE "-- OpenDAL C shared lib: ${OPENDAL_SHARED_LIB}")
 

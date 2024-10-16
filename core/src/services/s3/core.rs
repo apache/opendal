@@ -114,7 +114,7 @@ impl S3Core {
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = self
             .loader
-            .load_credential(self.client.client())
+            .load_credential(GLOBAL_REQWEST_CLIENT.clone())
             .await
             .map_err(new_request_credential_error)?;
 

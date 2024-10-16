@@ -800,7 +800,8 @@ impl Builder for S3Builder {
         // If role_arn is set, we must use AssumeRoleLoad.
         if let Some(role_arn) = self.config.role_arn {
             // use current env as source credential loader.
-            let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
+            let default_loader =
+                AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg.clone());
 
             // Build the config for assume role.
             let mut assume_role_cfg = AwsConfig {
@@ -817,7 +818,7 @@ impl Builder for S3Builder {
             }
 
             let assume_role_loader = AwsAssumeRoleLoader::new(
-                client.client(),
+                GLOBAL_REQWEST_CLIENT.clone().clone(),
                 assume_role_cfg,
                 Box::new(default_loader),
             )
@@ -835,7 +836,8 @@ impl Builder for S3Builder {
         let loader = match loader {
             Some(v) => v,
             None => {
-                let mut default_loader = AwsDefaultLoader::new(client.client(), cfg);
+                let mut default_loader =
+                    AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg);
                 if self.config.disable_ec2_metadata {
                     default_loader = default_loader.with_disable_ec2_metadata();
                 }

@@ -19,8 +19,8 @@ cmake_minimum_required(VERSION 3.22)
 project(opendal-cpp LANGUAGES CXX)
 
 include(FetchContent)
-set(GOOGLETEST_VERSION 1.15.2)
-set(BOOST_VERSION 1.86.0)
+set(OPENDAL_GOOGLETEST_VERSION 1.15.2 CACHE STRING "version of GoogleTest, 'external' to fallback to find_package()")
+set(OPENDAL_BOOST_VERSION 1.86.0 CACHE STRING "version of Boost, 'external' to fallback to find_package()")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -98,15 +98,19 @@ else()
     )
 endif()
 
-# fetch Boost
-FetchContent_Declare(
-  Boost
-  URL https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.zip
-)
+if(OPENDAL_BOOST_VERSION STREQUAL "external")
+    find_package(Boost REQUIRED COMPONENTS date_time iostreams)
+else()
+    # fetch Boost
+    FetchContent_Declare(
+    Boost
+    URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
+    )
 
-set(BOOST_INCLUDE_LIBRARIES date_time iostreams system)
-set(BOOST_ENABLE_CMAKE ON)
-FetchContent_MakeAvailable(Boost)
+    set(BOOST_INCLUDE_LIBRARIES date_time iostreams system)
+    set(BOOST_ENABLE_CMAKE ON)
+    FetchContent_MakeAvailable(Boost)
+endif()
 
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_sources(opendal_cpp PUBLIC ${CPP_HEADER_FILE})
@@ -139,19 +143,23 @@ endif()
 if (OPENDAL_ENABLE_TESTING)
     enable_testing()
     
-    # fetch GoogleTest
-    FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v${GOOGLETEST_VERSION}.zip
-    )
-    # For Windows: Prevent overriding the parent project's compiler/linker settings
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    if(OPENDAL_GOOGLETEST_VERSION STREQUAL "external")
+        find_package(GTest REQUIRED)
+    else()
+        # fetch GoogleTest
+        FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v${OPENDAL_GOOGLETEST_VERSION}.zip
+        )
+        # For Windows: Prevent overriding the parent project's compiler/linker settings
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    endif()
 
     file(GLOB_RECURSE TEST_SOURCE_FILE tests/*.cpp)
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
     target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
-    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} gtest_main opendal_cpp)
+    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
 
     # enable address sanitizers

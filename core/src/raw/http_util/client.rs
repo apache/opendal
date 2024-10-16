@@ -19,9 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
@@ -31,6 +33,7 @@ use raw::oio::Read;
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::HttpBody;
+use crate::raw::*;
 use crate::*;
 
 /// Http client used across opendal for loading credentials.
@@ -38,10 +41,13 @@ use crate::*;
 /// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
 pub static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 
+/// HttpFetcher is a type erased [`HttpFetch`].
+pub type HttpFetcher = Box<dyn HttpFetchDyn>;
+
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    fetcher: Arc<dyn HttpFetch>,
+    fetcher: Arc<HttpFetcher>,
 }
 
 /// We don't want users to know details about our clients.
@@ -54,13 +60,13 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let fetcher = Arc::new(reqwest::Client::new());
+        let fetcher = Arc::new(Box::new(reqwest::Client::new()) as HttpFetcher);
         Ok(Self { fetcher })
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
     pub fn with(client: impl HttpFetch) -> Self {
-        let fetcher = Arc::new(client);
+        let fetcher = Arc::new(Box::new(client) as HttpFetcher);
         Self { fetcher }
     }
 
@@ -70,7 +76,7 @@ impl HttpClient {
         let client = builder.build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
         })?;
-        let fetcher = Arc::new(client);
+        let fetcher = Arc::new(Box::new(client) as HttpFetcher);
         Ok(Self { fetcher })
     }
 
@@ -87,13 +93,35 @@ impl HttpClient {
     }
 }
 
-#[async_trait::async_trait]
 pub trait HttpFetch: Send + Sync + Unpin + 'static {
     /// Fetch a request in async way.
-    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>>;
+    fn fetch(
+        &self,
+        req: Request<Buffer>,
+    ) -> impl Future<Output = Result<Response<HttpBody>>> + MaybeSend;
 }
 
-#[async_trait::async_trait]
+/// HttpFetchDyn is the dyn version of [`HttpFetch`]
+/// which make it possible to use as `Box<dyn HttpFetchDyn>`
+pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
+    /// The dyn version of [`HttpFetch::fetch`].
+    ///
+    /// This function returns a boxed future to make it object safe.
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>>;
+}
+
+impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>> {
+        Box::pin(self.fetch(req))
+    }
+}
+
+impl<T: HttpFetchDyn + ?Sized> HttpFetch for Box<T> {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.deref().fetch_dyn(req).await
+    }
+}
+
 impl HttpFetch for reqwest::Client {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means

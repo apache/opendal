@@ -22,7 +22,7 @@ The fastest way is:
 
 To build OpenDAL C binding, the following is all you need:
 
-- **A C++ compiler** that supports **c++14**, _e.g._ clang++ and g++
+- A compiler that supports **C11** and **C++14**, _e.g._ clang and gcc
 
 - To format the code, you need to install **clang-format**
 
@@ -55,7 +55,9 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 To build the library and header file.
 
 ```shell
-make build
+mkdir build && cd build
+cmake ..
+make
 ```
 
 - The header file `opendal.h` is under `./include`
@@ -64,7 +66,8 @@ make build
 To clean the build results.
 
 ```shell
-make clean
+cargo clean
+cd build && make clean
 ```
 
 ## Test
@@ -72,7 +75,8 @@ make clean
 To build and run the tests. (Note that you need to install GTest)
 
 ```shell
-make test
+cd build
+make tests && ./tests
 ```
 
 ## Documentation

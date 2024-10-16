@@ -22,6 +22,11 @@
 //! in upgrading OpenDAL without altering their existing code, especially for projects that
 //! accept OpenDAL Operators.
 //!
+//! Please note that `opendal_compat` only ensures that the code compiles and runs. However,
+//! it does not guarantee that the code will function as expected. The underlying behavior of
+//! OpenDAL may vary between versions, and the compatibility functions might not address all
+//! changes. It is advisable to test the code thoroughly after upgrading OpenDAL.
+//!
 //! This project is organized by version. Each version has its own module hidden within a feature,
 //! and each module contains only one function that converts from the latest version to the
 //! previous version.

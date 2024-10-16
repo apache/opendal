@@ -24,6 +24,9 @@
 
 mod client;
 pub use client::HttpClient;
+
+/// temporary client used by several features
+#[allow(unused_imports)]
 pub(crate) use client::GLOBAL_REQWEST_CLIENT;
 
 mod body;

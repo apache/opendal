@@ -49,7 +49,7 @@ pub struct opendal_result_operator_new {
 #[repr(C)]
 pub struct opendal_result_read {
     /// The byte array with length returned by read operations
-    pub data: *mut opendal_bytes,
+    pub data: opendal_bytes,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }

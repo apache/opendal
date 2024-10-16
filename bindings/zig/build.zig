@@ -31,13 +31,12 @@ pub fn build(b: *std.Build) void {
     opendal_module.addIncludePath(b.path("../c/include"));
 
     // Creates a step for building the dependent C bindings
-    const libopendal_c = b.addSystemCommand(&[_][]const u8{
-        "make",
-        "-C",
-        "../c",
-        "build",
-    });
+    const libopendal_c_cmake = b.addSystemCommand(&[_][]const u8{ "cmake", "-S", "../c", "-B", "../c/build" });
+    const config_libopendal_c = b.step("libopendal_c_cmake", "Generate OpenDAL C binding CMake files");
+    config_libopendal_c.dependOn(&libopendal_c_cmake.step);
+    const libopendal_c = b.addSystemCommand(&[_][]const u8{ "make", "-C", "../c/build" });
     const build_libopendal_c = b.step("libopendal_c", "Build OpenDAL C bindings");
+    libopendal_c.step.dependOn(config_libopendal_c);
     build_libopendal_c.dependOn(&libopendal_c.step);
 
     // Creates a step for unit testing. This only builds the test executable

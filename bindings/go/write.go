@@ -196,7 +196,7 @@ type operatorWrite func(op *opendalOperator, path string, data []byte) error
 var withOperatorWrite = withFFI(ffiOpts{
 	sym:    symOperatorWrite,
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &typeBytes},
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWrite {
 	return func(op *opendalOperator, path string, data []byte) error {
 		bytePath, err := unix.BytePtrFromString(path)
@@ -290,7 +290,7 @@ type writerWrite func(r *opendalWriter, buf []byte) (size int, err error)
 var withWriterWrite = withFFI(ffiOpts{
 	sym:    symWriterWrite,
 	rType:  &typeResultWriterWrite,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &typeBytes},
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) writerWrite {
 	return func(r *opendalWriter, data []byte) (size int, err error) {
 		bytes := toOpendalBytes(data)

@@ -459,6 +459,29 @@ jobs:
           name: object-parquet-docs
           path: ./integrations/parquet/target/doc
 
+  build-opendal-compat-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build opendal_compat doc
+        working-directory: "integrations/compat"
+        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: opendal-compat-docs
+          path: ./integrations/compat/target/doc
+
   build-website:
     runs-on: ubuntu-latest
     permissions:
@@ -479,6 +502,7 @@ jobs:
       - build-unftp-sbe-opendal-doc
       - build-virtiofs-opendal-doc
       - build-parquet-opendal-doc
+      - build-opendal-compat-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -558,6 +582,12 @@ jobs:
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
+
+      - name: Download opendal_compat docs
+        uses: actions/download-artifact@v3
+        with:
+          name: opendal-compat-docs
+          path: ./website/static/docs/opendal_compat
 
       - name: Download dav-server-opendalfs docs
         uses: actions/download-artifact@v3

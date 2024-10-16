@@ -133,9 +133,3 @@ TEST_F(OpendalBddTest, FeatureTest)
     error = opendal_operator_delete(this->p, "tmpdir/");
     EXPECT_EQ(error, nullptr);
 }
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

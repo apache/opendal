@@ -15,32 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings C CI
+name: Integration Compat CI
 
 on:
   push:
     branches:
       - main
-    tags:
-      - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/c/**"
+      - "integrations/compat/**"
       - "core/**"
-      - ".github/workflows/ci_bindings_c.yml"
-  workflow_dispatch:
+      - ".github/workflows/ci_integration_compat.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  test:
+  check_clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,16 +42,10 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Build C binding
-        working-directory: "bindings/c"
-        run: |
-          mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON
-          make -j$(nproc)
+      - name: Cargo clippy
+        working-directory: integrations/compat
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Check diff
-        run: git diff --exit-code
-
-      - name: Build and Run tests
-        working-directory: "bindings/c"
-        run: ./build/tests
+      - name: Cargo test
+        working-directory: integrations/compat
+        run: cargo test --all-features

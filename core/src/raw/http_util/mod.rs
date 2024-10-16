@@ -24,6 +24,7 @@
 
 mod client;
 pub use client::HttpClient;
+pub use client::HttpFetch;
 
 /// temporary client used by several features
 #[allow(unused_imports)]

@@ -43,12 +43,12 @@ use crate::*;
 pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 
 /// HttpFetcher is a type erased [`HttpFetch`].
-pub type HttpFetcher = Box<dyn HttpFetchDyn>;
+pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    fetcher: Arc<HttpFetcher>,
+    fetcher: HttpFetcher,
 }
 
 /// We don't want users to know details about our clients.
@@ -61,13 +61,13 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let fetcher = Arc::new(Box::new(reqwest::Client::new()) as HttpFetcher);
+        let fetcher = Arc::new(reqwest::Client::new());
         Ok(Self { fetcher })
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
     pub fn with(client: impl HttpFetch) -> Self {
-        let fetcher = Arc::new(Box::new(client) as HttpFetcher);
+        let fetcher = Arc::new(client);
         Self { fetcher }
     }
 
@@ -77,7 +77,7 @@ impl HttpClient {
         let client = builder.build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
         })?;
-        let fetcher = Arc::new(Box::new(client) as HttpFetcher);
+        let fetcher = Arc::new(client);
         Ok(Self { fetcher })
     }
 
@@ -94,6 +94,8 @@ impl HttpClient {
     }
 }
 
+/// HttpFetch is the trait to fetch a request in async way.
+/// User should implement this trait to provide their own http client.
 pub trait HttpFetch: Send + Sync + Unpin + 'static {
     /// Fetch a request in async way.
     fn fetch(
@@ -103,7 +105,8 @@ pub trait HttpFetch: Send + Sync + Unpin + 'static {
 }
 
 /// HttpFetchDyn is the dyn version of [`HttpFetch`]
-/// which make it possible to use as `Box<dyn HttpFetchDyn>`
+/// which make it possible to use as `Box<dyn HttpFetchDyn>`.
+/// User should never implement this trait, but use `HttpFetch` instead.
 pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
     /// The dyn version of [`HttpFetch::fetch`].
     ///
@@ -117,7 +120,7 @@ impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
     }
 }
 
-impl<T: HttpFetchDyn + ?Sized> HttpFetch for Box<T> {
+impl<T: HttpFetchDyn + ?Sized> HttpFetch for Arc<T> {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         self.deref().fetch_dyn(req).await
     }

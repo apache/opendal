@@ -42,5 +42,5 @@ jobs:
       - name: Ruff Check
         working-directory: "bindings/python"
         run: |
-          pip install ruff --break-system-packages
+          pip install ruff
           ruff check .

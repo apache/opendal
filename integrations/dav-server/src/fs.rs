@@ -119,7 +119,7 @@ impl DavFileSystem for OpendalFs {
             // During MKCOL processing, a server MUST make the Request-URI a member of its parent collection, unless the Request-URI is "/".  If no such ancestor exists, the method MUST fail.
             // refer to https://datatracker.ietf.org/doc/html/rfc2518#section-8.3.1
             let parent = Path::new(&path).parent().unwrap();
-            match self.op.is_exist(parent.to_str().unwrap()).await {
+            match self.op.exists(parent.to_str().unwrap()).await {
                 Ok(exist) => {
                     if !exist && parent != Path::new("/") {
                         return Err(FsError::NotFound);
@@ -132,7 +132,7 @@ impl DavFileSystem for OpendalFs {
 
             let path = path.as_str();
             // check if the given path is exist (MKCOL on existing collection should fail (RFC2518:8.3.1))
-            let exist = self.op.is_exist(path).await;
+            let exist = self.op.exists(path).await;
             match exist {
                 Ok(exist) => match exist {
                     true => Err(FsError::Exists),

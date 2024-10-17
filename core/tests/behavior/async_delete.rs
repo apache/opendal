@@ -55,7 +55,7 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
     op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -96,7 +96,7 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -121,7 +121,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     op.remove(vec![path.clone()]).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     op.write(&format!("/{path}"), content)
         .await
@@ -130,7 +130,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     op.remove(vec![path.clone()]).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -163,7 +163,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     // Stat it again to check.
     for path in expected.iter() {
         assert!(
-            !op.is_exist(&format!("{dir}/{path}")).await?,
+            !op.exists(&format!("{dir}/{path}")).await?,
             "{path} should be removed"
         )
     }
@@ -229,7 +229,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     let version = meta.version().expect("must have version");
 
     op.delete(path.as_str()).await.expect("delete must success");
-    assert!(!op.is_exist(path.as_str()).await?);
+    assert!(!op.exists(path.as_str()).await?);
 
     // After a simple delete, the data can still be accessed using its version.
     let meta = op

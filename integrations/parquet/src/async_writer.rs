@@ -137,7 +137,7 @@ mod tests {
         writer.write(bytes).await.unwrap();
         drop(writer);
 
-        let exist = op.is_exist(path).await.unwrap();
+        let exist = op.exists(path).await.unwrap();
         assert!(!exist);
     }
 

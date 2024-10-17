@@ -44,6 +44,8 @@ jobs:
   test:
     strategy:
       matrix:
+      # dmd: base (self-hosting) compiler (frontend & backend)
+      # ldc2/ldmd2: (dmd-frontend + LLVM backend) - recommended for MacOS ARM64
         dlang: ["ldc-latest", "dmd-latest"]
     runs-on: ubuntu-latest
     steps:

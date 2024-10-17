@@ -106,7 +106,7 @@ if (OPENDAL_ENABLE_ASYNC)
 endif()
 
 add_custom_target(cargo_build
-        COMMAND sh -c "cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}"
+        COMMAND bash -c "cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}"
         BYPRODUCTS ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
         DEPENDS ${RUST_SOURCE_FILE}
         USES_TERMINAL

@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          which clang++
+          ls /usr/bin/clang*
           sudo apt-get update
           sudo apt-get install ninja-build valgrind doxygen
 

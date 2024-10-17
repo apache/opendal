@@ -46,6 +46,14 @@ TEST_F(AsyncOpendalTest, BasicTest) {
   auto path = "test_path";
   std::vector<uint8_t> data{1, 2, 3, 4, 5};
   cppcoro::sync_wait(op->write(path, data));
-  auto d = cppcoro::sync_wait(op->read(path));
-  for (size_t i = 0; i < data.size(); ++i) EXPECT_EQ(data[i], d[i]);
+  auto res = cppcoro::sync_wait(op->read(path));
+  for (size_t i = 0; i < data.size(); ++i) EXPECT_EQ(data[i], res[i]);
+
+  path = "test_path2";
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    co_await op->write(path, data);
+    auto res = co_await op->read(path);
+    for (size_t i = 0; i < data.size(); ++i) EXPECT_EQ(data[i], res[i]);
+    co_return;
+  }());
 }

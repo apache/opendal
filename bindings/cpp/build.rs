@@ -35,7 +35,7 @@ mod build_async {
 
     fn symlink_force<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
         if link.as_ref().exists() {
-            return std::fs::remove_file(link);
+            std::fs::remove_file(&link)?;
         }
 
         symlink(original, link)

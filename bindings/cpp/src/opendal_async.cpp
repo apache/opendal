@@ -19,6 +19,8 @@
 
 #include "opendal_async.hpp"
 
+#include <iterator>
+
 #include "async.rs.h"
 #include "async_defs.hpp"
 
@@ -45,6 +47,14 @@ Operator::Operator(std::string_view scheme,
 
 Operator::ReadFuture Operator::read(std::string_view path) {
   return opendal::ffi::async::operator_read(
-      opendal::ffi::async::OperatorPtr{operator_.into_raw()},
-      RUST_STRING(path));
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}
+
+Operator::WriteFuture Operator::write(std::string_view path,
+                                      std::span<uint8_t> data) {
+  rust::Vec<uint8_t> vec;
+  std::copy(data.begin(), data.end(), std::back_inserter(vec));
+
+  return opendal::ffi::async::operator_write(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path), vec);
 }

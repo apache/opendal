@@ -20,6 +20,7 @@
 #pragma once
 
 #include <optional>
+#include <span>
 
 #include "async.rs.h"
 #include "async_defs.hpp"
@@ -27,11 +28,24 @@
 namespace opendal::async {
 
 class Operator {
+ public:
   Operator(std::string_view scheme,
            const std::unordered_map<std::string, std::string> &config = {});
 
+  // Disable copy and assign
+  Operator(const Operator &) = delete;
+  Operator &operator=(const Operator &) = delete;
+
+  // Enable move
+  Operator(Operator &&) = default;
+  Operator &operator=(Operator &&) = default;
+  ~Operator() = default;
+
   using ReadFuture = opendal::ffi::async::RustFutureRead;
   ReadFuture read(std::string_view path);
+
+  using WriteFuture = opendal::ffi::async::RustFutureWrite;
+  WriteFuture write(std::string_view path, std::span<uint8_t> data);
 
  private:
   rust::Box<opendal::ffi::async::Operator> operator_;

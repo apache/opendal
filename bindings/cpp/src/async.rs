@@ -42,16 +42,23 @@ mod ffi {
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
+        unsafe fn operator_write(op: OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite;
     }
 
     extern "C++" {
         type RustFutureRead = super::RustFutureRead;
+        type RustFutureWrite = super::RustFutureWrite;
     }
 }
 
 #[cxx_async::bridge(namespace = opendal::ffi::async)]
 unsafe impl Future for RustFutureRead {
     type Output = Vec<u8>;
+}
+
+#[cxx_async::bridge(namespace = opendal::ffi::async)]
+unsafe impl Future for RustFutureWrite {
+    type Output = ();
 }
 
 pub struct Operator(od::Operator);
@@ -87,5 +94,15 @@ unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?
             .to_vec())
+    })
+}
+
+unsafe fn operator_write(op: ffi::OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        Ok((*op)
+            .0
+            .write(&path, bs)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?)
     })
 }

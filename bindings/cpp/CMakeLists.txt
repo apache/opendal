@@ -21,6 +21,7 @@ project(opendal-cpp LANGUAGES CXX)
 include(FetchContent)
 set(OPENDAL_GOOGLETEST_VERSION 1.15.2 CACHE STRING "version of GoogleTest, 'external' to fallback to find_package()")
 set(OPENDAL_BOOST_VERSION 1.86.0 CACHE STRING "version of Boost, 'external' to fallback to find_package()")
+set(OPENDAL_CPPCORO_VERSION a4ef65281814b18fdd1ac5457d3e219347ec6cb8 CACHE STRING "version of cppcoro")
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -118,8 +119,8 @@ if(OPENDAL_BOOST_VERSION STREQUAL "external")
 else()
     # fetch Boost
     FetchContent_Declare(
-    Boost
-    URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
+        Boost
+        URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
     )
 
     set(BOOST_INCLUDE_LIBRARIES date_time iostreams system)
@@ -176,11 +177,25 @@ if (OPENDAL_ENABLE_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
-    file(GLOB_RECURSE TEST_SOURCE_FILE tests/*.cpp)
+    if (OPENDAL_ENABLE_ASYNC)
+        FetchContent_Declare(
+            cppcoro
+            URL https://github.com/andreasbuhr/cppcoro/archive/${OPENDAL_CPPCORO_VERSION}.zip
+        )
+        FetchContent_MakeAvailable(cppcoro)
+    endif()
+
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
+    if (OPENDAL_ENABLE_ASYNC)
+        list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
+    endif()
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
     target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
     target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
+    if (OPENDAL_ENABLE_ASYNC)
+        target_link_libraries(opendal_cpp_test cppcoro)
+    endif()
 
     # enable address sanitizers
     if (OPENDAL_ENABLE_ADDRESS_SANITIZER)

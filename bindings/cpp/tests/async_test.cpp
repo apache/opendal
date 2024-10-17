@@ -17,10 +17,35 @@
  * under the License.
  */
 
-#pragma once
+#include <random>
 
-#include "rust/cxx.h"
-#include "rust/cxx_async.h"
+#include "cppcoro/sync_wait.hpp"
+#include "cppcoro/task.hpp"
+#include "gtest/gtest.h"
+#include "opendal_async.hpp"
 
-CXXASYNC_DEFINE_FUTURE(rust::Vec<uint8_t>, opendal, ffi, async, RustFutureRead);
-CXXASYNC_DEFINE_FUTURE(void, opendal, ffi, async, RustFutureWrite);
+class AsyncOpendalTest : public ::testing::Test {
+ protected:
+  std::optional<opendal::async::Operator> op;
+
+  std::string scheme;
+  std::unordered_map<std::string, std::string> config;
+
+  // random number generator
+  std::mt19937 rng;
+
+  void SetUp() override {
+    scheme = "memory";
+    rng.seed(time(nullptr));
+
+    op = opendal::async::Operator(scheme, config);
+  }
+};
+
+TEST_F(AsyncOpendalTest, BasicTest) {
+  auto path = "test_path";
+  std::vector<uint8_t> data{1, 2, 3, 4, 5};
+  cppcoro::sync_wait(op->write(path, data));
+  auto d = cppcoro::sync_wait(op->read(path));
+  for (size_t i = 0; i < data.size(); ++i) EXPECT_EQ(data[i], d[i]);
+}

@@ -75,6 +75,6 @@ jobs:
         run: |
           mkdir build-async
           cd build-async
-          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON ..
+          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DCMAKE_CXX_COMPILER=clang++ ..
           ninja
           ./opendal_cpp_test

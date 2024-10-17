@@ -15,47 +15,44 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{
-    env::var,
-    io,
-    path::{Path, PathBuf},
-};
+#[cfg(feature = "async")]
+mod build_async {
+    use std::{
+        env::var,
+        io,
+        path::{Path, PathBuf},
+    };
 
-#[cfg(unix)]
-fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    std::os::unix::fs::symlink(original, link)
-}
-
-#[cfg(target_os = "windows")]
-fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    std::os::windows::fs::symlink_file(original, link)
-}
-
-fn symlink_force<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    if link.as_ref().exists() {
-        return std::fs::remove_file(link);
+    #[cfg(unix)]
+    fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
+        std::os::unix::fs::symlink(original, link)
     }
 
-    symlink(original, link)
-}
+    #[cfg(target_os = "windows")]
+    fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
+        std::os::windows::fs::symlink_file(original, link)
+    }
 
-fn print_to_cargo() {
-    println!("cargo:rerun-if-changed=src/lib.rs");
-    #[cfg(feature = "async")]
-    println!("cargo:rerun-if-changed=src/async.rs");
-}
+    fn symlink_force<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
+        if link.as_ref().exists() {
+            return std::fs::remove_file(link);
+        }
 
-fn symlink_async_includes() {
-    let async_inc = var("DEP_CXX_ASYNC_INCLUDE").unwrap();
-    let src_dir = PathBuf::from(async_inc).join("rust");
+        symlink(original, link)
+    }
 
-    let prj_dir = var("CARGO_MANIFEST_DIR").unwrap();
-    let dst_dir = PathBuf::from(prj_dir)
-        .join("target")
-        .join("cxxbridge")
-        .join("rust");
+    pub fn symlink_async_includes() {
+        let async_inc = var("DEP_CXX_ASYNC_INCLUDE").unwrap();
+        let src_dir = PathBuf::from(async_inc).join("rust");
 
-    symlink_force(src_dir.join("cxx_async.h"), dst_dir.join("cxx_async.h")).unwrap();
+        let prj_dir = var("CARGO_MANIFEST_DIR").unwrap();
+        let dst_dir = PathBuf::from(prj_dir)
+            .join("target")
+            .join("cxxbridge")
+            .join("rust");
+
+        symlink_force(src_dir.join("cxx_async.h"), dst_dir.join("cxx_async.h")).unwrap();
+    }
 }
 
 fn main() {
@@ -63,8 +60,10 @@ fn main() {
     #[cfg(feature = "async")]
     {
         let _ = cxx_build::bridge("src/async.rs");
-        symlink_async_includes();
+        build_async::symlink_async_includes();
     }
 
-    print_to_cargo()
+    println!("cargo:rerun-if-changed=src/lib.rs");
+    #[cfg(feature = "async")]
+    println!("cargo:rerun-if-changed=src/async.rs");
 }

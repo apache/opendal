@@ -16,7 +16,7 @@ As a side-effect of this design, OpenDAL always return exist for `stat("not_exis
 There are some issues and pull requests related to those issues.
 
 - [Invalid metadata for dir objects in s3](https://github.com/apache/opendal/issues/3199)
-- [`is_exist` always return true for key end with '/', in S3 service](https://github.com/apache/opendal/issues/2086)
+- [`exists` always return true for key end with '/', in S3 service](https://github.com/apache/opendal/issues/2086)
 
 POSIX-like file systems also have their own issues, as they lack native support for listing a prefix.
 

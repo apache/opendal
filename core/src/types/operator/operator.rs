@@ -340,11 +340,38 @@ impl Operator {
     /// use opendal::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
+    ///     let _ = op.exists("test").await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn exists(&self, path: &str) -> Result<bool> {
+        let r = self.stat(path).await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+
+    /// Check if this path exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let _ = op.is_exist("test").await?;
     ///
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(note = "rename to `exists` for consistence with `std::fs::exists`")]
     pub async fn is_exist(&self, path: &str) -> Result<bool> {
         let r = self.stat(path).await;
         match r {

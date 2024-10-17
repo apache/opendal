@@ -275,11 +275,36 @@ impl BlockingOperator {
     /// use anyhow::Result;
     /// use opendal::BlockingOperator;
     /// fn test(op: BlockingOperator) -> Result<()> {
+    ///     let _ = op.exists("test")?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn exists(&self, path: &str) -> Result<bool> {
+        let r = self.stat(path);
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+
+    /// Check if this path exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// fn test(op: BlockingOperator) -> Result<()> {
     ///     let _ = op.is_exist("test")?;
     ///
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(note = "rename to `exists` for consistence with `std::fs::exists`")]
     pub fn is_exist(&self, path: &str) -> Result<bool> {
         let r = self.stat(path);
         match r {

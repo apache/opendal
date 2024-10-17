@@ -255,7 +255,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
     }
 
     // Aborted writer should not write actual file.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
     Ok(())
 }
 
@@ -282,7 +282,7 @@ pub async fn test_writer_abort_with_concurrent(op: Operator) -> Result<()> {
     }
 
     // Aborted writer should not write actual file.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
     Ok(())
 }
 

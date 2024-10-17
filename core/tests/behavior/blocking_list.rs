@@ -196,7 +196,7 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
             continue;
         }
         assert!(
-            !op.is_exist(&format!("{parent}/{path}"))?,
+            !op.exists(&format!("{parent}/{path}"))?,
             "{parent}/{path} should be removed"
         )
     }

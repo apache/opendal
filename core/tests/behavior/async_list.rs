@@ -655,7 +655,7 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
             continue;
         }
         assert!(
-            !op.is_exist(&format!("{parent}/{path}")).await?,
+            !op.exists(&format!("{parent}/{path}")).await?,
             "{parent}/{path} should be removed"
         )
     }

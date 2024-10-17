@@ -52,7 +52,7 @@ pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
     op.delete(&path)?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path)?);
+    assert!(!op.exists(&path)?);
 
     Ok(())
 }
@@ -67,7 +67,7 @@ pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
     op.remove(vec![path.clone()])?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path)?);
+    assert!(!op.exists(&path)?);
 
     Ok(())
 }

@@ -22,6 +22,7 @@ module opendal.operator;
 import std.string: toStringz;
 import std.exception: enforce;
 import std.conv: to;
+import std.parallelism: task, TaskPool;
 
 /// OpenDAL-C binding for D. (unsafe/@system)
 private import opendal.opendal_c;
@@ -29,13 +30,19 @@ private import opendal.opendal_c;
 struct Operator
 {
     private opendal_operator* op;
+    private TaskPool taskPool;
+    private bool enabledParallelism;
 
-    this(string scheme, OperatorOptions options) @trusted
+    this(string scheme, OperatorOptions options, bool useParallel = false) @trusted
     {
         auto result = opendal_operator_new(scheme.toStringz, options.options);
         enforce(result.op !is null, "Failed to create Operator");
         enforce(result.error is null, "Error in Operator");
         op = result.op;
+        enabledParallelism = useParallel;
+
+        if (enabledParallelism)
+            taskPool = new TaskPool();
     }
 
     void write(string path, ubyte[] data) @trusted
@@ -43,6 +50,27 @@ struct Operator
         opendal_bytes bytes = opendal_bytes(data.ptr, data.length, data.length);
         auto error = opendal_operator_write(op, path.toStringz, &bytes);
         enforce(error is null, "Error writing data");
+    }
+
+    void writeParallel(string path, ubyte[] data) @safe
+    {
+        auto t = task!((Operator* op, string p, ubyte[] d) { op.write(p, d); })(&this, path, data);
+        taskPool.put(t);
+        t.yieldForce();
+    }
+
+    ubyte[] readParallel(string path) @trusted
+    {
+        auto t = task!((Operator* op, string p) { return op.read(p); })(&this, path);
+        taskPool.put(t);
+        return t.yieldForce();
+    }
+
+    Entry[] listParallel(string path) @trusted
+    {
+        auto t = task!((Operator* op, string p) { return op.list(p); })(&this, path);
+        taskPool.put(t);
+        return t.yieldForce();
     }
 
     ubyte[] read(string path) @trusted
@@ -112,6 +140,8 @@ struct Operator
     {
         if (op !is null)
             opendal_operator_free(op);
+        if (enabledParallelism)
+            taskPool.stop();
     }
 }
 

@@ -19,24 +19,15 @@
 
 module opendal;
 
-version (D_BetterC)
-{
-	version (LDC)
-	{
-		pragma(LDC_no_moduleinfo);
-		pragma(LDC_no_typeinfo);
-	}
-}
-
 public import opendal.operator;
 
 version (unittest)
 {
 	@("Test basic Operator creation")
-	unittest
+	@safe unittest
 	{
 		/* Initialize a operator for "memory" backend, with no options */
-		auto options = new OperatorOptions();
+		OperatorOptions options = new OperatorOptions();
 		Operator op = Operator("memory", options);
 
 		/* Prepare some data to be written */
@@ -48,10 +39,85 @@ version (unittest)
 		/* We can read it out, make sure the data is the same */
 		auto read_bytes = op.read("/testpath");
 		assert(read_bytes.length == 24);
+		assert(cast(string)read_bytes.idup == data);
+	}
 
-		/* Lets print it out */
+	@("Benchmark parallel and normal functions")
+	@safe unittest
+	{
+		import std.exception: assertNotThrown;
+		import std.file: tempDir;
+		import std.path: buildPath;
+		import std.datetime.stopwatch: StopWatch;
 		import std.stdio: writeln;
 
-		writeln(cast(string)read_bytes.idup);
+		auto options = new OperatorOptions();
+		options.set("root", tempDir);
+		auto op = Operator("fs", options, true);
+
+		auto testPath = buildPath(tempDir, "benchmark_test.txt");
+		auto testData = cast(ubyte[])"Benchmarking OpenDAL async and normal functions".dup;
+
+		// Benchmark write operations
+		StopWatch sw;
+
+		sw.start();
+		assertNotThrown(op.write(testPath, testData));
+		sw.stop();
+		auto normalWriteTime = sw.peek();
+
+		sw.reset();
+		sw.start();
+		assertNotThrown(op.writeParallel(testPath, testData));
+		sw.stop();
+		auto parallelWriteTime = sw.peek();
+
+		// Benchmark read operations
+		sw.reset();
+		sw.start();
+		auto normalReadData = op.read(testPath);
+		sw.stop();
+		auto normalReadTime = sw.peek();
+
+		sw.reset();
+		sw.start();
+		auto parallelReadData = op.readParallel(testPath);
+		sw.stop();
+		auto parallelReadTime = sw.peek();
+
+		// Benchmark list operations
+		sw.reset();
+		sw.start();
+		op.list(tempDir);
+		sw.stop();
+		auto normalListTime = sw.peek();
+
+		sw.reset();
+		sw.start();
+		op.listParallel(tempDir);
+		sw.stop();
+		auto parallelListTime = sw.peek();
+
+		// Print benchmark results
+		writeln("Write benchmark:");
+		writeln("  Normal:   ", normalWriteTime);
+		writeln("  Parallel: ", parallelWriteTime);
+
+		writeln("Read benchmark:");
+		writeln("  Normal:   ", normalReadTime);
+		writeln("  Parallel: ", parallelReadTime);
+
+		writeln("List benchmark:");
+		writeln("  Normal:   ", normalListTime);
+		writeln("  Parallel: ", parallelListTime);
+
+		// Verify data integrity
+		assert(normalReadData == testData);
+		assert(parallelReadData == testData);
+
+		// Clean up
+		op.removeObject(testPath);
+		assert(!op.exists(testPath));
 	}
+
 }

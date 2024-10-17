@@ -69,3 +69,12 @@ jobs:
           cmake -GNinja -DOPENDAL_ENABLE_TESTING=ON ..
           ninja
           valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test
+
+      - name: Build Cpp binding with Async && Run tests
+        working-directory: "bindings/cpp"
+        run: |
+          mkdir build
+          cd build
+          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON ..
+          ninja
+          ./opendal_cpp_test

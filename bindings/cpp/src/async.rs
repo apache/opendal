@@ -16,6 +16,7 @@
 // under the License.
 
 use anyhow::Result;
+use cxx_async::CxxAsyncException;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
@@ -40,7 +41,7 @@ mod ffi {
         type Operator;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
-        unsafe fn read_operator(op: OperatorPtr, path: String) -> RustFutureRead;
+        unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
     }
 
     extern "C++" {
@@ -50,7 +51,7 @@ mod ffi {
 
 #[cxx_async::bridge(namespace = opendal::ffi::async)]
 unsafe impl Future for RustFutureRead {
-    type Output = Result<Vec<u8>>;
+    type Output = Vec<u8>;
 }
 
 pub struct Operator(od::Operator);
@@ -78,6 +79,13 @@ impl Deref for ffi::OperatorPtr {
 
 unsafe impl Send for ffi::OperatorPtr {}
 
-unsafe fn read_operator(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
-    RustFutureRead::infallible(async move { Ok((*op).0.read(&path).await?.to_vec()) })
+unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
+    RustFutureRead::fallible(async move {
+        Ok((*op)
+            .0
+            .read(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?
+            .to_vec())
+    })
 }

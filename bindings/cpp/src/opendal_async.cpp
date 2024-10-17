@@ -44,7 +44,7 @@ Operator::Operator(std::string_view scheme,
     : operator_(new_operator(scheme, config)) {}
 
 Operator::ReadFuture Operator::read(std::string_view path) {
-  return opendal::ffi::async::read_operator(
+  return opendal::ffi::async::operator_read(
       opendal::ffi::async::OperatorPtr{operator_.into_raw()},
       RUST_STRING(path));
 }

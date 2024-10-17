@@ -19,7 +19,19 @@
 
 #pragma once
 
-#include "lister.hpp"
-#include "metadata.hpp"
-#include "operator.hpp"
-#include "reader.hpp"
+#include <optional>
+#include <string>
+
+#include "lib.rs.h"
+
+namespace opendal {
+
+inline std::optional<std::string> from(ffi::OptionalString &&s) {
+  if (s.has_value) {
+    return std::string(std::move(s.value));
+  } else {
+    return std::nullopt;
+  }
+}
+
+} // namespace opendal

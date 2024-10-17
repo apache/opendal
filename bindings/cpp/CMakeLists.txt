@@ -98,15 +98,15 @@ if (OPENDAL_ENABLE_ASYNC)
 endif()
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CARGO_BUILD_FLAGS "--release")
+    list(APPEND CARGO_BUILD_FLAGS "--release")
 endif()
 
 if (OPENDAL_ENABLE_ASYNC)
-    set(CARGO_BUILD_FLAGS "${CARGO_BUILD_FLAGS} --features async")
+    list(APPEND CARGO_BUILD_FLAGS "--features" "async")
 endif()
 
 add_custom_target(cargo_build
-        COMMAND bash -c "cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}"
+        COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
         BYPRODUCTS ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
         DEPENDS ${RUST_SOURCE_FILE}
         USES_TERMINAL

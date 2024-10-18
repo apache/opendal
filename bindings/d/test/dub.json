@@ -1,0 +1,14 @@
+{
+    "name": "tests",
+    "targetType": "executable",
+    "dflags": ["-preview=all"],
+    "dependencies": {"opendal":{"path": ".."}},
+    "buildTypes": {
+        "debug": {
+            "buildOptions": ["debugMode", "debugInfo"]
+        },
+        "release": {
+            "buildOptions": ["releaseMode", "optimize", "inline"]
+        }
+    }
+}

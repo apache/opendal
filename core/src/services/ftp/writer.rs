@@ -32,6 +32,11 @@ pub struct FtpWriter {
     data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
 }
 
+/// # Safety
+///
+/// We only have `&mut self` for FtpWrite.
+unsafe impl Sync for FtpWriter {}
+
 /// # TODO
 ///
 /// Writer is not implemented correctly.

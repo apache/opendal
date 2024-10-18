@@ -519,6 +519,7 @@ pub unsafe extern "C" fn opendal_operator_delete(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
+#[deprecated(note = "Use opendal_operator_exists() instead.")]
 pub unsafe extern "C" fn opendal_operator_is_exist(
     op: &opendal_operator,
     path: *const c_char,

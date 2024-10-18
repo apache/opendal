@@ -23,22 +23,13 @@ mod build_async {
         path::{Path, PathBuf},
     };
 
-    #[cfg(unix)]
-    fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-        std::os::unix::fs::symlink(original, link)
-    }
-
-    #[cfg(target_os = "windows")]
-    fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-        std::os::windows::fs::symlink_file(original, link)
-    }
-
-    fn symlink_force<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-        if link.as_ref().exists() {
-            std::fs::remove_file(&link)?;
+    fn copy_force<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
+        if dst.as_ref().exists() {
+            std::fs::remove_file(&dst)?;
         }
 
-        symlink(original, link)
+        std::fs::copy(src, dst)?;
+        Ok(())
     }
 
     pub fn symlink_async_includes() {
@@ -51,7 +42,7 @@ mod build_async {
             .join("cxxbridge")
             .join("rust");
 
-        symlink_force(src_dir.join("cxx_async.h"), dst_dir.join("cxx_async.h")).unwrap();
+        copy_force(src_dir.join("cxx_async.h"), dst_dir.join("cxx_async.h")).unwrap();
     }
 }
 

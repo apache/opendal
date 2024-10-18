@@ -52,8 +52,12 @@ void Operator::write(std::string_view path, const std::vector<uint8_t> &data) {
       RUST_STR(path), rust::Slice<const uint8_t>(data.data(), data.size()));
 }
 
+bool Operator::exists(std::string_view path) {
+  return operator_.value()->exists(RUST_STR(path));
+}
+
 bool Operator::is_exist(std::string_view path) {
-  return operator_.value()->is_exist(RUST_STR(path));
+  return exists(path);
 }
 
 void Operator::create_dir(std::string_view path) {

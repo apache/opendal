@@ -62,11 +62,11 @@ TEST_F(OpendalTest, BasicTest) {
   EXPECT_EQ(res, data);
 
   // is_exist
-  EXPECT_TRUE(op.is_exist(file_path));
+  EXPECT_TRUE(op.exists(file_path));
 
   // create_dir
   op.create_dir(dir_path);
-  EXPECT_TRUE(op.is_exist(dir_path));
+  EXPECT_TRUE(op.exists(dir_path));
 
   // stat
   auto metadata = op.stat(file_path);
@@ -88,7 +88,7 @@ TEST_F(OpendalTest, BasicTest) {
   // remove
   op.remove(file_path_renamed);
   op.remove(dir_path);
-  EXPECT_FALSE(op.is_exist(file_path_renamed));
+  EXPECT_FALSE(op.exists(file_path_renamed));
 }
 
 TEST_F(OpendalTest, ReaderTest) {

@@ -307,9 +307,9 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("namespace", "opendal"))
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
-            .bind(("value_field", self.value_field.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
+            .bind(("value_field", self.value_field.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
 
@@ -330,7 +330,7 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query)
-            .bind(("path", path))
+            .bind(("path", path.to_string()))
             .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?;
@@ -350,8 +350,8 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query.as_str())
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

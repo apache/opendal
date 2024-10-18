@@ -34,6 +34,11 @@ pub struct FtpReader {
     buf: BytesMut,
 }
 
+/// # Safety
+///
+/// We only have `&mut self` for FtpReader.
+unsafe impl Sync for FtpReader {}
+
 impl FtpReader {
     pub async fn new(
         mut ftp_stream: PooledConnection<'static, Manager>,

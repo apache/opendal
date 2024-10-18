@@ -70,6 +70,22 @@ pub struct opendal_result_is_exist {
     pub error: *mut opendal_error,
 }
 
+/// \brief The result type returned by opendal_operator_exists().
+///
+/// The result type for opendal_operator_exists(), the field `exists`
+/// contains whether the path exists, and the field `error` contains the
+/// corresponding error. If successful, the `error` field is null.
+///
+/// \note If the opendal_operator_exists() fails, the `exists` field
+/// will be set to false.
+#[repr(C)]
+pub struct opendal_result_exists {
+    /// Whether the path exists
+    pub exists: bool,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
 /// \brief The result type returned by opendal_operator_stat().
 ///
 /// The result type for opendal_operator_stat(), the field `meta` contains the metadata

@@ -362,6 +362,27 @@ typedef struct opendal_result_is_exist {
 } opendal_result_is_exist;
 
 /**
+ * \brief The result type returned by opendal_operator_exists().
+ *
+ * The result type for opendal_operator_exists(), the field `exists`
+ * contains whether the path exists, and the field `error` contains the
+ * corresponding error. If successful, the `error` field is null.
+ *
+ * \note If the opendal_operator_exists() fails, the `exists` field
+ * will be set to false.
+ */
+typedef struct opendal_result_exists {
+  /**
+   * Whether the path exists
+   */
+  bool exists;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_exists;
+
+/**
  * \brief The result type returned by opendal_operator_stat().
  *
  * The result type for opendal_operator_stat(), the field `meta` contains the metadata
@@ -1025,8 +1046,51 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator *op,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
+__attribute__((deprecated("Use opendal_operator_exists() instead.")))
 struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
                                                          const char *path);
+
+/**
+ * \brief Check whether the path exists.
+ *
+ * If the operation succeeds, no matter the path exists or not,
+ * the error should be a nullptr. Otherwise, the field `exists`
+ * is filled with false, and the error is set
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to check existence
+ * @see opendal_operator
+ * @see opendal_result_exists
+ * @see opendal_error
+ * @return Returns opendal_result_exists, the `exists` field contains whether the path exists.
+ * However, it the operation fails, the `exists` will contain false and the error will be set.
+ *
+ * # Example
+ *
+ * ```C
+ * // .. you previously wrote some data to path "/mytest/obj"
+ * opendal_result_exists e = opendal_operator_exists(op, "/mytest/obj");
+ * assert(e.error == NULL);
+ * assert(e.exists);
+ *
+ * // but you previously did **not** write any data to path "/yourtest/obj"
+ * opendal_result_exists e = opendal_operator_exists(op, "/yourtest/obj");
+ * assert(e.error == NULL);
+ * assert(!e.exists);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_exists opendal_operator_exists(const struct opendal_operator *op,
+                                                     const char *path);
 
 /**
  * \brief Stat the path, return its metadata.

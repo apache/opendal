@@ -19,10 +19,12 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::available_parallelism;
 
 use jni::objects::JClass;
 use jni::objects::JObject;
+use jni::objects::JValue;
 use jni::sys::jlong;
 use jni::JNIEnv;
 use jni::JavaVM;
@@ -110,13 +112,21 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInter
 
 pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {
     let vm = env.get_java_vm().expect("JavaVM must be available");
+    let counter = AtomicUsize::new(0);
     let executor = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(cores)
+        .thread_name_fn(move || {
+            let id = counter.fetch_add(1, Ordering::SeqCst);
+            format!("opendal-tokio-worker-{}", id)
+        })
         .on_thread_start(move || {
             ENV.with(|cell| {
-                let env = vm
+                let mut env = vm
                     .attach_current_thread_as_daemon()
                     .expect("attach thread must succeed");
+
+                set_current_thread_name(&mut env).expect("current thread name has been set above");
+
                 *cell.borrow_mut() = Some(env.get_raw());
             })
         })
@@ -130,6 +140,28 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
             .set_source(e)
         })?;
     Ok(Executor::Tokio(executor))
+}
+
+fn set_current_thread_name(env: &mut JNIEnv) -> Result<()> {
+    let current_thread = env
+        .call_static_method(
+            "java/lang/Thread",
+            "currentThread",
+            "()Ljava/lang/Thread;",
+            &[],
+        )?
+        .l()?;
+    let thread_name = match std::thread::current().name() {
+        Some(thread_name) => env.new_string(thread_name)?,
+        None => unreachable!("thread name must be set"),
+    };
+    env.call_method(
+        current_thread,
+        "setName",
+        "(Ljava/lang/String;)V",
+        &[JValue::Object(&thread_name)],
+    )?;
+    Ok(())
 }
 
 /// # Panic

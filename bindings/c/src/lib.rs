@@ -46,6 +46,7 @@ pub use operator::opendal_operator;
 mod operator_info;
 
 mod result;
+pub use result::opendal_result_exists;
 pub use result::opendal_result_is_exist;
 pub use result::opendal_result_list;
 pub use result::opendal_result_lister_next;

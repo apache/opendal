@@ -65,9 +65,9 @@ TEST_F(OpendalBddTest, FeatureTest)
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
-    opendal_result_is_exist e = opendal_operator_is_exist(this->p, this->path.c_str());
+    opendal_result_exists e = opendal_operator_exists(this->p, this->path.c_str());
     EXPECT_EQ(e.error, nullptr);
-    EXPECT_TRUE(e.is_exist);
+    EXPECT_TRUE(e.exists);
 
     // The blocking file "test" entry mode must be file
     opendal_result_stat s = opendal_operator_stat(this->p, this->path.c_str());
@@ -93,9 +93,9 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file should be deleted
     error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);
-    e = opendal_operator_is_exist(this->p, this->path.c_str());
+    e = opendal_operator_exists(this->p, this->path.c_str());
     EXPECT_EQ(e.error, nullptr);
-    EXPECT_FALSE(e.is_exist);
+    EXPECT_FALSE(e.exists);
 
     opendal_result_operator_writer writer = opendal_operator_writer(this->p, this->path.c_str());
     EXPECT_EQ(writer.error, nullptr);

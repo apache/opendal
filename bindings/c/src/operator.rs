@@ -527,13 +527,71 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
     let path = std::ffi::CStr::from_ptr(path)
         .to_str()
         .expect("malformed path");
-    match op.deref().is_exist(path) {
+    match op.deref().exists(path) {
         Ok(e) => opendal_result_is_exist {
             is_exist: e,
             error: std::ptr::null_mut(),
         },
         Err(e) => opendal_result_is_exist {
             is_exist: false,
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Check whether the path exists.
+///
+/// If the operation succeeds, no matter the path exists or not,
+/// the error should be a nullptr. Otherwise, the field `exists`
+/// is filled with false, and the error is set
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to check existence
+/// @see opendal_operator
+/// @see opendal_result_exists
+/// @see opendal_error
+/// @return Returns opendal_result_exists, the `exists` field contains whether the path exists.
+/// However, it the operation fails, the `exists` will contain false and the error will be set.
+///
+/// # Example
+///
+/// ```C
+/// // .. you previously wrote some data to path "/mytest/obj"
+/// opendal_result_exists e = opendal_operator_exists(op, "/mytest/obj");
+/// assert(e.error == NULL);
+/// assert(e.exists);
+///
+/// // but you previously did **not** write any data to path "/yourtest/obj"
+/// opendal_result_exists e = opendal_operator_exists(op, "/yourtest/obj");
+/// assert(e.error == NULL);
+/// assert(!e.exists);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_exists(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_exists {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    match op.deref().exists(path) {
+        Ok(e) => opendal_result_exists {
+            exists: e,
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_exists {
+            exists: false,
             error: opendal_error::new(e),
         },
     }

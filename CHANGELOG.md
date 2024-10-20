@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.50.1] - 2024-10-20
+
+### Added
+* feat(core/redis): Replace client requests with connection pool by @jackyyyyyssss in https://github.com/apache/opendal/pull/5117
+* feat: add copy api for lakefs service.  by @liugddx in https://github.com/apache/opendal/pull/5114
+* feat(core): add version(bool) for List operation to include version d… by @meteorgan in https://github.com/apache/opendal/pull/5106
+* feat(bindings/python): export ConcurrentLimitLayer by @TennyZhuang in https://github.com/apache/opendal/pull/5140
+* feat(bindings/c): add writer operation for Bindings C and Go by @yuchanns in https://github.com/apache/opendal/pull/5141
+* feat(ofs): introduce ofs macos support by @oowl in https://github.com/apache/opendal/pull/5136
+* feat: Reduce stat operation if we are reading all by @Xuanwo in https://github.com/apache/opendal/pull/5146
+* feat: add NebulaGraph config by @GG2002 in https://github.com/apache/opendal/pull/5147
+* feat(integrations/spring): add spring serialize method by @shoothzj in https://github.com/apache/opendal/pull/5154
+* feat: support write,read,delete with template by @shoothzj in https://github.com/apache/opendal/pull/5156
+* feat(bindings/java): support ConcurrentLimitLayer by @tisonkun in https://github.com/apache/opendal/pull/5168
+* feat: Add if_none_match for write by @ForestLH in https://github.com/apache/opendal/pull/5129
+* feat: Add OpenDAL Compat by @Xuanwo in https://github.com/apache/opendal/pull/5185
+* feat(core): abstract HttpFetch trait for raw http client by @everpcpc in https://github.com/apache/opendal/pull/5184
+* feat: Support NebulaGraph by @GG2002 in https://github.com/apache/opendal/pull/5116
+* feat(bindings/cpp): rename is_exist to exists as core did by @PragmaTwice in https://github.com/apache/opendal/pull/5198
+* feat(bindings/c): add opendal_operator_exists and mark is_exist deprecated by @PragmaTwice in https://github.com/apache/opendal/pull/5199
+* feat(binding/java): prefix thread name with opendal-tokio-worker by @tisonkun in https://github.com/apache/opendal/pull/5197
+### Changed
+* refactor(services/cloudflare-kv): remove unneeded async and result on parse_error by @tsfotis in https://github.com/apache/opendal/pull/5128
+* refactor(*): remove unneeded async and result on parse_error by @tsfotis in https://github.com/apache/opendal/pull/5131
+* refactor: align C binding pattern by @tisonkun in https://github.com/apache/opendal/pull/5160
+* refactor: more consistent C binding pattern by @tisonkun in https://github.com/apache/opendal/pull/5162
+* refactor(integration/parquet): Use ParquetMetaDataReader instead by @Xuanwo in https://github.com/apache/opendal/pull/5170
+* refactor: resolve c pointers const by @tisonkun in https://github.com/apache/opendal/pull/5171
+* refactor(types/operator): rename is_exist to exists by @photino in https://github.com/apache/opendal/pull/5193
+### Fixed
+* fix(services/huggingface): Align with latest HuggingFace API by @morristai in https://github.com/apache/opendal/pull/5123
+* fix(bindings/c): use `ManuallyDrop` instead of `forget` to make sure pointer is valid by @ethe in https://github.com/apache/opendal/pull/5166
+* fix(services/s3): Mark xml deserialize error as temporary during list by @Xuanwo in https://github.com/apache/opendal/pull/5178
+### Docs
+* docs: add spring integration configuration doc by @shoothzj in https://github.com/apache/opendal/pull/5053
+* docs: improve Node.js binding's test doc by @tisonkun in https://github.com/apache/opendal/pull/5159
+* docs(bindings/c): update docs for CMake replacing by @PragmaTwice in https://github.com/apache/opendal/pull/5186
+### CI
+* ci(bindings/nodejs): Fix diff introduced by napi by @Xuanwo in https://github.com/apache/opendal/pull/5121
+* ci: Disable aliyun drive test until #5163 addressed by @Xuanwo in https://github.com/apache/opendal/pull/5164
+* ci: add package cache for build-haskell-doc by @XmchxUp in https://github.com/apache/opendal/pull/5173
+* ci: add cache action for ci_bindings_ocaml & build-ocaml-doc by @XmchxUp in https://github.com/apache/opendal/pull/5174
+* ci: Fix failing CI on ocaml and python by @Xuanwo in https://github.com/apache/opendal/pull/5177
+* build(bindings/c): replace the build system with CMake by @PragmaTwice in https://github.com/apache/opendal/pull/5182
+* build(bindings/cpp): fetch and build dependencies instead of finding system libs by @PragmaTwice in https://github.com/apache/opendal/pull/5188
+* ci: Remove not needed --break-system-packages by @Xuanwo in https://github.com/apache/opendal/pull/5196
+* ci: Send discussions to dev@o.a.o by @Xuanwo in https://github.com/apache/opendal/pull/5201
+### Chore
+* chore(bindings/python): deprecate via_map method by @TennyZhuang in https://github.com/apache/opendal/pull/5134
+* chore: update binding java artifact name in README by @tisonkun in https://github.com/apache/opendal/pull/5137
+* chore(fixtures/s3): Upgrade MinIO version by @ForestLH in https://github.com/apache/opendal/pull/5142
+* chore(deps): bump clap from 4.5.17 to 4.5.18 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/5149
+* chore(deps): bump crate-ci/typos from 1.24.3 to 1.24.6 by @dependabot in https://github.com/apache/opendal/pull/5150
+* chore(deps): bump anyhow from 1.0.87 to 1.0.89 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5151
+* chore(deps): bump anyhow from 1.0.87 to 1.0.89 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5152
+* chore: fix typos in tokio_executor.rs by @tisonkun in https://github.com/apache/opendal/pull/5157
+* chore: hint when java tests are skipped by @tisonkun in https://github.com/apache/opendal/pull/5158
+* chore: Include license in the packaged crate by @davide125 in https://github.com/apache/opendal/pull/5176
+
 ## [v0.50.0] - 2024-09-11
 
 ### Added
@@ -4005,6 +4064,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.50.1]: https://github.com/apache/opendal/compare/v0.50.0...v0.50.1
 [v0.50.0]: https://github.com/apache/opendal/compare/v0.49.2...v0.50.0
 [v0.49.2]: https://github.com/apache/opendal/compare/v0.49.1...v0.49.2
 [v0.49.1]: https://github.com/apache/opendal/compare/v0.49.0...v0.49.1

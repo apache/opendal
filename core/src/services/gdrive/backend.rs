@@ -153,9 +153,9 @@ impl Access for GdriveBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let path = build_abs_path(&self.core.root, path);
-        let l = GdriveLister::new(path, self.core.clone());
+        let l = GdriveLister::new(path, self.core.clone(), args);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 

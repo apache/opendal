@@ -49,17 +49,22 @@ impl oio::List for FtpLister {
 
         let path = self.path.to_string() + de.name();
 
-        let entry = if de.is_file() {
-            oio::Entry::new(
-                &path,
-                Metadata::new(EntryMode::FILE)
-                    .with_content_length(de.size() as u64)
-                    .with_last_modified(de.modified().into()),
-            )
+        let mut meta = if de.is_file() {
+            Metadata::new(EntryMode::FILE)
         } else if de.is_directory() {
-            oio::Entry::new(&format!("{}/", &path), Metadata::new(EntryMode::DIR))
+            Metadata::new(EntryMode::DIR)
         } else {
-            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
+            Metadata::new(EntryMode::Unknown)
+        };
+        meta.set_content_length(de.size() as u64);
+        meta.set_last_modified(de.modified().into());
+
+        let entry = if de.is_file() {
+            oio::Entry::new(&path, meta)
+        } else if de.is_directory() {
+            oio::Entry::new(&format!("{}/", &path), meta)
+        } else {
+            oio::Entry::new(&path, meta)
         };
 
         Ok(Some(entry))

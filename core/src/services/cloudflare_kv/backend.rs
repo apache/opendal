@@ -17,8 +17,11 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::vec;
 
 use bytes::Buf;
+use futures::stream;
+use futures::stream::iter;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -181,6 +184,8 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type ScanIter = stream::Iter<vec::IntoIter<Result<String>>>;
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::CloudflareKv,
@@ -240,7 +245,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
         let mut url = format!("{}/keys", self.url_prefix);
         if !path.is_empty() {
             url = format!("{}?prefix={}", url, path);
@@ -261,7 +266,13 @@ impl kv::Adapter for Adapter {
                             format!("failed to parse error response: {}", e),
                         )
                     })?;
-                Ok(response.result.into_iter().map(|r| r.name).collect())
+                Ok(iter(
+                    response
+                        .result
+                        .into_iter()
+                        .map(|r| Ok(r.name))
+                        .collect::<Vec<_>>(),
+                ))
             }
             _ => Err(parse_error(resp)),
         }

@@ -18,17 +18,28 @@
 use std::fmt::Debug;
 use std::future::ready;
 
+use futures::stream::Empty;
 use futures::Future;
+use futures::Stream;
 
 use crate::raw::*;
 use crate::Capability;
 use crate::Scheme;
 use crate::*;
 
+/// A noop placeholder for Adapter::ScanIter
+pub type EmptyScanIter = Empty<Result<String>>;
+
 /// KvAdapter is the adapter to underlying kv services.
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
+    /// async iterator type for Adapter::scan()
+    ///
+    /// TODO: consider to replace it with std::async_iter::AsyncIterator after stablized
+    /// TODO: use default associate type `= EmptyScanIter` after stablized
+    type ScanIter: Stream<Item = Result<String>> + Send + Unpin;
+
     /// Return the metadata of this key value accessor.
     fn metadata(&self) -> Metadata;
 
@@ -81,7 +92,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Scan a key prefix to get all keys that start with this key.
-    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Self::ScanIter>> + MaybeSend {
         let _ = path;
 
         ready(Err(Error::new(

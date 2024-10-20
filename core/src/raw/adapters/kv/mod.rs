@@ -21,6 +21,7 @@
 
 mod api;
 pub use api::Adapter;
+pub use api::EmptyScanIter;
 pub use api::Metadata;
 
 mod backend;

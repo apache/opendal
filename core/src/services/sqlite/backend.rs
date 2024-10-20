@@ -17,8 +17,15 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::pin::Pin;
 use std::str::FromStr;
+use std::task::Context;
+use std::task::Poll;
 
+use futures::stream::BoxStream;
+use futures::Stream;
+use futures::StreamExt;
+use ouroboros::self_referencing;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::sync::OnceCell;
@@ -188,7 +195,27 @@ impl Adapter {
     }
 }
 
+#[self_referencing]
+pub struct SqlStream {
+    pool: SqlitePool,
+    query: String,
+
+    #[borrows(pool, query)]
+    #[covariant]
+    stream: BoxStream<'this, Result<String>>,
+}
+
+impl Stream for SqlStream {
+    type Item = Result<String>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.with_stream_mut(|s| s.poll_next_unpin(cx))
+    }
+}
+
 impl kv::Adapter for Adapter {
+    type ScanIter = SqlStream;
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::Sqlite,
@@ -249,19 +276,25 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
         let pool = self.get_client().await?;
+        let stream = SqlStreamBuilder {
+            pool: pool.clone(),
+            query: format!(
+                "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
+                self.key_field, self.table, self.key_field
+            ),
+            stream_builder: |pool, query| {
+                sqlx::query_scalar(query)
+                    .bind(format!("{path}%"))
+                    .fetch(pool)
+                    .map(|v| v.map_err(parse_sqlite_error))
+                    .boxed()
+            },
+        }
+        .build();
 
-        let value = sqlx::query_scalar(&format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
-            self.key_field, self.table, self.key_field
-        ))
-        .bind(format!("{path}%"))
-        .fetch_all(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
-
-        Ok(value)
+        Ok(stream)
     }
 }
 

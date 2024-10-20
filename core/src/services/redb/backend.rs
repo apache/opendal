@@ -111,6 +111,8 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type ScanIter = kv::EmptyScanIter;
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::Redb,

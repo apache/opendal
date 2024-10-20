@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::vec;
 
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -27,6 +28,8 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
+use futures::stream;
+use futures::stream::iter;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -271,6 +274,8 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type ScanIter = stream::Iter<vec::IntoIter<Result<String>>>;
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::Etcd,
@@ -310,7 +315,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
         let mut client = self.conn().await?;
         let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
         let resp = client
@@ -323,10 +328,10 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            res.push(v);
+            res.push(Ok(v));
         }
 
-        Ok(res)
+        Ok(iter(res))
     }
 }
 

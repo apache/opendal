@@ -1,0 +1,1 @@
+searchState.loadedDescShard("virtiofs_opendal",0,"VirtioFS is a structure that represents the virtiofs \u2026\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.");

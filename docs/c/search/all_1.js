@@ -1,0 +1,1 @@
+var searchData=[["apache_20opendal\u2122_20c_20binding_20_28wip_29_1",["Apache OpenDAL\u2122 C Binding (WIP)",["../index.html",1,""]]]];

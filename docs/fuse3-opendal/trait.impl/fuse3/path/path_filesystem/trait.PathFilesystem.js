@@ -1,0 +1,1 @@
+!function(){var e={fuse3_opendal:[['impl PathFilesystem for <a class="struct" href="fuse3_opendal/struct.Filesystem.html" title="struct fuse3_opendal::Filesystem">Filesystem</a>']]};window.register_implementors?window.register_implementors(e):window.pending_implementors=e}();

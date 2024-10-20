@@ -1,0 +1,1 @@
+!function(){var t={opendal:[['impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html" title="trait core::ops::drop::Drop">Drop</a> for <a class="struct" href="opendal/struct.StdWriter.html" title="struct opendal::StdWriter">StdWriter</a>']]};window.register_implementors?window.register_implementors(t):window.pending_implementors=t}();

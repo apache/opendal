@@ -961,6 +961,13 @@ impl Access for S3Backend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        if args.version().is_some() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning, cannot stat with version",
+            ));
+        }
+
         let resp = self.core.s3_head_object(path, args).await?;
 
         let status = resp.status();
@@ -997,6 +1004,13 @@ impl Access for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        if args.version().is_some() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning, cannot read with version",
+            ));
+        }
+
         let resp = self.core.s3_get_object(path, args.range(), &args).await?;
 
         let status = resp.status();
@@ -1028,6 +1042,13 @@ impl Access for S3Backend {
             return Ok(RpDelete::default());
         }
 
+        if args.version().is_some() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning, cannot delete with version",
+            ));
+        }
+
         let resp = self.core.s3_delete_object(path, &args).await?;
 
         let status = resp.status();
@@ -1046,7 +1067,7 @@ impl Access for S3Backend {
         if args.version() && !self.core.enable_versioning {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "the bucket doesn't enable versioning",
+                "the bucket doesn't enable versioning, cannot list with version",
             ));
         }
 

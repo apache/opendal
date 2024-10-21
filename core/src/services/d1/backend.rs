@@ -258,6 +258,8 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type Scanner = ();
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::D1,

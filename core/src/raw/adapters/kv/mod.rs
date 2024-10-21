@@ -22,6 +22,9 @@
 mod api;
 pub use api::Adapter;
 pub use api::Metadata;
+pub use api::Scan;
+pub use api::ScanStdIter;
+pub use api::Scanner;
 
 mod backend;
 pub use backend::Backend;

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::future::ready;
+use std::ops::DerefMut;
 
 use futures::Future;
 
@@ -25,10 +26,69 @@ use crate::Capability;
 use crate::Scheme;
 use crate::*;
 
+/// ScanIter is the async iterator returned by `Adapter::scan`.
+pub trait Scan: Send + Sync + Unpin {
+    /// Fetch the next key in the current key prefix
+    ///
+    /// `None` means no further key will be returned
+    fn next(&mut self) -> impl Future<Output = Option<Result<String>>> + MaybeSend;
+}
+
+/// A noop implementation of Scan
+impl Scan for () {
+    async fn next(&mut self) -> Option<Result<String>> {
+        None
+    }
+}
+
+/// A ScanIterator implementation for all trivial non-async iterators
+pub struct ScanStdIter<I>(I);
+
+impl<I> ScanStdIter<I>
+where
+    I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
+{
+    /// Create a new ScanStdIter from an Iterator
+    pub fn new(inner: I) -> Self {
+        Self(inner)
+    }
+}
+
+impl<I> Scan for ScanStdIter<I>
+where
+    I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
+{
+    async fn next(&mut self) -> Option<Result<String>> {
+        self.0.next()
+    }
+}
+
+/// A type-erased wrapper of Scan
+pub type Scanner = Box<dyn ScanDyn>;
+
+pub trait ScanDyn: Unpin + Send + Sync {
+    fn next_dyn(&mut self) -> BoxedFuture<Option<Result<String>>>;
+}
+
+impl<T: Scan + ?Sized> ScanDyn for T {
+    fn next_dyn(&mut self) -> BoxedFuture<Option<Result<String>>> {
+        Box::pin(self.next())
+    }
+}
+
+impl<T: ScanDyn + ?Sized> Scan for Box<T> {
+    async fn next(&mut self) -> Option<Result<String>> {
+        self.deref_mut().next_dyn().await
+    }
+}
+
 /// KvAdapter is the adapter to underlying kv services.
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
+    /// TODO: use default associate type `= ()` after stablized
+    type Scanner: Scan;
+
     /// Return the metadata of this key value accessor.
     fn metadata(&self) -> Metadata;
 
@@ -81,7 +141,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Scan a key prefix to get all keys that start with this key.
-    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Self::Scanner>> + MaybeSend {
         let _ = path;
 
         ready(Err(Error::new(

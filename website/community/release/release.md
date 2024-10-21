@@ -41,7 +41,7 @@ Refer to [Setup GPG Key](reference/setup_gpg.md) to make sure the GPG key has be
 
 ## Start discussion about the next release
 
-Start a discussion about the next release via sending email to: <dev@opendal.apache.org>:
+Start a discussion at [OpenDAL Discussion General](https://github.com/apache/opendal/discussions/categories/general):
 
 Title:
 
@@ -97,11 +97,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 #### GitHub Side
 
 - [ ] Bump version in project
-  - [ ] rust
-  - [ ] cpp
-  - [ ] haskell
-  - [ ] java
-  - [ ] nodejs
 - [ ] Update docs
 - [ ] Generate dependencies list
 - [ ] Push release candidate tag to GitHub
@@ -161,7 +156,7 @@ Please note that this version is the exact version of the release, not the relea
 
 ### Generate dependencies list
 
-Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html). 
+Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html).
 
 Running `python3 ./scripts/dependencies.py generate` to update the dependency list of every package.
 
@@ -298,7 +293,7 @@ Additionally, you should also drop the staging Maven artifacts on https://reposi
 
 OpenDAL requires votes from both the OpenDAL Community.
 
-Vote should send email to: <dev@opendal.apache.org>:
+Start a VOTE at [OpenDAL Discussion General](https://github.com/apache/opendal/discussions/categories/general):
 
 Title:
 
@@ -344,37 +339,36 @@ Please download, verify, and test.
 The VOTE will be open for at least 72 hours and until the necessary
 number of votes are reached.
 
-[ ] +1 approve
-[ ] +0 no opinion
-[ ] -1 disapprove with the reason
+- [ ] +1 approve
+- [ ] +0 no opinion
+- [ ] -1 disapprove with the reason
 
 To learn more about apache opendal, please see https://opendal.apache.org/
 
 Checklist for reference:
 
-[ ] Download links are valid.
-[ ] Checksums and signatures.
-[ ] LICENSE/NOTICE files exist
-[ ] No unexpected binary files
-[ ] All source files have ASF headers
-[ ] Can compile from source
+- [ ] Download links are valid.
+- [ ] Checksums and signatures.
+- [ ] LICENSE/NOTICE files exist
+- [ ] No unexpected binary files
+- [ ] All source files have ASF headers
+- [ ] Can compile from source
 
 Use our verify.py to assist in the verify process:
 
+```shell
 svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
-
 cd opendal-dev
-
 curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
-
 python verify.py
+```
 
 Thanks
 
 ${name}
 ```
 
-Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
+Example: <https://github.com/apache/opendal/discussions/5211>
 
 The vote should be open for **at least 72 hours** except the following cases:
 
@@ -468,7 +462,7 @@ We need to check the language binding artifacts in the language package repo to 
 - Node.js: <https://www.npmjs.com/package/opendal>
 
 For Java binding, if we cannot find the latest version of artifacts in the repo,
-we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo. 
+we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo.
 
 For non-Java bindings, if we cannot find the latest version of artifacts in the repo,
 we need to check the GitHub action status.
@@ -484,7 +478,7 @@ we need to check the GitHub action status.
 
 ### Send the announcement
 
-Send the release announcement to `dev@opendal.apache.org` and CC `announce@apache.org`.
+Start an announcement to [OpenDAL Discussion Announcements](https://github.com/apache/opendal/discussions/categories/announcements) and send the same content to `announce@apache.org`.
 
 > Tips: Please follow the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announcement mailing list.
 
@@ -508,6 +502,7 @@ OpenDAL is a data access layer that allows users to easily and efficiently
 retrieve data from various storage services in a unified way.
 
 The notable changes since ${opendal_version} include:
+
 1. xxxxx
 2. yyyyyy
 3. zzzzzz

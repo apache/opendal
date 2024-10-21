@@ -1,3 +1,7 @@
+# Upgrade to v0.45
+
+Change to use `Cmake` to build the C binding.
+
 # Upgrade to v0.42
 
 The naming convention for C binding has been altered.

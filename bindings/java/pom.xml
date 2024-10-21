@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal</artifactId>
-    <version>0.47.3</version>
+    <version>0.47.4</version>
 
     <name>Apache OpenDAL™</name>
     <description>

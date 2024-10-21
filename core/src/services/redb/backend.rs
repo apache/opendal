@@ -111,7 +111,7 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    type ScanIter = kv::EmptyScanIter;
+    type Scanner = ();
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(

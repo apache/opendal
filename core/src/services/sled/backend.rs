@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use futures::stream::iter;
-use futures::Stream;
 use tokio::task;
 
 use crate::raw::adapters::kv;
@@ -139,7 +137,7 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    type ScanIter = Box<dyn Stream<Item = Result<String>> + Send + Unpin>;
+    type Scanner = kv::Scanner;
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -203,7 +201,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
@@ -211,7 +209,7 @@ impl kv::Adapter for Adapter {
             .await
             .map_err(new_task_join_error)??;
 
-        Ok(Box::new(iter(res.into_iter().map(Ok))))
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {

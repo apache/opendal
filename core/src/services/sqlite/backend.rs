@@ -213,8 +213,16 @@ impl Stream for SqlStream {
     }
 }
 
+unsafe impl Sync for SqlStream {}
+
+impl kv::Scan for SqlStream {
+    async fn next(&mut self) -> Option<Result<String>> {
+        <Self as StreamExt>::next(self).await
+    }
+}
+
 impl kv::Adapter for Adapter {
-    type ScanIter = SqlStream;
+    type Scanner = SqlStream;
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -276,7 +284,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let pool = self.get_client().await?;
         let stream = SqlStreamBuilder {
             pool: pool.clone(),

@@ -18,10 +18,7 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
-use futures::lock::Mutex;
-use futures::{Stream, StreamExt};
-
-use super::Adapter;
+use super::{Adapter, Scan};
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;
@@ -71,7 +68,7 @@ impl<S: Adapter> Access for Backend<S> {
     type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Lister = HierarchyLister<KvLister<S::ScanIter>>;
+    type Lister = HierarchyLister<KvLister<S::Scanner>>;
     type BlockingLister = HierarchyLister<BlockingKvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -194,22 +191,22 @@ impl<S: Adapter> Access for Backend<S> {
 
 pub struct KvLister<Iter> {
     root: String,
-    inner: Mutex<Iter>,
+    inner: Iter,
 }
 
 impl<Iter> KvLister<Iter>
 where
-    Iter: Stream<Item = Result<String>> + Send + Unpin,
+    Iter: Scan,
 {
     fn new(root: &str, inner: Iter) -> Self {
         Self {
             root: root.to_string(),
-            inner: Mutex::new(inner),
+            inner: inner,
         }
     }
 
     async fn inner_next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner.lock().await.next().await.transpose()?.map(|v| {
+        Ok(self.inner.next().await.transpose()?.map(|v| {
             let mode = if v.ends_with('/') {
                 EntryMode::DIR
             } else {
@@ -226,7 +223,7 @@ where
 
 impl<Iter> oio::List for KvLister<Iter>
 where
-    Iter: Stream<Item = Result<String>> + Send + Unpin,
+    Iter: Scan,
 {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner_next().await

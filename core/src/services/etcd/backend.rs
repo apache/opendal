@@ -28,8 +28,6 @@ use etcd_client::Error as EtcdError;
 use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use futures::stream;
-use futures::stream::iter;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -274,7 +272,7 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    type ScanIter = stream::Iter<vec::IntoIter<Result<String>>>;
+    type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -315,7 +313,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let mut client = self.conn().await?;
         let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
         let resp = client
@@ -331,7 +329,7 @@ impl kv::Adapter for Adapter {
             res.push(Ok(v));
         }
 
-        Ok(iter(res))
+        Ok(kv::ScanStdIter::new(res.into_iter()))
     }
 }
 

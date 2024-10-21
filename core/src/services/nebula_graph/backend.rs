@@ -24,7 +24,6 @@ use std::vec;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::engine::Engine as _;
 use bb8::{PooledConnection, RunError};
-use futures::stream::{self, iter};
 use rust_nebula::{
     graph::GraphQuery, HostAddress, SingleConnSessionConf, SingleConnSessionManager,
 };
@@ -271,7 +270,7 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    type ScanIter = stream::Iter<vec::IntoIter<Result<String>>>;
+    type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -363,7 +362,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Self::ScanIter> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let path = path.replace("'", "\\'").replace('"', "\\\"");
         let query = format!(
             "LOOKUP ON {} WHERE {}.{} STARTS WITH '{}' YIELD properties(vertex).{} AS {};",
@@ -387,7 +386,7 @@ impl kv::Adapter for Adapter {
 
             res_vec.push(Ok(sub_path));
         }
-        Ok(iter(res_vec))
+        Ok(kv::ScanStdIter::new(res_vec.into_iter()))
     }
 }
 

@@ -14,6 +14,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
 | [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
 | [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
+| [D Binding]   | -                                                | -                                                                                 |
 | [Dotnet Binding]  | -                                                | -                                                                                 |
 | [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                         |
 | [Haskell Binding] | -                                                | -                                                                                 |
@@ -38,6 +39,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [C Binding Dev Docs]: https://opendal.apache.org/docs/c/
 [Cpp Binding]: bindings/cpp/README.md
 [Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
+[D Binding]: bindings/d/README.md
 [Dotnet Binding]: bindings/dotnet/README.md
 [Go Binding]: bindings/go/README.md
 [Go Binding Image]: https://badge.fury.io/go/github.com%2Fapache%2Fopendal%2Fbindings%2Fgo.svg

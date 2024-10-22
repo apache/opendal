@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use codspeed_criterion_compat::Criterion;
+use criterion::Criterion;
 use opendal::raw::tests::init_test_service;
 use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;

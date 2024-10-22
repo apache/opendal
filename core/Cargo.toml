@@ -380,7 +380,6 @@ probe = { version = "0.5.1", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
-codspeed-criterion-compat = { version = "2.6.0", features = ["async", "async_tokio"] }
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 fastrace = { version = "0.6", features = ["enable"] }

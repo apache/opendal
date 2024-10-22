@@ -17,8 +17,8 @@
 
 use std::time::Duration;
 
-use codspeed_criterion_compat::BatchSize;
-use codspeed_criterion_compat::Criterion;
+use criterion::BatchSize;
+use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;

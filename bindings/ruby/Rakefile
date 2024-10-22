@@ -23,9 +23,12 @@ require "rspec/core/rake_task"
 require "bundler/gem_tasks"
 require "standard/rake"
 
+GEMSPEC = Gem::Specification.load("opendal.gemspec")
+CRATE_PACKAGE_NAME = "opendal-ruby"
+
 RSpec::Core::RakeTask.new(:spec)
 
-Rake::ExtensionTask.new do |ext|
+Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
   ext.lib_dir = "lib/opendal_ruby"

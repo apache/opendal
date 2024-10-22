@@ -69,3 +69,6 @@ opam install -y dune ounit2 ocamlformat
 
 # Setup for Cpp binding
 sudo apt install -y ninja-build
+
+# Setup for D binding
+sudo apt install -y dmd dub

@@ -1,0 +1,37 @@
+{
+	"name": "opendal",
+	"license": "Apache-2.0",
+	"description": "Apache OpenDAL D bindings",
+	"excludedSourceFiles": ["source/opendal/package.d"],
+	"toolchainRequirements": {
+		"frontend": ">=2.105.3"
+	},
+	"buildTypes": {
+		"debug": {
+			"buildOptions": ["debugMode", "debugInfo"]
+		},
+		"release": {
+			"buildOptions": ["releaseMode", "optimize", "inline"]
+		}
+	},
+	"preBuildCommands": ["\"$DC\" -run $PACKAGE_DIR/build.d -- release"],
+	"configurations": [
+		{
+			"name": "opendal",
+			"targetType": "library",
+			"targetName": "opendal",
+			"sourceFiles": ["source/opendal/package.d"],
+			"targetPath": "lib",
+			"lflags-posix": ["-L$PACKAGE_DIR/lib"],
+			"lflags-windows": ["/LIBPATH:$PACKAGE_DIR\\lib"],
+			"libs": ["opendal_c"]
+		},
+		{
+			"name": "unittest",
+			"sourceFiles": ["source/opendal/package.d"],
+			"lflags-posix": ["-L$PACKAGE_DIR/lib"],
+			"lflags-windows": ["/LIBPATH:$PACKAGE_DIR\\lib"],
+			"libs": ["opendal_c"]
+		}
+	]
+}

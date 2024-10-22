@@ -69,8 +69,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
-  # Workaround for https://github.com/apache/opendal/issues/5000
-  # "services-mysql",
+  "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME how to support rocksdb services in bindings?

@@ -17,16 +17,13 @@
 
 # frozen_string_literal: true
 
+require "bundler/gem_tasks"
 require "rake/testtask"
 require "rake/extensiontask"
-require "rspec/core/rake_task"
-require "bundler/gem_tasks"
 require "standard/rake"
 
 GEMSPEC = Gem::Specification.load("opendal.gemspec")
 CRATE_PACKAGE_NAME = "opendal-ruby"
-
-RSpec::Core::RakeTask.new(:spec)
 
 Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
@@ -34,4 +31,12 @@ Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.lib_dir = "lib/opendal_ruby"
 end
 
-task default: %i[clobber compile spec standard]
+Rake::Task[:test].prerequisites << :compile
+
+Rake::TestTask.new do |t|
+  t.libs << "lib"
+  t.libs << "test"
+  t.pattern = "test/**/*_test.rb"
+end
+
+task default: %i[clobber compile test standard]

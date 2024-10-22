@@ -17,16 +17,21 @@
 
 # frozen_string_literal: true
 
-require "opendal"
+require "test_helper"
 
-RSpec.configure do |config|
-  # Enable flags like --only-failures and --next-failure
-  config.example_status_persistence_file_path = ".rspec_status"
+class OpenDalTest < ActiveSupport::TestCase
+  setup do
+    @op = OpenDAL::Operator.new("memory", nil)
+  end
 
-  # Disable RSpec exposing methods globally on `Module` and `main`
-  config.disable_monkey_patching!
+  test "should perform basic ops" do
+    path = "/path/to/file"
+    content = "OpenDAL Ruby is ready."
+    @op.write(path, content)
 
-  config.expect_with :rspec do |c|
-    c.syntax = :expect
+    stat = @op.stat(path)
+    assert stat.is_file
+    assert_equal content.length, stat.content_length
+    assert_equal content, @op.read(path), content
   end
 end

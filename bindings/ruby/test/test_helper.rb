@@ -17,20 +17,21 @@
 
 # frozen_string_literal: true
 
-RSpec.describe OpenDAL do
-  before :each do
-    @op = OpenDAL::Operator.new("memory", nil)
-  end
+require "active_support"
+require "minitest/autorun"
+require "minitest/reporters"
 
-  it "should perform basic ops" do
-    path = "/path/to/file"
-    content = "OpenDAL Ruby is ready."
-    @op.write(path, content)
+Minitest::Reporters.use!([Minitest::Reporters::DefaultReporter.new(:color => true)])
 
-    stat = @op.stat(path)
-    expect(stat.is_file).to eq(true)
-    expect(stat.content_length).to eq(content.length)
+require "opendal"
 
-    expect(@op.read(path)).to eq(content)
-  end
+# Uses `ActiveSupport::TestCase` for additional features including:
+# - additional assertions
+# - file fixtures
+# - parallel worker
+#
+# Read more https://edgeapi.rubyonrails.org/classes/ActiveSupport/TestCase.html
+class ActiveSupport::TestCase
+  parallelize(workers: :number_of_processors)
 end
+

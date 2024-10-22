@@ -41,13 +41,13 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install libgtest-dev ninja-build libboost-all-dev valgrind doxygen
+          sudo apt-get install ninja-build valgrind doxygen
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -69,3 +69,12 @@ jobs:
           cmake -GNinja -DOPENDAL_ENABLE_TESTING=ON ..
           ninja
           valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test
+
+      - name: Build Cpp binding with async && Run tests
+        working-directory: "bindings/cpp"
+        run: |
+          mkdir build-async
+          cd build-async
+          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
+          ninja
+          ./opendal_cpp_test

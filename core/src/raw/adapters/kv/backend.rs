@@ -206,7 +206,7 @@ where
     }
 
     async fn inner_next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner.next().await.transpose()?.map(|v| {
+        Ok(self.inner.next().await?.map(|v| {
             let mode = if v.ends_with('/') {
                 EntryMode::DIR
             } else {

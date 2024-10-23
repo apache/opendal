@@ -26,30 +26,37 @@ use crate::Capability;
 use crate::Scheme;
 use crate::*;
 
-/// ScanIter is the async iterator returned by `Adapter::scan`.
+/// Scan is the async iterator returned by `Adapter::scan`.
 pub trait Scan: Send + Sync + Unpin {
     /// Fetch the next key in the current key prefix
     ///
-    /// `None` means no further key will be returned
-    fn next(&mut self) -> impl Future<Output = Option<Result<String>>> + MaybeSend;
+    /// `Ok(None)` means no further key will be returned
+    fn next(&mut self) -> impl Future<Output = Result<Option<String>>> + MaybeSend;
 }
 
 /// A noop implementation of Scan
 impl Scan for () {
-    async fn next(&mut self) -> Option<Result<String>> {
-        None
+    async fn next(&mut self) -> Result<Option<String>> {
+        Ok(None)
     }
 }
 
-/// A ScanIterator implementation for all trivial non-async iterators
+/// A Scan implementation for all trivial non-async iterators
 pub struct ScanStdIter<I>(I);
 
+#[cfg(any(
+    feature = "services-cloudflare-kv",
+    feature = "services-etcd",
+    feature = "services-nebula-graph",
+    feature = "services-rocksdb",
+    feature = "services-sled"
+))]
 impl<I> ScanStdIter<I>
 where
     I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
 {
     /// Create a new ScanStdIter from an Iterator
-    pub fn new(inner: I) -> Self {
+    pub(crate) fn new(inner: I) -> Self {
         Self(inner)
     }
 }
@@ -58,8 +65,8 @@ impl<I> Scan for ScanStdIter<I>
 where
     I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
 {
-    async fn next(&mut self) -> Option<Result<String>> {
-        self.0.next()
+    async fn next(&mut self) -> Result<Option<String>> {
+        self.0.next().transpose()
     }
 }
 
@@ -67,17 +74,17 @@ where
 pub type Scanner = Box<dyn ScanDyn>;
 
 pub trait ScanDyn: Unpin + Send + Sync {
-    fn next_dyn(&mut self) -> BoxedFuture<Option<Result<String>>>;
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>>;
 }
 
 impl<T: Scan + ?Sized> ScanDyn for T {
-    fn next_dyn(&mut self) -> BoxedFuture<Option<Result<String>>> {
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>> {
         Box::pin(self.next())
     }
 }
 
 impl<T: ScanDyn + ?Sized> Scan for Box<T> {
-    async fn next(&mut self) -> Option<Result<String>> {
+    async fn next(&mut self) -> Result<Option<String>> {
         self.deref_mut().next_dyn().await
     }
 }

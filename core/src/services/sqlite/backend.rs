@@ -196,7 +196,7 @@ impl Adapter {
 }
 
 #[self_referencing]
-pub struct SqlStream {
+pub struct SqliteScanner {
     pool: SqlitePool,
     query: String,
 
@@ -205,7 +205,7 @@ pub struct SqlStream {
     stream: BoxStream<'this, Result<String>>,
 }
 
-impl Stream for SqlStream {
+impl Stream for SqliteScanner {
     type Item = Result<String>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -213,16 +213,16 @@ impl Stream for SqlStream {
     }
 }
 
-unsafe impl Sync for SqlStream {}
+unsafe impl Sync for SqliteScanner {}
 
-impl kv::Scan for SqlStream {
-    async fn next(&mut self) -> Option<Result<String>> {
-        <Self as StreamExt>::next(self).await
+impl kv::Scan for SqliteScanner {
+    async fn next(&mut self) -> Result<Option<String>> {
+        <Self as StreamExt>::next(self).await.transpose()
     }
 }
 
 impl kv::Adapter for Adapter {
-    type Scanner = SqlStream;
+    type Scanner = SqliteScanner;
 
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
@@ -286,7 +286,7 @@ impl kv::Adapter for Adapter {
 
     async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let pool = self.get_client().await?;
-        let stream = SqlStreamBuilder {
+        let stream = SqliteScannerBuilder {
             pool: pool.clone(),
             query: format!(
                 "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",

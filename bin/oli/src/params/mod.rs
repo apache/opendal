@@ -15,31 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Provides the implementation of each command.
+//! Provides the implementation of common parameters.
 
-pub mod cat;
-pub mod cp;
-pub mod ls;
-pub mod rm;
-pub mod stat;
-
-#[derive(Debug, clap::Subcommand)]
-pub enum OliSubcommand {
-    Cat(cat::CatCmd),
-    Cp(cp::CopyCmd),
-    Ls(ls::LsCmd),
-    Rm(rm::RmCmd),
-    Stat(stat::StatCmd),
-}
-
-impl OliSubcommand {
-    pub async fn run(&self) -> anyhow::Result<()> {
-        match self {
-            Self::Cat(cmd) => cmd.run().await,
-            Self::Cp(cmd) => cmd.run().await,
-            Self::Ls(cmd) => cmd.run().await,
-            Self::Rm(cmd) => cmd.run().await,
-            Self::Stat(cmd) => cmd.run().await,
-        }
-    }
-}
+pub mod config;

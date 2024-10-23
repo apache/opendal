@@ -55,7 +55,7 @@ services-sled = ["opendal/services-sled"]
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["cargo", "string"] }
+clap = { version = "4", features = ["cargo", "string", "derive", "deprecated"] }
 dirs = "5.0.1"
 futures = "0.3"
 opendal = { version = "0.50.0", path = "../../core", features = [

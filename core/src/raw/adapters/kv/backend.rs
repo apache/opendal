@@ -201,7 +201,7 @@ where
     fn new(root: &str, inner: Iter) -> Self {
         Self {
             root: root.to_string(),
-            inner: inner,
+            inner,
         }
     }
 

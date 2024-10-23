@@ -22,9 +22,12 @@
 //! 'oli' or 'oli.exe' it offers the oli command-line interface, and
 //! when it is called 'ocp' it behaves as a proxy to 'oli cp'.
 
+use std::env;
+use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+use anyhow::anyhow;
 use anyhow::Result;
 use clap::value_parser;
 use oli::commands::OliSubcommand;
@@ -52,7 +55,60 @@ fn default_config_path() -> OsString {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli: Oli = clap::Parser::parse();
-    cli.subcommand.run().await?;
+    // Guard against infinite proxy recursion. This mostly happens due to
+    // bugs in oli.
+    do_recursion_guard()?;
+
+    match env::args()
+        .next()
+        .map(PathBuf::from)
+        .as_ref()
+        .and_then(|a| a.file_stem())
+        .and_then(OsStr::to_str)
+    {
+        Some("oli") => {
+            let cmd: Oli = clap::Parser::parse();
+            cmd.subcommand.run().await?;
+        }
+        Some("ocat") => {
+            let cmd: oli::commands::cat::CatCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
+        Some("ocp") => {
+            let cmd: oli::commands::cp::CopyCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
+        Some("ols") => {
+            let cmd: oli::commands::ls::LsCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
+        Some("orm") => {
+            let cmd: oli::commands::rm::RmCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
+        Some("ostat") => {
+            let cmd: oli::commands::stat::StatCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
+        Some(v) => {
+            println!("{v} is not supported")
+        }
+        None => return Err(anyhow!("couldn't determine self executable name")),
+    }
+
+    Ok(())
+}
+
+fn do_recursion_guard() -> Result<()> {
+    static OLI_RECURSION_COUNT_MAX: i32 = 20;
+
+    let recursion_count = env::var("OLI_RECURSION_COUNT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    if recursion_count > OLI_RECURSION_COUNT_MAX {
+        return Err(anyhow!("infinite recursion detected"));
+    }
+
     Ok(())
 }

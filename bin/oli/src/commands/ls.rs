@@ -15,24 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
-
 use anyhow::Result;
 use futures::TryStreamExt;
 
-use crate::commands::default_config_path;
 use crate::config::Config;
+use crate::params::config::ConfigParams;
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "ls", about = "List object", disable_version_flag = true)]
 pub struct LsCmd {
-    /// Path to the config file.
-    #[arg(
-        long,
-        default_value = default_config_path(),
-        value_parser = clap::value_parser!(PathBuf)
-    )]
-    pub config: PathBuf,
+    #[command(flatten)]
+    pub config_params: ConfigParams,
     #[arg()]
     pub target: String,
     /// List objects recursively.
@@ -42,7 +35,7 @@ pub struct LsCmd {
 
 impl LsCmd {
     pub async fn run(&self) -> Result<()> {
-        let cfg = Config::load(&self.config)?;
+        let cfg = Config::load(&self.config_params.config)?;
 
         let (op, path) = cfg.parse_location(&self.target)?;
 

@@ -16,25 +16,19 @@
 // under the License.
 
 use std::path::Path;
-use std::path::PathBuf;
 
 use anyhow::Result;
 use futures::AsyncWriteExt;
 use futures::TryStreamExt;
 
-use crate::commands::default_config_path;
 use crate::config::Config;
+use crate::params::config::ConfigParams;
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "cp", about = "Copy object", disable_version_flag = true)]
 pub struct CopyCmd {
-    /// Path to the config file.
-    #[arg(
-        long,
-        default_value = default_config_path(),
-        value_parser = clap::value_parser!(PathBuf)
-    )]
-    pub config: PathBuf,
+    #[command(flatten)]
+    pub config_params: ConfigParams,
     #[arg()]
     pub source: String,
     #[arg()]
@@ -46,7 +40,7 @@ pub struct CopyCmd {
 
 impl CopyCmd {
     pub async fn run(&self) -> Result<()> {
-        let cfg = Config::load(&self.config)?;
+        let cfg = Config::load(&self.config_params.config)?;
 
         let (src_op, src_path) = cfg.parse_location(&self.source)?;
 

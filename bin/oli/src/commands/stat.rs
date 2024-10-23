@@ -17,45 +17,47 @@
 
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use anyhow::Result;
-use clap::Arg;
-use clap::ArgMatches;
-use clap::Command;
 
 use crate::config::Config;
 
-pub async fn main(args: &ArgMatches) -> Result<()> {
-    let config_path = args
-        .get_one::<PathBuf>("config")
-        .ok_or_else(|| anyhow!("missing config path"))?;
-    let cfg = Config::load(config_path)?;
-
-    let target = args
-        .get_one::<String>("target")
-        .ok_or_else(|| anyhow!("missing target"))?;
-    let (op, path) = cfg.parse_location(target)?;
-
-    let meta = op.stat(&path).await?;
-    println!("path: {target}");
-    let size = meta.content_length();
-    println!("size: {size}");
-    if let Some(etag) = meta.etag() {
-        println!("etag: {etag}");
-    }
-    let file_type = meta.mode();
-    println!("type: {file_type}");
-    if let Some(content_type) = meta.content_type() {
-        println!("content-type: {content_type}");
-    }
-    if let Some(last_modified) = meta.last_modified() {
-        println!("last-modified: {last_modified}");
-    }
-
-    Ok(())
+#[derive(Debug, clap::Parser)]
+#[command(
+    name = "stat",
+    about = "Show object metadata",
+    disable_version_flag = true
+)]
+pub struct StatCmd {
+    /// Path to the config file.
+    #[arg(from_global)]
+    pub config: PathBuf,
+    #[arg()]
+    pub target: String,
 }
 
-pub fn cli(cmd: Command) -> Command {
-    cmd.about("show object metadata")
-        .arg(Arg::new("target").required(true))
+impl StatCmd {
+    pub async fn run(&self) -> Result<()> {
+        let cfg = Config::load(&self.config)?;
+
+        let target = &self.target;
+        println!("path: {target}");
+        let (op, path) = cfg.parse_location(target)?;
+
+        let meta = op.stat(&path).await?;
+        let size = meta.content_length();
+        println!("size: {size}");
+        if let Some(etag) = meta.etag() {
+            println!("etag: {etag}");
+        }
+        let file_type = meta.mode();
+        println!("type: {file_type}");
+        if let Some(content_type) = meta.content_type() {
+            println!("content-type: {content_type}");
+        }
+        if let Some(last_modified) = meta.last_modified() {
+            println!("last-modified: {last_modified}");
+        }
+
+        Ok(())
+    }
 }

@@ -22,92 +22,37 @@
 //! 'oli' or 'oli.exe' it offers the oli command-line interface, and
 //! when it is called 'ocp' it behaves as a proxy to 'oli cp'.
 
-use std::env;
-use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use anyhow::Result;
 use clap::value_parser;
-use clap::Arg;
-use clap::Command;
-use dirs::config_dir;
+use oli::commands::OliSubcommand;
 
-fn new_cmd(name: &'static str) -> Result<Command> {
-    let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
-    let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
+#[derive(Debug, clap::Parser)]
+#[command(about, version)]
+pub struct Oli {
+    /// Path to the config file.
+    #[arg(
+        long,
+        global = true,
+        default_value = default_config_path(),
+        value_parser = value_parser!(PathBuf)
+    )]
+    config: Option<PathBuf>,
 
-    Ok(Command::new(name)
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("config")
-                .long("config")
-                .help("Path to the config file")
-                .global(true)
-                .default_value(default_config_path)
-                .value_parser(value_parser!(PathBuf))
-                .required(false),
-        )
-        .subcommand_required(true)
-        .arg_required_else_help(true))
+    #[command(subcommand)]
+    subcommand: OliSubcommand,
+}
+
+fn default_config_path() -> OsString {
+    let d = dirs::config_dir().expect("unknown config dir");
+    d.join("oli/config.toml").as_os_str().to_owned()
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Guard against infinite proxy recursion. This mostly happens due to
-    // bugs in oli.
-    do_recursion_guard()?;
-
-    match env::args()
-        .next()
-        .map(PathBuf::from)
-        .as_ref()
-        .and_then(|a| a.file_stem())
-        .and_then(OsStr::to_str)
-    {
-        Some("oli") => {
-            let cmd = oli::commands::cli::cli(new_cmd("oli")?);
-            oli::commands::cli::main(&cmd.get_matches()).await?;
-        }
-        Some("ocat") => {
-            let cmd = oli::commands::cat::cli(new_cmd("ocat")?);
-            oli::commands::cat::main(&cmd.get_matches()).await?;
-        }
-        Some("ocp") => {
-            let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
-            oli::commands::cp::main(&cmd.get_matches()).await?;
-        }
-        Some("ols") => {
-            let cmd = oli::commands::ls::cli(new_cmd("ols")?);
-            oli::commands::ls::main(&cmd.get_matches()).await?;
-        }
-        Some("orm") => {
-            let cmd = oli::commands::rm::cli(new_cmd("orm")?);
-            oli::commands::rm::main(&cmd.get_matches()).await?;
-        }
-        Some("ostat") => {
-            let cmd = oli::commands::stat::cli(new_cmd("ostat")?);
-            oli::commands::stat::main(&cmd.get_matches()).await?;
-        }
-        Some(v) => {
-            println!("{v} is not supported")
-        }
-        None => return Err(anyhow!("couldn't determine self executable name")),
-    }
-
-    Ok(())
-}
-
-fn do_recursion_guard() -> Result<()> {
-    static OLI_RECURSION_COUNT_MAX: i32 = 20;
-
-    let recursion_count = env::var("OLI_RECURSION_COUNT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    if recursion_count > OLI_RECURSION_COUNT_MAX {
-        return Err(anyhow!("infinite recursion detected"));
-    }
-
+    let cli: Oli = clap::Parser::parse();
+    cli.subcommand.run().await?;
     Ok(())
 }

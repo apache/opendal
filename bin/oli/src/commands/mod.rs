@@ -15,27 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Commands provides the implementation of each commands.
-//!
-//! Each submodule represents a single command, and should export 2 functions respectively.
-//! The signature of those should be like the following:
-//!
-//! ```ignore
-//! pub async fn main(args: &ArgMatches) -> Result<()> {
-//!     // the main logic
-//! }
-//!
-//! // cli is used to customize the command, like setting the arguments.
-//! // As each command can be invoked like a separate binary,
-//! // we will pass a command with different name to get the complete command.
-//! pub fn cli(cmd: Command) -> Command {
-//!    // set the arguments, help message, etc.
-//! }
-//! ```
+//! Commands provides the implementation of each command.
 
 pub mod cat;
-pub mod cli;
 pub mod cp;
 pub mod ls;
 pub mod rm;
 pub mod stat;
+
+#[derive(Debug, clap::Subcommand)]
+pub enum OliSubcommand {
+    Cat(cat::CatCmd),
+    Cp(cp::CopyCmd),
+    Ls(ls::LsCmd),
+    Rm(rm::RmCmd),
+    Stat(stat::StatCmd),
+}
+
+impl OliSubcommand {
+    pub async fn run(&self) -> anyhow::Result<()> {
+        match self {
+            Self::Cat(cmd) => cmd.run().await,
+            Self::Cp(cmd) => cmd.run().await,
+            Self::Ls(cmd) => cmd.run().await,
+            Self::Rm(cmd) => cmd.run().await,
+            Self::Stat(cmd) => cmd.run().await,
+        }
+    }
+}

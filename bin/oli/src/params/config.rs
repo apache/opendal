@@ -15,31 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Provides the implementation of each command.
+use std::ffi::OsString;
+use std::path::PathBuf;
 
-pub mod cat;
-pub mod cp;
-pub mod ls;
-pub mod rm;
-pub mod stat;
-
-#[derive(Debug, clap::Subcommand)]
-pub enum OliSubcommand {
-    Cat(cat::CatCmd),
-    Cp(cp::CopyCmd),
-    Ls(ls::LsCmd),
-    Rm(rm::RmCmd),
-    Stat(stat::StatCmd),
+#[derive(Debug, clap::Args)]
+pub struct ConfigParams {
+    /// Path to the config file.
+    #[arg(
+        long,
+        default_value = default_config_path(),
+        value_parser = clap::value_parser!(PathBuf)
+    )]
+    pub config: PathBuf,
 }
 
-impl OliSubcommand {
-    pub async fn run(&self) -> anyhow::Result<()> {
-        match self {
-            Self::Cat(cmd) => cmd.run().await,
-            Self::Cp(cmd) => cmd.run().await,
-            Self::Ls(cmd) => cmd.run().await,
-            Self::Rm(cmd) => cmd.run().await,
-            Self::Stat(cmd) => cmd.run().await,
-        }
-    }
+fn default_config_path() -> OsString {
+    let d = dirs::config_dir().expect("unknown config dir");
+    d.join("oli/config.toml").as_os_str().to_owned()
 }

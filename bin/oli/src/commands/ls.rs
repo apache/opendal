@@ -15,53 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
-
-use anyhow::anyhow;
 use anyhow::Result;
-use clap::Arg;
-use clap::ArgAction;
-use clap::ArgMatches;
-use clap::Command;
 use futures::TryStreamExt;
 
 use crate::config::Config;
+use crate::params::config::ConfigParams;
 
-pub async fn main(args: &ArgMatches) -> Result<()> {
-    let config_path = args
-        .get_one::<PathBuf>("config")
-        .ok_or_else(|| anyhow!("missing config path"))?;
-    let cfg = Config::load(config_path)?;
-
-    let recursive = args.get_flag("recursive");
-
-    let target = args
-        .get_one::<String>("target")
-        .ok_or_else(|| anyhow!("missing target"))?;
-    let (op, path) = cfg.parse_location(target)?;
-
-    if !recursive {
-        let mut ds = op.lister(&path).await?;
-        while let Some(de) = ds.try_next().await? {
-            println!("{}", de.name());
-        }
-        return Ok(());
-    }
-
-    let mut ds = op.lister_with(&path).recursive(true).await?;
-    while let Some(de) = ds.try_next().await? {
-        println!("{}", de.path());
-    }
-    Ok(())
+#[derive(Debug, clap::Parser)]
+#[command(name = "ls", about = "List object", disable_version_flag = true)]
+pub struct LsCmd {
+    #[command(flatten)]
+    pub config_params: ConfigParams,
+    #[arg()]
+    pub target: String,
+    /// List objects recursively.
+    #[arg(short, long)]
+    pub recursive: bool,
 }
 
-pub fn cli(cmd: Command) -> Command {
-    cmd.about("ls").arg(Arg::new("target").required(true)).arg(
-        Arg::new("recursive")
-            .required(false)
-            .long("recursive")
-            .short('r')
-            .help("List recursively")
-            .action(ArgAction::SetTrue),
-    )
+impl LsCmd {
+    pub async fn run(&self) -> Result<()> {
+        let cfg = Config::load(&self.config_params.config)?;
+
+        let (op, path) = cfg.parse_location(&self.target)?;
+
+        if !self.recursive {
+            let mut ds = op.lister(&path).await?;
+            while let Some(de) = ds.try_next().await? {
+                println!("{}", de.name());
+            }
+            return Ok(());
+        }
+
+        let mut ds = op.lister_with(&path).recursive(true).await?;
+        while let Some(de) = ds.try_next().await? {
+            println!("{}", de.path());
+        }
+        Ok(())
+    }
 }

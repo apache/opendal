@@ -22,13 +22,18 @@ use anyhow::Result;
 use futures::AsyncWriteExt;
 use futures::TryStreamExt;
 
+use crate::commands::default_config_path;
 use crate::config::Config;
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "cp", about = "Copy object", disable_version_flag = true)]
 pub struct CopyCmd {
     /// Path to the config file.
-    #[arg(from_global)]
+    #[arg(
+        long,
+        default_value = default_config_path(),
+        value_parser = clap::value_parser!(PathBuf)
+    )]
     pub config: PathBuf,
     #[arg()]
     pub source: String,

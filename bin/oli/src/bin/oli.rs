@@ -24,33 +24,17 @@
 
 use std::env;
 use std::ffi::OsStr;
-use std::ffi::OsString;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use clap::value_parser;
 use oli::commands::OliSubcommand;
 
 #[derive(Debug, clap::Parser)]
 #[command(about, version)]
 pub struct Oli {
-    /// Path to the config file.
-    #[arg(
-        long,
-        global = true,
-        default_value = default_config_path(),
-        value_parser = value_parser!(PathBuf)
-    )]
-    config: Option<PathBuf>,
-
     #[command(subcommand)]
     subcommand: OliSubcommand,
-}
-
-fn default_config_path() -> OsString {
-    let d = dirs::config_dir().expect("unknown config dir");
-    d.join("oli/config.toml").as_os_str().to_owned()
 }
 
 #[tokio::main]

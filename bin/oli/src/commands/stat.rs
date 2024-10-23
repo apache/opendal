@@ -19,6 +19,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
+use crate::commands::default_config_path;
 use crate::config::Config;
 
 #[derive(Debug, clap::Parser)]
@@ -29,7 +30,11 @@ use crate::config::Config;
 )]
 pub struct StatCmd {
     /// Path to the config file.
-    #[arg(from_global)]
+    #[arg(
+        long,
+        default_value = default_config_path(),
+        value_parser = clap::value_parser!(PathBuf)
+    )]
     pub config: PathBuf,
     #[arg()]
     pub target: String,

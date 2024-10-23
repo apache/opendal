@@ -17,11 +17,18 @@
 
 //! Commands provides the implementation of each command.
 
+use std::ffi::OsString;
+
 pub mod cat;
 pub mod cp;
 pub mod ls;
 pub mod rm;
 pub mod stat;
+
+fn default_config_path() -> OsString {
+    let d = dirs::config_dir().expect("unknown config dir");
+    d.join("oli/config.toml").as_os_str().to_owned()
+}
 
 #[derive(Debug, clap::Subcommand)]
 pub enum OliSubcommand {

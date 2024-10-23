@@ -356,12 +356,10 @@ Checklist for reference:
 
 Use our verify.py to assist in the verify process:
 
-```shell
-svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
-cd opendal-dev
-curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
-python verify.py
-```
+    svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
+    cd opendal-dev
+    curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
+    python verify.py
 
 Thanks
 

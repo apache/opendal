@@ -59,10 +59,10 @@ impl<A: Debug> Debug for CompatAccessor<A> {
 impl<A: opendal_v0_50::raw::Access> opendal_v0_49::raw::Access for CompatAccessor<A> {
     type Reader = CompatWrapper<A::Reader>;
     type Writer = CompatWrapper<A::Writer>;
-    type Lister = CompatWrapper<A::Lister>;
+    type Lister = CompatListWrapper<A::Lister>;
     type BlockingReader = CompatWrapper<A::BlockingReader>;
     type BlockingWriter = CompatWrapper<A::BlockingWriter>;
-    type BlockingLister = CompatWrapper<A::BlockingLister>;
+    type BlockingLister = CompatListWrapper<A::BlockingLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let new_info = self.0.info().deref().clone();
@@ -131,7 +131,10 @@ impl<A: opendal_v0_50::raw::Access> opendal_v0_49::raw::Access for CompatAccesso
             .list(path, convert::raw_op_list_from(args))
             .await
             .map_err(convert::error_into)?;
-        Ok((convert::raw_rp_list_into(rp), CompatWrapper(lister)))
+        Ok((
+            convert::raw_rp_list_into(rp),
+            CompatListWrapper(path.to_string(), lister),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> opendal_v0_49::Result<RpCopy> {
@@ -229,7 +232,10 @@ impl<A: opendal_v0_50::raw::Access> opendal_v0_49::raw::Access for CompatAccesso
             .0
             .blocking_list(path, convert::raw_op_list_from(args))
             .map_err(convert::error_into)?;
-        Ok((convert::raw_rp_list_into(rp), CompatWrapper(lister)))
+        Ok((
+            convert::raw_rp_list_into(rp),
+            CompatListWrapper(path.to_string(), lister),
+        ))
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> opendal_v0_49::Result<RpCopy> {
@@ -281,16 +287,6 @@ impl<I: opendal_v0_50::raw::oio::Write> opendal_v0_49::raw::oio::Write for Compa
     }
 }
 
-impl<I: opendal_v0_50::raw::oio::List> opendal_v0_49::raw::oio::List for CompatWrapper<I> {
-    async fn next(&mut self) -> opendal_v0_49::Result<Option<opendal_v0_49::raw::oio::Entry>> {
-        self.0
-            .next()
-            .await
-            .map(|v| v.map(convert::raw_oio_entry_into))
-            .map_err(convert::error_into)
-    }
-}
-
 impl<I: opendal_v0_50::raw::oio::BlockingRead> opendal_v0_49::raw::oio::BlockingRead
     for CompatWrapper<I>
 {
@@ -316,14 +312,50 @@ impl<I: opendal_v0_50::raw::oio::BlockingWrite> opendal_v0_49::raw::oio::Blockin
     }
 }
 
+/// A wrapper to convert `List` from v0.50 to v0.49.
+///
+/// The first `String` is the path of parent. We save it to check if the entry is itself.
+/// In OpenDAL v0.50, lister will return itself, this behavior is different from v0.49.
+struct CompatListWrapper<I>(String, I);
+
+impl<I: opendal_v0_50::raw::oio::List> opendal_v0_49::raw::oio::List for CompatListWrapper<I> {
+    async fn next(&mut self) -> opendal_v0_49::Result<Option<opendal_v0_49::raw::oio::Entry>> {
+        loop {
+            let Some(de) = self
+                .1
+                .next()
+                .await
+                .map(|v| v.map(convert::raw_oio_entry_into))
+                .map_err(convert::error_into)?
+            else {
+                return Ok(None);
+            };
+            if de.path() == self.0 {
+                continue;
+            }
+            return Ok(Some(de));
+        }
+    }
+}
+
 impl<I: opendal_v0_50::raw::oio::BlockingList> opendal_v0_49::raw::oio::BlockingList
-    for CompatWrapper<I>
+    for CompatListWrapper<I>
 {
     fn next(&mut self) -> opendal_v0_49::Result<Option<opendal_v0_49::raw::oio::Entry>> {
-        self.0
-            .next()
-            .map(|v| v.map(convert::raw_oio_entry_into))
-            .map_err(convert::error_into)
+        loop {
+            let Some(de) = self
+                .1
+                .next()
+                .map(|v| v.map(convert::raw_oio_entry_into))
+                .map_err(convert::error_into)?
+            else {
+                return Ok(None);
+            };
+            if de.path() == self.0 {
+                continue;
+            }
+            return Ok(Some(de));
+        }
     }
 }
 

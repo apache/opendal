@@ -345,6 +345,7 @@ impl<I: opendal_v0_50::raw::oio::BlockingList> opendal_v0_49::raw::oio::Blocking
 /// `transmute` also perform compile time checks to detect any type size mismatch like `OpWrite`
 /// in which we added a new field since v0.50.
 mod convert {
+    use opendal_v0_50::Metakey;
     use std::mem::transmute;
 
     pub fn error_into(e: opendal_v0_50::Error) -> opendal_v0_49::Error {
@@ -474,8 +475,28 @@ mod convert {
         unsafe { transmute(e) }
     }
 
+    /// OpenDAL v0.50's OpList has a new field `version`.
     pub fn raw_op_list_from(e: opendal_v0_49::raw::OpList) -> opendal_v0_50::raw::OpList {
-        unsafe { transmute(e) }
+        let mut op = opendal_v0_50::raw::OpList::new();
+
+        if let Some(v) = e.limit() {
+            op = op.with_limit(v);
+        }
+
+        if let Some(v) = e.start_after() {
+            op = op.with_start_after(v);
+        }
+
+        if e.recursive() {
+            op = op.with_recursive(true);
+        }
+
+        // There is no way for us to convert `metakey` without depending on `flagset`,
+        // let's just hardcode them.
+        op = op.with_metakey(Metakey::Mode | Metakey::LastModified);
+        op = op.with_concurrent(e.concurrent());
+
+        op
     }
 
     pub fn raw_rp_list_into(e: opendal_v0_50::raw::RpList) -> opendal_v0_49::raw::RpList {

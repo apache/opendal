@@ -22,6 +22,7 @@ use opendal_v0_49::raw::{
 };
 use opendal_v0_49::Buffer;
 use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 use std::sync::Arc;
 
 /// Convert an opendal v0.50 `Operator` into an opendal v0.49 `Operator` for compatibility.
@@ -64,7 +65,10 @@ impl<A: opendal_v0_50::raw::Access> opendal_v0_49::raw::Access for CompatAccesso
     type BlockingLister = CompatWrapper<A::BlockingLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        convert::raw_oio_accessor_info_into(self.0.info())
+        let new_info = self.0.info().deref().clone();
+        let old_info = convert::raw_oio_accessor_info_into(new_info);
+
+        Arc::new(old_info)
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> opendal_v0_49::Result<RpCreateDir> {
@@ -342,7 +346,6 @@ impl<I: opendal_v0_50::raw::oio::BlockingList> opendal_v0_49::raw::oio::Blocking
 /// in which we added a new field since v0.50.
 mod convert {
     use std::mem::transmute;
-    use std::sync::Arc;
 
     pub fn error_into(e: opendal_v0_50::Error) -> opendal_v0_49::Error {
         unsafe { transmute(e) }
@@ -357,9 +360,61 @@ mod convert {
     }
 
     pub fn raw_oio_accessor_info_into(
-        e: Arc<opendal_v0_50::raw::AccessorInfo>,
-    ) -> Arc<opendal_v0_49::raw::AccessorInfo> {
-        unsafe { transmute(e) }
+        e: opendal_v0_50::raw::AccessorInfo,
+    ) -> opendal_v0_49::raw::AccessorInfo {
+        let mut info = opendal_v0_49::raw::AccessorInfo::default();
+        info.set_name(e.name())
+            .set_root(e.root())
+            .set_scheme(e.scheme().into_static().parse().unwrap())
+            .set_native_capability(capability_into(e.native_capability()));
+
+        info
+    }
+
+    /// opendal_v0_50 added a new field `write_with_if_none_match`.
+    pub fn capability_into(e: opendal_v0_50::Capability) -> opendal_v0_49::Capability {
+        opendal_v0_49::Capability {
+            stat: e.stat,
+            stat_with_if_match: e.stat_with_if_match,
+            stat_with_if_none_match: e.stat_with_if_none_match,
+            stat_with_override_cache_control: e.stat_with_override_cache_control,
+            stat_with_override_content_disposition: e.stat_with_override_content_disposition,
+            stat_with_override_content_type: e.stat_with_override_content_type,
+            read: e.read,
+            read_with_if_match: e.read_with_if_match,
+            read_with_if_none_match: e.read_with_if_none_match,
+            read_with_override_cache_control: e.read_with_override_cache_control,
+            read_with_override_content_disposition: e.read_with_override_content_disposition,
+            read_with_override_content_type: e.read_with_override_content_type,
+            write: e.write,
+            write_can_multi: e.write_can_multi,
+            write_can_empty: e.write_can_empty,
+            write_can_append: e.write_can_append,
+            write_with_content_type: e.write_with_content_type,
+            write_with_content_disposition: e.write_with_content_disposition,
+            write_with_cache_control: e.write_with_cache_control,
+            write_with_user_metadata: e.write_with_user_metadata,
+            write_multi_max_size: e.write_multi_max_size,
+            write_multi_min_size: e.write_multi_min_size,
+            write_multi_align_size: e.write_multi_align_size,
+            write_total_max_size: e.write_total_max_size,
+            create_dir: e.create_dir,
+            delete: e.delete,
+            copy: e.copy,
+            rename: e.rename,
+            list: e.list,
+            list_with_limit: e.list_with_limit,
+            list_with_start_after: e.list_with_start_after,
+            list_with_recursive: e.list_with_recursive,
+            presign: e.presign,
+            presign_read: e.presign_read,
+            presign_stat: e.presign_stat,
+            presign_write: e.presign_write,
+            batch: e.batch,
+            batch_delete: e.batch_delete,
+            batch_max_operations: e.batch_max_operations,
+            blocking: e.blocking,
+        }
     }
 
     pub fn raw_oio_entry_into(e: opendal_v0_50::raw::oio::Entry) -> opendal_v0_49::raw::oio::Entry {
@@ -457,5 +512,22 @@ mod convert {
 
     pub fn raw_rp_batch_into(e: opendal_v0_50::raw::RpBatch) -> opendal_v0_49::raw::RpBatch {
         unsafe { transmute(e) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use opendal_v0_50 as new_o;
+
+    #[tokio::test]
+    async fn test_read() {
+        let new_op = new_o::Operator::from_config(new_o::services::MemoryConfig::default())
+            .unwrap()
+            .finish();
+        let old_op = super::v0_50_to_v0_49(new_op);
+
+        old_op.write("test", "hello, world!").await.unwrap();
+        let bs = old_op.read("test").await.unwrap();
+        assert_eq!(String::from_utf8_lossy(&bs.to_vec()), "hello, world!");
     }
 }

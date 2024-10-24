@@ -364,7 +364,7 @@ impl Access for AzdlsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let start_after = args.start_after().clone().map(|s| s.to_string());
+        let start_after = args.start_after().map(|s| s.to_string());
         let l = AzdlsLister::new(
             self.core.clone(),
             path.to_string(),

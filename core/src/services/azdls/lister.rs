@@ -56,7 +56,7 @@ impl oio::PageList for AzdlsLister {
             .core
             .azdls_list(
                 &self.path,
-                self.start_after.as_ref().map(|x| x.as_str()),
+                self.start_after.as_deref(),
                 &ctx.token,
                 self.limit,
             )

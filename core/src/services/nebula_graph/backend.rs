@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 #[cfg(feature = "tests")]
 use std::time::Duration;
+use std::vec;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::engine::Engine as _;
@@ -269,6 +270,8 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
+
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::NebulaGraph,
@@ -359,7 +362,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let path = path.replace("'", "\\'").replace('"', "\\\"");
         let query = format!(
             "LOOKUP ON {} WHERE {}.{} STARTS WITH '{}' YIELD properties(vertex).{} AS {};",
@@ -381,9 +384,9 @@ impl kv::Adapter for Adapter {
                 .map_err(parse_nebulagraph_dataset_error)?;
             let sub_path = value.as_string().map_err(parse_nebulagraph_dataset_error)?;
 
-            res_vec.push(sub_path);
+            res_vec.push(Ok(sub_path));
         }
-        Ok(res_vec)
+        Ok(kv::ScanStdIter::new(res_vec.into_iter()))
     }
 }
 

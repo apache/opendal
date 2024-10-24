@@ -30,12 +30,23 @@ pub struct AzdlsLister {
     core: Arc<AzdlsCore>,
 
     path: String,
+    start_after: Option<String>,
     limit: Option<usize>,
 }
 
 impl AzdlsLister {
-    pub fn new(core: Arc<AzdlsCore>, path: String, limit: Option<usize>) -> Self {
-        Self { core, path, limit }
+    pub fn new(
+        core: Arc<AzdlsCore>,
+        path: String,
+        limit: Option<usize>,
+        start_after: Option<String>,
+    ) -> Self {
+        Self {
+            core,
+            path,
+            start_after,
+            limit,
+        }
     }
 }
 
@@ -43,7 +54,12 @@ impl oio::PageList for AzdlsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azdls_list(&self.path, &ctx.token, self.limit)
+            .azdls_list(
+                &self.path,
+                self.start_after.as_ref().map(|x| x.as_str()),
+                &ctx.token,
+                self.limit,
+            )
             .await?;
 
         // azdls will return not found for not-exist path.
@@ -57,10 +73,13 @@ impl oio::PageList for AzdlsLister {
         }
 
         // Return self at the first page.
-        if ctx.token.is_empty() && !ctx.done {
+        let first_page = if ctx.token.is_empty() && !ctx.done {
             let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
             ctx.entries.push_back(e);
-        }
+            true
+        } else {
+            false
+        };
 
         // Check whether this list is done.
         if let Some(value) = resp.headers().get("x-ms-continuation") {
@@ -99,6 +118,15 @@ impl oio::PageList for AzdlsLister {
             if mode.is_dir() {
                 path += "/"
             };
+
+            // If on first page, skip the start_after value as az continuation token is inclusive.
+            if first_page {
+                if let Some(start_after) = &self.start_after {
+                    if path == *start_after {
+                        continue;
+                    }
+                }
+            }
 
             let de = oio::Entry::new(&path, meta);
 

@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 
+use base64::Engine;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -33,6 +34,8 @@ use reqsign::AzureStorageSigner;
 
 use crate::raw::*;
 use crate::*;
+
+use super::crc64;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
@@ -258,6 +261,7 @@ impl AzdlsCore {
     pub async fn azdls_list(
         &self,
         path: &str,
+        start_after: Option<&str>,
         continuation: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
@@ -276,8 +280,12 @@ impl AzdlsCore {
         if let Some(limit) = limit {
             write!(url, "&maxResults={limit}").expect("write into string must succeed");
         }
+
         if !continuation.is_empty() {
             write!(url, "&continuation={}", percent_encode_path(continuation))
+                .expect("write into string must succeed");
+        } else if let Some(start_after) = start_after {
+            write!(url, "&continuation={}", create_continuation(start_after))
                 .expect("write into string must succeed");
         }
 
@@ -317,4 +325,11 @@ impl AzdlsCore {
             Ok(None)
         }
     }
+}
+
+fn create_continuation(start_after: &str) -> String {
+    let crc = crc64::compute(format!("{}#$0", start_after).as_bytes());
+    let token = format!("{} 0 {}", crc, start_after);
+    let token = base64::prelude::BASE64_STANDARD.encode(token.as_bytes());
+    token
 }

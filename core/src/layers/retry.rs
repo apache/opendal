@@ -798,19 +798,18 @@ mod tests {
         type BlockingLister = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.set_native_capability(Capability {
-                read: true,
-                write: true,
-                write_can_multi: true,
-                stat: true,
-                list: true,
-                list_with_recursive: true,
-                batch: true,
-                ..Default::default()
-            });
-
-            am.into()
+            AccessorInfo::default()
+                .set_native_capability(Capability {
+                    read: true,
+                    write: true,
+                    write_can_multi: true,
+                    stat: true,
+                    list: true,
+                    list_with_recursive: true,
+                    batch: true,
+                    ..Default::default()
+                })
+                .into()
         }
 
         async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {

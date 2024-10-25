@@ -410,14 +410,13 @@ mod tests {
         type BlockingLister = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.set_native_capability(Capability {
-                read: true,
-                delete: true,
-                ..Default::default()
-            });
-
-            am.into()
+            AccessorInfo::default()
+                .set_native_capability(Capability {
+                    read: true,
+                    delete: true,
+                    ..Default::default()
+                })
+                .into()
         }
 
         /// This function will build a reader that always return pending.

@@ -89,7 +89,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 - To **build the library and header file**.
 
   ```sh
-  mkdir build && cd build
+  mkdir -p build && cd build
   cmake ..
   make
   ```

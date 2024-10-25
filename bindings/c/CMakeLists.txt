@@ -16,6 +16,8 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.22)
+cmake_policy(SET CMP0135 NEW)
+
 project(opendal-c)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -23,7 +25,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
-set(GOOGLETEST_VERSION 1.15.2)
 
 # force the compiler to support these standards
 set(CMAKE_C_STANDARD 11)
@@ -35,6 +36,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # fetch google test via GitHub
 include(FetchContent)
+
+set(GOOGLETEST_VERSION 1.15.2)
 FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/refs/tags/v${GOOGLETEST_VERSION}.zip

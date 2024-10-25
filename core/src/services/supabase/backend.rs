@@ -154,8 +154,8 @@ impl Access for SupabaseBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Supabase)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
@@ -167,9 +167,8 @@ impl Access for SupabaseBackend {
                 delete: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

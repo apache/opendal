@@ -522,8 +522,8 @@ impl Access for WebhdfsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Webhdfs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -540,8 +540,8 @@ impl Access for WebhdfsBackend {
                 list: true,
 
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     /// Create a file or directory

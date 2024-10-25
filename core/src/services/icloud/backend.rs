@@ -226,22 +226,22 @@ pub struct IcloudBackend {
 
 impl Access for IcloudBackend {
     type Reader = HttpBody;
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Icloud)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Icloud)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
                 read: true,
                 ..Default::default()
-            });
-        ma.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

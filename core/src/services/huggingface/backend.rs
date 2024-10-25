@@ -199,8 +199,8 @@ impl Access for HuggingfaceBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Huggingface)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
                 stat: true,
 
@@ -210,8 +210,8 @@ impl Access for HuggingfaceBackend {
                 list_with_recursive: true,
 
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

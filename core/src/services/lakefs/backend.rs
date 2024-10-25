@@ -202,8 +202,8 @@ impl Access for LakefsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Lakefs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Lakefs)
             .set_native_capability(Capability {
                 stat: true,
                 list: true,
@@ -212,8 +212,8 @@ impl Access for LakefsBackend {
                 delete: true,
                 copy: true,
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

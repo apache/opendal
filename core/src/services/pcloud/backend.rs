@@ -195,8 +195,8 @@ impl Access for PcloudBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Pcloud)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Pcloud)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -214,9 +214,8 @@ impl Access for PcloudBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

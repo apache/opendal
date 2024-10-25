@@ -210,8 +210,8 @@ impl Access for WebdavBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Webdav)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Webdav)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -232,9 +232,8 @@ impl Access for WebdavBackend {
                 // We already support recursive list but some details still need to polish.
                 // list_with_recursive: true,
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

@@ -424,8 +424,8 @@ impl Access for OssBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Oss)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Oss)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
@@ -476,9 +476,8 @@ impl Access for OssBackend {
                 batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

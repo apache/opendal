@@ -208,8 +208,8 @@ impl Access for AliyunDriveBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::AliyunDrive)
+        AccessorInfo::default()
+            .set_scheme(Scheme::AliyunDrive)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -232,8 +232,8 @@ impl Access for AliyunDriveBackend {
                 list_with_limit: true,
 
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

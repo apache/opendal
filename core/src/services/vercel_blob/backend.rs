@@ -152,8 +152,8 @@ impl Access for VercelBlobBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::VercelBlob)
+        AccessorInfo::default()
+            .set_scheme(Scheme::VercelBlob)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -172,9 +172,8 @@ impl Access for VercelBlobBackend {
                 list_with_limit: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

@@ -264,8 +264,8 @@ impl Access for FtpBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Ftp)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Ftp)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -282,9 +282,8 @@ impl Access for FtpBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

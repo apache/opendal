@@ -237,8 +237,8 @@ impl Access for CosBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Cos)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Cos)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
@@ -283,9 +283,8 @@ impl Access for CosBackend {
                 presign_write: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

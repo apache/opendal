@@ -169,8 +169,8 @@ impl Access for IpfsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Ipfs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -180,9 +180,8 @@ impl Access for IpfsBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     /// IPFS's stat behavior highly depends on its implementation.

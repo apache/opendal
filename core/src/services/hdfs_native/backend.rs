@@ -144,15 +144,15 @@ unsafe impl Sync for HdfsNativeBackend {}
 
 impl Access for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
-    type BlockingReader = ();
     type Writer = HdfsNativeWriter;
-    type BlockingWriter = ();
     type Lister = Option<HdfsNativeLister>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::HdfsNative)
+        AccessorInfo::default()
+            .set_scheme(Scheme::HdfsNative)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -162,9 +162,8 @@ impl Access for HdfsNativeBackend {
                 blocking: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

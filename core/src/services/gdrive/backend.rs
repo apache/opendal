@@ -48,8 +48,8 @@ impl Access for GdriveBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Gdrive)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -65,9 +65,8 @@ impl Access for GdriveBackend {
                 rename: true,
                 copy: true,
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

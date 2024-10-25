@@ -52,8 +52,8 @@ impl Access for VercelArtifactsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::VercelArtifacts)
+        AccessorInfo::default()
+            .set_scheme(Scheme::VercelArtifacts)
             .set_native_capability(Capability {
                 stat: true,
 
@@ -62,9 +62,8 @@ impl Access for VercelArtifactsBackend {
                 write: true,
 
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

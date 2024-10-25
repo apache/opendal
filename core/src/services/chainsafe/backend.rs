@@ -171,8 +171,8 @@ impl Access for ChainsafeBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Chainsafe)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Chainsafe)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -188,9 +188,8 @@ impl Access for ChainsafeBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

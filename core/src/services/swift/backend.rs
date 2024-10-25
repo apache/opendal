@@ -181,8 +181,8 @@ impl Access for SwiftBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Swift)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Swift)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -197,8 +197,8 @@ impl Access for SwiftBackend {
                 list_with_recursive: true,
 
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

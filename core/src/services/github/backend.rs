@@ -169,20 +169,15 @@ pub struct GithubBackend {
 
 impl Access for GithubBackend {
     type Reader = HttpBody;
-
     type Writer = GithubWriters;
-
     type Lister = oio::PageLister<GithubLister>;
-
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Github)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Github)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -200,9 +195,8 @@ impl Access for GithubBackend {
                 list_with_recursive: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

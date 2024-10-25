@@ -170,8 +170,8 @@ impl Access for FsBackend {
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Fs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Fs)
             .set_root(&self.core.root.to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
@@ -192,9 +192,8 @@ impl Access for FsBackend {
                 blocking: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

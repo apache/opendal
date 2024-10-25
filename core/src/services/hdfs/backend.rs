@@ -211,8 +211,8 @@ impl Access for HdfsBackend {
     type BlockingLister = Option<HdfsLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Hdfs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -231,9 +231,8 @@ impl Access for HdfsBackend {
                 blocking: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

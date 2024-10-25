@@ -247,8 +247,8 @@ impl Access for ObsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Obs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
@@ -292,9 +292,8 @@ impl Access for ObsBackend {
                 presign_write: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

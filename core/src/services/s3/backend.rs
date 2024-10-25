@@ -893,8 +893,8 @@ impl Access for S3Backend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::S3)
+        AccessorInfo::default()
+            .set_scheme(Scheme::S3)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
@@ -955,9 +955,8 @@ impl Access for S3Backend {
                 batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

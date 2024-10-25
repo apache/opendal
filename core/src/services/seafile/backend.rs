@@ -217,8 +217,8 @@ impl Access for SeafileBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Seafile)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Seafile)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -233,9 +233,8 @@ impl Access for SeafileBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

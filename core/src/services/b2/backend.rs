@@ -221,8 +221,8 @@ impl Access for B2Backend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::B2)
+        AccessorInfo::default()
+            .set_scheme(Scheme::B2)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -260,9 +260,8 @@ impl Access for B2Backend {
                 presign_stat: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info

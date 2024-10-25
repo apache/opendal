@@ -496,8 +496,8 @@ impl Access for AzblobBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azblob)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
             .set_name(&self.core.container)
             .set_native_capability(Capability {
@@ -534,9 +534,8 @@ impl Access for AzblobBackend {
                 batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

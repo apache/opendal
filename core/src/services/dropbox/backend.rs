@@ -44,8 +44,8 @@ impl Access for DropboxBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Dropbox)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -69,8 +69,8 @@ impl Access for DropboxBackend {
                 batch_delete: true,
 
                 ..Default::default()
-            });
-        ma.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

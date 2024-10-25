@@ -70,8 +70,8 @@ impl Access for OnedriveBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Onedrive)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 read: true,
@@ -81,9 +81,8 @@ impl Access for OnedriveBackend {
                 create_dir: true,
                 list: true,
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

@@ -201,8 +201,8 @@ impl Access for HttpBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Http)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Http)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -219,9 +219,8 @@ impl Access for HttpBackend {
                 presign_stat: !self.has_authorization(),
 
                 ..Default::default()
-            });
-
-        ma.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

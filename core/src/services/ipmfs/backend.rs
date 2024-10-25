@@ -69,8 +69,8 @@ impl Access for IpmfsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Ipmfs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -83,9 +83,8 @@ impl Access for IpmfsBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

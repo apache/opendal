@@ -222,8 +222,8 @@ impl Access for AzdlsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azdls)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Azdls)
             .set_root(&self.core.root)
             .set_name(&self.core.filesystem)
             .set_native_capability(Capability {
@@ -240,9 +240,8 @@ impl Access for AzdlsBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

@@ -235,8 +235,8 @@ impl Access for GhacBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Ghac)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Ghac)
             .set_root(&self.root)
             .set_name(&self.version)
             .set_native_capability(Capability {
@@ -249,8 +249,8 @@ impl Access for GhacBackend {
                 delete: true,
 
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     /// Some self-hosted GHES instances are backed by AWS S3 services which only returns

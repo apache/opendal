@@ -109,8 +109,8 @@ impl Access for MonoiofsBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Monoiofs)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Monoiofs)
             .set_root(&self.core.root().to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
@@ -122,8 +122,8 @@ impl Access for MonoiofsBackend {
                 create_dir: true,
                 copy: true,
                 ..Default::default()
-            });
-        am.into()
+            })
+            .into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

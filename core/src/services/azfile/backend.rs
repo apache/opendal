@@ -238,8 +238,8 @@ impl Access for AzfileBackend {
     type BlockingLister = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azfile)
+        AccessorInfo::default()
+            .set_scheme(Scheme::Azfile)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -254,9 +254,8 @@ impl Access for AzfileBackend {
                 list: true,
 
                 ..Default::default()
-            });
-
-        am.into()
+            })
+            .into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

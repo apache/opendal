@@ -202,17 +202,17 @@ mod tests {
 
     impl Access for MockService {
         type Reader = ();
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
+        type BlockingReader = ();
+        type BlockingWriter = ();
         type BlockingLister = MockLister;
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.full_capability_mut().list = true;
-
-            am.into()
+            let info = AccessorInfo::default();
+            let cap = info.full_capability();
+            info.set_full_capability(Capability { list: true, ..cap })
+                .into()
         }
 
         fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {

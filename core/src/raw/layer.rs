@@ -128,7 +128,6 @@ pub trait Layer<A: Access> {
 /// LayeredAccess is layered accessor that forward all not implemented
 /// method to inner.
 #[allow(missing_docs)]
-
 pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
     type Inner: Access;
     type Reader: oio::Read;
@@ -241,86 +240,86 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
 
 impl<L: LayeredAccess> Access for L {
     type Reader = L::Reader;
-    type BlockingReader = L::BlockingReader;
     type Writer = L::Writer;
-    type BlockingWriter = L::BlockingWriter;
     type Lister = L::Lister;
+    type BlockingReader = L::BlockingReader;
+    type BlockingWriter = L::BlockingWriter;
     type BlockingLister = L::BlockingLister;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        (self as &L).metadata()
+        LayeredAccess::metadata(self)
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        (self as &L).create_dir(path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        (self as &L).read(path, args).await
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        (self as &L).write(path, args).await
-    }
-
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        (self as &L).copy(from, to, args).await
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        (self as &L).rename(from, to, args).await
+        LayeredAccess::create_dir(self, path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        (self as &L).stat(path, args).await
+        LayeredAccess::stat(self, path, args).await
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        LayeredAccess::read(self, path, args).await
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        LayeredAccess::write(self, path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        (self as &L).delete(path, args).await
+        LayeredAccess::delete(self, path, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        (self as &L).list(path, args).await
+        LayeredAccess::list(self, path, args).await
     }
 
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        (self as &L).batch(args).await
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        LayeredAccess::copy(self, from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        LayeredAccess::rename(self, from, to, args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        (self as &L).presign(path, args).await
+        LayeredAccess::presign(self, path, args).await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        LayeredAccess::batch(self, args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        (self as &L).blocking_create_dir(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        (self as &L).blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        (self as &L).blocking_write(path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        (self as &L).blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        (self as &L).blocking_rename(from, to, args)
+        LayeredAccess::blocking_create_dir(self, path, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        (self as &L).blocking_stat(path, args)
+        LayeredAccess::blocking_stat(self, path, args)
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        LayeredAccess::blocking_read(self, path, args)
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        LayeredAccess::blocking_write(self, path, args)
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        (self as &L).blocking_delete(path, args)
+        LayeredAccess::blocking_delete(self, path, args)
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        (self as &L).blocking_list(path, args)
+        LayeredAccess::blocking_list(self, path, args)
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        LayeredAccess::blocking_copy(self, from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        LayeredAccess::blocking_rename(self, from, to, args)
     }
 }
 
@@ -353,16 +352,14 @@ mod tests {
 
     impl<A: Access> Access for Test<A> {
         type Reader = ();
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
+        type BlockingReader = ();
+        type BlockingWriter = ();
         type BlockingLister = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.set_scheme(Scheme::Custom("test"));
-            am.into()
+            Arc::new(AccessorInfo::default().set_scheme(Scheme::Custom("test")))
         }
 
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {

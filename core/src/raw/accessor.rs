@@ -76,7 +76,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// This function is required to be implemented.
     ///
     /// By returning AccessorInfo, underlying services can declare
-    /// some useful information about it self.
+    /// some useful information about itself.
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
@@ -110,7 +110,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - `stat` empty path means stat backend's root path.
-    /// - `stat` a path endswith "/" means stating a dir.
+    /// - `stat` a path ends with "/" means stating a dir.
     /// - `mode` and `content_length` must be set.
     fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
         let (_, _) = (path, args);
@@ -601,10 +601,10 @@ where
 
 impl Access for dyn AccessDyn {
     type Reader = oio::Reader;
-    type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
-    type BlockingWriter = oio::BlockingWriter;
     type Lister = oio::Lister;
+    type BlockingReader = oio::BlockingReader;
+    type BlockingWriter = oio::BlockingWriter;
     type BlockingLister = oio::BlockingLister;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -850,7 +850,7 @@ impl AccessorInfo {
     }
 
     /// Set [`Scheme`] for backend.
-    pub fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
+    pub fn set_scheme(mut self, scheme: Scheme) -> Self {
         self.scheme = scheme;
         self
     }
@@ -863,7 +863,7 @@ impl AccessorInfo {
     /// Set root for backend.
     ///
     /// Note: input root must be normalized.
-    pub fn set_root(&mut self, root: &str) -> &mut Self {
+    pub fn set_root(mut self, root: &str) -> Self {
         self.root = root.to_string();
         self
     }
@@ -879,7 +879,7 @@ impl AccessorInfo {
     }
 
     /// Set name of this backend.
-    pub fn set_name(&mut self, name: &str) -> &mut Self {
+    pub fn set_name(mut self, name: &str) -> Self {
         self.name = name.to_string();
         self
     }
@@ -893,9 +893,8 @@ impl AccessorInfo {
     ///
     /// # NOTES
     ///
-    /// Set native capability will also flush the full capability. The only way to change
-    /// full_capability is via `full_capability_mut`.
-    pub fn set_native_capability(&mut self, capability: Capability) -> &mut Self {
+    /// Set native capability will also flush the full capability.
+    pub fn set_native_capability(mut self, capability: Capability) -> Self {
         self.native_capability = capability;
         self.full_capability = capability;
         self
@@ -906,8 +905,9 @@ impl AccessorInfo {
         self.full_capability
     }
 
-    /// Get service's full capabilities.
-    pub fn full_capability_mut(&mut self) -> &mut Capability {
-        &mut self.full_capability
+    /// Set full capabilities for service.
+    pub fn set_full_capability(mut self, capability: Capability) -> Self {
+        self.full_capability = capability;
+        self
     }
 }

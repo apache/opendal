@@ -65,33 +65,27 @@ where
 
 impl<S: Adapter> Access for Backend<S> {
     type Reader = Buffer;
-    type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
-    type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
+    type BlockingReader = Buffer;
+    type BlockingWriter = KvWriter<S>;
     type BlockingLister = HierarchyLister<KvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am: AccessorInfo = self.kv.metadata().into();
-        am.set_root(&self.root);
+        let info = AccessorInfo::from(self.kv.metadata());
+        let cap = info.native_capability();
+        info.set_root(&self.root)
+            .set_native_capability(Capability {
+                stat: cap.read,
 
-        let mut cap = am.native_capability();
-        if cap.read {
-            cap.stat = true;
-        }
+                write_can_empty: cap.write,
+                delete: cap.write,
 
-        if cap.write {
-            cap.write_can_empty = true;
-            cap.delete = true;
-        }
+                list_with_recursive: cap.list,
 
-        if cap.list {
-            cap.list_with_recursive = true;
-        }
-
-        am.set_native_capability(cap);
-
-        am.into()
+                ..cap
+            })
+            .into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

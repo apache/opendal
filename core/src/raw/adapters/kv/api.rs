@@ -105,8 +105,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 
     /// Append a key into service
     fn append(&self, path: &str, value: &[u8]) -> impl Future<Output = Result<()>> + MaybeSend {
-        let _ = path;
-        let _ = value;
+        let _ = (path, value);
 
         ready(Err(Error::new(
             ErrorKind::Unsupported,
@@ -118,8 +117,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Append a key into service
     /// in blocking way.
     fn blocking_append(&self, path: &str, value: &[u8]) -> Result<()> {
-        let _ = path;
-        let _ = value;
+        let _ = (path, value);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -164,11 +162,9 @@ impl Metadata {
 
 impl From<Metadata> for AccessorInfo {
     fn from(m: Metadata) -> AccessorInfo {
-        let mut am = AccessorInfo::default();
-        am.set_name(m.name());
-        am.set_scheme(m.scheme());
-        am.set_native_capability(m.capabilities());
-
-        am
+        AccessorInfo::default()
+            .set_name(m.name())
+            .set_scheme(m.scheme())
+            .set_native_capability(m.capabilities())
     }
 }

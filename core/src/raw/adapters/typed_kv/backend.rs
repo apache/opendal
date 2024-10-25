@@ -53,45 +53,37 @@ where
 
 impl<S: Adapter> Access for Backend<S> {
     type Reader = Buffer;
-    type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
-    type BlockingWriter = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
+    type BlockingReader = Buffer;
+    type BlockingWriter = KvWriter<S>;
     type BlockingLister = HierarchyLister<KvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();
-        let mut am: AccessorInfo = AccessorInfo::default();
-        am.set_root(&self.root);
-        am.set_scheme(kv_info.scheme());
-        am.set_name(kv_info.name());
-
         let kv_cap = kv_info.capabilities();
-        let mut cap = Capability::default();
-        if kv_cap.get {
-            cap.read = true;
-            cap.stat = true;
-        }
 
-        if kv_cap.set {
-            cap.write = true;
-            cap.write_can_empty = true;
-        }
+        AccessorInfo::default()
+            .set_root(&self.root)
+            .set_scheme(kv_info.scheme())
+            .set_name(kv_info.name())
+            .set_native_capability(Capability {
+                read: kv_cap.get,
+                stat: kv_cap.get,
 
-        if kv_cap.delete {
-            cap.delete = true;
-        }
+                write: kv_cap.set,
+                write_can_empty: kv_cap.set,
 
-        if kv_cap.scan {
-            cap.list = true;
-            cap.list_with_recursive = true;
-        }
+                delete: kv_cap.delete,
 
-        cap.blocking = true;
+                list: kv_cap.scan,
+                list_with_recursive: kv_cap.scan,
 
-        am.set_native_capability(cap);
+                blocking: true,
 
-        am.into()
+                ..Default::default()
+            })
+            .into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

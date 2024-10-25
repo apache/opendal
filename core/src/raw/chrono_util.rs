@@ -23,7 +23,7 @@ use chrono::Utc;
 
 use crate::*;
 
-/// Parse dateimt from rfc2822.
+/// Parse datetime from rfc2822.
 ///
 /// For example: `Fri, 28 Nov 2014 21:00:09 +0900`
 pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
@@ -34,7 +34,7 @@ pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
         })
 }
 
-/// Parse dateimt from rfc3339.
+/// Parse datetime from rfc3339.
 ///
 /// For example: `2014-11-28T21:00:09+09:00`
 pub fn parse_datetime_from_rfc3339(s: &str) -> Result<DateTime<Utc>> {

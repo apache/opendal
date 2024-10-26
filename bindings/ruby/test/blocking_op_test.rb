@@ -30,7 +30,7 @@ class OpenDalTest < ActiveSupport::TestCase
     @op.write(path, content)
 
     stat = @op.stat(path)
-    assert stat.is_file
+    assert stat.file?
     assert_equal content.length, stat.content_length
     assert_equal content, @op.read(path), content
   end

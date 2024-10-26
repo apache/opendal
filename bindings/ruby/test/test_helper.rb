@@ -21,7 +21,7 @@ require "active_support"
 require "minitest/autorun"
 require "minitest/reporters"
 
-Minitest::Reporters.use!([Minitest::Reporters::DefaultReporter.new(:color => true)])
+Minitest::Reporters.use!([Minitest::Reporters::DefaultReporter.new(color: true)])
 
 require "opendal"
 
@@ -34,4 +34,3 @@ require "opendal"
 class ActiveSupport::TestCase
   parallelize(workers: :number_of_processors)
 end
-

@@ -54,6 +54,8 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-azfile",
 ] }
 rb-sys = { version = "0.9.102", default-features = false }
+# should be in sync with opendal
+bytes = "1.6"
 
 [build-dependencies]
 rb-sys-env = "0.1.2"

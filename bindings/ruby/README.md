@@ -17,13 +17,13 @@ bundle
 Build bindings:
 
 ```shell
-rake compile
+bundle exec rake compile
 ```
 
 Run tests:
 
 ```shell
-rake spec
+bundle exec rake spec
 ```
 
 ## License and Trademarks

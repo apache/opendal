@@ -18,20 +18,81 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
 
 class OpenDalTest < ActiveSupport::TestCase
   setup do
-    @op = OpenDAL::Operator.new("memory", nil)
+    @root = Dir.mktmpdir
+    File.write("#{@root}/sample", "Sample data for testing")
+    @op = OpenDAL::Operator.new("fs", {"root" => @root})
   end
 
-  test "should perform basic ops" do
-    path = "/path/to/file"
-    content = "OpenDAL Ruby is ready."
-    @op.write(path, content)
+  teardown do
+    FileUtils.remove_entry(@root) if File.exist?(@root)
+  end
 
-    stat = @op.stat(path)
+  test "write writes to a file" do
+    @op.write("/file", "OpenDAL Ruby is ready.")
+
+    assert_equal "OpenDAL Ruby is ready.", File.read("/#{@root}/file")
+  end
+
+  test "write writes binary" do
+    # writes 32-bit signed integers
+    @op.write("/file", [67305985, -50462977].pack("l*"))
+
+    assert_equal [67305985, -50462977], File.binread("/#{@root}/file").unpack("l*")
+  end
+
+  test "read reads file data" do
+    data = @op.read("/sample")
+
+    assert_equal "Sample data for testing", data
+  end
+
+  test "stat returns file metadata" do
+    stat = @op.stat("sample")
+
+    assert stat.is_a?(OpenDAL::Metadata)
+    assert_equal 23, stat.content_length
     assert stat.file?
-    assert_equal content.length, stat.content_length
-    assert_equal content, @op.read(path), content
+  end
+
+  test "create_dir creates directory" do
+    @op.create_dir("/new/directory/")
+    assert File.directory?("#{@root}/new/directory/")
+  end
+
+  test "exists returns existence" do
+    assert @op.exist?("sample")
+  end
+
+  test "delete removes file" do
+    @op.delete("/sample")
+
+    assert_not File.exist?("#{@root}/sample")
+  end
+
+  test "rename renames file" do
+    @op.rename("/sample", "/new_name")
+
+    assert_not File.exist?("#{@root}/sample")
+    assert File.exist?("#{@root}/new_name")
+  end
+
+  test "remove_all removes files" do
+    @op.create_dir("/nested/directory/")
+    @op.write("/nested/directory/text", "content")
+
+    @op.remove_all("/")
+
+    assert_not File.exist?(@root)
+  end
+
+  test "copy copies file" do
+    @op.copy("/sample", "/new_name")
+
+    assert File.exist?("#{@root}/sample")
+    assert File.exist?("#{@root}/new_name")
   end
 end

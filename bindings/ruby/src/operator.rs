@@ -80,6 +80,37 @@ impl Operator {
         let capability = self.0.info().full_capability();
         Ok(Capability::new(capability))
     }
+
+    /// Creates directory recursively similar as `mkdir -p`
+    /// The ending path must be `/`. Otherwise, OpenDAL throws `NotADirectory` error.
+    fn create_dir(&self, path: String) -> Result<(), Error> {
+        self.0.create_dir(&path).map_err(format_magnus_error)
+    }
+
+    /// Deletes given path
+    fn delete(&self, path: String) -> Result<(), Error> {
+        self.0.delete(&path).map_err(format_magnus_error)
+    }
+
+    /// Returns if this path exists
+    fn exists(&self, path: String) -> Result<bool, Error> {
+        self.0.exists(&path).map_err(format_magnus_error)
+    }
+
+    /// Renames a file from `from` to `to`
+    fn rename(&self, from: String, to: String) -> Result<(), Error> {
+        self.0.rename(&from, &to).map_err(format_magnus_error)
+    }
+
+    /// Removes the path and all nested directories and files recursively
+    fn remove_all(&self, path: String) -> Result<(), Error> {
+        self.0.remove_all(&path).map_err(format_magnus_error)
+    }
+
+    /// Copies a file from `from` to `to`.
+    fn copy(&self, from: String, to: String) -> Result<(), Error> {
+        self.0.copy(&from, &to).map_err(format_magnus_error)
+    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -89,6 +120,12 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("write", method!(Operator::write, 2))?;
     class.define_method("stat", method!(Operator::stat, 1))?;
     class.define_method("capability", method!(Operator::capability, 0))?;
+    class.define_method("create_dir", method!(Operator::create_dir, 1))?;
+    class.define_method("delete", method!(Operator::delete, 1))?;
+    class.define_method("exist?", method!(Operator::exists, 1))?;
+    class.define_method("rename", method!(Operator::rename, 2))?;
+    class.define_method("remove_all", method!(Operator::remove_all, 1))?;
+    class.define_method("copy", method!(Operator::copy, 2))?;
 
     Ok(())
 }

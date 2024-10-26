@@ -24,6 +24,7 @@ use magnus::Ruby;
 // This convention aligns with the Python binding.
 pub use ::opendal as ocore;
 
+mod capability;
 mod metadata;
 mod operator;
 
@@ -37,6 +38,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let gem_module = ruby.define_module("OpenDAL")?;
     let _ = operator::include(&gem_module);
     let _ = metadata::include(&gem_module);
+    let _ = capability::include(&gem_module);
 
     Ok(())
 }

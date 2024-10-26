@@ -26,6 +26,7 @@ use magnus::Error;
 use magnus::RModule;
 use magnus::RString;
 
+use crate::capability::Capability;
 use crate::metadata::Metadata;
 use crate::*;
 
@@ -73,6 +74,12 @@ impl Operator {
             .map_err(format_magnus_error)
             .map(Metadata::new)
     }
+
+    /// Gets capabilities of the current operator
+    fn capability(&self) -> Result<Capability, Error> {
+        let capability = self.0.info().full_capability();
+        Ok(Capability::new(capability))
+    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -81,6 +88,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("read", method!(Operator::read, 1))?;
     class.define_method("write", method!(Operator::write, 2))?;
     class.define_method("stat", method!(Operator::stat, 1))?;
+    class.define_method("capability", method!(Operator::capability, 0))?;
 
     Ok(())
 }

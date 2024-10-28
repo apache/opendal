@@ -22,7 +22,7 @@ use std::time::Duration;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
-use pyo3_asyncio::tokio::future_into_py;
+use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
 
@@ -32,7 +32,7 @@ fn build_operator(
 ) -> PyResult<ocore::Operator> {
     let mut op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
     if !op.info().full_capability().blocking {
-        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
         let _guard = runtime.enter();
         op = op
             .layer(ocore::layers::BlockingLayer::create().expect("blocking layer must be created"));

@@ -159,12 +159,3 @@ impl Metadata {
         self.capabilities
     }
 }
-
-impl From<Metadata> for AccessorInfo {
-    fn from(m: Metadata) -> AccessorInfo {
-        AccessorInfo::default()
-            .set_name(m.name())
-            .set_scheme(m.scheme())
-            .set_native_capability(m.capabilities())
-    }
-}

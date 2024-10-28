@@ -72,18 +72,22 @@ impl<S: Adapter> Access for Backend<S> {
     type BlockingLister = HierarchyLister<KvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let info = AccessorInfo::from(self.kv.metadata());
-        let cap = info.native_capability();
-        info.set_root(&self.root)
+        let kv_info = self.kv.metadata();
+        let kv_cap = kv_info.capabilities();
+
+        AccessorInfo::default()
+            .set_scheme(kv_info.scheme())
+            .set_name(kv_info.name())
+            .set_root(&self.root)
             .set_native_capability(Capability {
-                stat: cap.read,
+                stat: kv_cap.read,
 
-                write_can_empty: cap.write,
-                delete: cap.write,
+                write_can_empty: kv_cap.write,
+                delete: kv_cap.write,
 
-                list_with_recursive: cap.list,
+                list_with_recursive: kv_cap.list,
 
-                ..cap
+                ..kv_cap
             })
             .into()
     }

@@ -20,7 +20,7 @@ use std::sync::Arc;
 use futures::TryStreamExt;
 use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::prelude::*;
-use pyo3_asyncio::tokio::future_into_py;
+use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 
 use crate::*;

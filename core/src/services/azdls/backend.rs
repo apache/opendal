@@ -364,11 +364,7 @@ impl Access for AzdlsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzdlsLister::new(
-            self.core.clone(),
-            path.to_string(),
-            args,
-        );
+        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args);
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

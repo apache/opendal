@@ -285,8 +285,12 @@ impl AzdlsCore {
                 .expect("write into string must succeed");
         } else if let Some(start_after) = start_after {
             println!("start_after: {}", start_after);
-            write!(url, "&continuation={}", generate_continuation_from_start_after(start_after))
-                .expect("write into string must succeed");
+            write!(
+                url,
+                "&continuation={}",
+                generate_continuation_from_start_after(start_after)
+            )
+            .expect("write into string must succeed");
         }
 
         let mut req = Request::get(&url)
@@ -326,4 +330,3 @@ impl AzdlsCore {
         }
     }
 }
-

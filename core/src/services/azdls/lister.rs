@@ -36,11 +36,7 @@ pub struct AzdlsLister {
 }
 
 impl AzdlsLister {
-    pub fn new(
-        core: Arc<AzdlsCore>,
-        path: String,
-        args: OpList,
-    ) -> Self {
+    pub fn new(core: Arc<AzdlsCore>, path: String, args: OpList) -> Self {
         Self {
             core,
             path,

@@ -18,8 +18,6 @@
 #[cfg(feature = "services-azdls")]
 mod core;
 #[cfg(feature = "services-azdls")]
-mod crc64;
-#[cfg(feature = "services-azdls")]
 mod error;
 #[cfg(feature = "services-azdls")]
 mod lister;

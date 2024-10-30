@@ -350,9 +350,8 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
         self.inner
             .read()
             .await
-            .map(|bs| {
+            .inspect(|bs| {
                 self.processed += bs.len() as u64;
-                bs
             })
             .map_err(|err| {
                 err.with_operation(Operation::ReaderRead)
@@ -368,9 +367,8 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
     fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .map(|bs| {
+            .inspect(|bs| {
                 self.processed += bs.len() as u64;
-                bs
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingReaderRead)
@@ -451,9 +449,8 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
         self.inner
             .next()
             .await
-            .map(|bs| {
+            .inspect(|bs| {
                 self.processed += bs.is_some() as u64;
-                bs
             })
             .map_err(|err| {
                 err.with_operation(Operation::ListerNext)
@@ -468,9 +465,8 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .map(|bs| {
+            .inspect(|bs| {
                 self.processed += bs.is_some() as u64;
-                bs
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingListerNext)

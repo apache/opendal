@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::sync::Arc;
 
-use futures::FutureExt;
-use futures::TryFutureExt;
 use log::log;
 use log::Level;
 
@@ -292,7 +290,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .create_dir(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::CreateDir,
@@ -300,17 +298,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::CreateDir,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -339,15 +335,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     LoggingReader::new(self.info.clone(), self.logger.clone(), path, r),
                 )
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Read,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -374,15 +369,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
                 (rp, w)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Write,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -398,7 +392,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .copy(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
@@ -406,17 +400,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
                     &[("from", from), ("to", to)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -432,7 +424,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .rename(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Rename,
@@ -440,17 +432,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Rename,
                     &[("from", from), ("to", to)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -466,7 +456,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .stat(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Stat,
@@ -474,17 +464,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Stat,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -499,27 +487,25 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .delete(path, args.clone())
-            .inspect(|v| match v {
-                Ok(_) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::Delete,
-                        &[("path", path)],
-                        "finished",
-                        None,
-                    );
-                }
-                Err(err) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::Delete,
-                        &[("path", path)],
-                        "failed",
-                        Some(err),
-                    );
-                }
-            })
             .await
+            .inspect(|_| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Delete,
+                    &[("path", path)],
+                    "finished",
+                    None,
+                );
+            })
+            .inspect_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Delete,
+                    &[("path", path)],
+                    "failed",
+                    Some(err),
+                );
+            })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -533,31 +519,27 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .list(path, args)
-            .map(|v| match v {
-                Ok((rp, v)) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::List,
-                        &[("path", path)],
-                        "created lister",
-                        None,
-                    );
-                    let streamer =
-                        LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
-                    Ok((rp, streamer))
-                }
-                Err(err) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::List,
-                        &[("path", path)],
-                        "failed",
-                        Some(&err),
-                    );
-                    Err(err)
-                }
-            })
             .await
+            .map(|(rp, v)| {
+                self.logger.log(
+                    &self.info,
+                    Operation::List,
+                    &[("path", path)],
+                    "created lister",
+                    None,
+                );
+                let streamer = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
+                (rp, streamer)
+            })
+            .inspect_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::List,
+                    &[("path", path)],
+                    "failed",
+                    Some(err),
+                );
+            })
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -572,7 +554,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .presign(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Presign,
@@ -580,17 +562,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Presign,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -607,7 +587,8 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .batch(args)
-            .map_ok(|v| {
+            .await
+            .inspect(|v| {
                 self.logger.log(
                     &self.info,
                     Operation::Batch,
@@ -620,19 +601,16 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     ),
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Batch,
                     &[("op", op.into_static()), ("count", &count.to_string())],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
-            .await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -646,7 +624,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .blocking_create_dir(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingCreateDir,
@@ -654,17 +632,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingCreateDir,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -690,15 +666,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let r = LoggingReader::new(self.info.clone(), self.logger.clone(), path, r);
                 (rp, r)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingRead,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -724,15 +699,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
                 (rp, w)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingWrite,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -747,7 +721,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .blocking_copy(from, to, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingCopy,
@@ -755,17 +729,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingCopy,
                     &[("from", from), ("to", to)],
                     "",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -780,7 +752,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .blocking_rename(from, to, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingRename,
@@ -788,17 +760,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingRename,
                     &[("from", from), ("to", to)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -813,7 +783,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .blocking_stat(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingStat,
@@ -821,17 +791,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingStat,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -846,7 +814,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .blocking_delete(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingDelete,
@@ -854,17 +822,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingDelete,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -890,15 +856,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let li = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
                 (rp, li)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingList,
                     &[("path", path)],
                     "",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 }

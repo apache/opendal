@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::sync::Arc;
 
-use futures::FutureExt;
-use futures::TryFutureExt;
 use log::log;
 use log::Level;
 
@@ -499,27 +497,27 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .delete(path, args.clone())
-            .inspect(|v| match v {
-                Ok(_) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::Delete,
-                        &[("path", path)],
-                        "finished",
-                        None,
-                    );
-                }
-                Err(err) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::Delete,
-                        &[("path", path)],
-                        "failed",
-                        Some(err),
-                    );
-                }
-            })
             .await
+            .map(|v| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Delete,
+                    &[("path", path)],
+                    "finished",
+                    None,
+                );
+                v
+            })
+            .map_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Delete,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
+                err
+            })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -533,31 +531,28 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .list(path, args)
-            .map(|v| match v {
-                Ok((rp, v)) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::List,
-                        &[("path", path)],
-                        "created lister",
-                        None,
-                    );
-                    let streamer =
-                        LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
-                    Ok((rp, streamer))
-                }
-                Err(err) => {
-                    self.logger.log(
-                        &self.info,
-                        Operation::List,
-                        &[("path", path)],
-                        "failed",
-                        Some(&err),
-                    );
-                    Err(err)
-                }
-            })
             .await
+            .map(|(rp, v)| {
+                self.logger.log(
+                    &self.info,
+                    Operation::List,
+                    &[("path", path)],
+                    "created lister",
+                    None,
+                );
+                let streamer = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
+                (rp, streamer)
+            })
+            .map_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::List,
+                    &[("path", path)],
+                    "failed",
+                    Some(&err),
+                );
+                err
+            })
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -607,7 +602,8 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
         self.inner
             .batch(args)
-            .map_ok(|v| {
+            .await
+            .map(|v| {
                 self.logger.log(
                     &self.info,
                     Operation::Batch,
@@ -632,7 +628,6 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 );
                 err
             })
-            .await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

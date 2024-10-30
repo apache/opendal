@@ -15,16 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use criterion::BatchSize;
 use criterion::Criterion;
-use once_cell::sync::Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;
 
-pub static TOKIO: Lazy<tokio::runtime::Runtime> =
-    Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
+pub static TOKIO: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
 pub fn bench_concurrent_tasks(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_concurrent_tasks");

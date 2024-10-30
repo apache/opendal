@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
@@ -31,7 +32,6 @@ use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
@@ -73,8 +73,8 @@ impl Debug for GcsCore {
     }
 }
 
-static BACKOFF: Lazy<ExponentialBuilder> =
-    Lazy::new(|| ExponentialBuilder::default().with_jitter());
+static BACKOFF: LazyLock<ExponentialBuilder> =
+    LazyLock::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
     async fn load_token(&self) -> Result<Option<GoogleToken>> {

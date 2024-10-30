@@ -22,6 +22,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -32,7 +33,6 @@ use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use once_cell::sync::Lazy;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
@@ -52,7 +52,7 @@ use crate::services::S3Config;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
-static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     // AWS S3 Service.
     m.insert(

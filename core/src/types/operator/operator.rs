@@ -1965,7 +1965,7 @@ impl Operator {
     }
 }
 
-/// Operator presign API.
+/// # Operator presign API.
 impl Operator {
     /// Presign an operation for stat(head).
     ///

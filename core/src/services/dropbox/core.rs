@@ -20,6 +20,7 @@ use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
@@ -33,7 +34,6 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -43,7 +43,7 @@ use crate::raw::*;
 use crate::*;
 
 /// BACKOFF is the backoff used inside dropbox to make sure dropbox async task succeed.
-pub static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
+pub static BACKOFF: LazyLock<ExponentialBuilder> = LazyLock::new(|| {
     ExponentialBuilder::default()
         .with_max_delay(Duration::from_secs(10))
         .with_max_times(10)

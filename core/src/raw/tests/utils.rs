@@ -18,13 +18,12 @@
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
-
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::*;
 
 /// TEST_RUNTIME is the runtime used for running tests.
-pub static TEST_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+pub static TEST_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

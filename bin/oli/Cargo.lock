@@ -1980,7 +1980,6 @@ dependencies = [
  "md-5",
  "mini-moka",
  "moka",
- "once_cell",
  "percent-encoding",
  "prost",
  "quick-xml 0.36.2",

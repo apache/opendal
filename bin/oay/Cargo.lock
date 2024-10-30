@@ -876,7 +876,6 @@ dependencies = [
  "http",
  "log",
  "md-5",
- "once_cell",
  "percent-encoding",
  "quick-xml",
  "reqwest",

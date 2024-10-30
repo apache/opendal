@@ -23,7 +23,6 @@ use std::time::Duration;
 use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use futures::FutureExt;
 use log::warn;
 
 use crate::raw::*;
@@ -310,8 +309,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur: Duration| self.notify.intercept(err, dur))
-            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
+            .map_err(|e| e.set_persistent())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -333,11 +332,9 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| {
-                v.map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
-                    .map_err(|e| e.set_persistent())
-            })
             .await
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
+            .map_err(|e| e.set_persistent())
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -345,8 +342,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
+            .map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
@@ -354,8 +351,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
+            .map_err(|e| e.set_persistent())
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -363,8 +360,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
+            .map_err(|e| e.set_persistent())
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -372,8 +369,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
+            .map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -381,14 +378,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .map(|v| {
-                v.map(|(l, p)| {
-                    let lister = RetryWrapper::new(p, self.notify.clone(), self.builder);
-                    (l, lister)
-                })
-                .map_err(|e| e.set_persistent())
-            })
             .await
+            .map(|(l, p)| {
+                let lister = RetryWrapper::new(p, self.notify.clone(), self.builder);
+                (l, lister)
+            })
+            .map_err(|e| e.set_persistent())
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {

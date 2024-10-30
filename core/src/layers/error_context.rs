@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use futures::TryFutureExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -82,21 +80,19 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner
-            .create_dir(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::CreateDir)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.create_dir(path, args).await.map_err(|err| {
+            err.with_operation(Operation::CreateDir)
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let range = args.range();
         self.inner
             .read(path, args)
-            .map_ok(|(rp, r)| {
+            .await
+            .map(|(rp, r)| {
                 (
                     rp,
                     ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), r)
@@ -109,13 +105,13 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                     .with_context("path", path)
                     .with_context("range", range.to_string())
             })
-            .await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map_ok(|(rp, w)| {
+            .await
+            .map(|(rp, w)| {
                 (
                     rp,
                     ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), w),
@@ -126,59 +122,47 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
-            .await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner
-            .copy(from, to, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Copy)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("from", from)
-                    .with_context("to", to)
-            })
-            .await
+        self.inner.copy(from, to, args).await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.meta.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner
-            .rename(from, to, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Rename)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("from", from)
-                    .with_context("to", to)
-            })
-            .await
+        self.inner.rename(from, to, args).await.map_err(|err| {
+            err.with_operation(Operation::Rename)
+                .with_context("service", self.meta.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner
-            .stat(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Stat)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.stat(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Stat)
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner
-            .delete(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Delete)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.delete(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Delete)
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map_ok(|(rp, p)| {
+            .await
+            .map(|(rp, p)| {
                 (
                     rp,
                     ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), p),
@@ -189,13 +173,13 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
-            .await
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner
             .batch(args)
-            .map_ok(|v| {
+            .await
+            .map(|v| {
                 let res = v
                     .into_results()
                     .into_iter()
@@ -215,7 +199,6 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 err.with_operation(Operation::Batch)
                     .with_context("service", self.meta.scheme())
             })
-            .await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

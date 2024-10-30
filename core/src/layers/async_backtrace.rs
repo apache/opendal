@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::FutureExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -76,16 +74,16 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
@@ -112,8 +110,8 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]

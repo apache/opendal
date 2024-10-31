@@ -209,9 +209,9 @@ impl Access for AliyunDriveBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::AliyunDrive)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::AliyunDrive)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
                 create_dir: true,
                 read: true,

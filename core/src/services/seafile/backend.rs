@@ -218,9 +218,9 @@ impl Access for SeafileBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Seafile)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Seafile)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

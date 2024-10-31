@@ -155,10 +155,10 @@ impl Access for SupabaseBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Supabase)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Supabase)
+            .with_root(&self.core.root)
+            .with_name(&self.core.bucket)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

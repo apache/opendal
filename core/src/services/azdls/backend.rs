@@ -223,10 +223,10 @@ impl Access for AzdlsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Azdls)
-            .set_root(&self.core.root)
-            .set_name(&self.core.filesystem)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Azdls)
+            .with_root(&self.core.root)
+            .with_name(&self.core.filesystem)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

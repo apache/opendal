@@ -153,9 +153,9 @@ impl Access for VercelBlobBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::VercelBlob)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::VercelBlob)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

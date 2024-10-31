@@ -894,10 +894,10 @@ impl Access for S3Backend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::S3)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::S3)
+            .with_root(&self.core.root)
+            .with_name(&self.core.bucket)
+            .with_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

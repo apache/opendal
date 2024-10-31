@@ -176,7 +176,7 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     fn metadata(&self) -> Arc<AccessorInfo> {
         let info = self.inner.info().as_ref().clone();
         let cap = info.full_capability();
-        info.set_full_capability(Capability {
+        info.with_full_capability(Capability {
             blocking: true,
             ..cap
         })

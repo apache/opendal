@@ -411,7 +411,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             AccessorInfo::default()
-                .set_native_capability(Capability {
+                .with_native_capability(Capability {
                     read: true,
                     delete: true,
                     ..Default::default()

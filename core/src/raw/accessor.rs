@@ -850,7 +850,7 @@ impl AccessorInfo {
     }
 
     /// Set [`Scheme`] for backend.
-    pub fn set_scheme(mut self, scheme: Scheme) -> Self {
+    pub fn with_scheme(mut self, scheme: Scheme) -> Self {
         self.scheme = scheme;
         self
     }
@@ -863,7 +863,7 @@ impl AccessorInfo {
     /// Set root for backend.
     ///
     /// Note: input root must be normalized.
-    pub fn set_root(mut self, root: &str) -> Self {
+    pub fn with_root(mut self, root: &str) -> Self {
         self.root = root.to_string();
         self
     }
@@ -879,7 +879,7 @@ impl AccessorInfo {
     }
 
     /// Set name of this backend.
-    pub fn set_name(mut self, name: &str) -> Self {
+    pub fn with_name(mut self, name: &str) -> Self {
         self.name = name.to_string();
         self
     }
@@ -894,7 +894,7 @@ impl AccessorInfo {
     /// # NOTES
     ///
     /// Set native capability will also flush the full capability.
-    pub fn set_native_capability(mut self, capability: Capability) -> Self {
+    pub fn with_native_capability(mut self, capability: Capability) -> Self {
         self.native_capability = capability;
         self.full_capability = capability;
         self
@@ -906,7 +906,7 @@ impl AccessorInfo {
     }
 
     /// Set full capabilities for service.
-    pub fn set_full_capability(mut self, capability: Capability) -> Self {
+    pub fn with_full_capability(mut self, capability: Capability) -> Self {
         self.full_capability = capability;
         self
     }

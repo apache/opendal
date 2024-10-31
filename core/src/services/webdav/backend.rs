@@ -211,9 +211,9 @@ impl Access for WebdavBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Webdav)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Webdav)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

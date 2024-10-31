@@ -150,9 +150,9 @@ impl Access for AlluxioBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Alluxio)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Alluxio)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 // FIXME:

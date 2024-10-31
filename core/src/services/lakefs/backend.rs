@@ -203,8 +203,8 @@ impl Access for LakefsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Lakefs)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Lakefs)
+            .with_native_capability(Capability {
                 stat: true,
                 list: true,
                 read: true,

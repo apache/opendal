@@ -236,10 +236,10 @@ impl Access for GhacBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Ghac)
-            .set_root(&self.root)
-            .set_name(&self.version)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Ghac)
+            .with_root(&self.root)
+            .with_name(&self.version)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

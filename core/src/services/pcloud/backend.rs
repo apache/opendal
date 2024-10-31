@@ -196,9 +196,9 @@ impl Access for PcloudBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Pcloud)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Pcloud)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 create_dir: true,

@@ -152,9 +152,9 @@ impl Access for HdfsNativeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::HdfsNative)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::HdfsNative)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 delete: true,

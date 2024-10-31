@@ -172,9 +172,9 @@ impl Access for ChainsafeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Chainsafe)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Chainsafe)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

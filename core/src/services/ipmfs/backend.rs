@@ -70,9 +70,9 @@ impl Access for IpmfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Ipmfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Ipmfs)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

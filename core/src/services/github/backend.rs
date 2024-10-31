@@ -177,9 +177,9 @@ impl Access for GithubBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Github)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Github)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

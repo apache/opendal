@@ -325,9 +325,9 @@ impl Access for SftpBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_root(self.root.as_str())
-            .set_scheme(Scheme::Sftp)
-            .set_native_capability(Capability {
+            .with_root(self.root.as_str())
+            .with_scheme(Scheme::Sftp)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

@@ -151,9 +151,9 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Dbfs)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Dbfs)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 write: true,

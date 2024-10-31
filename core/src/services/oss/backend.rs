@@ -425,10 +425,10 @@ impl Access for OssBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Oss)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Oss)
+            .with_root(&self.core.root)
+            .with_name(&self.core.bucket)
+            .with_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

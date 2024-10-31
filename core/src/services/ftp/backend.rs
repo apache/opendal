@@ -265,9 +265,9 @@ impl Access for FtpBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Ftp)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Ftp)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

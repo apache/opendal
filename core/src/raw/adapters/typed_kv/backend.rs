@@ -64,10 +64,10 @@ impl<S: Adapter> Access for Backend<S> {
         let kv_cap = kv_info.capabilities();
 
         AccessorInfo::default()
-            .set_root(&self.root)
-            .set_scheme(kv_info.scheme())
-            .set_name(kv_info.name())
-            .set_native_capability(Capability {
+            .with_root(&self.root)
+            .with_scheme(kv_info.scheme())
+            .with_name(kv_info.name())
+            .with_native_capability(Capability {
                 read: kv_cap.get,
                 stat: kv_cap.get,
 

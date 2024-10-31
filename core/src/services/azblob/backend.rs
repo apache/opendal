@@ -497,10 +497,10 @@ impl Access for AzblobBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Azblob)
-            .set_root(&self.core.root)
-            .set_name(&self.core.container)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Azblob)
+            .with_root(&self.core.root)
+            .with_name(&self.core.container)
+            .with_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

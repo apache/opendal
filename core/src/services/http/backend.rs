@@ -202,9 +202,9 @@ impl Access for HttpBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Http)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Http)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

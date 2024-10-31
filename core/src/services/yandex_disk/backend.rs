@@ -154,9 +154,9 @@ impl Access for YandexDiskBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::YandexDisk)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::YandexDisk)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 create_dir: true,

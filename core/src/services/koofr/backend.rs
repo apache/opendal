@@ -204,9 +204,9 @@ impl Access for KoofrBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Koofr)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Koofr)
+            .with_root(&self.core.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 create_dir: true,

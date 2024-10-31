@@ -112,9 +112,9 @@ impl Access for CompfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Compfs)
-            .set_root(&self.core.root.to_string_lossy())
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Compfs)
+            .with_root(&self.core.root.to_string_lossy())
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

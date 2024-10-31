@@ -359,7 +359,7 @@ mod tests {
         type BlockingLister = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            Arc::new(AccessorInfo::default().set_scheme(Scheme::Custom("test")))
+            Arc::new(AccessorInfo::default().with_scheme(Scheme::Custom("test")))
         }
 
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {

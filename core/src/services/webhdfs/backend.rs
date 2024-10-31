@@ -523,9 +523,9 @@ impl Access for WebhdfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Webhdfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Webhdfs)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

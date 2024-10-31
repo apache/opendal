@@ -200,8 +200,8 @@ impl Access for HuggingfaceBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Huggingface)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Huggingface)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

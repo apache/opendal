@@ -152,7 +152,7 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     fn metadata(&self) -> Arc<AccessorInfo> {
         let info = (*self.inner.info()).clone();
         let cap = info.full_capability();
-        info.set_full_capability(Capability {
+        info.with_full_capability(Capability {
             list: true,
             list_with_recursive: true,
             ..cap

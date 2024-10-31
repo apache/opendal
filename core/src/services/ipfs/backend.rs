@@ -170,9 +170,9 @@ impl Access for IpfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Ipfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Ipfs)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

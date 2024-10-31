@@ -380,7 +380,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     fn metadata(&self) -> Arc<AccessorInfo> {
         let info = (*self.meta).clone();
         let cap = info.full_capability();
-        info.set_full_capability(Capability {
+        info.with_full_capability(Capability {
             create_dir: cap.list && cap.write_can_empty,
             ..cap
         })
@@ -730,7 +730,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             AccessorInfo::default()
-                .set_native_capability(self.capability)
+                .with_native_capability(self.capability)
                 .into()
         }
 

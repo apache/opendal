@@ -53,8 +53,8 @@ impl Access for VercelArtifactsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::VercelArtifacts)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::VercelArtifacts)
+            .with_native_capability(Capability {
                 stat: true,
 
                 read: true,

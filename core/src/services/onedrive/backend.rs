@@ -71,9 +71,9 @@ impl Access for OnedriveBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo::default()
-            .set_scheme(Scheme::Onedrive)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
+            .with_scheme(Scheme::Onedrive)
+            .with_root(&self.root)
+            .with_native_capability(Capability {
                 read: true,
                 write: true,
                 stat: true,

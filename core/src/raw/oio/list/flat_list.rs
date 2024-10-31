@@ -211,7 +211,7 @@ mod tests {
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
             let cap = info.full_capability();
-            info.set_full_capability(Capability { list: true, ..cap })
+            info.with_full_capability(Capability { list: true, ..cap })
                 .into()
         }
 

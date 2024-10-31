@@ -306,14 +306,7 @@ impl BlockingOperator {
     /// ```
     #[deprecated(note = "rename to `exists` for consistence with `std::fs::exists`")]
     pub fn is_exist(&self, path: &str) -> Result<bool> {
-        let r = self.stat(path);
-        match r {
-            Ok(_) => Ok(true),
-            Err(err) => match err.kind() {
-                ErrorKind::NotFound => Ok(false),
-                _ => Err(err),
-            },
-        }
+        self.exists(path)
     }
 
     /// Create a dir at given path.

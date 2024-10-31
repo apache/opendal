@@ -173,7 +173,7 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut meta = self.inner.info().as_ref().clone();
         meta.full_capability_mut().blocking = true;
         meta.into()

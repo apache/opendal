@@ -266,7 +266,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.logger
             .log(&self.info, Operation::Info, &[], "started", None);
 

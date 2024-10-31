@@ -75,7 +75,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.meta.clone()
     }
 

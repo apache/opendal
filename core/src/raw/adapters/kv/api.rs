@@ -29,8 +29,8 @@ use crate::*;
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// Return the metadata of this key value accessor.
-    fn metadata(&self) -> Metadata;
+    /// Return the info of this key value accessor.
+    fn info(&self) -> Info;
 
     /// Get a key from service.
     ///
@@ -129,14 +129,14 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
-/// Metadata for this key value accessor.
-pub struct Metadata {
+/// Info for this key value accessor.
+pub struct Info {
     scheme: Scheme,
     name: String,
     capabilities: Capability,
 }
 
-impl Metadata {
+impl Info {
     /// Create a new KeyValueAccessorInfo.
     pub fn new(scheme: Scheme, name: &str, capabilities: Capability) -> Self {
         Self {
@@ -159,16 +159,5 @@ impl Metadata {
     /// Get the capabilities.
     pub fn capabilities(&self) -> Capability {
         self.capabilities
-    }
-}
-
-impl From<Metadata> for AccessorInfo {
-    fn from(m: Metadata) -> AccessorInfo {
-        let mut am = AccessorInfo::default();
-        am.set_name(m.name());
-        am.set_scheme(m.scheme());
-        am.set_native_capability(m.capabilities());
-
-        am
     }
 }

@@ -21,7 +21,7 @@
 
 mod api;
 pub use api::Adapter;
-pub use api::Metadata;
+pub use api::Info;
 
 mod backend;
 pub use backend::Backend;

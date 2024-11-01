@@ -27,14 +27,14 @@ impl OpfsCore {
             .await?
             .dyn_into()?;
 
+        let opt = FileSystemGetFileOptions::new();
+        opt.set_create(true);
+
         // Create or get the file in the OPFS
         let file_handle: FileSystemFileHandle =
-            JsFuture::from(root.get_file_handle_with_options(
-                file_name,
-                FileSystemGetFileOptions::new().create(true),
-            ))
-            .await?
-            .dyn_into()?;
+            JsFuture::from(root.get_file_handle_with_options(file_name, &opt))
+                .await?
+                .dyn_into()?;
 
         // Create a writable stream
         let writable: FileSystemWritableFileStream = JsFuture::from(file_handle.create_writable())

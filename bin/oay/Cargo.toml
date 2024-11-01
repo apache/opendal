@@ -58,6 +58,6 @@ tokio = { version = "1.39", features = [
   "io-std",
 ] }
 toml = "0.8.12"
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

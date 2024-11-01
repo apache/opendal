@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::{
     raw::{
@@ -41,16 +42,10 @@ impl Debug for OpfsBuilder {
 impl Builder for OpfsBuilder {
     const SCHEME: Scheme = Scheme::Opfs;
 
-    type Accessor = OpfsBackend;
+    type Config = ();
 
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         Ok(OpfsBackend {})
-    }
-
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        OpfsBuilder {
-            config: OpfsConfig {},
-        }
     }
 }
 
@@ -71,7 +66,7 @@ impl Access for OpfsBackend {
 
     type BlockingWriter = OpfsWriter;
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut access_info = AccessorInfo::default();
         access_info
             .set_scheme(Scheme::Opfs)
@@ -90,7 +85,7 @@ impl Access for OpfsBackend {
                 blocking: true,
                 ..Default::default()
             });
-        access_info
+        Arc::new(access_info)
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

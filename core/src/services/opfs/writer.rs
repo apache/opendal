@@ -11,7 +11,7 @@ impl oio::Write for OpfsWriter {
         panic!()
     }
 
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         panic!()
     }
 }
@@ -21,7 +21,7 @@ impl oio::BlockingWrite for OpfsWriter {
         panic!()
     }
 
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         panic!()
     }
 }

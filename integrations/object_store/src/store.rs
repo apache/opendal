@@ -62,16 +62,11 @@ use tokio::sync::{Mutex, Notify};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let builder = S3::from_map(
-///         vec![
-///             ("access_key".to_string(), "my_access_key".to_string()),
-///             ("secret_key".to_string(), "my_secret_key".to_string()),
-///             ("endpoint".to_string(), "my_endpoint".to_string()),
-///             ("region".to_string(), "my_region".to_string()),
-///         ]
-///         .into_iter()
-///         .collect(),
-///     ).unwrap();
+///    let builder = S3::default()
+///     .access_key_id("my_access_key")
+///     .secret_access_key("my_secret_key")
+///     .endpoint("my_endpoint")
+///     .region("my_region");
 ///
 ///     // Create a new operator
 ///     let operator = Operator::new(builder).unwrap().finish();

@@ -971,7 +971,7 @@ impl Access for S3Backend {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
 
-                let user_meta = parse_prefixed_headers(&headers, X_AMZ_META_PREFIX);
+                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }

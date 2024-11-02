@@ -215,7 +215,7 @@ impl OssCore {
     /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
     pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
         let mut m = parse_into_metadata(path, headers)?;
-        let user_meta = parse_prefixed_headers(&headers, X_OSS_META_PREFIX);
+        let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
             m.with_user_metadata(user_meta);
         }

@@ -236,16 +236,12 @@ impl AzblobCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
+        let url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
         );
-
-        if let Some(_) = args.user_metadata() {
-            url.push_str("?comp=metadata");
-        }
 
         let mut req = Request::put(&url);
 
@@ -264,6 +260,7 @@ impl AzblobCore {
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
+
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
@@ -495,7 +492,7 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}?comp=metadata",
+            "{}/{}/{}",
             self.endpoint,
             self.container,
             percent_encode_path(&p)

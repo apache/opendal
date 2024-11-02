@@ -549,6 +549,7 @@ impl Access for AzblobBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
+                dbg!(&headers);
                 let mut meta = parse_into_metadata(path, headers)?;
                 // TODO: Refactor in common with s3 metadata parsing
                 // do the same as in parse_into_metadata... but for user metadata

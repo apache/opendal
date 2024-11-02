@@ -245,8 +245,6 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
 
-        // TODO: refactor this and the s3 backend to use an utils function instead
-        // TODO: only for put_blobs or also block requests?
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
                 req = req.header(format!("{X_MS_META_NAME_PREFIX}{key}"), value)

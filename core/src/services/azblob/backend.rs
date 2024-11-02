@@ -567,7 +567,7 @@ impl Access for AzblobBackend {
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }
-                return Ok(RpStat::new(meta));
+                Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),
         }

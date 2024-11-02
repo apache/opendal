@@ -33,7 +33,7 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::core::constants::X_MS_META_NAME_PREFIX;
+use super::core::constants::X_MS_META_PREFIX;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
@@ -551,7 +551,7 @@ impl Access for AzblobBackend {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
 
-                let user_meta = parse_prefixed_headers(headers, X_MS_META_NAME_PREFIX);
+                let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }

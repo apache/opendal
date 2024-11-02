@@ -24,7 +24,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
-use constants::X_MS_META_NAME_PREFIX;
+use constants::X_MS_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -50,7 +50,7 @@ pub mod constants {
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
-    pub const X_MS_META_NAME_PREFIX: &str = "x-ms-meta-";
+    pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
@@ -247,7 +247,7 @@ impl AzblobCore {
 
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
-                req = req.header(format!("{X_MS_META_NAME_PREFIX}{key}"), value)
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value)
             }
         }
 

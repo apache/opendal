@@ -33,7 +33,6 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::core::constants;
 use super::core::constants::X_MS_META_NAME_PREFIX;
 use super::error::parse_error;
 use super::lister::AzblobLister;

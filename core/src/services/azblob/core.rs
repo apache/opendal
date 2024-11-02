@@ -24,6 +24,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_MS_META_NAME_PREFIX;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -49,7 +50,7 @@ pub mod constants {
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
-    pub const X_MS_META_NAME_PREFIX: &str = "x-ms-meta-name:";
+    pub const X_MS_META_NAME_PREFIX: &str = "x-ms-meta-";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
@@ -235,12 +236,16 @@ impl AzblobCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}?comp=metadata",
+        let mut url = format!(
+            "{}/{}/{}",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
         );
+
+        if let Some(_) = args.user_metadata() {
+            url.push_str("?comp=metadata");
+        }
 
         let mut req = Request::put(&url);
 
@@ -249,10 +254,7 @@ impl AzblobCore {
         // TODO: only for put_blobs or also block requests?
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
-                req = req.header(
-                    format!("{}{}", constants::X_MS_META_NAME_PREFIX, key),
-                    value,
-                )
+                req = req.header(format!("{X_MS_META_NAME_PREFIX}{key}"), value)
             }
         }
 

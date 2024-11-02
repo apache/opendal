@@ -18,6 +18,7 @@
 // Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
+use std::io::BufRead;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -91,6 +92,51 @@ impl File {
                     .read_to_end(&mut buffer)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 buffer
+            }
+        };
+
+        Buffer::new(buffer).into_bytes_ref(py)
+    }
+
+    /// Read a single line from the file.
+    /// A newline character (`\n`) is left at the end of the string, and is only omitted on the last line of the file if the file doesn’t end in a newline.
+    /// If size is specified, at most size bytes will be read.
+    #[pyo3(signature = (size=None,))]
+    pub fn readline<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        size: Option<usize>,
+    ) -> PyResult<Bound<PyAny>> {
+        let reader = match &mut self.0 {
+            FileState::Reader(r) => r,
+            FileState::Writer(_) => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on write only file.",
+                ));
+            }
+            FileState::Closed => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on closed file.",
+                ));
+            }
+        };
+
+        let buffer = match size {
+            None => {
+                let mut buffer = Vec::new();
+                reader
+                    .read_until(b'\n', &mut buffer)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                buffer
+            }
+            Some(size) => {
+                let mut bs = vec![0; size];
+                let mut reader = reader.take(size as u64);
+                let n = reader
+                    .read_until(b'\n', &mut bs)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                bs.truncate(n);
+                bs
             }
         };
 

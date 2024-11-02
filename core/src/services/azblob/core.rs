@@ -42,13 +42,14 @@ use uuid::Uuid;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_MS_VERSION: &str = "x-ms-version";
 
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
+    pub const X_MS_META_NAME_PREFIX: &str = "x-ms-meta-name:";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
@@ -235,13 +236,25 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}",
+            "{}/{}/{}?comp=metadata",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
         );
 
         let mut req = Request::put(&url);
+
+        // Set user metadata headers.
+        // TODO: refactor this and the s3 backend to use an utils function instead
+        // TODO: only for put_blobs or also block requests?
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(
+                    format!("{}{}", constants::X_MS_META_NAME_PREFIX, key),
+                    value,
+                )
+            }
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
@@ -480,7 +493,7 @@ impl AzblobCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{}/{}",
+            "{}/{}/{}?comp=metadata",
             self.endpoint,
             self.container,
             percent_encode_path(&p)

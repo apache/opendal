@@ -33,6 +33,7 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::core::constants;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
@@ -517,6 +518,7 @@ impl Access for AzblobBackend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -545,7 +547,28 @@ impl Access for AzblobBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+                // TODO: Refactor in common with s3 metadata parsing
+                // do the same as in parse_into_metadata... but for user metadata
+                let user_meta: HashMap<String, String> = headers
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        name.as_str()
+                            .strip_prefix(constants::X_MS_META_NAME_PREFIX)
+                            .and_then(|stripped_key| {
+                                parse_header_to_str(headers, name)
+                                    .unwrap_or(None)
+                                    .map(|val| (stripped_key.to_string(), val.to_string()))
+                            })
+                    })
+                    .collect();
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+                return Ok(RpStat::new(meta));
+            }
             _ => Err(parse_error(resp)),
         }
     }

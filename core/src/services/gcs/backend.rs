@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -363,6 +364,7 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
+                write_with_user_metadata: true,
                 // The min multipart size of Gcs is 5 MiB.
                 //
                 // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
@@ -423,6 +425,10 @@ impl Access for GcsBackend {
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        if let Some(user_metadata) = meta.metadata {
+            m.with_user_metadata(user_metadata);
+        }
 
         Ok(RpStat::new(m))
     }
@@ -593,6 +599,15 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+    /// Custom metadata of this object.
+    ///
+    /// For example:
+    /// ```
+    /// "metadata" : {
+    ///  "my-key": "my-value"
+    /// }
+    /// ```
+    metadata: Option<HashMap<String, String>>,
 }
 
 #[cfg(test)]

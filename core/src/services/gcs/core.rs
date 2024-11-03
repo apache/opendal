@@ -24,6 +24,8 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
+use constants::X_GOOG_ACL;
+use constants::X_GOOG_STORAGE_CLASS;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -44,6 +46,13 @@ use serde_json::json;
 use super::uri::percent_encode_path;
 use crate::raw::*;
 use crate::*;
+use constants::*;
+
+pub mod constants {
+    pub const X_GOOG_ACL: &str = "x-goog-acl";
+    pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
+    pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+}
 
 pub struct GcsCore {
     pub endpoint: String,
@@ -267,6 +276,12 @@ impl GcsCore {
 
         let mut req = Request::post(&url);
 
+        if let Some(user_metadata) = op.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_GOOG_META_PREFIX}{key}"), value)
+            }
+        }
+
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if metadata.is_empty() {
@@ -318,16 +333,22 @@ impl GcsCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_GOOG_META_PREFIX}{key}"), value)
+            }
+        }
+
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
         if let Some(acl) = &self.predefined_acl {
-            req = req.header("x-goog-acl", acl);
+            req = req.header(X_GOOG_ACL, acl);
         }
 
         if let Some(storage_class) = &self.default_storage_class {
-            req = req.header("x-goog-storage-class", storage_class);
+            req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;

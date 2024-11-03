@@ -601,12 +601,7 @@ struct GetObjectJsonResponse {
     content_type: String,
     /// Custom metadata of this object.
     ///
-    /// For example:
-    /// ```
-    /// "metadata" : {
-    ///  "my-key": "my-value"
-    /// }
-    /// ```
+    /// For example: `"metadata" : { "my-key": "my-value" }`
     metadata: Option<HashMap<String, String>>,
 }
 

@@ -26,6 +26,7 @@ use std::sync::Arc;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
+use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -970,18 +971,7 @@ impl Access for S3Backend {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
 
-                let user_meta: HashMap<String, String> = headers
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        name.as_str()
-                            .strip_prefix(constants::X_AMZ_META_PREFIX)
-                            .and_then(|stripped_key| {
-                                parse_header_to_str(headers, name)
-                                    .unwrap_or(None)
-                                    .map(|val| (stripped_key.to_string(), val.to_string()))
-                            })
-                    })
-                    .collect();
+                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }

@@ -40,6 +40,10 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
+      - uses: 1password/load-secrets-action/configure@v1
+        with:
+          connect-host: ${{ secrets.OP_CONNECT_HOST }}
+          connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
       - uses: 1password/load-secrets-action@v1
         with:
           export-env: true

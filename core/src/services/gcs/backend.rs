@@ -426,7 +426,7 @@ impl Access for GcsBackend {
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
-        if let Some(user_metadata) = meta.metadata {
+        if !meta.metadata.is_empty() {
             m.with_user_metadata(user_metadata);
         }
 
@@ -602,7 +602,7 @@ struct GetObjectJsonResponse {
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`
-    metadata: Option<HashMap<String, String>>,
+    metadata: HashMap<String, String>,
 }
 
 #[cfg(test)]
@@ -644,10 +644,7 @@ mod tests {
         assert_eq!(meta.content_type, "image/png");
         assert_eq!(
             meta.metadata,
-            Some(HashMap::from_iter([(
-                "location".to_string(),
-                "everywhere".to_string()
-            )]))
+            HashMap::from_iter([("location".to_string(), "everywhere".to_string())])
         );
     }
 }

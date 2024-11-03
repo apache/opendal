@@ -42,22 +42,17 @@ impl oio::Write for GhacWriter {
         let size = bs.len();
         let offset = self.size;
 
-        let req = self
-            .backend
-            .ghac_upload(
-                self.cache_id,
-                offset,
-                size as u64,
-                Buffer::from(bs.to_bytes()),
-            )
-            .await?;
+        let req = self.backend.ghac_upload(
+            self.cache_id,
+            offset,
+            size as u64,
+            Buffer::from(bs.to_bytes()),
+        )?;
 
         let resp = self.backend.client.send(req).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?);
+            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }
 
         self.size += size as u64;
@@ -69,15 +64,13 @@ impl oio::Write for GhacWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let req = self.backend.ghac_commit(self.cache_id, self.size).await?;
+        let req = self.backend.ghac_commit(self.cache_id, self.size)?;
         let resp = self.backend.client.send(req).await?;
 
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
+            Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
         }
     }
 }

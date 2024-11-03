@@ -27,7 +27,6 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use super::error::parse_error;
@@ -38,36 +37,10 @@ use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
+use crate::services::WebhdfsConfig;
 use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
-
-/// Config for WebHDFS support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct WebhdfsConfig {
-    /// Root for webhdfs.
-    pub root: Option<String>,
-    /// Endpoint for webhdfs.
-    pub endpoint: Option<String>,
-    /// Delegation token for webhdfs.
-    pub delegation: Option<String>,
-    /// Disable batch listing
-    pub disable_list_batch: bool,
-    /// atomic_write_dir of this backend
-    pub atomic_write_dir: Option<String>,
-}
-
-impl Debug for WebhdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WebhdfsConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("atomic_write_dir", &self.atomic_write_dir)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for WebhdfsConfig {
     type Builder = WebhdfsBuilder;
@@ -100,9 +73,11 @@ impl WebhdfsBuilder {
     ///
     /// The root will be automatically created if not exists.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -174,7 +149,7 @@ impl Builder for WebhdfsBuilder {
     ///
     /// when building backend, the built backend will check if the root directory
     /// exits.
-    /// if the directory does not exits, the directory will be automatically created
+    /// if the directory does not exit, the directory will be automatically created
     fn build(self) -> Result<impl Access> {
         debug!("start building backend: {:?}", self);
 
@@ -275,7 +250,7 @@ impl WebhdfsBackend {
         let status = resp.status();
 
         if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -324,7 +299,7 @@ impl WebhdfsBackend {
 
                 Ok(resp.location)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -350,7 +325,7 @@ impl WebhdfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn webhdfs_append_request(
+    pub fn webhdfs_append_request(
         &self,
         location: &str,
         size: u64,
@@ -399,11 +374,7 @@ impl WebhdfsBackend {
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    async fn webhdfs_open_request(
-        &self,
-        path: &str,
-        range: &BytesRange,
-    ) -> Result<Request<Buffer>> {
+    fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
@@ -475,7 +446,7 @@ impl WebhdfsBackend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let req = self.webhdfs_open_request(path, &range).await?;
+        let req = self.webhdfs_open_request(path, &range)?;
         self.client.fetch(req).await
     }
 
@@ -536,7 +507,7 @@ impl WebhdfsBackend {
             StatusCode::NOT_FOUND => {
                 self.create_dir("/", OpCreateDir::new()).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
         Ok(())
     }
@@ -601,7 +572,7 @@ impl Access for WebhdfsBackend {
                     ))
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -633,7 +604,7 @@ impl Access for WebhdfsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -649,7 +620,7 @@ impl Access for WebhdfsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -675,7 +646,7 @@ impl Access for WebhdfsBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

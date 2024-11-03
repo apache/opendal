@@ -54,7 +54,7 @@ impl oio::PageList for CosLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -81,10 +81,9 @@ impl oio::PageList for CosLister {
         }
 
         for object in output.contents {
-            let path = build_rel_path(&self.core.root, &object.key);
-
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.key);
+            if path.is_empty() {
+                path = "/".to_string();
             }
 
             let meta = Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);

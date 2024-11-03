@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::VercelBlobBuilder as VercelBlob;
-pub use backend::VercelBlobConfig;
-
+#[cfg(feature = "services-vercel-blob")]
 mod core;
+#[cfg(feature = "services-vercel-blob")]
 mod error;
+#[cfg(feature = "services-vercel-blob")]
 mod lister;
+#[cfg(feature = "services-vercel-blob")]
 mod writer;
+
+#[cfg(feature = "services-vercel-blob")]
+mod backend;
+#[cfg(feature = "services-vercel-blob")]
+pub use backend::VercelBlobBuilder as VercelBlob;
+
+mod config;
+pub use config::VercelBlobConfig;

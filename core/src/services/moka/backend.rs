@@ -22,49 +22,11 @@ use std::time::Duration;
 use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;
+use crate::services::MokaConfig;
 use crate::*;
-
-/// Config for Moka services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MokaConfig {
-    /// Name for this cache instance.
-    pub name: Option<String>,
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
-    /// Sets the segments number of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub num_segments: Option<usize>,
-}
-
-impl Debug for MokaConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MokaConfig")
-            .field("name", &self.name)
-            .field("max_capacity", &self.max_capacity)
-            .field("time_to_live", &self.time_to_live)
-            .field("time_to_idle", &self.time_to_idle)
-            .field("num_segments", &self.num_segments)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
@@ -127,6 +89,17 @@ impl MokaBuilder {
         self.config.num_segments = Some(v);
         self
     }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
+        self
+    }
 }
 
 impl Builder for MokaBuilder {
@@ -154,9 +127,15 @@ impl Builder for MokaBuilder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MokaBackend::new(Adapter {
+
+        let mut backend = MokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
@@ -231,7 +210,7 @@ impl typed_kv::Adapter for Adapter {
         if path.is_empty() {
             Ok(keys.collect())
         } else {
-            Ok(keys.filter(|k| k.starts_with(path) && k != path).collect())
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }

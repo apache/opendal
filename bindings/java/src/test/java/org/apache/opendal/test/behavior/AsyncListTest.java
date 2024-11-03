@@ -33,6 +33,7 @@ import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
+import org.assertj.core.util.Lists;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -77,24 +78,25 @@ class AsyncListTest extends BehaviorTestBase {
      */
     @Test
     public void testListRichDir() {
-        final String parent = "test_list_rich_dir";
-        asyncOp().createDir(parent + "/").join();
+        final String parentPath = "test_list_rich_dir/";
+        asyncOp().createDir(parentPath).join();
         final List<String> expected = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            expected.add(String.format("%s/file-%d", parent, i));
+            expected.add(String.format("%sfile-%d", parentPath, i));
         }
 
         for (String path : expected) {
-            asyncOp().write(path, parent).join();
+            asyncOp().write(path, parentPath).join();
         }
 
-        final List<Entry> entries = asyncOp().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parentPath).join();
         final List<String> actual =
                 entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
 
+        expected.add(parentPath);
         Collections.sort(expected);
         assertThat(actual).isEqualTo(expected);
-        asyncOp().removeAll(parent + "/").join();
+        asyncOp().removeAll(parentPath).join();
     }
 
     /**
@@ -106,7 +108,9 @@ class AsyncListTest extends BehaviorTestBase {
         asyncOp().createDir(dir).join();
 
         final List<Entry> entries = asyncOp().list(dir).join();
-        assertThat(entries).isEmpty();
+        final List<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toList());
+        assertThat(actual).hasSize(1);
+        assertThat(actual.get(0)).isEqualTo(dir);
 
         asyncOp().delete(dir).join();
     }
@@ -151,9 +155,9 @@ class AsyncListTest extends BehaviorTestBase {
     public void testListNestedDir() {
         final String dir = String.format("%s/%s/", UUID.randomUUID(), UUID.randomUUID());
         final String fileName = UUID.randomUUID().toString();
-        final String filePath = String.format("%s/%s", dir, fileName);
+        final String filePath = String.format("%s%s", dir, fileName);
         final String dirName = String.format("%s/", UUID.randomUUID());
-        final String dirPath = String.format("%s/%s", dir, dirName);
+        final String dirPath = String.format("%s%s", dir, dirName);
         final String content = "test_list_nested_dir";
 
         asyncOp().createDir(dir).join();
@@ -161,18 +165,27 @@ class AsyncListTest extends BehaviorTestBase {
         asyncOp().createDir(dirPath).join();
 
         final List<Entry> entries = asyncOp().list(dir).join();
-        assertThat(entries).hasSize(2);
+        assertThat(entries).hasSize(3);
+
+        final List<String> expectedPaths = Lists.newArrayList(dir, dirPath, filePath);
+        Collections.sort(expectedPaths);
+        final List<String> actualPaths =
+                entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+        assertThat(actualPaths).isEqualTo(expectedPaths);
 
         for (Entry entry : entries) {
             // check file
             if (entry.getPath().equals(filePath)) {
-                Metadata metadata = entry.getMetadata();
+                Metadata metadata = asyncOp().stat(filePath).join();
                 assertTrue(metadata.isFile());
                 assertThat(metadata.getContentLength()).isEqualTo(content.length());
                 // check dir
             } else if (entry.getPath().equals(dirPath)) {
                 Metadata metadata = entry.getMetadata();
                 assertTrue(metadata.isDir());
+            } else {
+                assertThat(entry.getPath()).isEqualTo(dir);
+                assertTrue(entry.metadata.isDir());
             }
         }
 

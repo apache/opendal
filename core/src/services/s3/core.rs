@@ -27,6 +27,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
@@ -47,7 +48,7 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
@@ -68,6 +69,8 @@ mod constants {
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
+    pub const X_AMZ_META_PREFIX: &str = "x-amz-meta-";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -87,6 +90,7 @@ pub struct S3Core {
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
     pub disable_stat_with_override: bool,
+    pub enable_versioning: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
@@ -111,7 +115,7 @@ impl S3Core {
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = self
             .loader
-            .load_credential(self.client.client())
+            .load_credential(GLOBAL_REQWEST_CLIENT.clone())
             .await
             .map_err(new_request_credential_error)?;
 
@@ -456,6 +460,13 @@ impl S3Core {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
+            }
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -463,6 +474,10 @@ impl S3Core {
         if let Some(checksum) = self.calculate_checksum(&body) {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
+        }
+
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         // Set body
@@ -779,6 +794,50 @@ impl S3Core {
 
         self.send(req).await
     }
+
+    pub async fn s3_list_object_versions(
+        &self,
+        prefix: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        key_marker: &str,
+        version_id_marker: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, prefix);
+
+        let mut url = format!("{}?versions", self.endpoint);
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
+                .expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+        }
+
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+        }
+        if !key_marker.is_empty() {
+            write!(url, "&key-marker={}", percent_encode_path(key_marker))
+                .expect("write into string must succeed");
+        }
+        if !version_id_marker.is_empty() {
+            write!(
+                url,
+                "&version-id-marker={}",
+                percent_encode_path(version_id_marker)
+            )
+            .expect("write into string must succeed");
+        }
+
+        let mut req = Request::get(&url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
 }
 
 /// Result of CreateMultipartUpload
@@ -901,6 +960,29 @@ pub struct ListObjectsOutputContent {
 #[serde(rename_all = "PascalCase")]
 pub struct OutputCommonPrefix {
     pub prefix: String,
+}
+
+/// Output of ListObjectVersions
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutput {
+    pub is_truncated: Option<bool>,
+    pub next_key_marker: Option<String>,
+    pub next_version_id_marker: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub version: Vec<ListObjectVersionsOutputVersion>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputVersion {
+    pub key: String,
+    pub version_id: String,
+    pub is_latest: bool,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
 }
 
 pub enum ChecksumAlgorithm {
@@ -1131,5 +1213,95 @@ mod tests {
                 },
             ]
         )
+    }
+
+    #[test]
+    fn test_parse_list_object_versions() {
+        let bs = bytes::Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+                <ListVersionsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                <Name>mtp-versioning-fresh</Name>
+                <Prefix/>
+                <KeyMarker>key3</KeyMarker>
+                <VersionIdMarker>null</VersionIdMarker>
+                <NextKeyMarker>key3</NextKeyMarker>
+                <NextVersionIdMarker>d-d309mfjFrUmoQ0DBsVqmcMV15OI.</NextVersionIdMarker>
+                <MaxKeys>3</MaxKeys>
+                <IsTruncated>true</IsTruncated>
+                <Version>
+                    <Key>key3</Key>
+                    <VersionId>8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.</VersionId>
+                    <IsLatest>true</IsLatest>
+                    <LastModified>2009-12-09T00:18:23.000Z</LastModified>
+                    <ETag>"396fefef536d5ce46c7537ecf978a360"</ETag>
+                    <Size>217</Size>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                    </Owner>
+                    <StorageClass>STANDARD</StorageClass>
+                </Version>
+                <Version>
+                    <Key>key3</Key>
+                    <VersionId>d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.</VersionId>
+                    <IsLatest>false</IsLatest>
+                    <LastModified>2009-12-09T00:18:08.000Z</LastModified>
+                    <ETag>"396fefef536d5ce46c7537ecf978a360"</ETag>
+                    <Size>217</Size>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                    </Owner>
+                    <StorageClass>STANDARD</StorageClass>
+                </Version>
+                <CommonPrefixes>
+                    <Prefix>photos/</Prefix>
+                </CommonPrefixes>
+                <CommonPrefixes>
+                    <Prefix>videos/</Prefix>
+                </CommonPrefixes>
+                </ListVersionsResult>"#,
+        );
+
+        let output: ListObjectVersionsOutput =
+            quick_xml::de::from_reader(bs.reader()).expect("must succeed");
+
+        assert!(output.is_truncated.unwrap());
+        assert_eq!(output.next_key_marker, Some("key3".to_owned()));
+        assert_eq!(
+            output.next_version_id_marker,
+            Some("d-d309mfjFrUmoQ0DBsVqmcMV15OI.".to_owned())
+        );
+        assert_eq!(
+            output.common_prefixes,
+            vec![
+                OutputCommonPrefix {
+                    prefix: "photos/".to_owned()
+                },
+                OutputCommonPrefix {
+                    prefix: "videos/".to_owned()
+                }
+            ]
+        );
+
+        assert_eq!(
+            output.version,
+            vec![
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.".to_owned(),
+                    is_latest: true,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:23.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                },
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.".to_owned(),
+                    is_latest: false,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:08.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                }
+            ]
+        );
     }
 }

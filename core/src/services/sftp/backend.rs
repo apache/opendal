@@ -29,8 +29,6 @@ use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
@@ -42,35 +40,8 @@ use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
+use crate::services::SftpConfig;
 use crate::*;
-
-/// Config for Sftp Service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SftpConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// user of this backend
-    pub user: Option<String>,
-    /// key of this backend
-    pub key: Option<String>,
-    /// known_hosts_strategy of this backend
-    pub known_hosts_strategy: Option<String>,
-    /// enable_copy of this backend
-    pub enable_copy: bool,
-}
-
-impl Debug for SftpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SftpConfig")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for SftpConfig {
     type Builder = SftpBuilder;
@@ -81,7 +52,7 @@ impl Configurator for SftpConfig {
 
 /// SFTP services support. (only works on unix)
 ///
-/// If you are interested in working on windows, pl ease refer to [this](https://github.com/apache/opendal/issues/2963) issue.
+/// If you are interested in working on windows, please refer to [this](https://github.com/apache/opendal/issues/2963) issue.
 /// Welcome to leave your comments or make contributions.
 ///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.
@@ -433,7 +404,7 @@ impl Access for SftpBackend {
 
         Ok((
             RpRead::default(),
-            SftpReader::new(client, f, args.range().size().unwrap_or(u64::MAX) as _),
+            SftpReader::new(client, f, args.range().size()),
         ))
     }
 

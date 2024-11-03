@@ -30,7 +30,7 @@ pub fn new_operator(
 ) -> Result<od::Operator, od::Error> {
     let hm: HashMap<String, String> = map.into_iter().collect();
     let scheme: od::Scheme = od::Scheme::from_str(&scheme_str)?;
-    od::Operator::via_map(scheme, hm)
+    od::Operator::via_iter(scheme, hm)
 }
 
 pub fn map_res_error<T>(res: Result<T, od::Error>) -> Result<T, String> {

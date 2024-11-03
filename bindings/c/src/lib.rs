@@ -46,14 +46,17 @@ pub use operator::opendal_operator;
 mod operator_info;
 
 mod result;
+pub use result::opendal_result_exists;
 pub use result::opendal_result_is_exist;
 pub use result::opendal_result_list;
 pub use result::opendal_result_lister_next;
 pub use result::opendal_result_operator_new;
 pub use result::opendal_result_operator_reader;
+pub use result::opendal_result_operator_writer;
 pub use result::opendal_result_read;
 pub use result::opendal_result_reader_read;
 pub use result::opendal_result_stat;
+pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
@@ -64,3 +67,6 @@ pub use entry::opendal_entry;
 
 mod reader;
 pub use reader::opendal_reader;
+
+mod writer;
+pub use writer::opendal_writer;

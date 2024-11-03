@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
@@ -37,16 +36,18 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::OtelTraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::OtelTraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelTraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 pub struct OtelTraceLayer;
 
@@ -97,8 +98,8 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r))))
             .await
+            .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -157,8 +158,8 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s))))
             .await
+            .map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s)))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {

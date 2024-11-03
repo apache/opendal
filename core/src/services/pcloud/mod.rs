@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::PcloudBuilder as Pcloud;
-pub use backend::PcloudConfig;
-
+#[cfg(feature = "services-pcloud")]
 mod core;
+#[cfg(feature = "services-pcloud")]
 mod error;
+#[cfg(feature = "services-pcloud")]
 mod lister;
+#[cfg(feature = "services-pcloud")]
 mod writer;
+
+#[cfg(feature = "services-pcloud")]
+mod backend;
+#[cfg(feature = "services-pcloud")]
+pub use backend::PcloudBuilder as Pcloud;
+
+mod config;
+pub use config::PcloudConfig;

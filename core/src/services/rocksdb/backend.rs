@@ -20,27 +20,13 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::RocksdbConfig;
 use crate::Result;
 use crate::*;
-
-/// Config for Rocksdb Service.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct RocksdbConfig {
-    /// The path to the rocksdb data directory.
-    pub datadir: Option<String>,
-    /// the working directory of the service. Can be "/path/to/dir"
-    ///
-    /// default is "/"
-    pub root: Option<String>,
-}
 
 impl Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
@@ -67,9 +53,12 @@ impl RocksdbBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 }
@@ -90,7 +79,15 @@ impl Builder for RocksdbBuilder {
                 .set_source(e)
         })?;
 
-        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }))
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
+
+        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }).with_normalized_root(root))
     }
 }
 
@@ -184,13 +181,8 @@ impl kv::Adapter for Adapter {
         for key in it {
             let key = key.map_err(parse_rocksdb_error)?;
             let key = String::from_utf8_lossy(&key);
-            // FIXME: it's must a bug that rocksdb returns key that not start with path.
             if !key.starts_with(path) {
-                continue;
-            }
-            // List should skip the path itself.
-            if key == path {
-                continue;
+                break;
             }
             res.push(key.to_string());
         }

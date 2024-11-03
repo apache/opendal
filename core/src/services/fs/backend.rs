@@ -22,8 +22,6 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::lister::FsLister;
@@ -31,19 +29,8 @@ use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use crate::raw::*;
+use crate::services::FsConfig;
 use crate::*;
-
-/// config for file system
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct FsConfig {
-    /// root dir for backend
-    pub root: Option<String>,
-
-    /// tmp dir for atomic write
-    pub atomic_write_dir: Option<String>,
-}
 
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
@@ -62,9 +49,11 @@ pub struct FsBuilder {
 impl FsBuilder {
     /// Set root for backend.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -353,7 +342,7 @@ impl Access for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -367,8 +356,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, f);
-
+        let rd = FsLister::new(&self.core.root, path, f, arg);
         Ok((RpList::default(), Some(rd)))
     }
 
@@ -523,7 +511,7 @@ impl Access for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -537,8 +525,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, f);
-
+        let rd = FsLister::new(&self.core.root, path, f, arg);
         Ok((RpList::default(), Some(rd)))
     }
 

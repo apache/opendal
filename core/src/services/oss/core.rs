@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
 use bytes::Bytes;
+use constants::X_OSS_META_PREFIX;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -190,7 +190,7 @@ impl OssCore {
                         "the format of the user metadata key is invalid, please refer the document",
                     ));
                 }
-                req = req.header(format!("{}{}", constants::X_OSS_META_PREFIX, key), value)
+                req = req.header(format!("{X_OSS_META_PREFIX}{key}"), value)
             }
         }
 
@@ -213,31 +213,11 @@ impl OssCore {
     /// # Notes
     ///
     /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
-    pub fn parse_metadata(
-        &self,
-        path: &str,
-        user_metadata_prefix: &str,
-        headers: &HeaderMap,
-    ) -> Result<Metadata> {
+    pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
         let mut m = parse_into_metadata(path, headers)?;
-
-        let data: HashMap<String, String> = headers
-            .iter()
-            .filter_map(|(key, _)| {
-                if key.as_str().starts_with(user_metadata_prefix) {
-                    if let Ok(Some(value)) = parse_header_to_str(headers, key) {
-                        let key_str = key.to_string();
-                        let stripped_key = key_str
-                            .strip_prefix(user_metadata_prefix)
-                            .expect("strip prefix must succeed");
-                        return Some((stripped_key.to_string(), value.to_string()));
-                    }
-                }
-                None
-            })
-            .collect();
-        if !data.is_empty() {
-            m.with_user_metadata(data);
+        let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
+        if !user_meta.is_empty() {
+            m.with_user_metadata(user_meta);
         }
 
         Ok(m)

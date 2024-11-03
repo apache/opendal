@@ -18,55 +18,15 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use std::sync::Arc;
 
-use bb8::Pool;
-use bb8_postgres::PostgresConnectionManager;
-use serde::Deserialize;
-use serde::Serialize;
+use sqlx::postgres::PgConnectOptions;
+use sqlx::PgPool;
 use tokio::sync::OnceCell;
-use tokio_postgres::Config;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::PostgresqlConfig;
 use crate::*;
-
-/// Config for PostgreSQL services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct PostgresqlConfig {
-    /// Root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// Default to `/` if not set.
-    pub root: Option<String>,
-    /// the connection string of postgres server
-    pub connection_string: Option<String>,
-    /// the table of postgresql
-    pub table: Option<String>,
-    /// the key field of postgresql
-    pub key_field: Option<String>,
-    /// the value field of postgresql
-    pub value_field: Option<String>,
-}
-
-impl Debug for PostgresqlConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PostgresqlConfig");
-
-        if self.connection_string.is_some() {
-            d.field("connection_string", &"<redacted>");
-        }
-
-        d.field("root", &self.root)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
-}
 
 impl Configurator for PostgresqlConfig {
     type Builder = PostgresqlBuilder;
@@ -92,36 +52,16 @@ impl Debug for PostgresqlBuilder {
 }
 
 impl PostgresqlBuilder {
-    /// Set the connection_string of the postgresql service.
+    /// Set the connection url string of the postgresql service.
     ///
-    /// This connection string is `libpq-style connection strings`. There are two formats:
-    ///
-    /// ## Key Value
-    ///
-    /// This format consists of space-separated key-value pairs. Values which are either the empty
-    /// string or contain whitespace should be wrapped in '. ' and \ characters should be
-    /// backslash-escaped.
-    ///
-    /// - `host=localhost user=postgres connect_timeout=10 keepalives=0`
-    /// - `host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'`
-    /// - `host=host1,host2,host3 port=1234,,5678 user=postgres target_session_attrs=read-write`
-    ///
-    /// Available keys could found at: <https://docs.rs/postgres/latest/postgres/config/struct.Config.html>
-    ///
-    /// ## Url
-    ///
-    /// This format resembles a URL with a scheme of either `postgres://` or `postgresql://`.
+    /// The URL should be with a scheme of either `postgres://` or `postgresql://`.
     ///
     /// - `postgresql://user@localhost`
     /// - `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10`
     /// - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`
     /// - `postgresql:///mydb?user=user&host=/var/lib/postgresql`
     ///
-    /// # Notes
-    ///
-    /// If connection_string has been specified, other parameters will be ignored.
-    ///
-    /// For more information, please visit <https://docs.rs/postgres/latest/postgres/config/struct.Config.html>
+    /// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
     pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
@@ -129,13 +69,16 @@ impl PostgresqlBuilder {
         self
     }
 
-    /// set the working directory, all operations will be performed under it.
+    /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -173,7 +116,7 @@ impl Builder for PostgresqlBuilder {
     type Config = PostgresqlConfig;
 
     fn build(self) -> Result<impl Access> {
-        let conn = match self.config.connection_string.clone() {
+        let conn = match self.config.connection_string {
             Some(v) => v,
             None => {
                 return Err(
@@ -183,34 +126,28 @@ impl Builder for PostgresqlBuilder {
             }
         };
 
-        let config = Config::from_str(&conn).map_err(|err| {
+        let config = PgConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
                 .with_context("service", Scheme::Postgresql)
                 .set_source(err)
         })?;
 
-        let table = match self.config.table.clone() {
+        let table = match self.config.table {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
                     .with_context("service", Scheme::Postgresql))
             }
         };
-        let key_field = match self.config.key_field.clone() {
-            Some(v) => v,
-            None => "key".to_string(),
-        };
-        let value_field = match self.config.value_field.clone() {
-            Some(v) => v,
-            None => "value".to_string(),
-        };
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
+
+        let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+
+        let value_field = self
+            .config
+            .value_field
+            .unwrap_or_else(|| "value".to_string());
+
+        let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
         Ok(PostgresqlBackend::new(Adapter {
             pool: OnceCell::new(),
@@ -219,45 +156,33 @@ impl Builder for PostgresqlBuilder {
             key_field,
             value_field,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
 /// Backend for Postgresql service
 pub type PostgresqlBackend = kv::Backend<Adapter>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Adapter {
-    pool: OnceCell<Arc<Pool<PostgresConnectionManager<tokio_postgres::NoTls>>>>,
-    config: Config,
+    pool: OnceCell<PgPool>,
+    config: PgConnectOptions,
 
     table: String,
     key_field: String,
     value_field: String,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.finish_non_exhaustive()
-    }
-}
-
 impl Adapter {
-    async fn get_client(&self) -> Result<&Pool<PostgresConnectionManager<tokio_postgres::NoTls>>> {
+    async fn get_client(&self) -> Result<&PgPool> {
         self.pool
             .get_or_try_init(|| async {
-                // TODO: add tls support.
-                let manager =
-                    PostgresConnectionManager::new(self.config.clone(), tokio_postgres::NoTls);
-                let pool = Pool::builder()
-                    .build(manager)
+                let pool = PgPool::connect_with(self.config.clone())
                     .await
-                    .map_err(parse_postgre_error)?;
-                Ok(Arc::new(pool))
+                    .map_err(parse_postgres_error)?;
+                Ok(pool)
             })
             .await
-            .map(|v| v.as_ref())
     }
 }
 
@@ -275,83 +200,57 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let query = format!(
-            "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
+        let pool = self.get_client().await?;
+
+        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
+            r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
             self.value_field, self.table, self.key_field
-        );
-        let connection = self
-            .get_client()
-            .await?
-            .get()
-            .await
-            .map_err(parse_bb8_error)?;
-        let statement = connection
-            .prepare(&query)
-            .await
-            .map_err(parse_postgre_error)?;
-        let rows = connection
-            .query(&statement, &[&path])
-            .await
-            .map_err(parse_postgre_error)?;
-        if rows.is_empty() {
-            return Ok(None);
-        }
-        let value: Vec<u8> = rows[0].get(0);
-        Ok(Some(Buffer::from(value)))
+        ))
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_postgres_error)?;
+
+        Ok(value.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let pool = self.get_client().await?;
+
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
-        let query = format!(
-            "INSERT INTO {table} ({key_field}, {value_field}) \
-                VALUES ($1, $2) \
-                ON CONFLICT ({key_field}) \
-                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
-        );
-        let connection = self
-            .get_client()
-            .await?
-            .get()
-            .await
-            .map_err(parse_bb8_error)?;
-        let statement = connection
-            .prepare(&query)
-            .await
-            .map_err(parse_postgre_error)?;
-        let _ = connection
-            .query(&statement, &[&path, &value.to_vec()])
-            .await
-            .map_err(parse_postgre_error)?;
+        sqlx::query(&format!(
+            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
+                VALUES ($1, $2)
+                ON CONFLICT ("{key_field}")
+                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
+        ))
+        .bind(path)
+        .bind(value.to_vec())
+        .execute(pool)
+        .await
+        .map_err(parse_postgres_error)?;
+
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
-        let connection = self
-            .get_client()
-            .await?
-            .get()
-            .await
-            .map_err(parse_bb8_error)?;
-        let statement = connection
-            .prepare(&query)
-            .await
-            .map_err(parse_postgre_error)?;
+        let pool = self.get_client().await?;
 
-        let _ = connection
-            .query(&statement, &[&path])
-            .await
-            .map_err(parse_postgre_error)?;
+        sqlx::query(&format!(
+            "DELETE FROM {} WHERE {} = $1",
+            self.table, self.key_field
+        ))
+        .bind(path)
+        .execute(pool)
+        .await
+        .map_err(parse_postgres_error)?;
+
         Ok(())
     }
 }
 
-fn parse_bb8_error(err: bb8::RunError<tokio_postgres::Error>) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
-}
-
-fn parse_postgre_error(err: tokio_postgres::Error) -> Error {
+fn parse_postgres_error(err: sqlx::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
 }

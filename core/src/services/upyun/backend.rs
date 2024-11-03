@@ -22,8 +22,6 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -31,36 +29,8 @@ use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
+use crate::services::UpyunConfig;
 use crate::*;
-
-/// Config for upyun services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct UpyunConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// bucket address of this backend.
-    pub bucket: String,
-    /// username of this backend.
-    pub operator: Option<String>,
-    /// password of this backend.
-    pub password: Option<String>,
-}
-
-impl Debug for UpyunConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("bucket", &self.bucket);
-        ds.field("operator", &self.operator);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
@@ -266,7 +236,7 @@ impl Access for UpyunBackend {
 
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -277,7 +247,7 @@ impl Access for UpyunBackend {
 
         match status {
             StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -293,7 +263,7 @@ impl Access for UpyunBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -317,7 +287,7 @@ impl Access for UpyunBackend {
             StatusCode::OK => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -333,7 +303,7 @@ impl Access for UpyunBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -344,7 +314,7 @@ impl Access for UpyunBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

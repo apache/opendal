@@ -17,15 +17,11 @@
 
 use await_tree::InstrumentAwait;
 use futures::Future;
-use futures::FutureExt;
-use oio::ListOperation;
-use oio::ReadOperation;
-use oio::WriteOperation;
 
 use crate::raw::*;
 use crate::*;
 
-/// Add a Instrument await-tree for actor-based applications to the underlying services.
+/// Add an Instrument await-tree for actor-based applications to the underlying services.
 ///
 /// # AwaitTree
 ///
@@ -36,16 +32,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::AwaitTreeLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::AwaitTreeLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AwaitTreeLayer::new())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone, Default)]
 pub struct AwaitTreeLayer {}
@@ -87,16 +85,16 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
         self.inner
             .read(path, args)
             .instrument_await(format!("opendal::{}", Operation::Read))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
             .instrument_await(format!("opendal::{}", Operation::Write))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -131,8 +129,8 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
         self.inner
             .list(path, args)
             .instrument_await(format!("opendal::{}", Operation::List))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -182,7 +180,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .instrument_await(format!("opendal::{}", ReadOperation::Read))
+            .instrument_await(format!("opendal::{}", Operation::ReaderRead))
             .await
     }
 }
@@ -197,19 +195,19 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .write(bs)
-            .instrument_await(format!("opendal::{}", WriteOperation::Write.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterWrite.into_static()))
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()
-            .instrument_await(format!("opendal::{}", WriteOperation::Abort.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterAbort.into_static()))
     }
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .close()
-            .instrument_await(format!("opendal::{}", WriteOperation::Close.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::WriterClose.into_static()))
     }
 }
 
@@ -227,7 +225,7 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .instrument_await(format!("opendal::{}", ListOperation::Next))
+            .instrument_await(format!("opendal::{}", Operation::ListerNext))
             .await
     }
 }

@@ -27,23 +27,23 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_error *error = opendal_operator_write(op, "/testpath", data);
+    opendal_error *error = opendal_operator_write(op, "/testpath", &data);
     assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */
     opendal_result_read r = opendal_operator_read(op, "/testpath");
-    opendal_bytes* read_bytes = r.data;
+    opendal_bytes read_bytes = r.data;
     assert(r.error == NULL);
-    assert(read_bytes->len == 24);
+    assert(read_bytes.len == 24);
 
     /* Lets print it out */
     for (int i = 0; i < 24; ++i) {
-        printf("%c", read_bytes->data[i]);
+        printf("%c", read_bytes.data[i]);
     }
     printf("\n");
 
     /* the opendal_bytes read is heap allocated, please free it */
-    opendal_bytes_free(read_bytes);
+    opendal_bytes_free(&read_bytes);
 
     /* the operator_ptr is also heap allocated */
     opendal_operator_free(&op);
@@ -56,14 +56,13 @@ For more examples, please refer to `./examples`
 
 To build OpenDAL C binding, the following is all you need:
 
-- **A C++ compiler** that supports **c++14**, _e.g._ clang++ and g++
+- A compiler that supports **C11** and **C++14**, _e.g._ clang and gcc
 
 - To format the code, you need to install **clang-format**
 
   - The `opendal.h` is not formatted by hands when you contribute, please do not format the file. **Use `make format` only.**
   - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.
 
-- **GTest(Google Test)** need to be installed to build the BDD (Behavior Driven Development) tests. To see how to build, check [here](https://github.com/google/googletest).
 - (optional) **Doxygen** need to be installed to generate documentations.
 
 For Ubuntu and Debian:
@@ -83,19 +82,6 @@ sudo apt-get install cmake
 
 # install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# If you run the tests, install additional components
-
-# install Valgrind
-sudo apt-get install Valgrind
-
-# install GTest
-cd /usr/src/gtest
-sudo cmake CMakeLists.txt
-sudo make
-sudo cp lib/*.a /usr/lib
-sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
-sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 ```
 
 ## Makefile
@@ -103,7 +89,9 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 - To **build the library and header file**.
 
   ```sh
-  make build
+  mkdir -p build && cd build
+  cmake ..
+  make
   ```
 
   - The header file `opendal.h` is under `./include`
@@ -113,19 +101,22 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 - To **clean** the build results.
 
   ```sh
-  make clean
+  cargo clean
+  cd build && make clean
   ```
 
 - To build and run the **tests**. (Note that you need to install Valgrind and GTest)
 
   ```sh
-  make test
+  cd build
+  make tests && ./tests
   ```
 
 - To build the **examples**
 
   ```sh
-  make examples
+  cd build
+  make basic error_handle
   ```
 
 ## Documentation

@@ -19,6 +19,7 @@ mod lister;
 mod reader;
 mod types;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -79,7 +80,7 @@ mod ffi {
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
         fn write(self: &Operator, path: &str, bs: &'static [u8]) -> Result<()>;
-        fn is_exist(self: &Operator, path: &str) -> Result<bool>;
+        fn exists(self: &Operator, path: &str) -> Result<bool>;
         fn create_dir(self: &Operator, path: &str) -> Result<()>;
         fn copy(self: &Operator, src: &str, dst: &str) -> Result<()>;
         fn rename(self: &Operator, src: &str, dst: &str) -> Result<()>;
@@ -101,12 +102,12 @@ pub struct Operator(od::BlockingOperator);
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
 
-    let map = configs
+    let map: HashMap<String, String> = configs
         .into_iter()
         .map(|value| (value.key, value.value))
         .collect();
 
-    let op = Box::new(Operator(od::Operator::via_map(scheme, map)?.blocking()));
+    let op = Box::new(Operator(od::Operator::via_iter(scheme, map)?.blocking()));
 
     Ok(op)
 }
@@ -124,8 +125,8 @@ impl Operator {
         Ok(self.0.write(path, bs)?)
     }
 
-    fn is_exist(&self, path: &str) -> Result<bool> {
-        Ok(self.0.is_exist(path)?)
+    fn exists(&self, path: &str) -> Result<bool> {
+        Ok(self.0.exists(path)?)
     }
 
     fn create_dir(&self, path: &str) -> Result<()> {

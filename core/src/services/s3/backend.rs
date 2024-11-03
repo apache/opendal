@@ -26,6 +26,7 @@ use std::sync::Arc;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
+use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -39,16 +40,16 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
-use super::lister::S3Lister;
+use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
+use crate::raw::oio::PageLister;
 use crate::raw::*;
+use crate::services::S3Config;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -63,167 +64,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 });
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
-
-/// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct S3Config {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// default to `/` if not set.
-    pub root: Option<String>,
-    /// bucket name of this backend.
-    ///
-    /// required.
-    pub bucket: String,
-    /// endpoint of this backend.
-    ///
-    /// Endpoint must be full uri, e.g.
-    ///
-    /// - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
-    /// - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
-    /// - Aliyun OSS: `https://{region}.aliyuncs.com`
-    /// - Tencent COS: `https://cos.{region}.myqcloud.com`
-    /// - Minio: `http://127.0.0.1:9000`
-    ///
-    /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
-    /// will prepend "https://" before it.
-    ///
-    /// default to `https://s3.amazonaws.com` if not set.
-    pub endpoint: Option<String>,
-    /// Region represent the signing region of this endpoint. This is required
-    /// if you are using the default AWS S3 endpoint.
-    ///
-    /// If using a custom endpoint,
-    /// - If region is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub region: Option<String>,
-
-    /// access_key_id of this backend.
-    ///
-    /// - If access_key_id is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub access_key_id: Option<String>,
-    /// secret_access_key of this backend.
-    ///
-    /// - If secret_access_key is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub secret_access_key: Option<String>,
-    /// session_token (aka, security token) of this backend.
-    ///
-    /// This token will expire after sometime, it's recommended to set session_token
-    /// by hand.
-    pub session_token: Option<String>,
-    /// role_arn for this backend.
-    ///
-    /// If `role_arn` is set, we will use already known config as source
-    /// credential to assume role with `role_arn`.
-    pub role_arn: Option<String>,
-    /// external_id for this backend.
-    pub external_id: Option<String>,
-    /// Disable config load so that opendal will not load config from
-    /// environment.
-    ///
-    /// For examples:
-    ///
-    /// - envs like `AWS_ACCESS_KEY_ID`
-    /// - files like `~/.aws/config`
-    pub disable_config_load: bool,
-    /// Disable load credential from ec2 metadata.
-    ///
-    /// This option is used to disable the default behavior of opendal
-    /// to load credential from ec2 metadata, a.k.a, IMDSv2
-    pub disable_ec2_metadata: bool,
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub allow_anonymous: bool,
-    /// server_side_encryption for this backend.
-    ///
-    /// Available values: `AES256`, `aws:kms`.
-    pub server_side_encryption: Option<String>,
-    /// server_side_encryption_aws_kms_key_id for this backend
-    ///
-    /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    ///   is not set, S3 will use aws managed kms key to encrypt data.
-    /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-    ///   is a valid kms key id, S3 will use the provided kms key to encrypt data.
-    /// - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be
-    ///   returned.
-    /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
-    ///   is a noop.
-    pub server_side_encryption_aws_kms_key_id: Option<String>,
-    /// server_side_encryption_customer_algorithm for this backend.
-    ///
-    /// Available values: `AES256`.
-    pub server_side_encryption_customer_algorithm: Option<String>,
-    /// server_side_encryption_customer_key for this backend.
-    ///
-    /// # Value
-    ///
-    /// base64 encoded key that matches algorithm specified in
-    /// `server_side_encryption_customer_algorithm`.
-    pub server_side_encryption_customer_key: Option<String>,
-    /// Set server_side_encryption_customer_key_md5 for this backend.
-    ///
-    /// # Value
-    ///
-    /// MD5 digest of key specified in `server_side_encryption_customer_key`.
-    pub server_side_encryption_customer_key_md5: Option<String>,
-    /// default storage_class for this backend.
-    ///
-    /// Available values:
-    /// - `DEEP_ARCHIVE`
-    /// - `GLACIER`
-    /// - `GLACIER_IR`
-    /// - `INTELLIGENT_TIERING`
-    /// - `ONEZONE_IA`
-    /// - `OUTPOSTS`
-    /// - `REDUCED_REDUNDANCY`
-    /// - `STANDARD`
-    /// - `STANDARD_IA`
-    ///
-    /// S3 compatible services don't support all of them
-    pub default_storage_class: Option<String>,
-    /// Enable virtual host style so that opendal will send API requests
-    /// in virtual host style instead of path style.
-    ///
-    /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
-    /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
-    pub enable_virtual_host_style: bool,
-    /// Set maximum batch operations of this backend.
-    ///
-    /// Some compatible services have a limit on the number of operations in a batch request.
-    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
-    ///
-    /// Please tune this value based on services' document.
-    pub batch_max_operations: Option<usize>,
-    /// Disable stat with override so that opendal will not send stat request with override queries.
-    ///
-    /// For example, R2 doesn't support stat with `response_content_type` query.
-    pub disable_stat_with_override: bool,
-    /// Checksum Algorithm to use when sending checksums in HTTP headers.
-    /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
-    ///
-    /// Available options:
-    /// - "crc32c"
-    pub checksum_algorithm: Option<String>,
-}
-
-impl Debug for S3Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("S3Config");
-
-        d.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("region", &self.region);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for S3Config {
     type Builder = S3Builder;
@@ -353,6 +193,15 @@ impl S3Builder {
     pub fn external_id(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.external_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set role_session_name for this backend.
+    pub fn role_session_name(mut self, v: &str) -> Self {
+        if !v.is_empty() {
+            self.config.role_session_name = Some(v.to_string())
         }
 
         self
@@ -607,6 +456,13 @@ impl S3Builder {
     /// during minor updates.
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
         self
     }
 
@@ -945,18 +801,25 @@ impl Builder for S3Builder {
         // If role_arn is set, we must use AssumeRoleLoad.
         if let Some(role_arn) = self.config.role_arn {
             // use current env as source credential loader.
-            let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
+            let default_loader =
+                AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg.clone());
 
             // Build the config for assume role.
-            let assume_role_cfg = AwsConfig {
+            let mut assume_role_cfg = AwsConfig {
                 region: Some(region.clone()),
                 role_arn: Some(role_arn),
                 external_id: self.config.external_id.clone(),
                 sts_regional_endpoints: "regional".to_string(),
                 ..Default::default()
             };
+
+            // override default role_session_name if set
+            if let Some(name) = self.config.role_session_name {
+                assume_role_cfg.role_session_name = name;
+            }
+
             let assume_role_loader = AwsAssumeRoleLoader::new(
-                client.client(),
+                GLOBAL_REQWEST_CLIENT.clone().clone(),
                 assume_role_cfg,
                 Box::new(default_loader),
             )
@@ -974,7 +837,8 @@ impl Builder for S3Builder {
         let loader = match loader {
             Some(v) => v,
             None => {
-                let mut default_loader = AwsDefaultLoader::new(client.client(), cfg);
+                let mut default_loader =
+                    AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg);
                 if self.config.disable_ec2_metadata {
                     default_loader = default_loader.with_disable_ec2_metadata();
                 }
@@ -1003,6 +867,7 @@ impl Builder for S3Builder {
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_stat_with_override: self.config.disable_stat_with_override,
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
@@ -1023,7 +888,7 @@ pub struct S3Backend {
 impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
-    type Lister = oio::PageLister<S3Lister>;
+    type Lister = S3Listers;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -1040,20 +905,24 @@ impl Access for S3Backend {
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
                 stat_with_override_content_disposition: !self.core.disable_stat_with_override,
                 stat_with_override_content_type: !self.core.disable_stat_with_override,
+                stat_with_version: self.core.enable_versioning,
 
                 read: true,
-
                 read_with_if_match: true,
                 read_with_if_none_match: true,
                 read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
                 read_with_override_content_type: true,
+                read_with_version: self.core.enable_versioning,
 
                 write: true,
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_if_none_match: true,
+                write_with_user_metadata: true,
+
                 // The min multipart size of S3 is 5 MiB.
                 //
                 // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1068,12 +937,15 @@ impl Access for S3Backend {
                 },
 
                 delete: true,
+                delete_with_version: self.core.enable_versioning,
+
                 copy: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
+                list_with_version: self.core.enable_versioning,
 
                 presign: true,
                 presign_stat: true,
@@ -1098,6 +970,11 @@ impl Access for S3Backend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+
+                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
 
                 if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
                     meta.set_version(v);
@@ -1156,14 +1033,32 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = S3Lister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        if args.version() && !self.core.enable_versioning {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "the bucket doesn't enable versioning",
+            ));
+        }
+
+        let l = if args.version() {
+            TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        } else {
+            TwoWays::One(PageLister::new(S3Lister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -38,7 +38,7 @@ var (
 	typeResultRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
-			&ffi.TypePointer,
+			&typeBytes,
 			&ffi.TypePointer,
 			nil,
 		}[0],
@@ -47,6 +47,7 @@ var (
 	typeBytes = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
 			&ffi.TypePointer,
 			&ffi.TypePointer,
 			nil,
@@ -81,6 +82,24 @@ var (
 	}
 
 	typeResultOperatorReader = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
+	typeResultOperatorWriter = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
+	typeResultWriterWrite = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
 			&ffi.TypePointer,
@@ -195,22 +214,30 @@ type resultOperatorNew struct {
 	error *opendalError
 }
 
-type opendalOperator struct {
-	ptr uintptr
-}
+type opendalOperator struct{}
 
 type resultRead struct {
-	data  *opendalBytes
+	data  opendalBytes
 	error *opendalError
 }
 
-type opendalReader struct {
-	inner uintptr
-}
+type opendalReader struct{}
 
 type resultOperatorReader struct {
 	reader *opendalReader
 	error  *opendalError
+}
+
+type opendalWriter struct{}
+
+type resultOperatorWriter struct {
+	writer *opendalWriter
+	error  *opendalError
+}
+
+type resultWriterWrite struct {
+	size  uint
+	error *opendalError
 }
 
 type resultReaderRead struct {
@@ -228,13 +255,12 @@ type resultStat struct {
 	error *opendalError
 }
 
-type opendalMetadata struct {
-	inner uintptr
-}
+type opendalMetadata struct{}
 
 type opendalBytes struct {
-	data *byte
-	len  uintptr
+	data     *byte
+	len      uintptr
+	capacity uintptr
 }
 
 type opendalError struct {
@@ -242,42 +268,40 @@ type opendalError struct {
 	message opendalBytes
 }
 
-type opendalOperatorInfo struct {
-	inner uintptr
-}
+type opendalOperatorInfo struct{}
 
 type opendalResultList struct {
 	lister *opendalLister
 	err    *opendalError
 }
 
-type opendalLister struct {
-	inner uintptr
-}
+type opendalLister struct{}
 
 type opendalResultListerNext struct {
 	entry *opendalEntry
 	err   *opendalError
 }
 
-type opendalEntry struct {
-	inner uintptr
-}
+type opendalEntry struct{}
 
-func toOpendalBytes(data []byte) opendalBytes {
+func toOpendalBytes(data []byte) *opendalBytes {
 	var ptr *byte
 	l := len(data)
 	if l > 0 {
 		ptr = &data[0]
+	} else {
+		var b byte
+		ptr = &b
 	}
-	return opendalBytes{
-		data: ptr,
-		len:  uintptr(l),
+	return &opendalBytes{
+		data:     ptr,
+		len:      uintptr(l),
+		capacity: uintptr(cap(data)),
 	}
 }
 
-func parseBytes(b *opendalBytes) (data []byte) {
-	if b == nil || b.len == 0 {
+func parseBytes(b opendalBytes) (data []byte) {
+	if b.len == 0 {
 		return nil
 	}
 	data = make([]byte, b.len)

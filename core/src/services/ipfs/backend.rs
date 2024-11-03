@@ -24,24 +24,12 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
+use crate::services::IpfsConfig;
 use crate::*;
-
-/// Config for IPFS file system support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct IpfsConfig {
-    /// IPFS gateway endpoint.
-    pub endpoint: Option<String>,
-    /// IPFS root.
-    pub root: Option<String>,
-}
 
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
@@ -70,9 +58,11 @@ impl IpfsBuilder {
     /// - `/ipfs/bafybeibozpulxtpv5nhfa2ue3dcjx23ndh3gwr5vwllk7ptoyfwnfjjr4q/` (IPFS with  CID v1)
     /// - `/ipns/opendal.apache.org/` (IPNS)
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -342,7 +332,7 @@ impl Access for IpfsBackend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -358,7 +348,7 @@ impl Access for IpfsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -436,7 +426,7 @@ impl oio::PageList for DirStream {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

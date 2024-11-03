@@ -89,7 +89,7 @@ impl oio::PageList for PcloudLister {
                     String::from_utf8_lossy(&bs.to_bytes()),
                 ));
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

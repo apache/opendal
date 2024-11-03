@@ -48,3 +48,6 @@ sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
 [parse]
 include = ["opendal"]
 parse_deps = true
+
+[fn]
+deprecated_with_note = "__attribute__((deprecated({})))"

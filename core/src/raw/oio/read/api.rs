@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::mem;
 use std::ops::DerefMut;
 
@@ -25,40 +23,6 @@ use futures::Future;
 
 use crate::raw::*;
 use crate::*;
-
-/// PageOperation is the name for APIs of lister.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum ReadOperation {
-    /// Operation for [`Read::read`]
-    Read,
-    /// Operation for [`BlockingRead::read`]
-    BlockingRead,
-}
-
-impl ReadOperation {
-    /// Convert self into static str.
-    pub fn into_static(self) -> &'static str {
-        self.into()
-    }
-}
-
-impl Display for ReadOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.into_static())
-    }
-}
-
-impl From<ReadOperation> for &'static str {
-    fn from(v: ReadOperation) -> &'static str {
-        use ReadOperation::*;
-
-        match v {
-            Read => "Reader::read",
-            BlockingRead => "BlockingReader::read",
-        }
-    }
-}
 
 /// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn ReadDyn>;

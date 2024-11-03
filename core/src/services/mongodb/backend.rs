@@ -22,45 +22,12 @@ use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::options::ClientOptions;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
-use crate::raw::Access;
+use crate::raw::*;
+use crate::services::MongodbConfig;
 use crate::*;
-
-/// Config for Mongodb service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MongodbConfig {
-    /// connection string of this backend
-    pub connection_string: Option<String>,
-    /// database of this backend
-    pub database: Option<String>,
-    /// collection of this backend
-    pub collection: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// key field of this backend
-    pub key_field: Option<String>,
-    /// value field of this backend
-    pub value_field: Option<String>,
-}
-
-impl Debug for MongodbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MongodbConfig")
-            .field("connection_string", &self.connection_string)
-            .field("database", &self.database)
-            .field("collection", &self.collection)
-            .field("root", &self.root)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
-}
 
 impl Configurator for MongodbConfig {
     type Builder = MongodbBuilder;
@@ -114,9 +81,12 @@ impl MongodbBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -195,7 +165,13 @@ impl Builder for MongodbBuilder {
             Some(v) => v.clone(),
             None => "value".to_string(),
         };
-
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
         Ok(MongodbBackend::new(Adapter {
             connection_string: conn,
             database,
@@ -203,7 +179,8 @@ impl Builder for MongodbBuilder {
             collection_instance: OnceCell::new(),
             key_field,
             value_field,
-        }))
+        })
+        .with_normalized_root(root))
     }
 }
 

@@ -22,6 +22,7 @@ use jni::sys::jboolean;
 use jni::sys::jfloat;
 use jni::sys::jlong;
 use jni::JNIEnv;
+use opendal::layers::ConcurrentLimitLayer;
 use opendal::layers::RetryLayer;
 use opendal::Operator;
 
@@ -48,4 +49,16 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer(
         retry = retry.with_max_times(max_times as usize);
     }
     Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    permits: jlong,
+) -> jlong {
+    let op = unsafe { &*op };
+    let concurrent_limit = ConcurrentLimitLayer::new(permits as usize);
+    Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as jlong
 }

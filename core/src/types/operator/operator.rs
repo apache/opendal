@@ -69,11 +69,13 @@ pub struct Operator {
 
 /// # Operator basic API.
 impl Operator {
-    pub(crate) fn inner(&self) -> &Accessor {
+    /// Fetch the internal accessor.
+    pub fn inner(&self) -> &Accessor {
         &self.accessor
     }
 
-    pub(crate) fn from_inner(accessor: Accessor) -> Self {
+    /// Convert inner accessor into operator.
+    pub fn from_inner(accessor: Accessor) -> Self {
         let limit = accessor
             .info()
             .full_capability()
@@ -86,7 +88,8 @@ impl Operator {
         }
     }
 
-    pub(crate) fn into_inner(self) -> Accessor {
+    /// Convert operator into inner accessor.
+    pub fn into_inner(self) -> Accessor {
         self.accessor
     }
 
@@ -337,11 +340,38 @@ impl Operator {
     /// use opendal::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
+    ///     let _ = op.exists("test").await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn exists(&self, path: &str) -> Result<bool> {
+        let r = self.stat(path).await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+
+    /// Check if this path exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let _ = op.is_exist("test").await?;
     ///
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(note = "rename to `exists` for consistence with `std::fs::exists`")]
     pub async fn is_exist(&self, path: &str) -> Result<bool> {
         let r = self.stat(path).await;
         match r {
@@ -1201,6 +1231,29 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `if_none_match`
+    ///
+    /// Set `if_none_match` for this `write` request.
+    ///
+    /// This feature can be used to check if the file already exists.
+    /// This prevents overwriting of existing objects with identical key names.
+    /// Users can use *(asterisk) to verify if a file already exists by matching with any ETag.
+    /// Note: S3 only support use *(asterisk).
+    ///
+    /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let res = op.write_with("path/to/file", bs).if_none_match("*").await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ```
@@ -1451,9 +1504,6 @@ impl Operator {
             obs.try_for_each(|v| async move { self.delete(v.path()).await })
                 .await?;
         }
-
-        // Remove the directory itself.
-        self.delete(path).await?;
 
         Ok(())
     }

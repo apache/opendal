@@ -33,6 +33,7 @@ mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
 mod logging;
+pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
 
 mod timeout;
@@ -62,11 +63,15 @@ pub use self::mime_guess::MimeGuessLayer;
 mod prometheus;
 #[cfg(feature = "layers-prometheus")]
 pub use self::prometheus::PrometheusLayer;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayerBuilder;
 
 #[cfg(feature = "layers-prometheus-client")]
 mod prometheus_client;
 #[cfg(feature = "layers-prometheus-client")]
 pub use self::prometheus_client::PrometheusClientLayer;
+#[cfg(feature = "layers-prometheus-client")]
+pub use self::prometheus_client::PrometheusClientLayerBuilder;
 
 mod retry;
 pub use self::retry::RetryInterceptor;
@@ -106,3 +111,5 @@ pub use self::async_backtrace::AsyncBacktraceLayer;
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
+
+pub mod observe;

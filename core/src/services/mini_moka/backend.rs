@@ -21,31 +21,11 @@ use std::time::Duration;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
+use crate::services::MiniMokaConfig;
 use crate::*;
-
-/// Config for mini-moka support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MiniMokaConfig {
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
-}
 
 impl Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
@@ -91,6 +71,17 @@ impl MiniMokaBuilder {
         }
         self
     }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
+        self
+    }
 }
 
 impl Builder for MiniMokaBuilder {
@@ -114,9 +105,14 @@ impl Builder for MiniMokaBuilder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MiniMokaBackend::new(Adapter {
+        let mut backend = MiniMokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
@@ -191,7 +187,7 @@ impl typed_kv::Adapter for Adapter {
         if path.is_empty() {
             Ok(keys.collect())
         } else {
-            Ok(keys.filter(|k| k.starts_with(path) && k != path).collect())
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }

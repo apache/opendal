@@ -23,7 +23,19 @@ use crate::error::*;
 /// The corresponding value needs to be aligned with the specification.
 #[non_exhaustive]
 pub enum Opcode {
+    Lookup = 1,
+    Forget = 2,
+    Getattr = 3,
+    Setattr = 4,
+    Unlink = 10,
+    Open = 14,
+    Read = 15,
+    Write = 16,
+    Release = 18,
+    Flush = 25,
     Init = 26,
+    Create = 35,
+    Destroy = 38,
 }
 
 impl TryFrom<u32> for Opcode {
@@ -31,10 +43,48 @@ impl TryFrom<u32> for Opcode {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
+            1 => Ok(Opcode::Lookup),
+            2 => Ok(Opcode::Forget),
+            3 => Ok(Opcode::Getattr),
+            4 => Ok(Opcode::Setattr),
+            10 => Ok(Opcode::Unlink),
+            14 => Ok(Opcode::Open),
+            15 => Ok(Opcode::Read),
+            16 => Ok(Opcode::Write),
+            18 => Ok(Opcode::Release),
+            25 => Ok(Opcode::Flush),
             26 => Ok(Opcode::Init),
+            35 => Ok(Opcode::Create),
+            38 => Ok(Opcode::Destroy),
             _ => Err(new_vhost_user_fs_error("failed to decode opcode", None)),
         }
     }
+}
+
+/// Attr represents the file attributes in virtiofs.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L577
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Attr {
+    pub ino: u64,
+    pub size: u64,
+    pub blocks: u64,
+    pub atime: u64,
+    pub mtime: u64,
+    pub ctime: u64,
+    pub atimensec: u32,
+    pub mtimensec: u32,
+    pub ctimensec: u32,
+    pub mode: u32,
+    pub nlink: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub rdev: u32,
+    pub blksize: u32,
+    pub flags: u32,
 }
 
 /// InHeader represents the incoming message header in the filesystem call.
@@ -105,9 +155,134 @@ pub struct InitOut {
     pub unused: [u32; 7],
 }
 
+/// EntryOut is used to return the file entry in the filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L737
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct EntryOut {
+    pub nodeid: u64,
+    pub generation: u64,
+    pub entry_valid: u64,
+    pub attr_valid: u64,
+    pub entry_valid_nsec: u32,
+    pub attr_valid_nsec: u32,
+    pub attr: Attr,
+}
+
+/// AttrOut is used to return the file attributes in the filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L782
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct AttrOut {
+    pub attr_valid: u64,
+    pub attr_valid_nsec: u32,
+    pub dummy: u32,
+    pub attr: Attr,
+}
+
+/// CreateIn is used to parse the parameters passed in the Create filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L881
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CreateIn {
+    pub flags: u32,
+    pub mode: u32,
+    pub umask: u32,
+    pub open_flags: u32,
+}
+
+/// OpenIn is used to parse the parameters passed in the Open filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#873
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OpenIn {
+    pub flags: u32,
+    pub open_flags: u32,
+}
+
+/// OpenOut is used to return the file descriptor in the filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L891
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OpenOut {
+    pub fh: u64,
+    pub open_flags: u32,
+    pub padding: u32,
+}
+
+/// ReadIn is used to parse the parameters passed in the Read filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#920
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ReadIn {
+    pub fh: u64,
+    pub offset: u64,
+    pub size: u32,
+    pub read_flags: u32,
+    pub lock_owner: u64,
+    pub flags: u32,
+    pub padding: u32,
+}
+
+/// WriteIn is used to parse the parameters passed in the Write filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#933
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WriteIn {
+    pub fh: u64,
+    pub offset: u64,
+    pub size: u32,
+    pub write_flags: u32,
+    pub lock_owner: u64,
+    pub flags: u32,
+    pub padding: u32,
+}
+
+/// WriteOut is used to return the number of bytes written in the Write filesystem call.
+///
+/// The fields of the struct need to conform to the specific format of the virtiofs message.
+/// Currently, we only need to align them exactly with virtiofsd.
+/// Reference: https://gitlab.com/virtio-fs/virtiofsd/-/blob/main/src/fuse.rs?ref_type=heads#L946
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WriteOut {
+    pub size: u32,
+    pub padding: u32,
+}
+
 /// We will use ByteValued to implement the encoding and decoding
 /// of these structures in shared memory.
+unsafe impl ByteValued for Attr {}
 unsafe impl ByteValued for InHeader {}
 unsafe impl ByteValued for OutHeader {}
 unsafe impl ByteValued for InitIn {}
 unsafe impl ByteValued for InitOut {}
+unsafe impl ByteValued for EntryOut {}
+unsafe impl ByteValued for AttrOut {}
+unsafe impl ByteValued for CreateIn {}
+unsafe impl ByteValued for OpenIn {}
+unsafe impl ByteValued for OpenOut {}
+unsafe impl ByteValued for ReadIn {}
+unsafe impl ByteValued for WriteIn {}
+unsafe impl ByteValued for WriteOut {}

@@ -76,7 +76,7 @@ pub struct AsyncWriter {
 }
 
 impl AsyncWriter {
-    /// Create a [`OpendalAsyncWriter`] by given [`Writer`].
+    /// Create a [`AsyncWriter`] by given [`Writer`].
     pub fn new(writer: Writer) -> Self {
         Self { inner: writer }
     }
@@ -137,7 +137,7 @@ mod tests {
         writer.write(bytes).await.unwrap();
         drop(writer);
 
-        let exist = op.is_exist(path).await.unwrap();
+        let exist = op.exists(path).await.unwrap();
         assert!(!exist);
     }
 

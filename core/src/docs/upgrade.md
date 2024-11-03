@@ -1,3 +1,56 @@
+# Upgrade to v0.50
+
+## Public API
+
+### `services-postgresql`'s connect string now supports only URL format
+
+Previously, it supports both URL format and key-value format. After switching the implementation from `tokio-postgres` to `sqlx`, the service now supports only the URL format.
+
+### `list` now returns path itself
+
+Previously, `list("a/b")` would not return `a/b` even if it does exist. Since v0.50.0, this behavior has been changed. OpenDAL will now return the path itself if it exists. This change applies to all cases, whether the path is a directory or a file.
+
+### Refactoring of the metrics-related layer
+
+In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implemenationts. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
+
+# Upgrade to v0.49
+
+## Public API
+
+### `Configurator` now returns associated builder instead
+
+`Configurator` used to return `impl Builder`, but now it returns associated builder type directly. This will allow users to use the builder in a more flexible way.
+
+```diff
+impl Configurator for MemoryConfig {
+-    fn into_builder(self) -> impl Builder {
++    type Builder = MemoryBuilder;
++    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+```
+
+### `LoggingLayer` now accepts `LoggingInterceptor`
+
+`LoggingLayer` now accepts `LoggingInterceptor` trait instead of configuration. This change will allow users to customize the logging behavior more flexibly.
+
+```diff
+pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+```
+
+Users can now implement the log in the way they want.
+
 # Upgrade to v0.48
 
 ## Public API
@@ -370,7 +423,7 @@ Please use `op.list_with().metakey()` instead of `op.metadata(&entry)`, for exam
 ```rust
 // Before
 let entries: Vec<Entry> = op.list("dir/").await?;
-for entry in entris {
+for entry in entries {
   let meta = op.metadata(&entry, Metakey::ContentLength | Metakey::ContentType).await?;
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
@@ -379,7 +432,7 @@ for entry in entris {
 let entries: Vec<Entry> = op
   .list_with("dir/")
   .metakey(Metakey::ContentLength | Metakey::ContentType).await?;
-for entry in entris {
+for entry in entries {
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
 ```

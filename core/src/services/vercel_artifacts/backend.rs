@@ -78,7 +78,7 @@ impl Access for VercelArtifactsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(res).await?),
+            _ => Err(parse_error(res)),
         }
     }
 
@@ -92,7 +92,7 @@ impl Access for VercelArtifactsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }

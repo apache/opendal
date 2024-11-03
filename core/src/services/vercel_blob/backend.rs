@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::parse_blob;
 use super::core::Blob;
@@ -34,30 +32,8 @@ use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
 use crate::raw::*;
+use crate::services::VercelBlobConfig;
 use crate::*;
-
-/// Config for VercelBlob services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct VercelBlobConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// vercel blob token.
-    pub token: String,
-}
-
-impl Debug for VercelBlobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
@@ -106,8 +82,9 @@ impl VercelBlobBuilder {
     /// Get from Vercel environment variable `BLOB_READ_WRITE_TOKEN`.
     /// It is required.
     pub fn token(mut self, token: &str) -> Self {
-        self.config.token = token.to_string();
-
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 
@@ -135,11 +112,11 @@ impl Builder for VercelBlobBuilder {
         debug!("backend use root {}", &root);
 
         // Handle token.
-        if self.config.token.is_empty() {
+        let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::VercelBlob));
-        }
+        };
 
         let client = if let Some(client) = self.http_client {
             client
@@ -153,7 +130,7 @@ impl Builder for VercelBlobBuilder {
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
                 root,
-                token: self.config.token.clone(),
+                token,
                 client,
             }),
         })
@@ -214,7 +191,7 @@ impl Access for VercelBlobBackend {
 
                 parse_blob(&resp).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -230,7 +207,7 @@ impl Access for VercelBlobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -256,7 +233,7 @@ impl Access for VercelBlobBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

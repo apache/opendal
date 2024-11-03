@@ -20,24 +20,14 @@ use std::sync::Arc;
 
 use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::CompfsCore;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
 use crate::raw::*;
+use crate::services::CompfsConfig;
 use crate::*;
-
-/// compio-based file system support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct CompfsConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-}
 
 impl Configurator for CompfsConfig {
     type Builder = CompfsBuilder;

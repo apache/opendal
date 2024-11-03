@@ -70,10 +70,10 @@ async fn main() -> Result<()> {
         // set the root for WebHDFS, all operations will happen under this root
         //
         // Note:
-        // if the root is not exists, the builder will automatically create the
+        // if the root exists, the builder will automatically create the
         // root directory for you
         // if the root exists and is a directory, the builder will continue working
-        // if the root exists and is a folder, the builder will fail on building backend
+        // if the root exists and is a file, the builder will fail on building backend
         .root("/path/to/dir")
         // set the endpoint of webhdfs namenode, controlled by dfs.namenode.http-address
         // default is http://127.0.0.1:9870

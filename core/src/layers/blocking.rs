@@ -35,16 +35,16 @@ use crate::*;
 /// BlockingLayer will use current async context's runtime to handle the async calls.
 ///
 /// ```rust,no_run
-/// # use anyhow::Result;
-/// use opendal::layers::BlockingLayer;
-/// use opendal::services::S3;
-/// use opendal::BlockingOperator;
-/// use opendal::Operator;
+/// # use opendal::layers::BlockingLayer;
+/// # use opendal::services;
+/// # use opendal::BlockingOperator;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default().bucket("test").region("us-east-1");
+///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
 ///
 ///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
 ///     let _: BlockingOperator = Operator::new(builder)?
@@ -63,11 +63,11 @@ use crate::*;
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run
-/// use opendal::layers::BlockingLayer;
-/// use opendal::services::S3;
-/// use opendal::BlockingOperator;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// # use opendal::layers::BlockingLayer;
+/// # use opendal::services;
+/// # use opendal::BlockingOperator;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -77,7 +77,7 @@ use crate::*;
 ///
 /// fn blocking_fn() -> Result<BlockingOperator> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default().bucket("test").region("us-east-1");
+///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
 ///     let _guard = handle.enter();
@@ -98,12 +98,12 @@ use crate::*;
 /// > runtime on demand.
 ///
 /// ```rust,no_run
-/// use once_cell::sync::Lazy;
-/// use opendal::layers::BlockingLayer;
-/// use opendal::services::S3;
-/// use opendal::BlockingOperator;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// # use once_cell::sync::Lazy;
+/// # use opendal::layers::BlockingLayer;
+/// # use opendal::services;
+/// # use opendal::BlockingOperator;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
 /// static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 ///     tokio::runtime::Builder::new_multi_thread()
@@ -111,11 +111,10 @@ use crate::*;
 ///         .build()
 ///         .unwrap()
 /// });
-/// ///
 ///
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = S3::default().bucket("test").region("us-east-1");
+///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
 ///     let _guard = RUNTIME.enter();

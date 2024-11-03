@@ -30,6 +30,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/apache/opendal-go-services/fs"
 	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -39,6 +40,7 @@ import (
 // Add more schemes for behavior tests here.
 var schemes = []opendal.Scheme{
 	memory.Scheme,
+	fs.Scheme,
 }
 
 var op *opendal.Operator
@@ -223,8 +225,8 @@ func (f *fixture) Cleanup(assert *require.Assertions) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	for _, path := range f.paths {
-		assert.Nil(f.op.Delete(path), "delete must succeed: %s", path)
+	for i := len(f.paths) - 1; i >= 0; i-- {
+		assert.Nil(f.op.Delete(f.paths[i]), "delete must succeed: %s", f.paths[i])
 	}
 }
 

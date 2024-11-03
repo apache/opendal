@@ -46,7 +46,7 @@ impl oio::OneShotWrite for SwiftWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

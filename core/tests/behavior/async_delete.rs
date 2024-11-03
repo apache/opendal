@@ -33,7 +33,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_with_special_chars,
             test_delete_not_existing,
             test_delete_stream,
-            test_remove_one_file
+            test_remove_one_file,
+            test_delete_with_version,
+            test_delete_with_not_existing_version
         ));
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -53,7 +55,7 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
     op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -94,7 +96,7 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -119,7 +121,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     op.remove(vec![path.clone()]).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     op.write(&format!("/{path}"), content)
         .await
@@ -128,7 +130,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
     op.remove(vec![path.clone()]).await?;
 
     // Stat it again to check.
-    assert!(!op.is_exist(&path).await?);
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -161,7 +163,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     // Stat it again to check.
     for path in expected.iter() {
         assert!(
-            !op.is_exist(&format!("{dir}/{path}")).await?,
+            !op.exists(&format!("{dir}/{path}")).await?,
             "{path} should be removed"
         )
     }
@@ -211,4 +213,71 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
     test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
+}
+
+pub async fn test_delete_with_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_version {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let meta = op.stat(path.as_str()).await.expect("stat must success");
+    let version = meta.version().expect("must have version");
+
+    op.delete(path.as_str()).await.expect("delete must success");
+    assert!(!op.exists(path.as_str()).await?);
+
+    // After a simple delete, the data can still be accessed using its version.
+    let meta = op
+        .stat_with(path.as_str())
+        .version(version)
+        .await
+        .expect("stat must success");
+    assert_eq!(version, meta.version().expect("must have version"));
+
+    // After deleting with the version, the data is removed permanently
+    op.delete_with(path.as_str())
+        .version(version)
+        .await
+        .expect("delete must success");
+    let ret = op.stat_with(path.as_str()).version(version).await;
+    assert!(ret.is_err());
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_version {
+        return Ok(());
+    }
+
+    // retrieve a valid version
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have stat")
+        .to_string();
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let ret = op
+        .delete_with(path.as_str())
+        .version(version.as_str())
+        .await;
+    assert!(ret.is_ok());
+
+    Ok(())
 }

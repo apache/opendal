@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::Deserialize;
-use serde::Serialize;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
@@ -29,49 +27,8 @@ use tokio::sync::OnceCell;
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
 use crate::raw::Access;
+use crate::services::SurrealdbConfig;
 use crate::*;
-
-/// Config for Surrealdb services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SurrealdbConfig {
-    /// The connection string for surrealdb.
-    pub connection_string: Option<String>,
-    /// The username for surrealdb.
-    pub username: Option<String>,
-    /// The password for surrealdb.
-    pub password: Option<String>,
-    /// The namespace for surrealdb.
-    pub namespace: Option<String>,
-    /// The database for surrealdb.
-    pub database: Option<String>,
-    /// The table for surrealdb.
-    pub table: Option<String>,
-    /// The key field for surrealdb.
-    pub key_field: Option<String>,
-    /// The value field for surrealdb.
-    pub value_field: Option<String>,
-    /// The root for surrealdb.
-    pub root: Option<String>,
-}
-
-impl Debug for SurrealdbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SurrealdbConfig");
-
-        d.field("connection_string", &self.connection_string)
-            .field("username", &self.username)
-            .field("password", &"<redacted>")
-            .field("namespace", &self.namespace)
-            .field("database", &self.database)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .field("root", &self.root)
-            .finish()
-    }
-}
 
 impl Configurator for SurrealdbConfig {
     type Builder = SurrealdbBuilder;
@@ -116,9 +73,12 @@ impl SurrealdbBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -251,7 +211,7 @@ impl Builder for SurrealdbBuilder {
             key_field,
             value_field,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -347,9 +307,9 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("namespace", "opendal"))
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
-            .bind(("value_field", self.value_field.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
+            .bind(("value_field", self.value_field.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
 
@@ -370,7 +330,7 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query)
-            .bind(("path", path))
+            .bind(("path", path.to_string()))
             .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?;
@@ -390,8 +350,8 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query.as_str())
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

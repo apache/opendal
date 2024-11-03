@@ -20,23 +20,15 @@ use std::fmt::Formatter;
 use std::str;
 
 use cacache;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::Access;
+use crate::services::CacacheConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-
-/// cacache service support.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct CacacheConfig {
-    /// That path to the cacache data directory.
-    pub datadir: Option<String>,
-}
 
 impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;

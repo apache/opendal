@@ -25,28 +25,31 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.0.1"
+version = "0.2.1"
 
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
-opendal = { version = "0.48.0", path = "../../core" }
-parquet = { version = "52.0", default-features = false, features = [
+opendal = { version = "0.50.0", path = "../../core" }
+parquet = { version = "53.1", default-features = false, features = [
   "async",
   "arrow",
 ] }
 
 [dev-dependencies]
-opendal = { version = "0.48.0", path = "../../core", features = [
+arrow = { version = "53.1" }
+opendal = { version = "0.50.0", path = "../../core", features = [
   "services-memory",
   "services-s3",
 ] }
 rand = "0.8.5"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
-arrow = { version = "52.0" }
-
 
 [[example]]
 name = "async_writer"
 path = "examples/async_writer.rs"
+
+[[example]]
+name = "async_reader"
+path = "examples/async_reader.rs"

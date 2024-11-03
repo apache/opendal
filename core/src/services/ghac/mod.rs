@@ -15,9 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::GhacBuilder as Ghac;
-pub use backend::GhacConfig;
-
+#[cfg(feature = "services-ghac")]
 mod error;
+#[cfg(feature = "services-ghac")]
 mod writer;
+
+#[cfg(feature = "services-ghac")]
+mod backend;
+#[cfg(feature = "services-ghac")]
+pub use backend::GhacBuilder as Ghac;
+
+mod config;
+pub use config::GhacConfig;

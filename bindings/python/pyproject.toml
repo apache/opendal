@@ -29,9 +29,7 @@ description = "Apache OpenDAL™ Python Binding"
 license = { text = "Apache-2.0" }
 name = "opendal"
 readme = "README.md"
-# PyO3 doesn't support python 3.13 yet.
-# ref: https://github.com/apache/opendal/issues/4268
-requires-python = ">=3.11, < 3.13"
+requires-python = ">=3.11"
 
 [project.optional-dependencies]
 benchmark = [
@@ -55,6 +53,7 @@ Repository = "https://github.com/apache/opendal"
 features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
+strip = true
 
 [tool.ruff.lint]
 ignore = ["F403", "F405"]

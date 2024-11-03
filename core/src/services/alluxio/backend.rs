@@ -21,8 +21,6 @@ use std::sync::Arc;
 
 use http::Response;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AlluxioCore;
 use super::error::parse_error;
@@ -30,35 +28,8 @@ use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
+use crate::services::AlluxioConfig;
 use crate::*;
-
-/// Config for alluxio services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct AlluxioConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// default to `/` if not set.
-    pub root: Option<String>,
-    /// endpoint of this backend.
-    ///
-    /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
-    pub endpoint: Option<String>,
-}
-
-impl Debug for AlluxioConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AlluxioConfig");
-
-        d.field("root", &self.root)
-            .field("endpoint", &self.endpoint);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for AlluxioConfig {
     type Builder = AlluxioBuilder;
@@ -222,7 +193,7 @@ impl Access for AlluxioBackend {
         if !resp.status().is_success() {
             let (part, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)).await?);
+            return Err(parse_error(Response::from_parts(part, buf)));
         }
         Ok((RpRead::new(), resp.into_body()))
     }

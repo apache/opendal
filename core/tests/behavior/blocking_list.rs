@@ -196,7 +196,7 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
             continue;
         }
         assert!(
-            !op.is_exist(&format!("{parent}/{path}"))?,
+            !op.exists(&format!("{parent}/{path}"))?,
             "{parent}/{path} should be removed"
         )
     }
@@ -235,7 +235,7 @@ pub fn test_blocking_list_dir_with_recursive(op: BlockingOperator) -> Result<()>
         .collect::<Vec<_>>();
     actual.sort();
     let expected = vec![
-        "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
+        "x/", "x/x/", "x/x/x/", "x/x/x/x/", "x/x/x/y", "x/x/y", "x/y", "x/yy",
     ];
     assert_eq!(actual, expected);
     Ok(())
@@ -306,7 +306,7 @@ pub fn test_blocking_list_file_with_recursive(op: BlockingOperator) -> Result<()
         })
         .collect::<Vec<_>>();
     actual.sort();
-    let expected = vec!["yy"];
+    let expected = vec!["y", "yy"];
     assert_eq!(actual, expected);
     Ok(())
 }

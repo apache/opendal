@@ -25,8 +25,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AzdlsCore;
 use super::error::parse_error;
@@ -34,6 +32,7 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
+use crate::services::AzdlsConfig;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -45,40 +44,6 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
     "dfs.core.usgovcloudapi.net",
     "dfs.core.chinacloudapi.cn",
 ];
-
-/// Azure Data Lake Storage Gen2 Support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzdlsConfig {
-    /// Root of this backend.
-    pub root: Option<String>,
-    /// Filesystem name of this backend.
-    pub filesystem: String,
-    /// Endpoint of this backend.
-    pub endpoint: Option<String>,
-    /// Account name of this backend.
-    pub account_name: Option<String>,
-    /// Account key of this backend.
-    pub account_key: Option<String>,
-}
-
-impl Debug for AzdlsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("filesystem", &self.filesystem);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
@@ -113,9 +78,11 @@ impl AzdlsBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -294,7 +261,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -307,7 +274,7 @@ impl Access for AzdlsBackend {
         let resp = self.core.azdls_get_properties(path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let mut meta = parse_into_metadata(path, resp.headers())?;
@@ -353,7 +320,7 @@ impl Access for AzdlsBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -375,7 +342,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -390,7 +357,7 @@ impl Access for AzdlsBackend {
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
 
@@ -400,7 +367,7 @@ impl Access for AzdlsBackend {
 
         match status {
             StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

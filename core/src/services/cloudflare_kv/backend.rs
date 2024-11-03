@@ -23,43 +23,13 @@ use http::header;
 use http::Request;
 use http::StatusCode;
 use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::CloudflareKvConfig;
 use crate::ErrorKind;
 use crate::*;
-
-/// Cloudflare KV Service Support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct CloudflareKvConfig {
-    /// The token used to authenticate with CloudFlare.
-    pub token: Option<String>,
-    /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
-    pub account_id: Option<String>,
-    /// The namespace ID. Used as URI path parameter.
-    pub namespace_id: Option<String>,
-
-    /// Root within this backend.
-    pub root: Option<String>,
-}
-
-impl Debug for CloudflareKvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("CloudflareKvConfig");
-
-        ds.field("root", &self.root);
-        ds.field("account_id", &self.account_id);
-        ds.field("namespace_id", &self.namespace_id);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for CloudflareKvConfig {
     type Builder = CloudflareKvBuilder;
@@ -115,9 +85,12 @@ impl CloudflareKvBuilder {
 
     /// Set the root within this backend.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 }
@@ -175,7 +148,7 @@ impl Builder for CloudflareKvBuilder {
             client,
             url_prefix,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -232,7 +205,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Some(resp.into_body())),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -249,7 +222,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -263,7 +236,7 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -290,18 +263,18 @@ impl kv::Adapter for Adapter {
                     })?;
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvResponse {
-    pub(crate) errors: Vec<CfKvError>,
+pub(super) struct CfKvResponse {
+    pub(super) errors: Vec<CfKvError>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvScanResponse {
+pub(super) struct CfKvScanResponse {
     result: Vec<CfKvScanResult>,
     // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
@@ -319,8 +292,8 @@ struct CfKvScanResult {
 // }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvError {
-    pub(crate) code: i32,
+pub(super) struct CfKvError {
+    pub(super) code: i32,
 }
 
 #[cfg(test)]

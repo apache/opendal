@@ -35,7 +35,7 @@ pub(crate) struct S3Error {
 }
 
 /// Parse error response into Error.
-pub fn parse_error(resp: Response<Buffer>) -> Error {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {

@@ -24,6 +24,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_MS_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -42,13 +43,14 @@ use uuid::Uuid;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_MS_VERSION: &str = "x-ms-version";
 
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
+    pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
@@ -243,12 +245,19 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value)
+            }
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
+
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
@@ -421,7 +430,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_complete_put_block_list_request(
+    pub fn azblob_complete_put_block_list_request(
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
@@ -469,9 +478,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let mut req = self
-            .azblob_complete_put_block_list_request(path, block_ids, args)
-            .await?;
+        let mut req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
 
         self.sign(&mut req).await?;
 

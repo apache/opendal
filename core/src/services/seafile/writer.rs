@@ -80,7 +80,7 @@ impl oio::OneShotWrite for SeafileWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

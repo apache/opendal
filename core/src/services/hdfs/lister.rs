@@ -24,20 +24,28 @@ pub struct HdfsLister {
     root: String,
 
     rd: hdrs::Readdir,
+
+    current_path: Option<String>,
 }
 
 impl HdfsLister {
-    pub fn new(root: &str, rd: hdrs::Readdir) -> Self {
+    pub fn new(root: &str, rd: hdrs::Readdir, path: &str) -> Self {
         Self {
             root: root.to_string(),
 
             rd,
+
+            current_path: Some(path.to_string()),
         }
     }
 }
 
 impl oio::List for HdfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if let Some(path) = self.current_path.take() {
+            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
+        }
+
         let de = match self.rd.next() {
             Some(de) => de,
             None => return Ok(None),
@@ -63,6 +71,10 @@ impl oio::List for HdfsLister {
 
 impl oio::BlockingList for HdfsLister {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if let Some(path) = self.current_path.take() {
+            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
+        }
+
         let de = match self.rd.next() {
             Some(de) => de,
             None => return Ok(None),

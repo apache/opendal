@@ -23,8 +23,6 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::Entry;
 use super::core::GithubCore;
@@ -33,44 +31,8 @@ use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
+use crate::services::GithubConfig;
 use crate::*;
-
-/// Config for GitHub services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GithubConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// GitHub access_token.
-    ///
-    /// optional.
-    /// If not provided, the backend will only support read operations for public repositories.
-    /// And rate limit will be limited to 60 requests per hour.
-    pub token: Option<String>,
-    /// GitHub repo owner.
-    ///
-    /// required.
-    pub owner: String,
-    /// GitHub repo name.
-    ///
-    /// required.
-    pub repo: String,
-}
-
-impl Debug for GithubConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GithubConfig");
-
-        d.field("root", &self.root)
-            .field("owner", &self.owner)
-            .field("repo", &self.repo);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
@@ -117,8 +79,9 @@ impl GithubBuilder {
     ///
     /// required.
     pub fn token(mut self, token: &str) -> Self {
-        self.config.token = Some(token.to_string());
-
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 
@@ -254,7 +217,7 @@ impl Access for GithubBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -279,7 +242,7 @@ impl Access for GithubBackend {
 
                 Ok(RpStat::new(m))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -295,7 +258,7 @@ impl Access for GithubBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }

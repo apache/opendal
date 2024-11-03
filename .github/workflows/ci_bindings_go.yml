@@ -39,9 +39,23 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  checks: write
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: "v1.60"
+          working-directory: bindings/go
   matrix:
+    needs: [ lint ]
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -73,6 +87,8 @@ jobs:
           TARGET: ${{ matrix.build.target }}
         run: rustup target add $TARGET
       - uses: actions/setup-go@v5
+        with:
+          go-version: stable
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -107,9 +123,13 @@ jobs:
           SERVICE: ${{ matrix.service }}
         working-directory: bindings/go/tests
         run: |
+          go work init
+          go work use ..
+          go work use ./behavior_tests
           go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
       - name: Run tests
         env:
           OPENDAL_TEST: ${{ matrix.service }}
+          OPENDAL_FS_ROOT: "/tmp/opendal/"
         working-directory: bindings/go/tests/behavior_tests
         run: CGO_ENABLE=0 go test -v -run TestBehavior

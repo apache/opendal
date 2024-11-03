@@ -195,10 +195,7 @@ impl<A: Access> CompleteAccessor<A> {
         if path.ends_with('/') && capability.list_with_recursive {
             let (_, mut l) = self
                 .inner
-                .list(
-                    path.trim_end_matches('/'),
-                    OpList::default().with_recursive(true).with_limit(1),
-                )
+                .list(path, OpList::default().with_recursive(true).with_limit(1))
                 .await?;
 
             return if oio::List::next(&mut l).await?.is_some() {
@@ -246,10 +243,9 @@ impl<A: Access> CompleteAccessor<A> {
 
         // Otherwise, we can simulate stat a dir path via `list`.
         if path.ends_with('/') && capability.list_with_recursive {
-            let (_, mut l) = self.inner.blocking_list(
-                path.trim_end_matches('/'),
-                OpList::default().with_recursive(true).with_limit(1),
-            )?;
+            let (_, mut l) = self
+                .inner
+                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
 
             return if oio::BlockingList::next(&mut l)?.is_some() {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))

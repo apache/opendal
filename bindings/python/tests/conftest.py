@@ -60,8 +60,10 @@ def setup_config(service_name):
 
 @pytest.fixture(scope="session")
 def async_operator(service_name, setup_config):
-    return opendal.AsyncOperator(service_name, **setup_config).layer(
-        opendal.layers.RetryLayer()
+    return (
+        opendal.AsyncOperator(service_name, **setup_config)
+        .layer(opendal.layers.RetryLayer())
+        .layer(opendal.layers.ConcurrentLimitLayer(1024))
     )
 
 

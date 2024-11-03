@@ -19,7 +19,7 @@ version: '3.8'
 
 services:
   minio:
-    image: quay.io/minio/minio:RELEASE.2024-01-18T22-51-28Z
+    image: quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z
     ports:
       - 9000:9000
     command: server /data

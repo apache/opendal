@@ -101,7 +101,7 @@ impl AliyunDriveCore {
         }
         let res = self.client.send(req).await?;
         if !res.status().is_success() {
-            return Err(parse_error(res).await?);
+            return Err(parse_error(res));
         }
         Ok(res.into_body())
     }

@@ -19,22 +19,36 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
+use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::Arc;
 
+use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use once_cell::sync::Lazy;
 use raw::oio::Read;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
 use super::HttpBody;
+use crate::raw::*;
 use crate::*;
+
+/// Http client used across opendal for loading credentials.
+/// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
+/// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
+#[allow(dead_code)]
+pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+
+/// HttpFetcher is a type erased [`HttpFetch`].
+pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    client: reqwest::Client,
+    fetcher: HttpFetcher,
 }
 
 /// We don't want users to know details about our clients.
@@ -47,26 +61,24 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        Self::build(reqwest::ClientBuilder::new())
+        let fetcher = Arc::new(reqwest::Client::new());
+        Ok(Self { fetcher })
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
-    pub fn with(client: reqwest::Client) -> Self {
-        Self { client }
+    pub fn with(client: impl HttpFetch) -> Self {
+        let fetcher = Arc::new(client);
+        Self { fetcher }
     }
 
     /// Build a new http client in async context.
+    #[deprecated]
     pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        Ok(Self {
-            client: builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-            })?,
-        })
-    }
-
-    /// Get the async client from http client.
-    pub fn client(&self) -> reqwest::Client {
-        self.client.clone()
+        let client = builder.build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
+        })?;
+        let fetcher = Arc::new(client);
+        Ok(Self { fetcher })
     }
 
     /// Send a request in async way.
@@ -78,6 +90,44 @@ impl HttpClient {
 
     /// Fetch a request in async way.
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.fetcher.fetch(req).await
+    }
+}
+
+/// HttpFetch is the trait to fetch a request in async way.
+/// User should implement this trait to provide their own http client.
+pub trait HttpFetch: Send + Sync + Unpin + 'static {
+    /// Fetch a request in async way.
+    fn fetch(
+        &self,
+        req: Request<Buffer>,
+    ) -> impl Future<Output = Result<Response<HttpBody>>> + MaybeSend;
+}
+
+/// HttpFetchDyn is the dyn version of [`HttpFetch`]
+/// which make it possible to use as `Arc<dyn HttpFetchDyn>`.
+/// User should never implement this trait, but use `HttpFetch` instead.
+pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
+    /// The dyn version of [`HttpFetch::fetch`].
+    ///
+    /// This function returns a boxed future to make it object safe.
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>>;
+}
+
+impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>> {
+        Box::pin(self.fetch(req))
+    }
+}
+
+impl<T: HttpFetchDyn + ?Sized> HttpFetch for Arc<T> {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.deref().fetch_dyn(req).await
+    }
+}
+
+impl HttpFetch for reqwest::Client {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -86,7 +136,6 @@ impl HttpClient {
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
-            .client
             .request(
                 parts.method,
                 reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
@@ -122,7 +171,7 @@ impl HttpClient {
         // Get content length from header so that we can check it.
         //
         // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit it's content length.
+        // - If response contains content_encoding, we should omit its content length.
         let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {

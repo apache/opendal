@@ -19,12 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::SledConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -33,29 +32,6 @@ use crate::*;
 
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
-
-/// Config for Sled services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SledConfig {
-    /// That path to the sled data directory.
-    pub datadir: Option<String>,
-    /// The root for sled.
-    pub root: Option<String>,
-    /// The tree for sled.
-    pub tree: Option<String>,
-}
-
-impl Debug for SledConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SledConfig")
-            .field("datadir", &self.datadir)
-            .field("root", &self.root)
-            .field("tree", &self.tree)
-            .finish()
-    }
-}
 
 impl Configurator for SledConfig {
     type Builder = SledBuilder;
@@ -87,8 +63,13 @@ impl SledBuilder {
     }
 
     /// Set the root for sled.
-    pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -134,7 +115,7 @@ impl Builder for SledBuilder {
             datadir: datadir_path,
             tree,
         })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        .with_root(self.config.root.as_deref().unwrap_or("/")))
     }
 }
 
@@ -237,9 +218,6 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            if v == path {
-                continue;
-            }
 
             res.push(v);
         }

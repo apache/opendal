@@ -35,50 +35,12 @@ use hrana_client_proto::StmtResult;
 use hrana_client_proto::Value;
 use http::Request;
 use http::Uri;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::LibsqlConfig;
 use crate::*;
-
-/// Config for Libsql services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct LibsqlConfig {
-    /// Connection string for libsql service.
-    pub connection_string: Option<String>,
-    /// Authentication token for libsql service.
-    pub auth_token: Option<String>,
-
-    /// Table name for libsql service.
-    pub table: Option<String>,
-    /// Key field name for libsql service.
-    pub key_field: Option<String>,
-    /// Value field name for libsql service.
-    pub value_field: Option<String>,
-    /// Root for libsql service.
-    pub root: Option<String>,
-}
-
-impl Debug for LibsqlConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("LibsqlConfig");
-        ds.field("connection_string", &self.connection_string)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .field("root", &self.root);
-
-        if self.auth_token.is_some() {
-            ds.field("auth_token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for LibsqlConfig {
     type Builder = LibsqlBuilder;
@@ -137,9 +99,12 @@ impl LibsqlBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -215,7 +180,7 @@ impl Builder for LibsqlBuilder {
             key_field,
             value_field,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -312,7 +277,7 @@ impl Adapter {
         let resp = self.client.send(req).await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

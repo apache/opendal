@@ -50,6 +50,8 @@ mod tests {
 
     wasm_bindgen_test_configure!(run_in_browser);
 
+    /// This test is executed in the wasm target but rustc reports `dead_code` in wrong.
+    #[allow(dead_code)]
     #[wasm_bindgen_test]
     async fn test_hello_world() {
         let s = hello_world().await;

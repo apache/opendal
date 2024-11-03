@@ -21,40 +21,14 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
+use crate::services::DropboxConfig;
 use crate::*;
-
-/// Config for [Dropbox](https://www.dropbox.com/) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct DropboxConfig {
-    /// root path for dropbox.
-    pub root: Option<String>,
-    /// access token for dropbox.
-    pub access_token: Option<String>,
-    /// refresh_token for dropbox.
-    pub refresh_token: Option<String>,
-    /// client_id for dropbox.
-    pub client_id: Option<String>,
-    /// client_secret for dropbox.
-    pub client_secret: Option<String>,
-}
-
-impl Debug for DropboxConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DropBoxConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for DropboxConfig {
     type Builder = DropboxBuilder;
@@ -88,7 +62,12 @@ impl DropboxBuilder {
     ///
     /// Default to `/` if not set.
     pub fn root(mut self, root: &str) -> Self {
-        self.config.root = Some(root.to_string());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 

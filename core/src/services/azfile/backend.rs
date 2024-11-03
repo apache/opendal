@@ -25,8 +25,6 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::AzfileCore;
 use super::error::parse_error;
@@ -34,49 +32,11 @@ use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
 use crate::services::azfile::lister::AzfileLister;
+use crate::services::AzfileConfig;
 use crate::*;
 
 /// Default endpoint of Azure File services.
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
-
-/// Azure File services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzfileConfig {
-    /// The root path for azfile.
-    pub root: Option<String>,
-    /// The endpoint for azfile.
-    pub endpoint: Option<String>,
-    /// The share name for azfile.
-    pub share_name: String,
-    /// The account name for azfile.
-    pub account_name: Option<String>,
-    /// The account key for azfile.
-    pub account_key: Option<String>,
-    /// The sas token for azfile.
-    pub sas_token: Option<String>,
-}
-
-impl Debug for AzfileConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzfileConfig");
-
-        ds.field("root", &self.root);
-        ds.field("share_name", &self.share_name);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
@@ -111,9 +71,11 @@ impl AzfileBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -319,7 +281,7 @@ impl Access for AzfileBackend {
                 {
                     Ok(RpCreateDir::default())
                 } else {
-                    Err(parse_error(resp).await?)
+                    Err(parse_error(resp))
                 }
             }
         }
@@ -338,7 +300,7 @@ impl Access for AzfileBackend {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -351,7 +313,7 @@ impl Access for AzfileBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -377,7 +339,7 @@ impl Access for AzfileBackend {
         let status = resp.status();
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -393,7 +355,7 @@ impl Access for AzfileBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

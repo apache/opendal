@@ -55,13 +55,20 @@ impl oio::PageList for GdriveLister {
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         };
 
         // Gdrive returns empty content when this dir is not exist.
         if bytes.is_empty() {
             ctx.done = true;
             return Ok(());
+        }
+
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_rel_path(&self.core.root, &self.path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
         }
 
         let decoded_response =

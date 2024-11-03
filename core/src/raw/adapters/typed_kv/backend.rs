@@ -211,8 +211,11 @@ impl KvLister {
             } else {
                 EntryMode::FILE
             };
-
-            oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+            let mut path = build_rel_path(&self.root, &v);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+            oio::Entry::new(&path, Metadata::new(mode))
         })
     }
 }

@@ -50,7 +50,7 @@ impl oio::OneShotWrite for VercelArtifactsWriter {
 
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

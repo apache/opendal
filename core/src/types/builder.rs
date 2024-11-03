@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::fmt::Debug;
 
 use crate::raw::*;
 use crate::*;
@@ -102,9 +103,10 @@ impl Builder for () {
 /// # use anyhow::Result;
 /// use std::collections::HashMap;
 ///
-/// use opendal::services::S3Config;
-/// use opendal::{Configurator, Operator};///
 /// use opendal::raw::HttpClient;
+/// use opendal::services::S3Config;
+/// use opendal::Configurator;
+/// use opendal::Operator;
 ///
 /// async fn test() -> Result<()> {
 ///     let mut cfg = S3Config::default();

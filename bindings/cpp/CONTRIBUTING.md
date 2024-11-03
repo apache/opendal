@@ -30,9 +30,9 @@ To build OpenDAL C++ binding, the following is all you need:
 
 - To format the code, you need to install **clang-format**
 
-- **GTest(Google Test)**. It is used to run the tests. To see how to build, check [here](https://github.com/google/googletest).
+- **GTest(Google Test)**. It is used to run the tests. You do NOT need to build it manually.
 
-- **Boost**. It is one dependency of this library. To see how to build, check [here](https://www.boost.org/doc/libs/1_76_0/more/getting_started/unix-variants.html).
+- **Boost**. It is one dependency of this library. You do NOT need to build it manually.
 
 - **Doxygen**. It is used to generate the documentation. To see how to build, check [here](https://www.doxygen.nl/manual/install.html).
 
@@ -50,12 +50,6 @@ sudo apt install cmake ninja-build
 # install clang-format
 sudo apt install clang-format
 
-# install GTest library
-sudo apt-get install libgtest-dev
-
-# install Boost library
-sudo apt install libboost-all-dev
-
 # install Doxygen and Graphviz
 sudo apt install doxygen graphviz
 ```
@@ -71,12 +65,6 @@ brew install cmake ninja
 
 # install clang-format
 brew install clang-format
-
-# install GTest library
-brew install googletest
-
-# install Boost library
-brew install boost
 
 # install Doxygen and Graphviz
 brew install doxygen graphviz

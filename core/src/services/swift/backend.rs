@@ -22,46 +22,14 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;
+use crate::services::SwiftConfig;
 use crate::*;
-
-/// Config for OpenStack Swift support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SwiftConfig {
-    /// The endpoint for Swift.
-    pub endpoint: Option<String>,
-    /// The container for Swift.
-    pub container: Option<String>,
-    /// The root for Swift.
-    pub root: Option<String>,
-    /// The token for Swift.
-    pub token: Option<String>,
-}
-
-impl Debug for SwiftConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SwiftConfig");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("container", &self.container);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
@@ -123,9 +91,11 @@ impl SwiftBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -241,7 +211,7 @@ impl Access for SwiftBackend {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -255,7 +225,7 @@ impl Access for SwiftBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -276,7 +246,7 @@ impl Access for SwiftBackend {
         match status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpDelete::default()),
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -300,7 +270,7 @@ impl Access for SwiftBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

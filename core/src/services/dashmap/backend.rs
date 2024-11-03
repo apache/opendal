@@ -19,19 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use dashmap::DashMap;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
+use crate::services::DashmapConfig;
 use crate::*;
-
-/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct DashmapConfig {
-    /// The root path for dashmap.
-    pub root: Option<String>,
-}
 
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;
@@ -50,7 +42,12 @@ pub struct DashmapBuilder {
 impl DashmapBuilder {
     /// Set the root for dashmap.
     pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
         self
     }
 }
@@ -60,10 +57,14 @@ impl Builder for DashmapBuilder {
     type Config = DashmapConfig;
 
     fn build(self) -> Result<impl Access> {
-        Ok(DashmapBackend::new(Adapter {
+        let mut backend = DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
@@ -137,7 +138,7 @@ impl typed_kv::Adapter for Adapter {
         if path.is_empty() {
             Ok(keys.collect())
         } else {
-            Ok(keys.filter(|k| k.starts_with(path) && k != path).collect())
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }

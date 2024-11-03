@@ -22,8 +22,6 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
@@ -34,33 +32,9 @@ use crate::raw::PathCacher;
 use crate::services::gdrive::core::GdriveCore;
 use crate::services::gdrive::core::GdrivePathQuery;
 use crate::services::gdrive::core::GdriveSigner;
+use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
-
-/// [GoogleDrive](https://drive.google.com/) configuration.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GdriveConfig {
-    /// The root for gdrive
-    pub root: Option<String>,
-    /// Access token for gdrive.
-    pub access_token: Option<String>,
-    /// Refresh token for gdrive.
-    pub refresh_token: Option<String>,
-    /// Client id for gdrive.
-    pub client_id: Option<String>,
-    /// Client secret for gdrive.
-    pub client_secret: Option<String>,
-}
-
-impl Debug for GdriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GdriveConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
@@ -92,7 +66,12 @@ impl Debug for GdriveBuilder {
 impl GdriveBuilder {
     /// Set root path of GoogleDrive folder.
     pub fn root(mut self, root: &str) -> Self {
-        self.config.root = Some(root.to_string());
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 

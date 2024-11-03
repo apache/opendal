@@ -25,8 +25,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -34,30 +32,8 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
+use crate::services::YandexDiskConfig;
 use crate::*;
-
-/// Config for YandexDisk services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct YandexDiskConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// yandex disk oauth access_token.
-    pub access_token: String,
-}
-
-impl Debug for YandexDiskConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
-    }
-}
 
 impl Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;
@@ -218,7 +194,7 @@ impl Access for YandexDiskBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -231,7 +207,7 @@ impl Access for YandexDiskBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -251,7 +227,7 @@ impl Access for YandexDiskBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -270,7 +246,7 @@ impl Access for YandexDiskBackend {
 
                 parse_info(mf).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -295,7 +271,7 @@ impl Access for YandexDiskBackend {
             StatusCode::ACCEPTED => Ok(RpDelete::default()),
             // Allow 404 when deleting a non-existing object
             StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

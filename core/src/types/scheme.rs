@@ -163,6 +163,10 @@ pub enum Scheme {
     HdfsNative,
     /// [surrealdb](crate::services::Surrealdb): Surrealdb Services
     Surrealdb,
+    /// [lakefs](crate::services::Lakefs): LakeFS Services
+    Lakefs,
+    /// [NebulaGraph](crate::services::NebulaGraph): NebulaGraph Services
+    NebulaGraph,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -311,6 +315,10 @@ impl Scheme {
             Scheme::HdfsNative,
             #[cfg(feature = "services-surrealdb")]
             Scheme::Surrealdb,
+            #[cfg(feature = "services-lakefs")]
+            Scheme::Lakefs,
+            #[cfg(feature = "services-nebula-graph")]
+            Scheme::NebulaGraph,
         ])
     }
 }
@@ -401,6 +409,8 @@ impl FromStr for Scheme {
             "mongodb" => Ok(Scheme::Mongodb),
             "hdfs_native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
+            "lakefs" => Ok(Scheme::Lakefs),
+            "nebula_graph" => Ok(Scheme::NebulaGraph),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -474,6 +484,8 @@ impl From<Scheme> for &'static str {
             Scheme::Pcloud => "pcloud",
             Scheme::HdfsNative => "hdfs_native",
             Scheme::Surrealdb => "surrealdb",
+            Scheme::Lakefs => "lakefs",
+            Scheme::NebulaGraph => "nebula_graph",
             Scheme::Custom(v) => v,
         }
     }

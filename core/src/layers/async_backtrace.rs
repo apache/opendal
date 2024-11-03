@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::FutureExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -30,18 +28,19 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::AsyncBacktraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::AsyncBacktraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AsyncBacktraceLayer::default())
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
-
 #[derive(Clone, Default)]
 pub struct AsyncBacktraceLayer;
 
@@ -75,16 +74,16 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
@@ -111,8 +110,8 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]

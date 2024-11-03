@@ -90,6 +90,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let layers_module = PyModule::new_bound(py, "layers")?;
     layers_module.add_class::<Layer>()?;
     layers_module.add_class::<RetryLayer>()?;
+    layers_module.add_class::<ConcurrentLimitLayer>()?;
     m.add_submodule(&layers_module)?;
     py.import_bound("sys")?
         .getattr("modules")?

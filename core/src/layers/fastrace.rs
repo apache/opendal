@@ -20,11 +20,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use fastrace::prelude::*;
-use futures::FutureExt;
 
-use crate::raw::oio::ListOperation;
-use crate::raw::oio::ReadOperation;
-use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -34,61 +30,57 @@ use crate::*;
 ///
 /// ## Basic Setup
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::FastraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::FastraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(FastraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 ///
 /// ## Real usage
 ///
-/// ```no_build
-/// use std::error::Error;
+/// ```no_run
+/// # use anyhow::Result;
+/// # use fastrace::prelude::*;
+/// # use opendal::layers::FastraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
 ///
-/// use anyhow::Result;
-/// use futures::executor::block_on;
-/// use fastrace::collector::Config;
-/// use fastrace::prelude::*;
-/// use opendal::layers::FastraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// # fn main() -> Result<()> {
+/// let reporter =
+///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
 ///
-/// fn main() -> Result<(), Box<dyn Error + MaybeSend + Sync + 'static>> {
-///     let reporter =
-///         fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
-///             .unwrap();
-///     fastrace::set_reporter(reporter, Config::default());
-///
-///     {
-///         let root = Span::root("op", SpanContext::random());
-///         let runtime = tokio::runtime::Runtime::new()?;
-///         runtime.block_on(
-///             async {
-///                 let _ = dotenvy::dotenv();
-///                 let op = Operator::new(services::Memory::default())
-///                     .expect("init operator must succeed")
-///                     .layer(FastraceLayer)
-///                     .finish();
-///                 op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
-///                     .await
-///                     .expect("must succeed");
-///                 op.stat("test").await.expect("must succeed");
-///                 op.read("test").await.expect("must succeed");
-///             }
-///             .in_span(Span::enter_with_parent("test", &root)),
-///         );
-///     }
-///
-///     fastrace::flush();
-///
-///     Ok(())
+/// {
+///     let root = Span::root("op", SpanContext::random());
+///     let runtime = tokio::runtime::Runtime::new()?;
+///     runtime.block_on(
+///         async {
+///             let _ = dotenvy::dotenv();
+///             let op = Operator::new(services::Memory::default())?
+///                 .layer(FastraceLayer)
+///                 .finish();
+///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
+///                 .await?;
+///             op.stat("test").await?;
+///             op.read("test").await?;
+///             Ok::<(), opendal::Error>(())
+///         }
+///         .in_span(Span::enter_with_parent("test", &root)),
+///     )?;
 /// }
+///
+/// fastrace::flush();
+///
+/// Ok(())
+/// # }
 /// ```
 ///
 /// # Output
@@ -99,15 +91,15 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```no_build
-/// extern crate fastrace_jaeger;
+/// ```no_run
+/// # use anyhow::Result;
 ///
-/// use fastrace::collector::Config;
-///
+/// # fn main() -> Result<()> {
 /// let reporter =
-///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
-///         .unwrap();
-/// fastrace::set_reporter(reporter, Config::default());
+///     fastrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse()?, "opendal").unwrap();
+/// fastrace::set_reporter(reporter, fastrace::collector::Config::default());
+/// Ok(())
+/// # }
 /// ```
 ///
 /// For real-world usage, please take a look at [`fastrace-datadog`](https://crates.io/crates/fastrace-datadog) or [`fastrace-jaeger`](https://crates.io/crates/fastrace-jaeger) .
@@ -151,32 +143,22 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
 
     #[trace(enter_on_poll = true)]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner
-            .write(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.write(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
@@ -201,17 +183,12 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
 
     #[trace(enter_on_poll = true)]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner
-            .list(path, args)
-            .map(|v| {
-                v.map(|(rp, s)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
-                    )
-                })
-            })
-            .await
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
@@ -301,7 +278,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
 impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
     fn read(&mut self) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingReaderRead.into_static());
         self.inner.read()
     }
 }
@@ -309,19 +286,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
 impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterWrite.into_static());
         self.inner.write(bs)
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterAbort.into_static());
         self.inner.abort()
     }
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterClose.into_static());
         self.inner.close()
     }
 }
@@ -329,13 +306,15 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
 impl<R: oio::BlockingWrite> oio::BlockingWrite for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
+        let _span =
+            LocalSpan::enter_with_local_parent(Operation::BlockingWriterWrite.into_static());
         self.inner.write(bs)
     }
 
     fn close(&mut self) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingClose.into_static());
+        let _span =
+            LocalSpan::enter_with_local_parent(Operation::BlockingWriterClose.into_static());
         self.inner.close()
     }
 }
@@ -350,7 +329,7 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(ListOperation::BlockingNext.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingListerNext.into_static());
         self.inner.next()
     }
 }

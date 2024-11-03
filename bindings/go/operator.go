@@ -147,9 +147,7 @@ var withOperatorFree = withFFI(ffiOpts{
 	}
 })
 
-type operatorOptions struct {
-	inner uintptr
-}
+type operatorOptions struct{}
 
 const symOperatorOptionsNew = "opendal_operator_options_new"
 

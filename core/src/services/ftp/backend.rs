@@ -26,8 +26,6 @@ use bb8::PooledConnection;
 use bb8::RunError;
 use http::Uri;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
@@ -44,31 +42,8 @@ use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+use crate::services::FtpConfig;
 use crate::*;
-
-/// Config for Ftp services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct FtpConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// user of this backend
-    pub user: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-}
-
-impl Debug for FtpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FtpConfig")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for FtpConfig {
     type Builder = FtpBuilder;

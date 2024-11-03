@@ -164,13 +164,13 @@ impl IcloudSigner {
 
         let resp = self.client.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
             let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
             if status_code != StatusCode::CONFLICT {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
 
@@ -191,7 +191,7 @@ impl IcloudSigner {
 
         let resp = self.client.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // Update SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
@@ -358,7 +358,7 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -389,7 +389,7 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -517,7 +517,7 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -526,11 +526,11 @@ impl PathQuery for IcloudPathQuery {
 
         let node = &root[0];
 
-        let id = match node.items.iter().find(|it| it.name == name) {
-            Some(it) => Ok(Some(it.drivewsid.clone())),
-            None => Ok(None),
-        }?;
-        Ok(id)
+        Ok(node
+            .items
+            .iter()
+            .find(|it| it.name == name)
+            .map(|it| it.drivewsid.clone()))
     }
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
@@ -558,7 +558,7 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -568,7 +568,7 @@ impl PathQuery for IcloudPathQuery {
     }
 }
 
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -594,7 +594,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
 
     err = with_error_response_context(err, parts);
 
-    Ok(err)
+    err
 }
 
 #[derive(Default, Debug, Deserialize)]

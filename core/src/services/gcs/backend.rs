@@ -28,7 +28,6 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
-use serde::Serialize;
 use serde_json;
 
 use super::core::*;
@@ -37,47 +36,11 @@ use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use crate::raw::*;
+use crate::services::GcsConfig;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-
-/// [Google Cloud Storage](https://cloud.google.com/storage) services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GcsConfig {
-    /// root URI, all operations happens under `root`
-    pub root: Option<String>,
-    /// bucket name
-    pub bucket: String,
-    /// endpoint URI of GCS service,
-    /// default is `https://storage.googleapis.com`
-    pub endpoint: Option<String>,
-    /// Scope for gcs.
-    pub scope: Option<String>,
-    /// Service Account for gcs.
-    pub service_account: Option<String>,
-    /// Credentials string for GCS service OAuth2 authentication.
-    pub credential: Option<String>,
-    /// Local path to credentials file for GCS service OAuth2 authentication.
-    pub credential_path: Option<String>,
-    /// The predefined acl for GCS.
-    pub predefined_acl: Option<String>,
-    /// The default storage class used by gcs.
-    pub default_storage_class: Option<String>,
-}
-
-impl Debug for GcsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GcsConfig")
-            .field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("scope", &self.scope)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for GcsConfig {
     type Builder = GcsBuilder;
@@ -112,9 +75,11 @@ impl Debug for GcsBuilder {
 impl GcsBuilder {
     /// set the working directory root of backend
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -206,6 +171,24 @@ impl GcsBuilder {
         self
     }
 
+    /// Provide the OAuth2 token to use.
+    pub fn token(mut self, token: String) -> Self {
+        self.config.token = Some(token);
+        self
+    }
+
+    /// Disable attempting to load credentials from the GCE metadata server.
+    pub fn disable_vm_metadata(mut self) -> Self {
+        self.config.disable_vm_metadata = true;
+        self
+    }
+
+    /// Disable loading configuration from the environment.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Set the predefined acl for GCS.
     ///
     /// Available values are:
@@ -233,6 +216,15 @@ impl GcsBuilder {
         if !class.is_empty() {
             self.config.default_storage_class = Some(class.to_string())
         };
+        self
+    }
+
+    /// Allow anonymous requests.
+    ///
+    /// This is typically used for buckets which are open to the public or GCS
+    /// storage emulators.
+    pub fn allow_anonymous(mut self) -> Self {
+        self.config.allow_anonymous = true;
         self
     }
 }
@@ -288,13 +280,19 @@ impl Builder for GcsBuilder {
             cred_loader = cred_loader.with_disable_well_known_location();
         }
 
+        if self.config.disable_config_load {
+            cred_loader = cred_loader
+                .with_disable_env()
+                .with_disable_well_known_location();
+        }
+
         let scope = if let Some(scope) = &self.config.scope {
             scope
         } else {
             DEFAULT_GCS_SCOPE
         };
 
-        let mut token_loader = GoogleTokenLoader::new(scope, client.client());
+        let mut token_loader = GoogleTokenLoader::new(scope, GLOBAL_REQWEST_CLIENT.clone());
         if let Some(account) = &self.config.service_account {
             token_loader = token_loader.with_service_account(account);
         }
@@ -303,6 +301,10 @@ impl Builder for GcsBuilder {
         }
         if let Some(loader) = self.customized_token_loader {
             token_loader = token_loader.with_customized_token_loader(loader)
+        }
+
+        if self.config.disable_vm_metadata {
+            token_loader = token_loader.with_disable_vm_metadata(true);
         }
 
         let signer = GoogleSigner::new("storage");
@@ -315,9 +317,12 @@ impl Builder for GcsBuilder {
                 client,
                 signer,
                 token_loader,
+                token: self.config.token,
+                scope: scope.to_string(),
                 credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
+                allow_anonymous: self.config.allow_anonymous,
             }),
         };
 
@@ -492,7 +497,7 @@ impl Access for GcsBackend {
             }
         };
 
-        self.core.sign_query(&mut req, args.expire()).await?;
+        self.core.sign_query(&mut req, args.expire())?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

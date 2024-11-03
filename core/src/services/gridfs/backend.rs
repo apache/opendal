@@ -24,57 +24,27 @@ use mongodb::bson::doc;
 use mongodb::gridfs::GridFsBucket;
 use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
-use serde::Deserialize;
-use serde::Serialize;
 use tokio::sync::OnceCell;
 
+use super::config::GridfsConfig;
 use crate::raw::adapters::kv;
-use crate::raw::new_std_io_error;
-use crate::raw::Access;
+use crate::raw::*;
 use crate::*;
 
-/// Config for Grid file system support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GridFsConfig {
-    /// The connection string of the MongoDB service.
-    pub connection_string: Option<String>,
-    /// The database name of the MongoDB GridFs service to read/write.
-    pub database: Option<String>,
-    /// The bucket name of the MongoDB GridFs service to read/write.
-    pub bucket: Option<String>,
-    /// The chunk size of the MongoDB GridFs service used to break the user file into chunks.
-    pub chunk_size: Option<u32>,
-    /// The working directory, all operations will be performed under it.
-    pub root: Option<String>,
-}
-
-impl Debug for GridFsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GridFsConfig")
-            .field("database", &self.database)
-            .field("bucket", &self.bucket)
-            .field("chunk_size", &self.chunk_size)
-            .field("root", &self.root)
-            .finish()
-    }
-}
-
-impl Configurator for GridFsConfig {
-    type Builder = GridFsBuilder;
+impl Configurator for GridfsConfig {
+    type Builder = GridfsBuilder;
     fn into_builder(self) -> Self::Builder {
-        GridFsBuilder { config: self }
+        GridfsBuilder { config: self }
     }
 }
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
-pub struct GridFsBuilder {
-    config: GridFsConfig,
+pub struct GridfsBuilder {
+    config: GridfsConfig,
 }
 
-impl Debug for GridFsBuilder {
+impl Debug for GridfsBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("GridFsBuilder");
         d.field("config", &self.config);
@@ -82,7 +52,7 @@ impl Debug for GridFsBuilder {
     }
 }
 
-impl GridFsBuilder {
+impl GridfsBuilder {
     /// Set the connection_string of the MongoDB service.
     ///
     /// This connection string is used to connect to the MongoDB service. It typically follows the format:
@@ -114,9 +84,12 @@ impl GridFsBuilder {
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -149,9 +122,9 @@ impl GridFsBuilder {
     }
 }
 
-impl Builder for GridFsBuilder {
-    const SCHEME: Scheme = Scheme::Mongodb;
-    type Config = GridFsConfig;
+impl Builder for GridfsBuilder {
+    const SCHEME: Scheme = Scheme::Gridfs;
+    type Config = GridfsConfig;
 
     fn build(self) -> Result<impl Access> {
         let conn = match &self.config.connection_string.clone() {
@@ -176,13 +149,22 @@ impl Builder for GridFsBuilder {
         };
         let chunk_size = self.config.chunk_size.unwrap_or(255);
 
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
+
         Ok(GridFsBackend::new(Adapter {
             connection_string: conn,
             database,
             bucket,
             chunk_size,
             bucket_instance: OnceCell::new(),
-        }))
+        })
+        .with_normalized_root(root))
     }
 }
 

@@ -30,17 +30,17 @@ use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use serde::Deserialize;
-use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::core::constants::X_MS_META_PREFIX;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::services::azblob::writer::AzblobWriters;
+use crate::services::AzblobConfig;
 use crate::*;
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
@@ -54,69 +54,6 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
-
-/// Azure Storage Blob services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AzblobConfig {
-    /// The root of Azblob service backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-
-    /// The container name of Azblob service backend.
-    pub container: String,
-
-    /// The endpoint of Azblob service backend.
-    ///
-    /// Endpoint must be full uri, e.g.
-    ///
-    /// - Azblob: `https://accountname.blob.core.windows.net`
-    /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-    pub endpoint: Option<String>,
-
-    /// The account name of Azblob service backend.
-    pub account_name: Option<String>,
-
-    /// The account key of Azblob service backend.
-    pub account_key: Option<String>,
-
-    /// The encryption key of Azblob service backend.
-    pub encryption_key: Option<String>,
-
-    /// The encryption key sha256 of Azblob service backend.
-    pub encryption_key_sha256: Option<String>,
-
-    /// The encryption algorithm of Azblob service backend.
-    pub encryption_algorithm: Option<String>,
-
-    /// The sas token of Azblob service backend.
-    pub sas_token: Option<String>,
-
-    /// The maximum batch operations of Azblob service backend.
-    pub batch_max_operations: Option<usize>,
-}
-
-impl Debug for AzblobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobConfig");
-
-        ds.field("root", &self.root);
-        ds.field("container", &self.container);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
-    }
-}
 
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
@@ -150,9 +87,11 @@ impl AzblobBuilder {
     ///
     /// All operations will happen under this root.
     pub fn root(mut self, root: &str) -> Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -579,6 +518,7 @@ impl Access for AzblobBackend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -607,8 +547,18 @@ impl Access for AzblobBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+
+                let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -621,7 +571,7 @@ impl Access for AzblobBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -648,7 +598,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -670,7 +620,7 @@ impl Access for AzblobBackend {
 
         match status {
             StatusCode::ACCEPTED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -713,7 +663,7 @@ impl Access for AzblobBackend {
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         // get boundary from response header
@@ -763,7 +713,7 @@ impl Access for AzblobBackend {
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
                 results.push((path, Ok(RpDelete::default().into())));
             } else {
-                results.push((path, Err(parse_error(resp).await?)));
+                results.push((path, Err(parse_error(resp))));
             }
         }
         Ok(RpBatch::new(results))
@@ -838,7 +788,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         assert_eq!(
             builder.config.endpoint.unwrap(),
@@ -859,7 +809,7 @@ AccountKey=account-key;
 SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
         "#,
         )
-        .expect("from connection string must succeed");
+            .expect("from connection string must succeed");
 
         // SAS should be preferred over shared key
         assert_eq!(builder.config.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");

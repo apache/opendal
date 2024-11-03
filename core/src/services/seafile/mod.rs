@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SeafileBuilder as Seafile;
-pub use backend::SeafileConfig;
-
+#[cfg(feature = "services-seafile")]
 mod core;
+#[cfg(feature = "services-seafile")]
 mod error;
+#[cfg(feature = "services-seafile")]
 mod lister;
+#[cfg(feature = "services-seafile")]
 mod writer;
+
+#[cfg(feature = "services-seafile")]
+mod backend;
+#[cfg(feature = "services-seafile")]
+pub use backend::SeafileBuilder as Seafile;
+
+mod config;
+pub use config::SeafileConfig;

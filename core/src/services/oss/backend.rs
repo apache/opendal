@@ -28,8 +28,6 @@ use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
@@ -37,53 +35,10 @@ use super::lister::OssLister;
 use super::writer::OssWriter;
 use crate::raw::*;
 use crate::services::oss::writer::OssWriters;
+use crate::services::OssConfig;
 use crate::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
-
-/// Config for Aliyun Object Storage Service (OSS) support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct OssConfig {
-    /// Root for oss.
-    pub root: Option<String>,
-
-    /// Endpoint for oss.
-    pub endpoint: Option<String>,
-    /// Presign endpoint for oss.
-    pub presign_endpoint: Option<String>,
-    /// Bucket for oss.
-    pub bucket: String,
-
-    // OSS features
-    /// Server side encryption for oss.
-    pub server_side_encryption: Option<String>,
-    /// Server side encryption key id for oss.
-    pub server_side_encryption_key_id: Option<String>,
-    /// Allow anonymous for oss.
-    pub allow_anonymous: bool,
-
-    // authenticate options
-    /// Access key id for oss.
-    pub access_key_id: Option<String>,
-    /// Access key secret for oss.
-    pub access_key_secret: Option<String>,
-    /// batch_max_operations
-    pub batch_max_operations: Option<usize>,
-}
-
-impl Debug for OssConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("Builder");
-        d.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("allow_anonymous", &self.allow_anonymous);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for OssConfig {
     type Builder = OssBuilder;
@@ -286,6 +241,54 @@ impl OssBuilder {
         self.config.allow_anonymous = true;
         self
     }
+
+    /// Set role_arn for this backend.
+    ///
+    /// If `role_arn` is set, we will use already known config as source
+    /// credential to assume role with `role_arn`.
+    pub fn role_arn(mut self, role_arn: &str) -> Self {
+        if !role_arn.is_empty() {
+            self.config.role_arn = Some(role_arn.to_string())
+        }
+
+        self
+    }
+
+    /// Set role_session_name for this backend.
+    pub fn role_session_name(mut self, role_session_name: &str) -> Self {
+        if !role_session_name.is_empty() {
+            self.config.role_session_name = Some(role_session_name.to_string())
+        }
+
+        self
+    }
+
+    /// Set oidc_provider_arn for this backend.
+    pub fn oidc_provider_arn(mut self, oidc_provider_arn: &str) -> Self {
+        if !oidc_provider_arn.is_empty() {
+            self.config.oidc_provider_arn = Some(oidc_provider_arn.to_string())
+        }
+
+        self
+    }
+
+    /// Set oidc_token_file for this backend.
+    pub fn oidc_token_file(mut self, oidc_token_file: &str) -> Self {
+        if !oidc_token_file.is_empty() {
+            self.config.oidc_token_file = Some(oidc_token_file.to_string())
+        }
+
+        self
+    }
+
+    /// Set sts_endpoint for this backend.
+    pub fn sts_endpoint(mut self, sts_endpoint: &str) -> Self {
+        if !sts_endpoint.is_empty() {
+            self.config.sts_endpoint = Some(sts_endpoint.to_string())
+        }
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -348,6 +351,27 @@ impl Builder for OssBuilder {
             cfg.access_key_secret = Some(v);
         }
 
+        if let Some(v) = self.config.role_arn {
+            cfg.role_arn = Some(v);
+        }
+
+        // override default role_session_name if set
+        if let Some(v) = self.config.role_session_name {
+            cfg.role_session_name = v;
+        }
+
+        if let Some(v) = self.config.oidc_provider_arn {
+            cfg.oidc_provider_arn = Some(v);
+        }
+
+        if let Some(v) = self.config.oidc_token_file {
+            cfg.oidc_token_file = Some(v);
+        }
+
+        if let Some(v) = self.config.sts_endpoint {
+            cfg.sts_endpoint = Some(v);
+        }
+
         let client = if let Some(client) = self.http_client {
             client
         } else {
@@ -357,7 +381,7 @@ impl Builder for OssBuilder {
             })?
         };
 
-        let loader = AliyunLoader::new(client.client(), cfg);
+        let loader = AliyunLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
 
         let signer = AliyunOssSigner::new(bucket);
 
@@ -465,9 +489,7 @@ impl Access for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta =
-                    self.core
-                        .parse_metadata(path, constants::X_OSS_META_PREFIX, resp.headers())?;
+                let mut meta = self.core.parse_metadata(path, resp.headers())?;
 
                 if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
                     meta.set_version(v);
@@ -475,7 +497,7 @@ impl Access for OssBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -491,7 +513,7 @@ impl Access for OssBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -517,7 +539,7 @@ impl Access for OssBackend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -538,7 +560,7 @@ impl Access for OssBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -617,7 +639,7 @@ impl Access for OssBackend {
 
             Ok(RpBatch::new(batched_result))
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp))
         }
     }
 }

@@ -23,46 +23,14 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::core::*;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
+use crate::services::WebdavConfig;
 use crate::*;
-
-/// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct WebdavConfig {
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// username of this backend
-    pub username: Option<String>,
-    /// password of this backend
-    pub password: Option<String>,
-    /// token of this backend
-    pub token: Option<String>,
-    /// root of this backend
-    pub root: Option<String>,
-    /// WebDAV Service doesn't support copy.
-    pub disable_copy: bool,
-}
-
-impl Debug for WebdavConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavConfig");
-
-        d.field("endpoint", &self.endpoint)
-            .field("username", &self.username)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
-    }
-}
 
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;
@@ -131,7 +99,7 @@ impl WebdavBuilder {
     /// default: no access token
     pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
-            self.config.token = Some(token.to_owned());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -291,7 +259,7 @@ impl Access for WebdavBackend {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)).await?)
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
     }
@@ -312,7 +280,7 @@ impl Access for WebdavBackend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -330,7 +298,7 @@ impl Access for WebdavBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -342,7 +310,7 @@ impl Access for WebdavBackend {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

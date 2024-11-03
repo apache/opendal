@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.47.1"
+version = "0.47.6"
 
 [features]
 default = [
@@ -132,6 +132,7 @@ services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
 services-mongodb = ["opendal/services-mongodb"]
+services-monoiofs = ["opendal/services-monoiofs"]
 services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]

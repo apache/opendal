@@ -30,37 +30,8 @@ use serde::Serialize;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::AtomicserverConfig;
 use crate::*;
-
-/// Atomicserver service support.
-
-/// Config for Atomicserver services support
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct AtomicserverConfig {
-    /// work dir of this backend
-    pub root: Option<String>,
-    /// endpoint of this backend
-    pub endpoint: Option<String>,
-    /// private_key of this backend
-    pub private_key: Option<String>,
-    /// public_key of this backend
-    pub public_key: Option<String>,
-    /// parent_resource_id of this backend
-    pub parent_resource_id: Option<String>,
-}
-
-impl Debug for AtomicserverConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AtomicserverConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("public_key", &self.public_key)
-            .field("parent_resource_id", &self.parent_resource_id)
-            .finish_non_exhaustive()
-    }
-}
 
 impl Configurator for AtomicserverConfig {
     type Builder = AtomicserverBuilder;
@@ -155,7 +126,7 @@ impl Builder for AtomicserverBuilder {
                     .with_context("service", Scheme::Atomicserver)
             })?,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -273,11 +244,7 @@ impl Adapter {
         Ok(req)
     }
 
-    async fn atomic_post_object_request(
-        &self,
-        path: &str,
-        value: Buffer,
-    ) -> Result<Request<Buffer>> {
+    fn atomic_post_object_request(&self, path: &str, value: Buffer) -> Result<Request<Buffer>> {
         let path = normalize_path(path);
         let path = path.as_str();
 
@@ -434,7 +401,7 @@ impl kv::Adapter for Adapter {
 
         let _ = self.wait_for_resource(path, false).await;
 
-        let req = self.atomic_post_object_request(path, value).await?;
+        let req = self.atomic_post_object_request(path, value)?;
         let _res = self.client.send(req).await?;
         let _ = self.wait_for_resource(path, true).await;
 

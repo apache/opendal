@@ -628,7 +628,10 @@ mod tests {
   "etag": "CKWasoTgyPkCEAE=",
   "timeCreated": "2022-08-15T11:33:34.866Z",
   "updated": "2022-08-15T11:33:34.866Z",
-  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z",
+  "metadata" : {
+    "location" : "everywhere"
+  }
 }"#;
 
         let meta: GetObjectJsonResponse =
@@ -639,5 +642,12 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
+        assert_eq!(
+            meta.metadata,
+            Some(HashMap::from_iter([(
+                "location".to_string(),
+                "everywhere".to_string()
+            )]))
+        );
     }
 }

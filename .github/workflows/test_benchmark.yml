@@ -40,6 +40,9 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - uses: 1password/load-secrets-action/configure@v1
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
@@ -49,9 +52,6 @@ jobs:
           export-env: true
         env:
           CODSPEED_TOKEN: op://services/benchmark/codspeed
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
       - name: Setup codspeed
         run: cargo install cargo-codspeed
       - name: Setup Memory env

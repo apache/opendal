@@ -247,7 +247,7 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut request_metadata = InsertRequestMetadata {
+        let request_metadata = InsertRequestMetadata {
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),

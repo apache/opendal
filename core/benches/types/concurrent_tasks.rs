@@ -30,7 +30,7 @@ pub fn bench_concurrent_tasks(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_concurrent_tasks");
 
     for concurrent in [1, 2, 4, 8, 16] {
-        group.bench_with_input(concurrent.to_string(), &concurrent, |b, concurrent| {
+        group.bench_with_input(format!("concurrent {}",concurrent), &concurrent, |b, concurrent| {
             b.to_async(&*TOKIO).iter_batched(
                 || {
                     ConcurrentTasks::new(Executor::new(), *concurrent, |()| {

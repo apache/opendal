@@ -57,6 +57,7 @@ jobs:
       - name: Setup Memory env
         uses: ./.github/services/memory/memory
       - name: Install codpseed-criterion-compat
+        working-directory: core
         run: cargo add --dev --rename criterion --features async,async_tokio codspeed-criterion-compat@2.7.2
       - name: Build the benchmark targets
         working-directory: core

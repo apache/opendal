@@ -18,7 +18,7 @@ cc@1.1.34		X							X
 cfg-if@1.0.0		X							X					
 chrono@0.4.38		X							X					
 cloud-filter@0.0.5									X					
-cloud_filter_opendal@0.0.2		X												
+cloud_filter_opendal@0.0.3		X												
 const-oid@0.9.6		X							X					
 const-random@0.1.18		X							X					
 const-random-macro@0.1.16		X							X					

@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -827,7 +827,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.41.12"
+version = "0.41.13"
 dependencies = [
  "anyhow",
  "axum",

@@ -32,7 +32,7 @@ flagset@0.4.6		X
 fnv@1.0.7		X					X					
 form_urlencoded@1.2.1		X					X					
 fuse3@0.8.1							X					
-fuse3_opendal@0.0.8		X										
+fuse3_opendal@0.0.9		X										
 futures@0.3.31		X					X					
 futures-channel@0.3.31		X					X					
 futures-core@0.3.31		X					X					

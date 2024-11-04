@@ -189,7 +189,7 @@ tracing-core@0.1.32									X
 triomphe@0.1.11		X							X						
 try-lock@0.2.5									X						
 typenum@1.17.0		X							X						
-unftp-sbe-opendal@0.0.8		X													
+unftp-sbe-opendal@0.0.9		X													
 unicode-bidi@0.3.17		X							X						
 unicode-ident@1.0.13		X							X				X		
 unicode-normalization@0.1.24		X							X						

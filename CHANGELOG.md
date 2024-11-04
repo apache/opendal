@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.50.2] - 2024-11-04
+
+### Added
+* feat(services/ftp): List dir shows last modified timestamp by @erickguan in https://github.com/apache/opendal/pull/5213
+* feat(bindings/d): add D bindings support by @kassane in https://github.com/apache/opendal/pull/5181
+* feat(bindings/python): add sync `File.readline` by @TennyZhuang in https://github.com/apache/opendal/pull/5271
+* feat(core/services-azblob): support user defined metadata by @jorgehermo9 in https://github.com/apache/opendal/pull/5274
+* feat(core/services-s3): try load endpoint from config by @TennyZhuang in https://github.com/apache/opendal/pull/5279
+### Changed
+* refactor(bin/oli): use `clap_derive` to reduce boilerplate code by @koushiro in https://github.com/apache/opendal/pull/5233
+### Fixed
+* fix: add all-features flag for opendal_compat doc build by @XmchxUp in https://github.com/apache/opendal/pull/5234
+* fix(integrations/compat): Capability has different fields by @Xuanwo in https://github.com/apache/opendal/pull/5236
+* fix(integration/compat): Fix opendal 0.50 OpList has new field by @Xuanwo in https://github.com/apache/opendal/pull/5238
+* fix(integrations/compat): Fix dead loop happened during list by @Xuanwo in https://github.com/apache/opendal/pull/5240
+### Docs
+* docs: Move our release process to github discussions by @Xuanwo in https://github.com/apache/opendal/pull/5217
+* docs: change "Github" to "GitHub" by @MohammadLotfiA in https://github.com/apache/opendal/pull/5250
+### CI
+* ci(asf): Don't add `[DISCUSS]` prefix for discussion by @Xuanwo in https://github.com/apache/opendal/pull/5210
+* build: enable services-mysql for Java and Python bindings by @tisonkun in https://github.com/apache/opendal/pull/5222
+* build(binding/python): Support Python 3.13 by @Zheaoli in https://github.com/apache/opendal/pull/5248
+### Chore
+* chore(bin/*): remove useless deps by @koushiro in https://github.com/apache/opendal/pull/5212
+* chore: tidy up c binding build and docs by @tisonkun in https://github.com/apache/opendal/pull/5243
+* chore(core/layers): adjust await point to simplify combinator code by @koushiro in https://github.com/apache/opendal/pull/5255
+* chore(core/blocking_operator): deduplicate deprecated `is_exist` logic by @simonsan in https://github.com/apache/opendal/pull/5261
+* chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/5262
+* chore: run object_store tests in CI by @jorgehermo9 in https://github.com/apache/opendal/pull/5268
+
 ## [v0.50.1] - 2024-10-20
 
 ### Added

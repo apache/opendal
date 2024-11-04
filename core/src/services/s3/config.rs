@@ -51,7 +51,9 @@ pub struct S3Config {
     /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
     /// will prepend "https://" before it.
     ///
-    /// default to `https://s3.amazonaws.com` if not set.
+    /// - If endpoint is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - If still not set, default to `https://s3.amazonaws.com`.
     pub endpoint: Option<String>,
     /// Region represent the signing region of this endpoint. This is required
     /// if you are using the default AWS S3 endpoint.

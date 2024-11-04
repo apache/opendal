@@ -668,7 +668,7 @@ impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(mut self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -753,9 +753,10 @@ impl Builder for S3Builder {
             }
         }
 
-        if let Some(v) = self.config.region.clone() {
-            cfg.region = Some(v);
+        if let Some(ref v) = self.config.region {
+            cfg.region = Some(v.to_string());
         }
+
         if cfg.region.is_none() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -767,6 +768,9 @@ impl Builder for S3Builder {
 
         let region = cfg.region.to_owned().unwrap();
         debug!("backend use region: {region}");
+
+        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
+        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
 
         // Building endpoint.
         let endpoint = self.build_endpoint(&region);

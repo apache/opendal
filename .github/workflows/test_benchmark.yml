@@ -59,6 +59,7 @@ jobs:
       - name: Install codpseed-criterion-compat
         run: cargo add --dev --rename criterion --features async,async_tokio codspeed-criterion-compat@2.7.2
       - name: Build the benchmark targets
+        working-directory: core
         run: cargo codspeed build --features tests
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@v3

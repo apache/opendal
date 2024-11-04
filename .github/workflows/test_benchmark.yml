@@ -44,15 +44,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: 1password/load-secrets-action/configure@v1
-        with:
-          connect-host: ${{ secrets.OP_CONNECT_HOST }}
-          connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
-      - uses: 1password/load-secrets-action@v1
-        with:
-          export-env: true
-        env:
-          CODSPEED_TOKEN: op://services/codspeed/token
       - name: Setup codspeed
         run: cargo install cargo-codspeed
       - name: Setup Memory env
@@ -70,4 +61,3 @@ jobs:
         with:
           working-directory: core
           run: cargo codspeed run
-          token: ${{ env.CODSPEED_TOKEN }}

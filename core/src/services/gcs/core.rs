@@ -610,7 +610,7 @@ impl GcsCore {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -621,17 +621,6 @@ pub struct InsertRequestMetadata<'a> {
     cache_control: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<&'a HashMap<String, String>>,
-}
-
-impl Default for InsertRequestMetadata<'_> {
-    fn default() -> Self {
-        Self {
-            content_type: None,
-            storage_class: None,
-            cache_control: None,
-            metadata: None,
-        }
-    }
 }
 
 impl InsertRequestMetadata<'_> {

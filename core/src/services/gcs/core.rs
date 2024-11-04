@@ -247,12 +247,12 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut request_metadata = InsertRequestMetadata::default();
-
-        request_metadata.storage_class = self.default_storage_class.as_ref().map(String::as_str);
-        request_metadata.cache_control = op.cache_control();
-        request_metadata.content_type = op.content_type();
-        request_metadata.metadata = op.user_metadata();
+        let mut request_metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            metadata: op.user_metadata(),
+        };
 
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
@@ -610,7 +610,7 @@ impl GcsCore {
     }
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -668,7 +668,7 @@ impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(mut self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -753,8 +753,8 @@ impl Builder for S3Builder {
             }
         }
 
-        if let Some(v) = self.config.region.clone() {
-            cfg.region = Some(v);
+        if let Some(ref v) = self.config.region {
+            cfg.region = Some(v.to_string());
         }
         if cfg.region.is_none() {
             return Err(Error::new(
@@ -769,8 +769,10 @@ impl Builder for S3Builder {
         debug!("backend use region: {region}");
 
         // Building endpoint.
-        if let Some(v) = self.config.endpoint_url.clone() {
-            cfg.endpoint = Some(v);
+        if let Some(ref v) = self.config.endpoint {
+            cfg.endpoint_url = Some(v.to_string());
+        } else if let Some(ref v) = cfg.endpoint_url {
+            self.config.endpoint = Some(v.to_string());
         }
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");

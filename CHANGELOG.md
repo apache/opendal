@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(bindings/d): add D bindings support by @kassane in https://github.com/apache/opendal/pull/5181
 * feat(bindings/python): add sync `File.readline` by @TennyZhuang in https://github.com/apache/opendal/pull/5271
 * feat(core/services-azblob): support user defined metadata by @jorgehermo9 in https://github.com/apache/opendal/pull/5274
+* feat(core/services-s3): try load endpoint from config by @TennyZhuang in https://github.com/apache/opendal/pull/5279
 ### Changed
 * refactor(bin/oli): use `clap_derive` to reduce boilerplate code by @koushiro in https://github.com/apache/opendal/pull/5233
 ### Fixed

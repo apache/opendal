@@ -134,7 +134,7 @@ rand@0.8.5		X							X
 rand_chacha@0.3.1		X							X					
 rand_core@0.6.4		X							X					
 redox_syscall@0.5.3									X					
-reqsign@0.16.0		X												
+reqsign@0.16.1		X												
 reqwest@0.12.7		X							X					
 ring@0.17.8											X			
 rsa@0.9.6		X							X					

@@ -90,7 +90,7 @@ quote@1.0.37		X							X
 rand@0.8.5		X							X					
 rand_chacha@0.3.1		X							X					
 rand_core@0.6.4		X							X					
-reqsign@0.16.0		X												
+reqsign@0.16.1		X												
 reqwest@0.12.8		X							X					
 ring@0.17.8											X			
 rust-ini@0.21.1									X					

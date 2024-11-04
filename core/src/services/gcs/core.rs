@@ -278,7 +278,7 @@ impl GcsCore {
 
         if request_metadata.is_empty() {
             // If the metadata is empty, we do not set any `Content-Type` header,
-            // since if we had it in the `op.content_type()`, it would be alrady set in the
+            // since if we had it in the `op.content_type()`, it would be already set in the
             // `multipart` metadata body and this branch won't be executed.
             let req = req.body(body).map_err(new_request_build_error)?;
             Ok(req)

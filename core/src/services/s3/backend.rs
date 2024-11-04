@@ -769,6 +769,9 @@ impl Builder for S3Builder {
         debug!("backend use region: {region}");
 
         // Building endpoint.
+        if let Some(v) = self.config.endpoint_url.clone() {
+            cfg.endpoint = Some(v);
+        }
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 

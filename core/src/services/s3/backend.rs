@@ -756,6 +756,7 @@ impl Builder for S3Builder {
         if let Some(ref v) = self.config.region {
             cfg.region = Some(v.to_string());
         }
+
         if cfg.region.is_none() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -768,12 +769,10 @@ impl Builder for S3Builder {
         let region = cfg.region.to_owned().unwrap();
         debug!("backend use region: {region}");
 
+        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
+        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
+
         // Building endpoint.
-        if let Some(ref v) = self.config.endpoint {
-            cfg.endpoint_url = Some(v.to_string());
-        } else if let Some(ref v) = cfg.endpoint_url {
-            self.config.endpoint = Some(v.to_string());
-        }
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 

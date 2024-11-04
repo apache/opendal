@@ -51,7 +51,7 @@ jobs:
         with:
           export-env: true
         env:
-          CODSPEED_TOKEN: op://services/benchmark/codspeed
+          CODSPEED_TOKEN: op://services/codspeed/token
       - name: Setup codspeed
         run: cargo install cargo-codspeed
       - name: Setup Memory env

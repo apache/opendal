@@ -30,30 +30,34 @@ pub fn bench_concurrent_tasks(c: &mut Criterion) {
     let mut group = c.benchmark_group("bench_concurrent_tasks");
 
     for concurrent in [1, 2, 4, 8, 16] {
-        group.bench_with_input(format!("concurrent {}",concurrent), &concurrent, |b, concurrent| {
-            b.to_async(&*TOKIO).iter_batched(
-                || {
-                    ConcurrentTasks::new(Executor::new(), *concurrent, |()| {
-                        Box::pin(async {
-                            tokio::time::sleep(Duration::from_millis(1)).await;
-                            ((), Ok(()))
+        group.bench_with_input(
+            format!("concurrent {}", concurrent),
+            &concurrent,
+            |b, concurrent| {
+                b.to_async(&*TOKIO).iter_batched(
+                    || {
+                        ConcurrentTasks::new(Executor::new(), *concurrent, |()| {
+                            Box::pin(async {
+                                tokio::time::sleep(Duration::from_millis(1)).await;
+                                ((), Ok(()))
+                            })
                         })
-                    })
-                },
-                |mut tasks| async move {
-                    for _ in 0..100 {
-                        let _ = tasks.execute(()).await;
-                    }
-
-                    loop {
-                        if tasks.next().await.is_none() {
-                            break;
+                    },
+                    |mut tasks| async move {
+                        for _ in 0..100 {
+                            let _ = tasks.execute(()).await;
                         }
-                    }
-                },
-                BatchSize::PerIteration,
-            )
-        });
+
+                        loop {
+                            if tasks.next().await.is_none() {
+                                break;
+                            }
+                        }
+                    },
+                    BatchSize::PerIteration,
+                )
+            },
+        );
     }
 
     group.finish()

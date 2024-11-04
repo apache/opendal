@@ -39,6 +39,7 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
@@ -62,6 +63,8 @@ jobs:
       - name: Build the benchmark targets
         working-directory: core
         run: cargo codspeed build --features tests
+        env:
+          OPENDAL_TEST: memory
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@v3
         with:

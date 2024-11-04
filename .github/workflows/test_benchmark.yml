@@ -65,5 +65,6 @@ jobs:
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@v3
         with:
+          working-directory: core
           run: cargo codspeed run
           token: ${{ env.CODSPEED_TOKEN }}

@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use magnus::class;
-use magnus::exception;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
@@ -33,10 +32,6 @@ use crate::*;
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
 #[derive(Clone, Debug)]
 struct Operator(ocore::BlockingOperator);
-
-fn format_magnus_error(err: ocore::Error) -> Error {
-    Error::new(exception::runtime_error(), err.to_string())
-}
 
 impl Operator {
     fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self, Error> {

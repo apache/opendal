@@ -132,7 +132,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     }
 
     #[trace]
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 

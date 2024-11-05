@@ -77,7 +77,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         let tracer = global::tracer("opendal");
         tracer.in_span("metadata", |_cx| self.inner.info())
     }

@@ -288,7 +288,7 @@ impl GcsCore {
                     "application/json; charset=UTF-8".parse().unwrap(),
                 )
                 .content(
-                    serde_json::to_string(&request_metadata)
+                    serde_json::to_vec(&request_metadata)
                         .expect("metadata serialization should success"),
                 );
             multipart = multipart.part(metadata_part);

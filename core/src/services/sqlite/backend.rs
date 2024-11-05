@@ -224,8 +224,8 @@ impl kv::Scan for SqliteScanner {
 impl kv::Adapter for Adapter {
     type Scanner = SqliteScanner;
 
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Sqlite,
             &self.table,
             Capability {

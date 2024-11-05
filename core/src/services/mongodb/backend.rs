@@ -228,8 +228,8 @@ impl Adapter {
 impl kv::Adapter for Adapter {
     type Scanner = ();
 
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Mongodb,
             &format!("{}/{}", self.database, self.collection),
             Capability {

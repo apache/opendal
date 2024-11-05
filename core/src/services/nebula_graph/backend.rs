@@ -272,8 +272,8 @@ impl Adapter {
 impl kv::Adapter for Adapter {
     type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
 
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::NebulaGraph,
             &self.session_config.space.clone().unwrap(),
             Capability {

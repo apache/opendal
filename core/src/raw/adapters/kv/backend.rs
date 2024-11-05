@@ -72,10 +72,13 @@ impl<S: Adapter> Access for Backend<S> {
     type BlockingLister = HierarchyLister<BlockingKvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am: AccessorInfo = self.kv.metadata().into();
+        let kv_info = self.kv.info();
+        let mut am: AccessorInfo = AccessorInfo::default();
         am.set_root(&self.root);
+        am.set_scheme(kv_info.scheme());
+        am.set_name(kv_info.name());
 
-        let mut cap = am.native_capability();
+        let mut cap = kv_info.capabilities();
         if cap.read {
             cap.stat = true;
         }

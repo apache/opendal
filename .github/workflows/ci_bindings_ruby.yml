@@ -42,17 +42,27 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version: ["3.1", "3.2", "3.3"]
+
     env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
       BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Bundle with rake
-        working-directory: "bindings/ruby"
+
+      - name: Run tests and lint
+        working-directory: bindings/ruby
         run: |
           bundle exec rake

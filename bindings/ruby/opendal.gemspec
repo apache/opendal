@@ -27,7 +27,6 @@ Gem::Specification.new do |spec|
 
   spec.summary = "OpenDAL Ruby Binding"
   spec.homepage = "https://opendal.apache.org/"
-  spec.required_ruby_version = ">= 2.6.0"
 
   spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
 
@@ -46,16 +45,19 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
   spec.extensions = ["./extconf.rb"]
 
-  # needed until rubygems supports Rust support is out of beta
-  spec.add_dependency "rb_sys", "~> 0.9.39"
+  # Rubygems is a default gem that is a part of Ruby core.
+  # Rubygems 3.3.11 supports building gem with Cargo.
+  # Read more https://github.com/rubygems/rubygems/blob/master/CHANGELOG.md#3311--2022-04-07
+  #
+  # Ruby 3.1.3 includes Rubygems 3.3.26
+  # Read more https://stdgems.org/3.1.3/
+  #
+  # use a Ruby version which:
+  # - supports new Rubygems with the ability of compilation of Rust gem
+  # - not end of life
+  spec.required_ruby_version = ">= 3.1.3"
 
-  # only needed when developing or packaging your gem
-  spec.add_development_dependency "rake-compiler", "~> 1.2.0"
-
-  # For more information and examples about making a new gem, check out our
-  # guide at: https://bundler.io/guides/creating_gem.html
+  # intentionally skipping rb_sys gem because newer Rubygems will be present
 end

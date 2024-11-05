@@ -45,7 +45,7 @@ use crate::Scheme;
 /// Ideally, we should use `typed_kv::Adapter` instead of `kv::Adapter` for
 /// in-memory rust libs like moka and dashmap.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// Get the scheme and name of current adapter.
+    /// Return the info of this key value accessor.
     fn info(&self) -> Info;
 
     /// Get a value from adapter.

@@ -21,7 +21,7 @@
 
 mod api;
 pub use api::Adapter;
-pub use api::Metadata;
+pub use api::Info;
 pub use api::Scan;
 #[cfg(any(
     feature = "services-cloudflare-kv",

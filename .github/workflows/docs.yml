@@ -631,6 +631,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
+          # This allows us to make our publish branch with only the latest commit.
+          force_orphan: true
 
       - name: Clear build
         run: rm -rf ./website/build

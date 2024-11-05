@@ -17,20 +17,26 @@
 
 # frozen_string_literal: true
 
-RSpec.describe OpenDAL do
-  before :each do
+require "test_helper"
+
+class CapabilityTest < ActiveSupport::TestCase
+  setup do
     @op = OpenDAL::Operator.new("memory", nil)
   end
 
-  it "should perform basic ops" do
-    path = "/path/to/file"
-    content = "OpenDAL Ruby is ready."
-    @op.write(path, content)
+  test "has read capability" do
+    capability = @op.capability
 
-    stat = @op.stat(path)
-    expect(stat.is_file).to eq(true)
-    expect(stat.content_length).to eq(content.length)
+    assert_not capability.nil?
+    assert capability.read
+  end
 
-    expect(@op.read(path)).to eq(content)
+  test "doesn't respond to undefined capability" do
+    capability = @op.capability
+
+    assert_not capability.nil?
+    assert_raises(NoMethodError) do
+      capability.not_exist
+    end
   end
 end

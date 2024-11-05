@@ -110,7 +110,7 @@ impl<A: Access> Layer<A> for CompleteLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         CompleteAccessor {
-            meta: inner.info(),
+            info: inner.info(),
             inner: Arc::new(inner),
         }
     }
@@ -118,7 +118,7 @@ impl<A: Access> Layer<A> for CompleteLayer {
 
 /// Provide complete wrapper for backend.
 pub struct CompleteAccessor<A: Access> {
-    meta: Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
     inner: Arc<A>,
 }
 
@@ -130,7 +130,7 @@ impl<A: Access> Debug for CompleteAccessor<A> {
 
 impl<A: Access> CompleteAccessor<A> {
     fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
-        let scheme = self.meta.scheme();
+        let scheme = self.info.scheme();
         let op = op.into();
         Error::new(
             ErrorKind::Unsupported,
@@ -140,7 +140,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if capability.create_dir {
             return self.inner().create_dir(path, args).await;
         }
@@ -154,7 +154,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if capability.create_dir && capability.blocking {
             return self.inner().blocking_create_dir(path, args);
         }
@@ -168,7 +168,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.stat {
             return Err(self.new_unsupported_error(Operation::Stat));
         }
@@ -218,7 +218,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.stat {
             return Err(self.new_unsupported_error(Operation::Stat));
         }
@@ -271,7 +271,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
-        let cap = self.meta.full_capability();
+        let cap = self.info.full_capability();
         if !cap.list {
             return Err(self.new_unsupported_error(Operation::List));
         }
@@ -319,7 +319,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
-        let cap = self.meta.full_capability();
+        let cap = self.info.full_capability();
         if !cap.list {
             return Err(self.new_unsupported_error(Operation::BlockingList));
         }
@@ -377,8 +377,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
-    fn metadata(&self) -> Arc<AccessorInfo> {
-        let mut meta = (*self.meta).clone();
+    fn info(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.info).clone();
         let cap = meta.full_capability_mut();
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
@@ -391,7 +391,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.read {
             return Err(self.new_unsupported_error(Operation::Read));
         }
@@ -404,7 +404,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.write {
             return Err(self.new_unsupported_error(Operation::Write));
         }
@@ -413,7 +413,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
                 ErrorKind::Unsupported,
                 format!(
                     "service {} doesn't support operation write with append",
-                    self.info().scheme()
+                    self.info.scheme()
                 ),
             ));
         }
@@ -424,7 +424,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.copy {
             return Err(self.new_unsupported_error(Operation::Copy));
         }
@@ -433,7 +433,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.rename {
             return Err(self.new_unsupported_error(Operation::Rename));
         }
@@ -446,7 +446,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.delete {
             return Err(self.new_unsupported_error(Operation::Delete));
         }
@@ -455,7 +455,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.list {
             return Err(self.new_unsupported_error(Operation::List));
         }
@@ -464,7 +464,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.batch {
             return Err(self.new_unsupported_error(Operation::Batch));
         }
@@ -473,7 +473,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.presign {
             return Err(self.new_unsupported_error(Operation::Presign));
         }
@@ -486,7 +486,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.read || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::Read));
         }
@@ -498,7 +498,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.write || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingWrite));
         }
@@ -508,7 +508,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
                 ErrorKind::Unsupported,
                 format!(
                     "service {} doesn't support operation write with append",
-                    self.info().scheme()
+                    self.info.scheme()
                 ),
             ));
         }
@@ -519,7 +519,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.copy || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingCopy));
         }
@@ -528,7 +528,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.rename || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingRename));
         }
@@ -541,7 +541,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.delete || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingDelete));
         }
@@ -550,7 +550,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let capability = self.meta.full_capability();
+        let capability = self.info.full_capability();
         if !capability.list || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingList));
         }

@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
-use super::Adapter;
+use super::{Adapter, Scan};
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;
@@ -68,8 +68,8 @@ impl<S: Adapter> Access for Backend<S> {
     type BlockingReader = Buffer;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Lister = HierarchyLister<KvLister>;
-    type BlockingLister = HierarchyLister<KvLister>;
+    type Lister = HierarchyLister<KvLister<S::Scanner>>;
+    type BlockingLister = HierarchyLister<BlockingKvLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();
@@ -185,19 +185,60 @@ impl<S: Adapter> Access for Backend<S> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_abs_path(&self.root, path);
         let res = self.kv.blocking_scan(&p)?;
-        let lister = KvLister::new(&self.root, res);
+        let lister = BlockingKvLister::new(&self.root, res);
         let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
     }
 }
 
-pub struct KvLister {
+pub struct KvLister<Iter> {
+    root: String,
+    inner: Iter,
+}
+
+impl<Iter> KvLister<Iter>
+where
+    Iter: Scan,
+{
+    fn new(root: &str, inner: Iter) -> Self {
+        Self {
+            root: root.to_string(),
+            inner,
+        }
+    }
+
+    async fn inner_next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner.next().await?.map(|v| {
+            let mode = if v.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let mut path = build_rel_path(&self.root, &v);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+            oio::Entry::new(&path, Metadata::new(mode))
+        }))
+    }
+}
+
+impl<Iter> oio::List for KvLister<Iter>
+where
+    Iter: Scan,
+{
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner_next().await
+    }
+}
+
+pub struct BlockingKvLister {
     root: String,
     inner: IntoIter<String>,
 }
 
-impl KvLister {
+impl BlockingKvLister {
     fn new(root: &str, inner: Vec<String>) -> Self {
         Self {
             root: root.to_string(),
@@ -221,13 +262,7 @@ impl KvLister {
     }
 }
 
-impl oio::List for KvLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner_next())
-    }
-}
-
-impl oio::BlockingList for KvLister {
+impl oio::BlockingList for BlockingKvLister {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         Ok(self.inner_next())
     }

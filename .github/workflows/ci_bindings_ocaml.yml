@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache OPAM dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.opam
           key: ${{ runner.os }}-opam-${{ hashFiles('bindings/ocaml/dune-project') }}
@@ -51,7 +51,7 @@ jobs:
             ${{ runner.os }}-opam-doc-
 
       - name: Cache Dune build artifacts
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: bindings/ocaml/_build
           key: ${{ runner.os }}-dune-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}

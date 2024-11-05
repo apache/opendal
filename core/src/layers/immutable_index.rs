@@ -149,7 +149,7 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     }
 
     /// Add list capabilities for underlying storage services.
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut meta = (*self.inner.info()).clone();
 
         let cap = meta.full_capability_mut();

@@ -226,6 +226,8 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type Scanner = ();
+
     fn info(&self) -> kv::Info {
         kv::Info::new(
             Scheme::Mongodb,

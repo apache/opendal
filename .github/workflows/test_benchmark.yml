@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Integration Object Store CI
+name: Benchmark Test
 
 on:
   push:
@@ -25,27 +25,39 @@ on:
     branches:
       - main
     paths:
-      - "integrations/object_store/**"
-      - "core/**"
-      - ".github/workflows/ci_integration_object_store.yml"
+      - "core/src/**"
+      - "core/benches/**"
+      - "!core/src/docs/**"
+      - ".github/workflows/test_benchmark.yml"
+  # `workflow_dispatch` is needed by codspeed for first time trigger
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  check_clippy:
+  benchmark:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-
-      - name: Cargo clippy
-        working-directory: integrations/object_store
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Cargo test
-        working-directory: integrations/object_store
-        run: cargo test
+      - name: Setup codspeed
+        run: cargo install cargo-codspeed
+      - name: Setup Memory env
+        uses: ./.github/services/memory/memory
+      - name: Install codpseed-criterion-compat
+        working-directory: core
+        run: cargo add --dev --rename criterion --features async,async_tokio codspeed-criterion-compat@2.7.2
+      - name: Build the benchmark targets
+        working-directory: core
+        run: cargo codspeed build --features tests,services-memory
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v3
+        env:
+          OPENDAL_TEST: memory
+        with:
+          working-directory: core
+          run: cargo codspeed run

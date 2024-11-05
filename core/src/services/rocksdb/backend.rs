@@ -108,6 +108,8 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
+    type Scanner = kv::Scanner;
+
     fn info(&self) -> kv::Info {
         kv::Info::new(
             Scheme::Rocksdb,
@@ -164,13 +166,15 @@ impl kv::Adapter for Adapter {
         self.db.delete(path).map_err(parse_rocksdb_error)
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
+        let res = task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)?
+            .map_err(new_task_join_error)??;
+
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 
     /// TODO: we only need key here.

@@ -19,3 +19,4 @@
 
 require_relative "opendal_ruby/version"
 require_relative "opendal_ruby/opendal_ruby"
+require_relative "opendal_ruby/io"

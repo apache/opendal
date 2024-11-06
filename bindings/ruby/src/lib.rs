@@ -26,6 +26,7 @@ pub use ::opendal as ocore;
 
 mod capability;
 mod metadata;
+mod opendal_io;
 mod operator;
 
 pub fn format_magnus_error(err: ocore::Error) -> Error {
@@ -39,6 +40,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let _ = operator::include(&gem_module);
     let _ = metadata::include(&gem_module);
     let _ = capability::include(&gem_module);
+    let _ = opendal_io::include(&gem_module);
 
     Ok(())
 }

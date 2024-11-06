@@ -24,9 +24,11 @@ use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 use magnus::RString;
+use magnus::Ruby;
 
 use crate::capability::Capability;
 use crate::metadata::Metadata;
+use crate::opendal_io::OpenDALIO;
 use crate::*;
 
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
@@ -34,39 +36,48 @@ use crate::*;
 struct Operator(ocore::BlockingOperator);
 
 impl Operator {
-    fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self, Error> {
+    fn new(
+        ruby: &Ruby,
+        scheme: String,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<Self, Error> {
         let scheme = ocore::Scheme::from_str(&scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
                     .set_source(err)
             })
-            .map_err(format_magnus_error)?;
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         let options = options.unwrap_or_default();
 
         let op = ocore::Operator::via_iter(scheme, options)
-            .map_err(format_magnus_error)?
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?
             .blocking();
         Ok(Operator(op))
     }
 
     /// Reads the whole path into string.
-    fn read(&self, path: String) -> Result<bytes::Bytes, Error> {
-        let buffer = self.0.read(&path).map_err(format_magnus_error)?;
+    fn read(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bytes::Bytes, Error> {
+        let buffer = rb_self
+            .0
+            .read(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         Ok(buffer.to_bytes())
     }
 
     /// Writes string into given path.
-    fn write(&self, path: String, bs: RString) -> Result<(), Error> {
-        self.0
+    fn write(ruby: &Ruby, rb_self: &Self, path: String, bs: RString) -> Result<(), Error> {
+        rb_self
+            .0
             .write(&path, bs.to_bytes())
-            .map_err(format_magnus_error)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Gets current path's metadata **without cache** directly.
-    fn stat(&self, path: String) -> Result<Metadata, Error> {
-        self.0
+    fn stat(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Metadata, Error> {
+        rb_self
+            .0
             .stat(&path)
-            .map_err(format_magnus_error)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
             .map(Metadata::new)
     }
 
@@ -78,33 +89,57 @@ impl Operator {
 
     /// Creates directory recursively similar as `mkdir -p`
     /// The ending path must be `/`. Otherwise, OpenDAL throws `NotADirectory` error.
-    fn create_dir(&self, path: String) -> Result<(), Error> {
-        self.0.create_dir(&path).map_err(format_magnus_error)
+    fn create_dir(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
+        rb_self
+            .0
+            .create_dir(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Deletes given path
-    fn delete(&self, path: String) -> Result<(), Error> {
-        self.0.delete(&path).map_err(format_magnus_error)
+    fn delete(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
+        rb_self
+            .0
+            .delete(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Returns if this path exists
-    fn exists(&self, path: String) -> Result<bool, Error> {
-        self.0.exists(&path).map_err(format_magnus_error)
+    fn exists(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bool, Error> {
+        rb_self
+            .0
+            .exists(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Renames a file from `from` to `to`
-    fn rename(&self, from: String, to: String) -> Result<(), Error> {
-        self.0.rename(&from, &to).map_err(format_magnus_error)
+    fn rename(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
+        rb_self
+            .0
+            .rename(&from, &to)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Removes the path and all nested directories and files recursively
-    fn remove_all(&self, path: String) -> Result<(), Error> {
-        self.0.remove_all(&path).map_err(format_magnus_error)
+    fn remove_all(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
+        rb_self
+            .0
+            .remove_all(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
     /// Copies a file from `from` to `to`.
-    fn copy(&self, from: String, to: String) -> Result<(), Error> {
-        self.0.copy(&from, &to).map_err(format_magnus_error)
+    fn copy(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
+        rb_self
+            .0
+            .copy(&from, &to)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
+    }
+
+    /// Opens a IO-like reader for the given path.
+    fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<OpenDALIO, Error> {
+        let operator = rb_self.0.clone();
+        Ok(OpenDALIO::new(&ruby, operator, path, mode)?)
     }
 }
 
@@ -121,6 +156,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("rename", method!(Operator::rename, 2))?;
     class.define_method("remove_all", method!(Operator::remove_all, 1))?;
     class.define_method("copy", method!(Operator::copy, 2))?;
+    class.define_method("open", method!(Operator::open, 2))?;
 
     Ok(())
 }

@@ -69,12 +69,13 @@
         <assertj.version>3.23.1</assertj.version>
         <commons-io.version>2.16.1</commons-io.version>
         <dotenv.version>2.3.2</dotenv.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.34</lombok.version>
         <slf4j.version>2.0.7</slf4j.version>
         <httpclient.version>5.2</httpclient.version>
 
         <!-- plugins dependencies -->
         <maven-surefire-plugin.version>3.1.2</maven-surefire-plugin.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
         <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
         <palantir-java-format.version>2.36.0</palantir-java-format.version>
@@ -222,6 +223,20 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

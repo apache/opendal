@@ -1037,13 +1037,6 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        if args.version() && !self.core.enable_versioning {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "the bucket doesn't enable versioning",
-            ));
-        }
-
         let l = if args.version() {
             TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),

@@ -77,9 +77,9 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         let tracer = global::tracer("opendal");
-        tracer.in_span("metadata", |_cx| self.inner.info())
+        tracer.in_span("info", |_cx| self.inner.info())
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

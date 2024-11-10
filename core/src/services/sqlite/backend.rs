@@ -17,8 +17,15 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::pin::Pin;
 use std::str::FromStr;
+use std::task::Context;
+use std::task::Poll;
 
+use futures::stream::BoxStream;
+use futures::Stream;
+use futures::StreamExt;
+use ouroboros::self_referencing;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::sync::OnceCell;
@@ -188,9 +195,37 @@ impl Adapter {
     }
 }
 
+#[self_referencing]
+pub struct SqliteScanner {
+    pool: SqlitePool,
+    query: String,
+
+    #[borrows(pool, query)]
+    #[covariant]
+    stream: BoxStream<'this, Result<String>>,
+}
+
+impl Stream for SqliteScanner {
+    type Item = Result<String>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.with_stream_mut(|s| s.poll_next_unpin(cx))
+    }
+}
+
+unsafe impl Sync for SqliteScanner {}
+
+impl kv::Scan for SqliteScanner {
+    async fn next(&mut self) -> Result<Option<String>> {
+        <Self as StreamExt>::next(self).await.transpose()
+    }
+}
+
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = SqliteScanner;
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Sqlite,
             &self.table,
             Capability {
@@ -249,19 +284,25 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let pool = self.get_client().await?;
+        let stream = SqliteScannerBuilder {
+            pool: pool.clone(),
+            query: format!(
+                "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
+                self.key_field, self.table, self.key_field
+            ),
+            stream_builder: |pool, query| {
+                sqlx::query_scalar(query)
+                    .bind(format!("{path}%"))
+                    .fetch(pool)
+                    .map(|v| v.map_err(parse_sqlite_error))
+                    .boxed()
+            },
+        }
+        .build();
 
-        let value = sqlx::query_scalar(&format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
-            self.key_field, self.table, self.key_field
-        ))
-        .bind(format!("{path}%"))
-        .fetch_all(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
-
-        Ok(value)
+        Ok(stream)
     }
 }
 

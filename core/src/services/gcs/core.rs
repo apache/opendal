@@ -39,11 +39,17 @@ use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
 use crate::*;
+use constants::*;
+
+pub mod constants {
+    pub const X_GOOG_ACL: &str = "x-goog-acl";
+    pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
+    pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+}
 
 pub struct GcsCore {
     pub endpoint: String,
@@ -241,19 +247,18 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut metadata = HashMap::new();
-        if let Some(storage_class) = &self.default_storage_class {
-            metadata.insert("storageClass", storage_class.as_str());
-        }
-        if let Some(cache_control) = op.cache_control() {
-            metadata.insert("cacheControl", cache_control);
-        }
+        let request_metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            metadata: op.user_metadata(),
+        };
 
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
             self.endpoint,
             self.bucket,
-            if metadata.is_empty() {
+            if request_metadata.is_empty() {
                 "media"
             } else {
                 "multipart"
@@ -269,37 +274,28 @@ impl GcsCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if metadata.is_empty() {
-            if let Some(content_type) = op.content_type() {
-                req = req.header(CONTENT_TYPE, content_type);
-            }
-
+        if request_metadata.is_empty() {
+            // If the metadata is empty, we do not set any `Content-Type` header,
+            // since if we had it in the `op.content_type()`, it would be already set in the
+            // `multipart` metadata body and this branch won't be executed.
             let req = req.body(body).map_err(new_request_build_error)?;
             Ok(req)
         } else {
             let mut multipart = Multipart::new();
-
-            multipart = multipart.part(
-                FormDataPart::new("metadata")
-                    .header(
-                        CONTENT_TYPE,
-                        "application/json; charset=UTF-8".parse().unwrap(),
-                    )
-                    .content(json!(metadata).to_string()),
-            );
-
-            let mut media_part = FormDataPart::new("media").content(body);
-
-            if let Some(content_type) = op.content_type() {
-                media_part = media_part.header(
+            let metadata_part = FormDataPart::new("metadata")
+                .header(
                     CONTENT_TYPE,
-                    content_type
-                        .parse()
-                        .map_err(|_| Error::new(ErrorKind::Unexpected, "invalid header value"))?,
+                    "application/json; charset=UTF-8".parse().unwrap(),
+                )
+                .content(
+                    serde_json::to_vec(&request_metadata)
+                        .expect("metadata serialization should success"),
                 );
-            }
+            multipart = multipart.part(metadata_part);
 
+            let media_part = FormDataPart::new("media").content(body);
             multipart = multipart.part(media_part);
+
             let req = multipart.apply(Request::post(url))?;
             Ok(req)
         }
@@ -318,16 +314,22 @@ impl GcsCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_GOOG_META_PREFIX}{key}"), value)
+            }
+        }
+
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
         if let Some(acl) = &self.predefined_acl {
-            req = req.header("x-goog-acl", acl);
+            req = req.header(X_GOOG_ACL, acl);
         }
 
         if let Some(storage_class) = &self.default_storage_class {
-            req = req.header("x-goog-storage-class", storage_class);
+            req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -608,6 +610,27 @@ impl GcsCore {
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct InsertRequestMetadata<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_class: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<&'a HashMap<String, String>>,
+}
+
+impl InsertRequestMetadata<'_> {
+    pub fn is_empty(&self) -> bool {
+        self.content_type.is_none()
+            && self.storage_class.is_none()
+            && self.cache_control.is_none()
+            && self.metadata.is_none()
+    }
+}
 /// Response JSON from GCS list objects API.
 ///
 /// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details

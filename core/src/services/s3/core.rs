@@ -27,6 +27,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
@@ -462,7 +463,7 @@ impl S3Core {
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
-                req = req.header(format!("{}{}", constants::X_AMZ_META_PREFIX, key), value)
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
 

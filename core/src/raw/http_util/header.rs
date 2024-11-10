@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::DateTime;
@@ -187,6 +189,21 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     }
 
     Ok(m)
+}
+
+/// Parse prefixed headers and return a map with the prefix of each header removed.
+pub fn parse_prefixed_headers(headers: &HeaderMap, prefix: &str) -> HashMap<String, String> {
+    headers
+        .iter()
+        .filter_map(|(name, value)| {
+            name.as_str().strip_prefix(prefix).and_then(|stripped_key| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|parsed_value| (stripped_key.to_string(), parsed_value.to_string()))
+            })
+        })
+        .collect()
 }
 
 /// format content md5 header by given input.

@@ -17,16 +17,20 @@
 
 # frozen_string_literal: true
 
+require "active_support"
+require "minitest/autorun"
+require "minitest/reporters"
+
+Minitest::Reporters.use!([Minitest::Reporters::DefaultReporter.new(color: true)])
+
 require "opendal"
 
-RSpec.configure do |config|
-  # Enable flags like --only-failures and --next-failure
-  config.example_status_persistence_file_path = ".rspec_status"
-
-  # Disable RSpec exposing methods globally on `Module` and `main`
-  config.disable_monkey_patching!
-
-  config.expect_with :rspec do |c|
-    c.syntax = :expect
-  end
+# Uses `ActiveSupport::TestCase` for additional features including:
+# - additional assertions
+# - file fixtures
+# - parallel worker
+#
+# Read more https://edgeapi.rubyonrails.org/classes/ActiveSupport/TestCase.html
+class ActiveSupport::TestCase
+  parallelize(workers: :number_of_processors)
 end

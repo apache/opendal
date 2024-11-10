@@ -15,54 +15,49 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Ruby CI
+name: Benchmark Test
 
 on:
   push:
     branches:
       - main
-    tags:
-      - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/ruby/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_ruby.yml"
+      - "core/src/**"
+      - "core/benches/**"
+      - "!core/src/docs/**"
+      - ".github/workflows/test_benchmark.yml"
+  # `workflow_dispatch` is needed by codspeed for first time trigger
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  test:
+  benchmark:
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        ruby-version: ["3.1", "3.2", "3.3"]
-
-    env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
-      BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
-
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v4
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ matrix.ruby-version }}
-          bundler-cache: true # runs 'bundle install' and caches installed gems automatically
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-
-      - name: Run tests and lint
-        working-directory: bindings/ruby
-        run: |
-          bundle exec rake
+      - name: Setup codspeed
+        run: cargo install cargo-codspeed
+      - name: Setup Memory env
+        uses: ./.github/services/memory/memory
+      - name: Install codpseed-criterion-compat
+        working-directory: core
+        run: cargo add --dev --rename criterion --features async,async_tokio codspeed-criterion-compat@2.7.2
+      - name: Build the benchmark targets
+        working-directory: core
+        run: cargo codspeed build --features tests,services-memory
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v3
+        env:
+          OPENDAL_TEST: memory
+        with:
+          working-directory: core
+          run: cargo codspeed run

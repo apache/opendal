@@ -5,7 +5,7 @@ aes@0.8.4		X							X
 aho-corasick@1.1.3									X				X	
 android-tzdata@0.1.1		X							X					
 android_system_properties@0.1.5		X							X					
-anyhow@1.0.90		X							X					
+anyhow@1.0.92		X							X					
 async-trait@0.1.83		X							X					
 autocfg@1.4.0		X							X					
 backon@1.2.0		X												
@@ -19,9 +19,9 @@ block-buffer@0.10.4		X							X
 block-padding@0.3.3		X							X					
 bumpalo@3.16.0		X							X					
 byteorder@1.5.0									X				X	
-bytes@1.7.2									X					
+bytes@1.8.0									X					
 cbc@0.1.2		X							X					
-cc@1.1.31		X							X					
+cc@1.1.34		X							X					
 cexpr@0.6.0		X							X					
 cfg-if@1.0.0		X							X					
 chrono@0.4.38		X							X					
@@ -68,7 +68,7 @@ http-body-util@0.1.2									X
 httparse@1.9.5		X							X					
 hyper@1.5.0									X					
 hyper-rustls@0.27.3		X						X	X					
-hyper-util@0.1.9									X					
+hyper-util@0.1.10									X					
 iana-time-zone@0.1.61		X							X					
 iana-time-zone-haiku@0.1.2		X							X					
 idna@0.5.0		X							X					
@@ -82,7 +82,7 @@ lazy_static@1.5.0		X							X
 lazycell@1.3.0		X							X					
 libc@0.2.161		X							X					
 libloading@0.8.5								X						
-libm@0.2.8		X							X					
+libm@0.2.11		X							X					
 log@0.4.22		X							X					
 magnus@0.5.5									X					
 magnus-macros@0.4.1									X					
@@ -101,21 +101,21 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.5		X							X					
 once_cell@1.20.2		X							X					
-opendal@0.50.1		X												
-opendal-ruby@0.1.10		X												
+opendal@0.50.2		X												
+opendal-ruby@0.1.11		X												
 ordered-multimap@0.7.3									X					
 pbkdf2@0.12.2		X							X					
 pem@3.0.4									X					
 pem-rfc7468@0.7.0		X							X					
 percent-encoding@2.3.1		X							X					
-pin-project-lite@0.2.14		X							X					
+pin-project-lite@0.2.15		X							X					
 pin-utils@0.1.0		X							X					
 pkcs1@0.7.5		X							X					
 pkcs5@0.7.1		X							X					
 pkcs8@0.10.2		X							X					
 powerfmt@0.2.0		X							X					
 ppv-lite86@0.2.20		X							X					
-proc-macro2@1.0.88		X							X					
+proc-macro2@1.0.89		X							X					
 quick-xml@0.35.0									X					
 quick-xml@0.36.2									X					
 quote@1.0.37		X							X					
@@ -125,18 +125,18 @@ rand_core@0.6.4		X							X
 rb-sys@0.9.102		X							X					
 rb-sys-build@0.9.102		X							X					
 rb-sys-env@0.1.2		X							X					
-regex@1.11.0		X							X					
+regex@1.11.1		X							X					
 regex-automata@0.4.8		X							X					
 regex-syntax@0.8.5		X							X					
-reqsign@0.16.0		X												
-reqwest@0.12.8		X							X					
+reqsign@0.16.1		X												
+reqwest@0.12.9		X							X					
 ring@0.17.8											X			
 rsa@0.9.6		X							X					
 rust-ini@0.21.1									X					
 rustc-demangle@0.1.24		X							X					
 rustc-hash@1.1.0		X							X					
 rustc_version@0.4.1		X							X					
-rustls@0.23.15		X						X	X					
+rustls@0.23.16		X						X	X					
 rustls-pemfile@2.2.0		X						X	X					
 rustls-pki-types@1.10.0		X							X					
 rustls-webpki@0.102.8								X						
@@ -144,8 +144,8 @@ ryu@1.0.18		X				X
 salsa20@0.10.2		X							X					
 scrypt@0.11.0		X							X					
 semver@1.0.23		X							X					
-serde@1.0.210		X							X					
-serde_derive@1.0.210		X							X					
+serde@1.0.214		X							X					
+serde_derive@1.0.214		X							X					
 serde_json@1.0.132		X							X					
 serde_urlencoded@0.7.1		X							X					
 sha1@0.10.6		X							X					
@@ -161,17 +161,17 @@ spin@0.9.8									X
 spki@0.7.3		X							X					
 subtle@2.6.1					X									
 syn@1.0.109		X							X					
-syn@2.0.81		X							X					
+syn@2.0.87		X							X					
 sync_wrapper@1.0.1		X												
-thiserror@1.0.64		X							X					
-thiserror-impl@1.0.64		X							X					
+thiserror@1.0.67		X							X					
+thiserror-impl@1.0.67		X							X					
 time@0.3.36		X							X					
 time-core@0.1.2		X							X					
 time-macros@0.2.18		X							X					
 tiny-keccak@2.0.2							X							
 tinyvec@1.8.0		X							X					X
 tinyvec_macros@0.1.1		X							X					X
-tokio@1.40.0									X					
+tokio@1.41.0									X					
 tokio-rustls@0.26.0		X							X					
 tokio-util@0.7.12									X					
 tower-service@0.3.3									X					
@@ -195,7 +195,7 @@ wasm-bindgen-futures@0.4.45		X							X
 wasm-bindgen-macro@0.2.95		X							X					
 wasm-bindgen-macro-support@0.2.95		X							X					
 wasm-bindgen-shared@0.2.95		X							X					
-wasm-streams@0.4.1		X							X					
+wasm-streams@0.4.2		X							X					
 web-sys@0.3.72		X							X					
 webpki-roots@0.26.6										X				
 windows-core@0.52.0		X							X					

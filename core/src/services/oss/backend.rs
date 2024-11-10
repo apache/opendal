@@ -489,9 +489,7 @@ impl Access for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta =
-                    self.core
-                        .parse_metadata(path, constants::X_OSS_META_PREFIX, resp.headers())?;
+                let mut meta = self.core.parse_metadata(path, resp.headers())?;
 
                 if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
                     meta.set_version(v);

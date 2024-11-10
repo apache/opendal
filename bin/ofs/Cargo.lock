@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "cloud_filter_opendal"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "fuse3_opendal"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bytes",
  "fuse3",
@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "ofs"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "clap",
@@ -1021,7 +1021,7 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "opendal"
-version = "0.50.1"
+version = "0.50.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1246,9 +1246,9 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "reqsign"
-version = "0.16.0"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03dd4ba7c3901dd43e6b8c7446a760d45bc1ea4301002e1a6fa48f97c3a796fa"
+checksum = "eb0075a66c8bfbf4cc8b70dca166e722e1f55a3ea9250ecbb85f4d92a5f64149"
 dependencies = [
  "anyhow",
  "async-trait",

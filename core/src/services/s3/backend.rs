@@ -925,6 +925,7 @@ impl Access for S3Backend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_if_none_match: true,
+                write_with_if_not_exist: true,
                 write_with_user_metadata: true,
 
                 // The min multipart size of S3 is 5 MiB.

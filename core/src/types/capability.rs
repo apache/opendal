@@ -101,6 +101,8 @@ pub struct Capability {
     pub write_with_cache_control: bool,
     /// If operator supports write with if none match.
     pub write_with_if_none_match: bool,
+    /// If operator supports write with if not exist.
+    pub write_with_if_not_exist: bool,
     /// If operator supports write with user defined metadata
     pub write_with_user_metadata: bool,
     /// write_multi_max_size is the max size that services support in write_multi.

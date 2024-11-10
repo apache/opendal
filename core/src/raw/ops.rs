@@ -601,6 +601,7 @@ pub struct OpWrite {
     cache_control: Option<String>,
     executor: Option<Executor>,
     if_none_match: Option<String>,
+    if_not_exist: Option<bool>,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -695,6 +696,17 @@ impl OpWrite {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Not-Exist of the option
+    pub fn with_if_not_exist(mut self, b: bool) -> Self {
+        self.if_not_exist = Some(b);
+        self
+    }
+
+    /// Get If-Not-Exist from option
+    pub fn if_not_exist(&self) -> Option<bool> {
+        self.if_not_exist
     }
 
     /// Merge given executor into option.

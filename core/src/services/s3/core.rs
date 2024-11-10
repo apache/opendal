@@ -480,6 +480,12 @@ impl S3Core {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        if let Some(if_not_exist) = args.if_not_exist() {
+            if if_not_exist {
+                req = req.header(IF_NONE_MATCH, "*");
+            }
+        }
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 

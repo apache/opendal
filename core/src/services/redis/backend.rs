@@ -314,8 +314,7 @@ impl Adapter {
     }
 
     async fn pool(&self) -> Result<&bb8::Pool<RedisConnectionManager>> {
-        Ok(self
-            .conn
+        self.conn
             .get_or_try_init(|| async {
                 bb8::Pool::builder()
                     .build(self.get_redis_connection_manager())
@@ -325,7 +324,7 @@ impl Adapter {
                             .set_source(err)
                     })
             })
-            .await?)
+            .await
     }
 
     fn get_redis_connection_manager(&self) -> RedisConnectionManager {
@@ -423,17 +422,15 @@ impl kv::Adapter for Adapter {
     async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let pool = self.pool().await?.clone();
 
-        Ok(
-            RedisScanner::try_new_async_send(pool, path.to_string(), |pool, path| {
-                Box::pin(async {
-                    let conn = Adapter::conn_from_pool(pool).await?;
-                    Ok(RedisAsyncConnIter::try_new_async_send(conn, |conn| {
-                        Box::pin(async { conn.scan(path).await })
-                    })
-                    .await?)
+        RedisScanner::try_new_async_send(pool, path.to_string(), |pool, path| {
+            Box::pin(async {
+                let conn = Adapter::conn_from_pool(pool).await?;
+                RedisAsyncConnIter::try_new_async_send(conn, |conn| {
+                    Box::pin(async { conn.scan(path).await })
                 })
+                .await
             })
-            .await?,
-        )
+        })
+        .await
     }
 }

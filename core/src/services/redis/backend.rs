@@ -387,7 +387,12 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
-                list: true,
+                // due to limitation of Redis itself,
+                // on cluster mode we cannot get full list of keys via SCAN,
+                // so here we disable it on cluster mode to avoid confusions.
+                // TODO: we can perform multiple SCAN on each cluster node
+                // and merge the result to simulate the behavior of list here.
+                list: self.cluster_client.is_none(),
 
                 ..Default::default()
             },

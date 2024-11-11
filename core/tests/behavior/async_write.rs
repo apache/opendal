@@ -45,7 +45,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_content_type,
             test_write_with_content_disposition,
             test_write_with_if_none_match,
-            test_write_with_if_not_exist,
+            test_write_with_if_not_exists,
             test_write_with_user_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
@@ -648,8 +648,8 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Write an file with if_not_exist will get a ConditionNotMatch error if file exists.
-pub async fn test_write_with_if_not_exist(op: Operator) -> Result<()> {
+/// Write an file with if_not_exists will get a ConditionNotMatch error if file exists.
+pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
     if !op.info().full_capability().write_with_if_not_exist {
         return Ok(());
     }
@@ -661,7 +661,7 @@ pub async fn test_write_with_if_not_exist(op: Operator) -> Result<()> {
         .expect("write must succeed");
     let res = op
         .write_with(&path, content.clone())
-        .if_not_exist(true)
+        .if_not_exists(true)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

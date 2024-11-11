@@ -480,10 +480,8 @@ impl S3Core {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_not_exist) = args.if_not_exist() {
-            if if_not_exist {
-                req = req.header(IF_NONE_MATCH, "*");
-            }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
         }
 
         // Set body

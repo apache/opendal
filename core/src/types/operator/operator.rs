@@ -1254,20 +1254,22 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `if_not_exist`
+    /// ## `if_not_exists`
     ///
-    /// Set `if_not_exist` for this `write` request. This can be treated as a simplified version
-    /// of [`OpWrite::if_none_match`].
+    /// This feature allows to safely write a file only if it does not exist. It is designed
+    /// to be concurrency-safe, and can be used to a file lock. For storage services that
+    /// support the `if_not_exist` feature, only one write operation will succeed, while all
+    /// other attempts will fail.
     ///
-    /// This feature is used to write a file only when it doesn't exist. If the file already
-    /// exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// If the file already exists, an error with kind [`ErrorKind::ConditionNotMatch`] will
+    /// be returned.
     ///
     /// ```no_run
     /// # use opendal::{ErrorKind, Result};
     /// use opendal::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let res = op.write_with("path/to/file", bs).if_not_exist(true).await;
+    /// let res = op.write_with("path/to/file", bs).if_not_exists(true).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())}

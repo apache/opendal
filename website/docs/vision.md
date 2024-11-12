@@ -10,7 +10,7 @@ sidebar_position: 2
 
 ## Principles
 
-Tenets are guiding principles. They guide how decisions are made for the whole project. Ideally, we do all of them all the time. In some cases, though, we may be forced to decide between slightly penalizing one goal or another. In that case, we tend to support those goals that come earlier in the list over those that come later (but every case is different).
+Principles are guiding principles. They guide how decisions are made for the whole project. Ideally, we do all of them all the time. In some cases, though, we may be forced to decide between slightly penalizing one goal or another. In that case, we tend to support those goals that come earlier in the list over those that come later (but every case is different).
 
 ### 0. Open Community
 

@@ -54,7 +54,7 @@ For example, OpenDAL's core never relies on the behavior or dependency of a sing
 
 ## Use Cases
 
-Who are the *users* of opendal? How would they use opendal?
+Who are typical OpenDAL *users*? How would they use OpenDAL?
 
 ### Infrastructure Builders
 

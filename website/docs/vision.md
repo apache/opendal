@@ -8,7 +8,7 @@ sidebar_position: 2
 
 **One Layer, All Storage.**
 
-## Tenets
+## Principles
 
 Tenets are guiding principles. They guide how decisions are made for the whole project. Ideally, we do all of them all the time. In some cases, though, we may be forced to decide between slightly penalizing one goal or another. In that case, we tend to support those goals that come earlier in the list over those that come later (but every case is different).
 
@@ -24,7 +24,7 @@ For example, OpenDAL prefers to have clear and readable code, as this allows mor
 
 OpenDAL SHOULD be a **solid** storage library.
 
-It should be a solid foundation of users project that users can trust OpenDAL to perform operations on real-world storage services. Wherever possible, OpenDAL should focus to build a solid Foundation.
+OpenDAL is a solid foundation of user projects that users can trust OpenDAL to perform operations on real-world storage services. OpenDAL SHOULD always focus on building a Solid Foundation.
 
 For example, OpenDAL performs additional error checks for AWS S3 complete multipart operations, as S3 may return an error in response with a 200 status code, even though this may add extra costs that conflict with "Fast Access.”
 

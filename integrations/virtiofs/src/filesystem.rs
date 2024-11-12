@@ -24,6 +24,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use log::debug;
+use log::warn;
 use opendal::Buffer;
 use opendal::Operator;
 use sharded_slab::Slab;
@@ -143,7 +144,11 @@ impl Filesystem {
         })?;
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
             // The message is too long here.
-            return Filesystem::reply_error(in_header.unique, w);
+            return Filesystem::reply_error(
+                in_header.unique,
+                w,
+                new_unexpected_error("message is too long", None),
+            );
         }
         if let Ok(opcode) = Opcode::try_from(in_header.opcode) {
             match opcode {
@@ -162,7 +167,11 @@ impl Filesystem {
                 Opcode::Write => self.write(in_header, r, w),
             }
         } else {
-            Filesystem::reply_error(in_header.unique, w)
+            Filesystem::reply_error(
+                in_header.unique,
+                w,
+                new_unexpected_error("unsupported operation", None),
+            )
         }
     }
 }
@@ -202,10 +211,11 @@ impl Filesystem {
         Ok(w.bytes_written())
     }
 
-    fn reply_error(unique: u64, mut w: Writer) -> Result<usize> {
+    fn reply_error(unique: u64, mut w: Writer, err: Error) -> Result<usize> {
+        warn!("[virtiofs] reply_error: unique={} error={}", unique, err);
         let header = OutHeader {
             unique,
-            error: libc::EIO, // Here we simply return I/O error.
+            error: err.into(),
             len: size_of::<OutHeader>() as u32,
         };
         w.write_all(header.as_slice()).map_err(|e| {
@@ -251,7 +261,11 @@ impl Filesystem {
         })?;
 
         if major != KERNEL_VERSION || minor < MIN_KERNEL_MINOR_VERSION {
-            return Filesystem::reply_error(in_header.unique, w);
+            return Filesystem::reply_error(
+                in_header.unique,
+                w,
+                new_unexpected_error("unsupported version", None),
+            );
         }
 
         let mut attr = OpenedFile::new(FileType::Dir, "/", self.uid, self.gid);
@@ -299,7 +313,7 @@ impl Filesystem {
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         debug!("lookup: parent inode={} name={}", in_header.nodeid, name);
@@ -310,13 +324,13 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let path = format!("{}/{}", parent_path, name);
         let metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
             Ok(metadata) => metadata,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         let out = EntryOut {
@@ -340,12 +354,12 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
             Ok(metadata) => metadata,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         let out = AttrOut {
@@ -376,7 +390,7 @@ impl Filesystem {
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         debug!("create: parent inode={} name={}", in_header.nodeid, name);
@@ -387,7 +401,7 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let path = format!("{}/{}", parent_path, name);
@@ -402,7 +416,7 @@ impl Filesystem {
 
         match self.rt.block_on(self.do_set_writer(&path, flags)) {
             Ok(writer) => writer,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         let entry_out = EntryOut {
@@ -433,7 +447,7 @@ impl Filesystem {
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         debug!("unlink: parent inode={} name={}", in_header.nodeid, name);
@@ -444,12 +458,12 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let path = format!("{}/{}", parent_path, name);
-        if self.rt.block_on(self.do_delete(&path)).is_err() {
-            return Filesystem::reply_error(in_header.unique, w);
+        if let Err(err) = self.rt.block_on(self.do_delete(&path)) {
+            return Filesystem::reply_error(in_header.unique, w, err);
         }
 
         let mut opened_files_map = self.opened_files_map.lock().unwrap();
@@ -467,11 +481,11 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
-        if self.rt.block_on(self.do_release_writer(&path)).is_err() {
-            return Filesystem::reply_error(in_header.unique, w);
+        if let Err(err) = self.rt.block_on(self.do_release_writer(&path)) {
+            return Filesystem::reply_error(in_header.unique, w, err);
         }
 
         Filesystem::reply_ok(None::<u8>, None, in_header.unique, w)
@@ -490,12 +504,12 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         match self.rt.block_on(self.do_set_writer(&path, flags)) {
             Ok(writer) => writer,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         let out = OpenOut {
@@ -511,7 +525,7 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let ReadIn { offset, size, .. } = r.read_obj().map_err(|e| {
@@ -525,7 +539,7 @@ impl Filesystem {
 
         let data = match self.rt.block_on(self.do_read(&path, offset)) {
             Ok(data) => data,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
         let len = data.len();
         let buffer = BufferWrapper::new(data);
@@ -555,7 +569,7 @@ impl Filesystem {
             .map(|f| f.path.clone())
         {
             Some(path) => path,
-            None => return Filesystem::reply_error(in_header.unique, w),
+            None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
         let WriteIn { offset, size, .. } = r.read_obj().map_err(|e| {
@@ -570,7 +584,7 @@ impl Filesystem {
 
         match self.rt.block_on(self.do_write(&path, offset, buffer)) {
             Ok(writer) => writer,
-            Err(_) => return Filesystem::reply_error(in_header.unique, w),
+            Err(err) => return Filesystem::reply_error(in_header.unique, w, err),
         };
 
         let out = WriteOut {

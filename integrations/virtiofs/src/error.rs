@@ -62,6 +62,15 @@ impl From<opendal::Error> for Error {
     }
 }
 
+impl From<Error> for libc::c_int {
+    fn from(error: Error) -> libc::c_int {
+        match error {
+            Error::IOError { source } => source.raw_os_error().unwrap_or(libc::EIO),
+            Error::Unexpected { .. } => libc::EIO,
+        }
+    }
+}
+
 impl From<Error> for io::Error {
     fn from(error: Error) -> io::Error {
         match error {

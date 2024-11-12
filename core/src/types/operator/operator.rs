@@ -1247,7 +1247,7 @@ impl Operator {
     /// use opendal::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let res = op.write_with("path/to/file", bs).if_none_match("*").await;
+    /// let res = op.write_with("path/to/file", bs).if_none_match(etag).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())

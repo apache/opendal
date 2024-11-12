@@ -638,9 +638,12 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
     let res = op
         .write_with(&path, content.clone())
-        .if_none_match("*")
+        .if_none_match(meta.etag().expect("etag must exist"))
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

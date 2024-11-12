@@ -1258,7 +1258,7 @@ impl Operator {
     ///
     /// This feature allows to safely write a file only if it does not exist. It is designed
     /// to be concurrency-safe, and can be used to a file lock. For storage services that
-    /// support the `if_not_exist` feature, only one write operation will succeed, while all
+    /// support the `if_not_exists` feature, only one write operation will succeed, while all
     /// other attempts will fail.
     ///
     /// If the file already exists, an error with kind [`ErrorKind::ConditionNotMatch`] will

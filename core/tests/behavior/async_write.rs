@@ -653,7 +653,7 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
 
 /// Write an file with if_not_exists will get a ConditionNotMatch error if file exists.
 pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_if_not_exist {
+    if !op.info().full_capability().write_with_if_not_exists {
         return Ok(());
     }
 

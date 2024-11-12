@@ -18,7 +18,7 @@
 # All configurations could be found here: https://github.com/apache/infrastructure-asfyaml/
 
 github:
-  description: "Apache OpenDAL: access data freely."
+  description: "Apache OpenDAL: One Layer, All Storage."
   homepage: https://opendal.apache.org
   labels:
     - rust

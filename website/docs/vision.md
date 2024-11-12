@@ -24,7 +24,7 @@ For example, OpenDAL prefers to have clear and readable code, as this allows mor
 
 OpenDAL SHOULD be a **solid** storage library.
 
-It should be a solid foundation of users project that users can trust OpenDAL to perform operations on real-world storage services. Wherever possible, OpenDAL should focuse to build a solid Foundation.
+It should be a solid foundation of users project that users can trust OpenDAL to perform operations on real-world storage services. Wherever possible, OpenDAL should focus to build a solid Foundation.
 
 For example, OpenDAL performs additional error checks for AWS S3 complete multipart operations, as S3 may return an error in response with a 200 status code, even though this may add extra costs that conflict with "Fast Access.”
 
@@ -100,4 +100,4 @@ Primary Concerns:
 
 ---
 
-*This documention is inpisred a lot by [hyper’s VISION document](https://hyper.rs/contrib/vision/).*
+*This documentation is inpisred a lot by [hyper’s VISION document](https://hyper.rs/contrib/vision/).*

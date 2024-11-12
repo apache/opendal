@@ -1,6 +1,6 @@
 ---
 title: WebDAV Integration
-sidebar_position: 8
+sidebar_position: 9
 ---
 
 Read the nightly version of the API docs at [here](pathname:///docs/dav-server-opendalfs/dav_server_opendalfs).

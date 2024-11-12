@@ -1,6 +1,6 @@
 ---
 title: object_store Integration
-sidebar_position: 7
+sidebar_position: 8
 ---
 
 Read the nightly version of the API docs at [here](pathname:///docs/object-store-opendal/object_store_opendal).

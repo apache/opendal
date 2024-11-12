@@ -20,8 +20,13 @@
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! Apache OpenDAL™ is a data access layer that allows users to easily and
-//! efficiently retrieve data from various storage services in a unified way.
+//! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+//!
+//! OpenDAL's developement guided by its vision of **One Layer, All Storage**
+//! and core tenets of being **Open Community**, **Solid Foundation**,
+//! **Fast Access**, **Object Storage First** and **Extensible Architecture**
+//! to serve various users from infrastructure builders to application
+//! developers.
 //!
 //! # Quick Start
 //!

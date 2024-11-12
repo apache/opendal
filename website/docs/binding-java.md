@@ -1,6 +1,6 @@
 ---
 title: Java API
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 Read the nightly version of Java API docs at [here](pathname:///docs/java/).

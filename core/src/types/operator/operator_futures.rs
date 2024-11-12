@@ -329,6 +329,11 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
         self.map(|(args, options, bs)| (args.with_if_none_match(s), options, bs))
     }
 
+    /// Set the If-Not-Exist for this operation.
+    pub fn if_not_exists(self, b: bool) -> Self {
+        self.map(|(args, options, bs)| (args.with_if_not_exists(b), options, bs))
+    }
+
     /// Set the user defined metadata of the op
     ///
     /// ## Notes

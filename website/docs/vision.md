@@ -48,7 +48,7 @@ For example, OpenDAL's Buffer design is primarily optimized for HTTP-based servi
 
 OpenDAL SHOULD be an extensible storage library.
 
-OpenDAL can be extended to different languages, various backends, and multiple layers. Each of them is independent and does not depend on the others. Users can combine different layers such as metrics, logging, tracing, and retry, and extend their own languages, backends, and layers.
+OpenDAL can be extended to various languages, backends, and layers. Each is independent and does not depend on the others. Users can combine different layers, such as metrics, logging, tracing, and retry, and extend their own languages, backends, and layers.
 
 For example, OpenDAL's core never relies on the behavior or dependency of a single layer. Users can stack as many layers as they want on a given operator.
 

@@ -1237,8 +1237,6 @@ impl Operator {
     ///
     /// This feature can be used to check if the file already exists.
     /// This prevents overwriting of existing objects with identical key names.
-    /// Users can use *(asterisk) to verify if a file already exists by matching with any ETag.
-    /// Note: S3 only support use *(asterisk).
     ///
     /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
@@ -1247,11 +1245,32 @@ impl Operator {
     /// use opendal::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let res = op.write_with("path/to/file", bs).if_none_match("*").await;
+    /// let res = op.write_with("path/to/file", bs).if_none_match(etag).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())
     /// # }
+    /// ```
+    ///
+    /// ## `if_not_exists`
+    ///
+    /// This feature allows to safely write a file only if it does not exist. It is designed
+    /// to be concurrency-safe, and can be used to a file lock. For storage services that
+    /// support the `if_not_exists` feature, only one write operation will succeed, while all
+    /// other attempts will fail.
+    ///
+    /// If the file already exists, an error with kind [`ErrorKind::ConditionNotMatch`] will
+    /// be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let res = op.write_with("path/to/file", bs).if_not_exists(true).await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    /// # Ok(())}
     /// ```
     ///
     /// # Examples

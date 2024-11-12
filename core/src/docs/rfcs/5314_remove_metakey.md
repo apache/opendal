@@ -1,7 +1,7 @@
 - Proposal Name: `remove_metakey`
 - Start Date: 2024-11-12
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5313](https://github.com/apache/opendal/pull/5313)
+- Tracking Issue: [apache/opendal#5314](https://github.com/apache/opendal/issues/5314)
 
 # Summary
 

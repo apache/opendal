@@ -236,3 +236,7 @@ pub mod rfc_4382_range_based_read {}
 /// Executor API
 #[doc = include_str!("4638_executor.md")]
 pub mod rfc_4638_executor {}
+
+/// Remove metakey
+#[doc = include_str!("5314_remove_metakey.md")]
+pub mod rfc_5314_remove_metakey {}

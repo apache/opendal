@@ -1237,8 +1237,6 @@ impl Operator {
     ///
     /// This feature can be used to check if the file already exists.
     /// This prevents overwriting of existing objects with identical key names.
-    /// Users can use *(asterisk) to verify if a file already exists by matching with any ETag.
-    /// Note: S3 only support use *(asterisk).
     ///
     /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
     ///

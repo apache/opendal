@@ -659,9 +659,12 @@ pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    op.write(&path, content.clone())
-        .await
-        .expect("write must succeed");
+    let res = op
+        .write_with(&path, content.clone())
+        .if_not_exists(true)
+        .await;
+    assert!(res.is_ok());
+
     let res = op
         .write_with(&path, content.clone())
         .if_not_exists(true)

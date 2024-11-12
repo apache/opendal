@@ -25,7 +25,6 @@ use std::time::Duration;
 
 use log::debug;
 use opendal::Buffer;
-use opendal::ErrorKind;
 use opendal::Operator;
 use sharded_slab::Slab;
 use tokio::runtime::Builder;
@@ -91,20 +90,6 @@ impl OpenedFile {
     }
 }
 
-fn opendal_error2error(error: opendal::Error) -> Error {
-    match error.kind() {
-        ErrorKind::Unsupported => Error::from(libc::EOPNOTSUPP),
-        ErrorKind::IsADirectory => Error::from(libc::EISDIR),
-        ErrorKind::NotFound => Error::from(libc::ENOENT),
-        ErrorKind::PermissionDenied => Error::from(libc::EACCES),
-        ErrorKind::AlreadyExists => Error::from(libc::EEXIST),
-        ErrorKind::NotADirectory => Error::from(libc::ENOTDIR),
-        ErrorKind::RangeNotSatisfied => Error::from(libc::EINVAL),
-        ErrorKind::RateLimited => Error::from(libc::EBUSY),
-        _ => Error::from(libc::ENOENT),
-    }
-}
-
 fn opendal_metadata2opened_file(
     path: &str,
     metadata: &opendal::Metadata,
@@ -154,7 +139,7 @@ impl Filesystem {
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
         let in_header: InHeader = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
             // The message is too long here.
@@ -202,16 +187,16 @@ impl Filesystem {
             len: len as u32,
         };
         w.write_all(header.as_slice()).map_err(|e| {
-            new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
         })?;
         if let Some(out) = out {
             w.write_all(out.as_slice()).map_err(|e| {
-                new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+                new_unexpected_error("failed to encode protocol messages", Some(e.into()))
             })?;
         }
         if let Some(data) = data {
             w.write_all(data).map_err(|e| {
-                new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+                new_unexpected_error("failed to encode protocol messages", Some(e.into()))
             })?;
         }
         Ok(w.bytes_written())
@@ -224,21 +209,20 @@ impl Filesystem {
             len: size_of::<OutHeader>() as u32,
         };
         w.write_all(header.as_slice()).map_err(|e| {
-            new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
         })?;
         Ok(w.bytes_written())
     }
 
     fn bytes_to_str(buf: &[u8]) -> Result<&str> {
-        Filesystem::bytes_to_cstr(buf)?.to_str().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
-        })
+        Filesystem::bytes_to_cstr(buf)?
+            .to_str()
+            .map_err(|e| new_unexpected_error("failed to decode protocol messages", Some(e.into())))
     }
 
     fn bytes_to_cstr(buf: &[u8]) -> Result<&CStr> {
-        CStr::from_bytes_with_nul(buf).map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
-        })
+        CStr::from_bytes_with_nul(buf)
+            .map_err(|e| new_unexpected_error("failed to decode protocol messages", Some(e.into())))
     }
 
     fn check_flags(&self, flags: u32) -> Result<(bool, bool)> {
@@ -263,7 +247,7 @@ impl Filesystem {
 impl Filesystem {
     fn init(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let InitIn { major, minor, .. } = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
 
         if major != KERNEL_VERSION || minor < MIN_KERNEL_MINOR_VERSION {
@@ -382,7 +366,7 @@ impl Filesystem {
 
     fn create(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let CreateIn { flags, .. } = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
 
         let name_len = in_header.len as usize - size_of::<InHeader>() - size_of::<CreateIn>();
@@ -497,7 +481,7 @@ impl Filesystem {
         debug!("open: inode={}", in_header.nodeid);
 
         let OpenIn { flags, .. } = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
 
         let path = match self
@@ -531,7 +515,7 @@ impl Filesystem {
         };
 
         let ReadIn { offset, size, .. } = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
 
         debug!(
@@ -548,7 +532,7 @@ impl Filesystem {
 
         let mut data_writer = w.split_at(size_of::<OutHeader>()).unwrap();
         data_writer.write_from_at(&buffer, len).map_err(|e| {
-            new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
         })?;
 
         let out = OutHeader {
@@ -557,7 +541,7 @@ impl Filesystem {
             unique: in_header.unique,
         };
         w.write_all(out.as_slice()).map_err(|e| {
-            new_vhost_user_fs_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
         })?;
         Ok(out.len as usize)
     }
@@ -575,12 +559,12 @@ impl Filesystem {
         };
 
         let WriteIn { offset, size, .. } = r.read_obj().map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
 
         let buffer = BufferWrapper::new(Buffer::new());
         r.read_to_at(&buffer, size as usize).map_err(|e| {
-            new_vhost_user_fs_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
         })?;
         let buffer = buffer.get_buffer();
 
@@ -599,7 +583,7 @@ impl Filesystem {
 
 impl Filesystem {
     async fn do_get_metadata(&self, path: &str) -> Result<OpenedFile> {
-        let metadata = self.core.stat(path).await.map_err(opendal_error2error)?;
+        let metadata = self.core.stat(path).await.map_err(|err| Error::from(err))?;
         let mut attr = opendal_metadata2opened_file(path, &metadata, self.uid, self.gid);
         attr.metadata.size = metadata.content_length();
         let mut opened_files_map = self.opened_files_map.lock().unwrap();
@@ -628,12 +612,12 @@ impl Filesystem {
             .writer_with(path)
             .append(is_append)
             .await
-            .map_err(opendal_error2error)?;
+            .map_err(|err| Error::from(err))?;
         let written = if is_append {
             self.core
                 .stat(path)
                 .await
-                .map_err(opendal_error2error)?
+                .map_err(|err| Error::from(err))?
                 .content_length()
         } else {
             0
@@ -655,14 +639,17 @@ impl Filesystem {
             .writer
             .close()
             .await
-            .map_err(opendal_error2error)?;
+            .map_err(|err| Error::from(err))?;
         opened_file_writer.remove(path);
 
         Ok(())
     }
 
     async fn do_delete(&self, path: &str) -> Result<()> {
-        self.core.delete(path).await.map_err(opendal_error2error)?;
+        self.core
+            .delete(path)
+            .await
+            .map_err(|err| Error::from(err))?;
 
         Ok(())
     }
@@ -673,7 +660,7 @@ impl Filesystem {
             .read_with(path)
             .range(offset..)
             .await
-            .map_err(opendal_error2error)?;
+            .map_err(|err| Error::from(err))?;
 
         Ok(data)
     }
@@ -691,7 +678,7 @@ impl Filesystem {
             .writer
             .write_from(data)
             .await
-            .map_err(opendal_error2error)?;
+            .map_err(|err| Error::from(err))?;
         inner_writer.written += len as u64;
 
         Ok(len)

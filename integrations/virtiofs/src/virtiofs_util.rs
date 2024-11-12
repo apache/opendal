@@ -80,7 +80,7 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
         let total_bytes_consumed =
             self.bytes_consumed
                 .checked_add(bytes_consumed)
-                .ok_or(new_vhost_user_fs_error(
+                .ok_or(new_unexpected_error(
                     "the combined length of all the buffers in DescriptorChain would overflow",
                     None,
                 ))?;
@@ -113,12 +113,12 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
                 self.buffers.push_back(
                     front
                         .subslice(0, remain)
-                        .map_err(|_| new_vhost_user_fs_error("volatile memory error", None))?,
+                        .map_err(|_| new_unexpected_error("volatile memory error", None))?,
                 );
                 other.push_front(
                     front
                         .offset(remain)
-                        .map_err(|_| new_vhost_user_fs_error("volatile memory error", None))?,
+                        .map_err(|_| new_unexpected_error("volatile memory error", None))?,
                 );
             }
             Ok(DescriptorChainConsumer {
@@ -131,7 +131,7 @@ impl<'a, B: BitmapSlice> DescriptorChainConsumer<'a, B> {
                 bytes_consumed: 0,
             })
         } else {
-            Err(new_vhost_user_fs_error(
+            Err(new_unexpected_error(
                 "DescriptorChain split is out of bounds",
                 None,
             ))
@@ -159,11 +159,11 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
             .map(|desc| {
                 len = len
                     .checked_add(desc.len() as usize)
-                    .ok_or(new_vhost_user_fs_error(
+                    .ok_or(new_unexpected_error(
                         "the combined length of all the buffers in DescriptorChain would overflow",
                         None,
                     ))?;
-                let region = mem.find_region(desc.addr()).ok_or(new_vhost_user_fs_error(
+                let region = mem.find_region(desc.addr()).ok_or(new_unexpected_error(
                     "no memory region for this address range",
                     None,
                 ))?;
@@ -174,9 +174,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
                 region
                     .deref()
                     .get_slice(offset.raw_value() as usize, desc.len() as usize)
-                    .map_err(|err| {
-                        new_vhost_user_fs_error("volatile memory error", Some(err.into()))
-                    })
+                    .map_err(|err| new_unexpected_error("volatile memory error", Some(err.into())))
             })
             .collect::<Result<VecDeque<VolatileSlice<'a, B>>>>()?;
         Ok(Reader {
@@ -256,11 +254,11 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
             .map(|desc| {
                 len = len
                     .checked_add(desc.len() as usize)
-                    .ok_or(new_vhost_user_fs_error(
+                    .ok_or(new_unexpected_error(
                         "the combined length of all the buffers in DescriptorChain would overflow",
                         None,
                     ))?;
-                let region = mem.find_region(desc.addr()).ok_or(new_vhost_user_fs_error(
+                let region = mem.find_region(desc.addr()).ok_or(new_unexpected_error(
                     "no memory region for this address range",
                     None,
                 ))?;
@@ -271,9 +269,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
                 region
                     .deref()
                     .get_slice(offset.raw_value() as usize, desc.len() as usize)
-                    .map_err(|err| {
-                        new_vhost_user_fs_error("volatile memory error", Some(err.into()))
-                    })
+                    .map_err(|err| new_unexpected_error("volatile memory error", Some(err.into())))
             })
             .collect::<Result<VecDeque<VolatileSlice<'a, B>>>>()?;
         Ok(Writer {

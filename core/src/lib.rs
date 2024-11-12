@@ -28,6 +28,8 @@
 //! to serve various users from infrastructure builders to application
 //! developers.
 //!
+//! *Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/docs/vision).*
+//!
 //! # Quick Start
 //!
 //! OpenDAL's API entry points are [`Operator`] and [`BlockingOperator`]. All

@@ -56,7 +56,14 @@ For example, OpenDAL's core never relies on the behavior or dependency of a sing
 
 Who are the *users* of opendal? How would they use opendal?
 
-### Infrastructure Builders (databend, risingwave, greptimed, iceberg)
+### Infrastructure Builders
+
+Examples:
+
+- [Databend](https://github.com/databendlabs/databend)
+- [RisingWave](https://github.com/risingwavelabs/risingwave)
+- [GreptimeDB](https://github.com/GreptimeTeam/greptimedb)
+- [Apache Iceberg Rust](https://github.com/apache/iceberg-rust)
 
 Use Cases:
 
@@ -70,7 +77,13 @@ Primary Concerns:
 - **Fast Access**: Require minimal overhead and optimal performance
 - *Why*: Infrastructure services demand both reliability and performance as foundational requirements
 
-### Application Developers (sccache, vector, rustic)
+### Application Developers
+
+Examples:
+
+- [Sccache](https://github.com/mozilla/sccache)
+- [Vector](https://github.com/vectordotdev/vector)
+- [Rustic](https://github.com/rustic-rs/rustic)
 
 Use Cases:
 
@@ -84,7 +97,13 @@ Primary Concerns:
 - **Object Storage First**: Benefit from optimizations for modern cloud storage
 - *Why*: Modern applications commonly use object storage and require responsive performance
 
-### Platform Developers (pants, zino, shuttle)
+### Platform Developers
+
+Examples:
+
+- [Pants](https://github.com/pantsbuild/pants)
+- [Zino](https://github.com/zino-rs/zino)
+- [Shuttle](https://github.com/shuttle-hq/shuttle)
 
 Use Cases:
 

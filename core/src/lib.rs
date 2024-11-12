@@ -22,7 +22,7 @@
 
 //! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 //!
-//! OpenDAL's developement guided by its vision of **One Layer, All Storage**
+//! OpenDAL's development guided by its vision of **One Layer, All Storage**
 //! and core principles of being **Open Community**, **Solid Foundation**,
 //! **Fast Access**, **Object Storage First** and **Extensible Architecture**
 //! to serve various users from infrastructure builders to application

@@ -169,42 +169,22 @@ pub struct Capability {
 
 impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = vec![];
-
-        if self.stat {
-            s.push("Stat");
-        }
+        // NOTE: All services in opendal are readable.
         if self.read {
-            s.push("Read");
+            f.write_str("Read")?;
         }
         if self.write {
-            s.push("Write");
-        }
-        if self.create_dir {
-            s.push("CreateDir");
-        }
-        if self.delete {
-            s.push("Delete");
-        }
-        if self.copy {
-            s.push("Copy");
-        }
-        if self.rename {
-            s.push("Rename");
+            f.write_str("| Write")?;
         }
         if self.list {
-            s.push("List");
+            f.write_str("| List")?;
         }
         if self.presign {
-            s.push("Presign");
-        }
-        if self.batch {
-            s.push("Batch");
+            f.write_str("| Presign")?;
         }
         if self.blocking {
-            s.push("Blocking");
+            f.write_str("| Blocking")?;
         }
-
-        write!(f, "{{ {} }}", s.join(" | "))
+        Ok(())
     }
 }

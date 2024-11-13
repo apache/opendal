@@ -47,6 +47,7 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
+
     user_metadata: Option<HashMap<String, String>>,
 }
 

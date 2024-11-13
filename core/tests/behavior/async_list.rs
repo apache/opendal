@@ -34,8 +34,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_check,
             test_list_dir,
-            test_list_dir_with_metakey,
-            test_list_dir_with_metakey_complete,
             test_list_prefix,
             test_list_rich_dir,
             test_list_empty_dir,
@@ -94,95 +92,6 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// List dir with metakey
-pub async fn test_list_dir_with_metakey(op: Operator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
-
-    op.write(&path, content).await.expect("write must succeed");
-
-    let mut obs = op
-        .lister_with(&format!("{parent}/"))
-        .metakey(
-            Metakey::Mode
-                | Metakey::CacheControl
-                | Metakey::ContentDisposition
-                | Metakey::ContentLength
-                | Metakey::ContentMd5
-                | Metakey::ContentRange
-                | Metakey::ContentType
-                | Metakey::Etag
-                | Metakey::LastModified
-                | Metakey::Version,
-        )
-        .await?;
-    let mut found = false;
-    while let Some(de) = obs.try_next().await? {
-        let meta = de.metadata();
-        if de.path() == path {
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
-
-            // We don't care about the value, we just to check there is no panic.
-            let _ = meta.cache_control();
-            let _ = meta.content_disposition();
-            let _ = meta.content_md5();
-            let _ = meta.content_range();
-            let _ = meta.content_type();
-            let _ = meta.etag();
-            let _ = meta.last_modified();
-            let _ = meta.version();
-
-            found = true
-        }
-    }
-    assert!(found, "file should be found in list");
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
-
-/// List dir with metakey complete
-pub async fn test_list_dir_with_metakey_complete(op: Operator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
-
-    op.write(&path, content).await.expect("write must succeed");
-
-    let mut obs = op
-        .lister_with(&format!("{parent}/"))
-        .metakey(Metakey::Complete)
-        .await?;
-    let mut found = false;
-    while let Some(de) = obs.try_next().await? {
-        let meta = de.metadata();
-        if de.path() == path {
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
-
-            // We don't care about the value, we just to check there is no panic.
-            let _ = meta.cache_control();
-            let _ = meta.content_disposition();
-            let _ = meta.content_md5();
-            let _ = meta.content_range();
-            let _ = meta.content_type();
-            let _ = meta.etag();
-            let _ = meta.last_modified();
-            let _ = meta.version();
-
-            found = true
-        }
-    }
-    assert!(found, "file should be found in list");
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
-
 /// List prefix should return newly created file.
 pub async fn test_list_prefix(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -218,23 +127,6 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     expected.push(parent.to_string());
 
     let mut objects = op.lister_with(parent).limit(5).await?;
-    let mut actual = vec![];
-    while let Some(o) = objects.try_next().await? {
-        let path = o.path().to_string();
-        actual.push(path)
-    }
-    expected.sort_unstable();
-    actual.sort_unstable();
-
-    assert_eq!(actual, expected);
-
-    // List concurrently.
-    let mut objects = op
-        .lister_with(parent)
-        .limit(5)
-        .concurrent(5)
-        .metakey(Metakey::Complete)
-        .await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -742,24 +634,6 @@ pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
     expected.push(parent.to_string());
 
     let mut objects = op.lister_with(parent).version(true).limit(5).await?;
-    let mut actual = vec![];
-    while let Some(o) = objects.try_next().await? {
-        let path = o.path().to_string();
-        actual.push(path)
-    }
-    expected.sort_unstable();
-    actual.sort_unstable();
-
-    assert_eq!(actual, expected);
-
-    // List concurrently.
-    let mut objects = op
-        .lister_with(parent)
-        .version(true)
-        .limit(5)
-        .concurrent(5)
-        .metakey(Metakey::Complete)
-        .await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();

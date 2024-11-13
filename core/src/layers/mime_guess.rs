@@ -161,7 +161,6 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 mod tests {
     use super::*;
     use crate::services::Memory;
-    use crate::Metakey;
     use crate::Operator;
 
     const DATA: &str = "<html>test</html>";
@@ -196,7 +195,7 @@ mod tests {
             Some(CUSTOM)
         );
 
-        let entries = op.list_with("").metakey(Metakey::Complete).await.unwrap();
+        let entries = op.list_with("").await.unwrap();
         assert_eq!(entries[0].metadata().content_type(), Some(HTML));
         assert_eq!(entries[1].metadata().content_type(), None);
         assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));
@@ -222,7 +221,7 @@ mod tests {
             .unwrap();
         assert_eq!(op.stat("test2.html").unwrap().content_type(), Some(CUSTOM));
 
-        let entries = op.list_with("").metakey(Metakey::Complete).call().unwrap();
+        let entries = op.list_with("").call().unwrap();
         assert_eq!(entries[0].metadata().content_type(), Some(HTML));
         assert_eq!(entries[1].metadata().content_type(), None);
         assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));

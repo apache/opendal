@@ -26,7 +26,6 @@ pub use entry::Entry;
 
 mod metadata;
 pub use metadata::Metadata;
-pub use metadata::Metakey;
 
 mod read;
 pub use read::*;

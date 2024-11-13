@@ -180,12 +180,6 @@ impl Operator {
     /// [`Operator::stat`] is a wrapper of [`Operator::stat_with`] without any options. To use extra
     /// options like `if_match` and `if_none_match`, please use [`Operator::stat_with`] instead.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use
-    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
-    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra stat requests.
-    ///
     /// # Examples
     ///
     /// ## Check if file exists
@@ -210,14 +204,6 @@ impl Operator {
     }
 
     /// Get given path's metadata with extra options.
-    ///
-    /// # Notes
-    ///
-    /// ## Reuse Metadata
-    ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use
-    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
-    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra requests.
     ///
     /// # Options
     ///
@@ -1546,11 +1532,6 @@ impl Operator {
     /// In order to avoid this, you can use [`Operator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// The only metadata that is guaranteed to be available is the `Mode`.
-    /// For fetching more metadata, please use [`Operator::list_with`] and `metakey`.
-    ///
     /// # Examples
     ///
     /// ## List entries under a dir
@@ -1560,7 +1541,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/").await?;
@@ -1590,7 +1570,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/prefix").await?;
@@ -1663,51 +1642,6 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `metakey`
-    ///
-    /// Specify the metadata that required to be fetched in entries.
-    ///
-    /// If `metakey` is not set, we will fetch only the entry's `mode`. Otherwise, we will retrieve
-    /// the required metadata from storage services. Even if `metakey` is specified, the metadata
-    /// may still be `None`, indicating that the storage service does not supply this information.
-    ///
-    /// Some storage services like `s3` could return more metadata like `content-length` and
-    /// `last-modified`. By using `metakey`, we can fetch those metadata without an extra `stat` call.
-    /// Please pick up the metadata you need to reduce the extra `stat` cost.
-    ///
-    /// This example shows how to list entries with `content-length` and `last-modified` metadata:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op
-    ///     .list_with("dir/")
-    ///     // Make sure content-length and last-modified been fetched.
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// for entry in entries {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// # Examples
     ///
     /// ## List all entries recursively
@@ -1717,7 +1651,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/dir/").recursive(true).await?;
@@ -1743,7 +1676,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/prefix").recursive(true).await?;
@@ -1789,11 +1721,6 @@ impl Operator {
     /// all entries recursively, use [`Operator::lister_with`] and `recursive(true)`
     /// instead.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// The only metadata that is guaranteed to be available is the `Mode`.
-    /// For fetching more metadata, please use [`Operator::lister_with`] and `metakey`.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -1801,7 +1728,6 @@ impl Operator {
     /// # use futures::io;
     /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/").await?;
@@ -1866,52 +1792,6 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `metakey`
-    ///
-    /// Specify the metadata that required to be fetched in entries.
-    ///
-    /// If `metakey` is not set, we will fetch only the entry's `mode`. Otherwise, we will retrieve
-    /// the required metadata from storage services. Even if `metakey` is specified, the metadata
-    /// may still be `None`, indicating that the storage service does not supply this information.
-    ///
-    /// Some storage services like `s3` could return more metadata like `content-length` and
-    /// `last-modified`. By using `metakey`, we can fetch those metadata without an extra `stat` call.
-    /// Please pick up the metadata you need to reduce the extra `stat` cost.
-    ///
-    /// This example shows how to list entries with `content-length` and `last-modified` metadata:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut lister = op
-    ///     .lister_with("dir/")
-    ///     // Make sure content-length and last-modified been fetched.
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// while let Some(mut entry) = lister.try_next().await? {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// # Examples
     ///
     /// ## List all files recursively
@@ -1920,7 +1800,6 @@ impl Operator {
     /// # use anyhow::Result;
     /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
@@ -1928,40 +1807,6 @@ impl Operator {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file {}", entry.path())
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## List files with required metadata
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op
-    ///     .lister_with("path/to/dir/")
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// while let Some(mut entry) = ds.try_next().await? {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir {}", entry.path())

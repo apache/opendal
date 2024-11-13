@@ -24,7 +24,6 @@ use std::future::IntoFuture;
 use std::ops::RangeBounds;
 use std::time::Duration;
 
-use flagset::FlagSet;
 use futures::Future;
 
 use crate::raw::*;
@@ -465,27 +464,6 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.map(|args| args.with_recursive(v))
     }
 
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn metakey(self, v: impl Into<FlagSet<Metakey>>) -> Self {
-        self.map(|args| args.with_metakey(v))
-    }
-
-    /// Concurrent is used to control the number of concurrent stat requests.
-    ///
-    /// If concurrent is set to <=1, the lister will perform stat requests sequentially.
-    ///
-    /// The default concurrent is 1.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|args| args.with_concurrent(v))
-    }
-
     /// The version is used to control whether the object versions should be returned.
     ///
     /// - If `false`, list operation will not return with object versions
@@ -526,27 +504,6 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     /// Default to `false`.
     pub fn recursive(self, v: bool) -> Self {
         self.map(|args| args.with_recursive(v))
-    }
-
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn metakey(self, v: impl Into<FlagSet<Metakey>>) -> Self {
-        self.map(|args| args.with_metakey(v))
-    }
-
-    /// Concurrent is used to control the number of concurrent stat requests.
-    ///
-    /// If concurrent is set to <=1, the lister will perform stat requests sequentially.
-    ///
-    /// The default concurrent is 1.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|args| args.with_concurrent(v))
     }
 
     /// The version is used to control whether the object versions should be returned.

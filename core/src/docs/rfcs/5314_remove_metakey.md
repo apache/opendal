@@ -11,12 +11,12 @@ Remove the `Metakey` concept from OpenDAL and replace it with a simpler and more
 
 The current `Metakey` design has several issues:
 
-1. Performance Impact: Users often unknowingly trigger expensive operations (e.g., using `Metakey::Full` causes additional stat calls)
-2. Usability Issues: Users frequently attempt to access metadata that wasn't explicitly requested
-3. API Confusion: Overlap between `Metakey::Version` and the new `version(bool)` parameter
-4. Implementation Complexity: Service developers find it challenging to implement `Metakey` correctly
+1. Performance Impact: Users often initiate costly operations unintentionally, such as using `Metakey::Full`, which results in extra stat calls
+2. Usability Issues: Users often try to access metadata that hasn't been explicitly requested
+3. API Confusion: There's a conflict between `Metakey::Version` and the new `version(bool)` parameter
+4. Implementation Complexity: Service developers struggle to implement `Metakey` correctly
 
-The expected outcome is a simpler, more predictable API that prevents common mistakes and improves performance by default.
+The goal is a simpler, more intuitive API that prevents common mistakes and improves performance as standard.
 
 # Guide-level explanation
 
@@ -75,12 +75,12 @@ impl Operator {
 }
 ```
 
-4. Modify list operation to never perform implicit stat calls
+4. Modify list operation to avoid implicit stat calls
 5. Update all service implementations to declare their metadata capabilities
 
 Each service implementation will need to:
 - Remove `Metakey` handling logic
-- Implement `metadata_capability()` to accurately reflect what metadata they provide by default
+- Implement `metadata_capability()` to accurately indicate the metadata provided by default
 - Ensure list operations return metadata that's always available without extra API calls
 
 # Drawbacks
@@ -93,13 +93,13 @@ Each service implementation will need to:
 
 This design is superior because:
 - Prevents performance pitfalls by default
-- Makes metadata availability explicit
+- Makes metadata availability explicitly
 - Simplifies service implementation
 - Provides clearer mental model
 
 Alternatives considered:
 1. Keep `Metakey` but make it more restrictive
-2. Add warnings for potentially expensive operations
+2. Add warnings for potentially costly operations
 3. Make stat calls async/lazy
 
 Not making this change would continue the current issues of performance problems and API misuse.

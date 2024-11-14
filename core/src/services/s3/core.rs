@@ -455,6 +455,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -474,10 +478,6 @@ impl S3Core {
         if let Some(checksum) = self.calculate_checksum(&body) {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
-        }
-
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
         }
 
         // Set body

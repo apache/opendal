@@ -701,7 +701,7 @@ export class BlockingLister {
   next(): Entry | null
 }
 /** A public layer wrapper */
-export class Layer {}
+export class Layer { }
 /**
  * Retry layer
  *

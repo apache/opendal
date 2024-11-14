@@ -172,6 +172,18 @@ impl CosCore {
             req = req.header(CONTENT_TYPE, mime)
         }
 
+        // For a bucket which has never enabled versioning, you may use it to
+        // specify whether to prohibit overwriting the object with the same name
+        // when uploading the object:
+        //
+        // When the x-cos-forbid-overwrite is specified as true, overwriting the object
+        // with the same name will be prohibited.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/7749
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true")
+        }
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)

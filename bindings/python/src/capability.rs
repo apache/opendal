@@ -63,10 +63,6 @@ pub struct Capability {
     ///
     /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
     pub write_multi_min_size: Option<usize>,
-    /// write_multi_align_size is the align size that services required in write_multi.
-    ///
-    /// For example, Google GCS requires align size to 256KiB in write_multi.
-    pub write_multi_align_size: Option<usize>,
     /// write_total_max_size is the max size that services support in write_total.
     ///
     /// For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -135,7 +131,6 @@ impl Capability {
             write_with_cache_control: capability.write_with_cache_control,
             write_multi_max_size: capability.write_multi_max_size,
             write_multi_min_size: capability.write_multi_min_size,
-            write_multi_align_size: capability.write_multi_align_size,
             write_total_max_size: capability.write_total_max_size,
             create_dir: capability.create_dir,
             delete: capability.delete,

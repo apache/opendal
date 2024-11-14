@@ -113,7 +113,6 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.write_with_cache_control as jboolean),
             JValue::Long(convert::usize_to_jlong(cap.write_multi_max_size)),
             JValue::Long(convert::usize_to_jlong(cap.write_multi_min_size)),
-            JValue::Long(convert::usize_to_jlong(cap.write_multi_align_size)),
             JValue::Bool(cap.create_dir as jboolean),
             JValue::Bool(cap.delete as jboolean),
             JValue::Bool(cap.copy as jboolean),

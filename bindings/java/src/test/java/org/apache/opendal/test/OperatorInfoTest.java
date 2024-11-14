@@ -48,7 +48,6 @@ public class OperatorInfoTest {
             assertThat(info.fullCapability.write).isTrue();
             assertThat(info.fullCapability.delete).isTrue();
             assertThat(info.fullCapability.writeCanAppend).isTrue();
-            assertThat(info.fullCapability.writeMultiAlignSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
             assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);
@@ -71,7 +70,6 @@ public class OperatorInfoTest {
             assertThat(info.fullCapability.write).isTrue();
             assertThat(info.fullCapability.delete).isTrue();
             assertThat(info.fullCapability.writeCanAppend).isFalse();
-            assertThat(info.fullCapability.writeMultiAlignSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
             assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);

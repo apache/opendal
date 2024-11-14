@@ -140,9 +140,6 @@ pub struct Capability {
     /// Minimum size required for multipart uploads (except for the last part).
     /// For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: Option<usize>,
-    /// Required size alignment for multipart uploads.
-    /// For example, Google GCS requires 256KiB alignment.
-    pub write_multi_align_size: Option<usize>,
     /// Maximum total size supported for write operations.
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,

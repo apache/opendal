@@ -182,7 +182,6 @@ class Capability:
     write_with_cache_control: bool
     write_multi_max_size: Optional[int]
     write_multi_min_size: Optional[int]
-    write_multi_align_size: Optional[int]
     write_total_max_size: Optional[int]
 
     create_dir: bool

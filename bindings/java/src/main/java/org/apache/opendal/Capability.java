@@ -111,12 +111,6 @@ public class Capability {
     public final long writeMultiMinSize;
 
     /**
-     * write_multi_align_size is the align size that services required in write_multi.
-     * For example, Google GCS requires align size to 256KiB in write_multi.
-     */
-    public final long writeMultiAlignSize;
-
-    /**
      * If operator supports create dir.
      */
     public final boolean createDir;

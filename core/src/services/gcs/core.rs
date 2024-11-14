@@ -270,6 +270,13 @@ impl GcsCore {
             write!(&mut url, "&predefinedAcl={}", acl).unwrap();
         }
 
+        // Makes the operation conditional on whether the object's current generation
+        // matches the given value. Setting to 0 makes the operation succeed only if
+        // there are no live versions of the object.
+        if op.if_not_exists() {
+            write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        }
+
         let mut req = Request::post(&url);
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());

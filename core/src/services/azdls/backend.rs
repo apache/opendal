@@ -233,6 +233,9 @@ impl Access for AzdlsBackend {
 
                 write: true,
                 write_can_append: true,
+                write_with_if_none_match: true,
+                write_with_if_not_exists: true,
+
                 create_dir: true,
                 delete: true,
                 rename: true,

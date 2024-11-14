@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
-use crate::Metakey;
 use crate::Result;
 
 pub struct FsLister<P> {
@@ -30,17 +29,14 @@ pub struct FsLister<P> {
     current_path: Option<String>,
 
     rd: P,
-
-    op: OpList,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, path: &str, rd: P, arg: OpList) -> Self {
+    pub fn new(root: &Path, path: &str, rd: P) -> Self {
         Self {
             root: root.to_owned(),
             current_path: Some(path.to_string()),
             rd,
-            op: arg,
         }
     }
 }
@@ -71,38 +67,15 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        let default_meta = self.op.metakey() == Metakey::Mode;
-
-        let metadata = if default_meta {
-            let ft = de.file_type().await.map_err(new_std_io_error)?;
-            if ft.is_file() {
-                Metadata::new(EntryMode::FILE)
-            } else if ft.is_dir() {
-                Metadata::new(EntryMode::DIR)
-            } else {
-                Metadata::new(EntryMode::Unknown)
-            }
-        } else {
-            let fs_meta = de.metadata().await.map_err(new_std_io_error)?;
-            let mut meta = if fs_meta.file_type().is_file() {
-                Metadata::new(EntryMode::FILE)
-            } else if fs_meta.file_type().is_dir() {
-                Metadata::new(EntryMode::DIR)
-            } else {
-                Metadata::new(EntryMode::Unknown)
-            };
-            meta.set_content_length(fs_meta.len());
-            meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
-            meta
-        };
-
-        let entry = if metadata.is_dir() {
+        let ft = de.file_type().await.map_err(new_std_io_error)?;
+        let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), metadata)
+            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else if ft.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
         } else {
-            oio::Entry::new(&rel_path, metadata)
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
-
         Ok(Some(entry))
     }
 }
@@ -129,36 +102,14 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        let default_meta = self.op.metakey() == Metakey::Mode;
-
-        let metadata = if default_meta {
-            let ft = de.file_type().map_err(new_std_io_error)?;
-            if ft.is_file() {
-                Metadata::new(EntryMode::FILE)
-            } else if ft.is_dir() {
-                Metadata::new(EntryMode::DIR)
-            } else {
-                Metadata::new(EntryMode::Unknown)
-            }
-        } else {
-            let fs_meta = de.metadata().map_err(new_std_io_error)?;
-            let mut meta = if fs_meta.file_type().is_file() {
-                Metadata::new(EntryMode::FILE)
-            } else if fs_meta.file_type().is_dir() {
-                Metadata::new(EntryMode::DIR)
-            } else {
-                Metadata::new(EntryMode::Unknown)
-            };
-            meta.set_content_length(fs_meta.len());
-            meta.set_last_modified(fs_meta.modified().map_err(new_std_io_error)?.into());
-            meta
-        };
-
-        let entry = if metadata.is_dir() {
+        let ft = de.file_type().map_err(new_std_io_error)?;
+        let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), metadata)
+            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else if ft.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
         } else {
-            oio::Entry::new(&rel_path, metadata)
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
 
         Ok(Some(entry))

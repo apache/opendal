@@ -209,12 +209,7 @@ impl<A: Access> CompleteAccessor<A> {
         }
 
         // Forward to underlying storage directly since we don't know how to handle stat dir.
-        self.inner.stat(path, args).await.map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.inner.stat(path, args).await
     }
 
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -258,12 +253,7 @@ impl<A: Access> CompleteAccessor<A> {
         }
 
         // Forward to underlying storage directly since we don't know how to handle stat dir.
-        self.inner.blocking_stat(path, args).map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.metakey();
-                m.with_metakey(bit | Metakey::Complete)
-            })
-        })
+        self.inner.blocking_stat(path, args)
     }
 
     async fn complete_list(

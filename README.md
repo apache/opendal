@@ -1,9 +1,11 @@
-# Apache OpenDAL™: *Access Data Freely*
+# Apache OpenDAL™: *One Layer, All Storage.*
 
 [![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
 
-OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services. Our goal is to deliver a comprehensive solution for any languages, methods, integrations, and services.
+OpenDAL is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+
+OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/docs/vision).
 
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" width="61.8%" />
 

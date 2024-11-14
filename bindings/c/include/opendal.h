@@ -516,14 +516,6 @@ typedef struct opendal_capability {
    */
   uintptr_t write_multi_min_size;
   /**
-   * write_multi_align_size is the align size that services required in write_multi.
-   *
-   * For example, Google GCS requires align size to 256KiB in write_multi.
-   *
-   * If it is not set, this will be zero
-   */
-  uintptr_t write_multi_align_size;
-  /**
    * write_total_max_size is the max size that services support in write_total.
    *
    * For example, Cloudflare D1 supports 1MB as max in write_total.

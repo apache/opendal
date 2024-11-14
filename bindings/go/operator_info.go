@@ -176,11 +176,6 @@ func (c *Capability) WriteMultiMaxSize() uint {
 func (c *Capability) WriteMultiMinSize() uint {
 	return c.inner.writeMultiMinSize
 }
-
-func (c *Capability) WriteMultiAlignSize() uint {
-	return c.inner.writeMultiAlignSize
-}
-
 func (c *Capability) WriteTotalMaxSize() uint {
 	return c.inner.writeTotalMaxSize
 }

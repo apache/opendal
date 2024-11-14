@@ -147,7 +147,6 @@ var (
 			&ffi.TypeUint8,   // write_with_cache_control
 			&ffi.TypePointer, // write_multi_max_size
 			&ffi.TypePointer, // write_multi_min_size
-			&ffi.TypePointer, // write_multi_align_size
 			&ffi.TypePointer, // write_total_max_size
 			&ffi.TypeUint8,   // create_dir
 			&ffi.TypeUint8,   // delete
@@ -189,7 +188,6 @@ type opendalCapability struct {
 	writeWithCacheControl              uint8
 	writeMultiMaxSize                  uint
 	writeMultiMinSize                  uint
-	writeMultiAlignSize                uint
 	writeTotalMaxSize                  uint
 	createDir                          uint8
 	delete                             uint8

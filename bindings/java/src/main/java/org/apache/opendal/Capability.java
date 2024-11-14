@@ -208,7 +208,6 @@ public class Capability {
             boolean writeWithCacheControl,
             long writeMultiMaxSize,
             long writeMultiMinSize,
-            long writeMultiAlignSize,
             boolean createDir,
             boolean delete,
             boolean copy,
@@ -242,7 +241,6 @@ public class Capability {
         this.writeWithCacheControl = writeWithCacheControl;
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
-        this.writeMultiAlignSize = writeMultiAlignSize;
         this.createDir = createDir;
         this.delete = delete;
         this.copy = copy;

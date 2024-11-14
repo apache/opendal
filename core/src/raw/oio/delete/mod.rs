@@ -14,27 +14,4 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-//! `oio` provides OpenDAL's raw traits and types that opendal returns as
-//! output.
-//!
-//! Those types should only be used internally and we don't want users to
-//! depend on them.
-
-mod delete;
-pub use delete::*;
-
-mod read;
-pub use read::*;
-
-mod write;
-pub use write::*;
-
-mod list;
-pub use list::*;
-
-mod entry;
-pub use entry::Entry;
-
-mod buf;
-pub use buf::*;
+mod api;

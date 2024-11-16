@@ -586,6 +586,10 @@ typedef struct opendal_capability {
    */
   uintptr_t batch_max_operations;
   /**
+   * If operator supports shared.
+   */
+  bool shared;
+  /**
    * If operator supports blocking.
    */
   bool blocking;

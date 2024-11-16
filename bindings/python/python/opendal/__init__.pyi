@@ -204,4 +204,5 @@ class Capability:
     batch_delete: bool
     batch_max_operations: Optional[int]
 
+    shared: bool
     blocking: bool

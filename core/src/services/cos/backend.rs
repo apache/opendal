@@ -284,6 +284,8 @@ impl Access for CosBackend {
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

@@ -283,6 +283,7 @@ impl kv::Adapter for Adapter {
                 write_can_empty: true,
                 delete: true,
                 list: true,
+                shared: true,
                 ..Default::default()
             },
         )

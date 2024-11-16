@@ -239,6 +239,7 @@ impl Access for IcloudBackend {
             .set_native_capability(Capability {
                 stat: true,
                 read: true,
+                shared: true,
                 ..Default::default()
             });
         ma.into()

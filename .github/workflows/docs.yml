@@ -220,7 +220,7 @@ jobs:
           cabal update
 
       - name: Setup cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: cache-cabal
         with:
@@ -282,7 +282,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Cache OPAM dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.opam
           key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
@@ -291,7 +291,7 @@ jobs:
             ${{ runner.os }}-opam-
 
       - name: Cache Dune build artifacts
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: bindings/ocaml/_build
           key: ${{ runner.os }}-dune-doc-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}
@@ -631,6 +631,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
+          # This allows us to make our publish branch with only the latest commit.
+          force_orphan: true
 
       - name: Clear build
         run: rm -rf ./website/build

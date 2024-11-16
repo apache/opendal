@@ -27,6 +27,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
@@ -454,6 +455,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -462,7 +467,7 @@ impl S3Core {
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
-                req = req.header(format!("{}{}", constants::X_AMZ_META_PREFIX, key), value)
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
 
@@ -473,10 +478,6 @@ impl S3Core {
         if let Some(checksum) = self.calculate_checksum(&body) {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
-        }
-
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         // Set body

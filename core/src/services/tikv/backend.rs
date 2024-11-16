@@ -185,14 +185,17 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Tikv,
             "TiKV",
             Capability {
                 read: true,
                 write: true,
                 blocking: false,
+                shared: true,
                 ..Default::default()
             },
         )

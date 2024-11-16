@@ -39,8 +39,8 @@ use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
+use opendal::Buffer;
 use opendal::Writer;
-use opendal::{Buffer, Metakey};
 use opendal::{Operator, OperatorInfo};
 use tokio::sync::{Mutex, Notify};
 
@@ -62,16 +62,11 @@ use tokio::sync::{Mutex, Notify};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let builder = S3::from_map(
-///         vec![
-///             ("access_key".to_string(), "my_access_key".to_string()),
-///             ("secret_key".to_string(), "my_secret_key".to_string()),
-///             ("endpoint".to_string(), "my_endpoint".to_string()),
-///             ("region".to_string(), "my_region".to_string()),
-///         ]
-///         .into_iter()
-///         .collect(),
-///     ).unwrap();
+///    let builder = S3::default()
+///     .access_key_id("my_access_key")
+///     .secret_access_key("my_secret_key")
+///     .endpoint("my_endpoint")
+///     .region("my_region");
 ///
 ///     // Create a new operator
 ///     let operator = Operator::new(builder).unwrap().finish();
@@ -107,16 +102,6 @@ impl OpendalStore {
             info: op.info().into(),
             inner: op,
         }
-    }
-
-    /// The metakey that requested by object_store, should align with its meta.
-    #[inline]
-    fn metakey() -> flagset::FlagSet<Metakey> {
-        Metakey::Mode
-            | Metakey::LastModified
-            | Metakey::ContentLength
-            | Metakey::Etag
-            | Metakey::Version
     }
 }
 
@@ -313,7 +298,6 @@ impl ObjectStore for OpendalStore {
             let stream = self
                 .inner
                 .lister_with(&path)
-                .metakey(Self::metakey())
                 .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
@@ -343,7 +327,6 @@ impl ObjectStore for OpendalStore {
                 self.inner
                     .lister_with(&path)
                     .start_after(offset.as_ref())
-                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -355,7 +338,6 @@ impl ObjectStore for OpendalStore {
             } else {
                 self.inner
                     .lister_with(&path)
-                    .metakey(Self::metakey())
                     .recursive(true)
                     .into_future()
                     .into_send()
@@ -377,7 +359,6 @@ impl ObjectStore for OpendalStore {
         let mut stream = self
             .inner
             .lister_with(&path)
-            .metakey(Self::metakey())
             .into_future()
             .into_send()
             .await

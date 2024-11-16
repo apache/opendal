@@ -224,6 +224,8 @@ impl Access for KoofrBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

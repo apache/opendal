@@ -111,12 +111,6 @@ public class Capability {
     public final long writeMultiMinSize;
 
     /**
-     * write_multi_align_size is the align size that services required in write_multi.
-     * For example, Google GCS requires align size to 256KiB in write_multi.
-     */
-    public final long writeMultiAlignSize;
-
-    /**
      * If operator supports create dir.
      */
     public final boolean createDir;
@@ -192,6 +186,11 @@ public class Capability {
     public final long batchMaxOperations;
 
     /**
+     * If operator supports shared.
+     */
+    public final boolean shared;
+
+    /**
      * If operator supports blocking.
      */
     public final boolean blocking;
@@ -214,7 +213,6 @@ public class Capability {
             boolean writeWithCacheControl,
             long writeMultiMaxSize,
             long writeMultiMinSize,
-            long writeMultiAlignSize,
             boolean createDir,
             boolean delete,
             boolean copy,
@@ -230,7 +228,8 @@ public class Capability {
             boolean batch,
             boolean batchDelete,
             long batchMaxOperations,
-            boolean blocking) {
+            boolean blocking,
+            boolean shared) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
@@ -248,7 +247,6 @@ public class Capability {
         this.writeWithCacheControl = writeWithCacheControl;
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
-        this.writeMultiAlignSize = writeMultiAlignSize;
         this.createDir = createDir;
         this.delete = delete;
         this.copy = copy;
@@ -265,5 +263,6 @@ public class Capability {
         this.batchDelete = batchDelete;
         this.batchMaxOperations = batchMaxOperations;
         this.blocking = blocking;
+        this.shared = shared;
     }
 }

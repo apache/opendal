@@ -230,6 +230,8 @@ impl Access for HdfsBackend {
                 rename: true,
                 blocking: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

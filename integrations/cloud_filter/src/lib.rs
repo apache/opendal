@@ -101,7 +101,7 @@ use cloud_filter::{
 };
 use file::FileBlob;
 use futures::StreamExt;
-use opendal::{Entry, Metakey, Operator};
+use opendal::{Entry, Operator};
 
 const BUF_SIZE: usize = 65536;
 
@@ -209,7 +209,6 @@ impl Filter for CloudFilter {
         let mut entries = self
             .op
             .lister_with(&remote_path.to_string_lossy().replace('\\', "/"))
-            .metakey(Metakey::LastModified | Metakey::ContentLength)
             .await
             .map_err(|e| {
                 log::warn!("failed to list files: {}", e);

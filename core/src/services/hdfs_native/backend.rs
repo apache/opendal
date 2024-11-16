@@ -161,6 +161,8 @@ impl Access for HdfsNativeBackend {
                 rename: true,
                 blocking: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

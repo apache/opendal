@@ -15,22 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# frozen_string_literal: true
+import pytest
+import pickle
+from random import randint
+from uuid import uuid4
+import os
 
-RSpec.describe OpenDAL do
-  before :each do
-    @op = OpenDAL::Operator.new("memory", nil)
-  end
 
-  it "should perform basic ops" do
-    path = "/path/to/file"
-    content = "OpenDAL Ruby is ready."
-    @op.write(path, content)
+@pytest.mark.need_capability("read", "write", "delete", "shared")
+def test_operator_pickle(service_name, operator, async_operator):
+    """
+    Test Operator's pickle serialization and deserialization.
+    """
 
-    stat = @op.stat(path)
-    expect(stat.is_file).to eq(true)
-    expect(stat.content_length).to eq(content.length)
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    operator.write(filename, content)
 
-    expect(@op.read(path)).to eq(content)
-  end
-end
+    serialized = pickle.dumps(operator)
+
+    deserialized = pickle.loads(serialized)
+    assert deserialized.read(filename) == content
+
+    operator.delete(filename)

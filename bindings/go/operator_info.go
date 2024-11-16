@@ -176,11 +176,6 @@ func (c *Capability) WriteMultiMaxSize() uint {
 func (c *Capability) WriteMultiMinSize() uint {
 	return c.inner.writeMultiMinSize
 }
-
-func (c *Capability) WriteMultiAlignSize() uint {
-	return c.inner.writeMultiAlignSize
-}
-
 func (c *Capability) WriteTotalMaxSize() uint {
 	return c.inner.writeTotalMaxSize
 }
@@ -243,6 +238,10 @@ func (c *Capability) BatchDelete() bool {
 
 func (c *Capability) BatchMaxOperations() uint {
 	return c.inner.batchMaxOperations
+}
+
+func (c *Capability) Shared() bool {
+	return c.inner.shared == 1
 }
 
 func (c *Capability) Blocking() bool {

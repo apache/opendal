@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
 use bytes::Bytes;
+use constants::X_OSS_META_PREFIX;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -41,12 +41,15 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::*;
+use crate::services::oss::core::constants::X_OSS_FORBID_OVERWRITE;
 use crate::*;
 
 pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
 
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
+
+    pub const X_OSS_FORBID_OVERWRITE: &str = "x-oss-forbid-overwrite";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
@@ -181,6 +184,20 @@ impl OssCore {
             req = req.header(CACHE_CONTROL, cache_control);
         }
 
+        // TODO: disable if not exists while version has been enabled.
+        //
+        // Specifies whether the object that is uploaded by calling the PutObject operation
+        // overwrites the existing object that has the same name. When versioning is enabled
+        // or suspended for the bucket to which you want to upload the object, the
+        // x-oss-forbid-overwrite header does not take effect. In this case, the object that
+        // is uploaded by calling the PutObject operation overwrites the existing object that
+        // has the same name.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/putobject?spm=a2c63.p38356.0.0.39ef75e93o0Xtz
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
+        }
+
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
                 // before insert user defined metadata header, add prefix to the header name
@@ -190,7 +207,7 @@ impl OssCore {
                         "the format of the user metadata key is invalid, please refer the document",
                     ));
                 }
-                req = req.header(format!("{}{}", constants::X_OSS_META_PREFIX, key), value)
+                req = req.header(format!("{X_OSS_META_PREFIX}{key}"), value)
             }
         }
 
@@ -213,28 +230,11 @@ impl OssCore {
     /// # Notes
     ///
     /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
-    pub fn parse_metadata(
-        &self,
-        path: &str,
-        user_metadata_prefix: &str,
-        headers: &HeaderMap,
-    ) -> Result<Metadata> {
+    pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
         let mut m = parse_into_metadata(path, headers)?;
-
-        let data: HashMap<String, String> = headers
-            .iter()
-            .filter_map(|(key, _)| {
-                key.as_str()
-                    .strip_prefix(user_metadata_prefix)
-                    .and_then(|stripped_key| {
-                        parse_header_to_str(headers, key)
-                            .unwrap_or(None)
-                            .map(|val| (stripped_key.to_string(), val.to_string()))
-                    })
-            })
-            .collect();
-        if !data.is_empty() {
-            m.with_user_metadata(data);
+        let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
+        if !user_meta.is_empty() {
+            m.with_user_metadata(user_meta);
         }
 
         Ok(m)

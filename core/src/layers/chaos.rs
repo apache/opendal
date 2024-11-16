@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -114,8 +113,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio))))
             .await
+            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

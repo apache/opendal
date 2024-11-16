@@ -24,7 +24,6 @@ use std::time::Duration;
 
 use crate::raw::*;
 use crate::*;
-use flagset::FlagSet;
 
 /// Args for `create` operation.
 ///
@@ -85,13 +84,6 @@ pub struct OpList {
     ///
     /// Default to `false`.
     recursive: bool,
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    metakey: FlagSet<Metakey>,
     /// The concurrent of stat operations inside list operation.
     /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
     ///
@@ -115,8 +107,6 @@ impl Default for OpList {
             limit: None,
             start_after: None,
             recursive: false,
-            // By default, we want to know what's the mode of this entry.
-            metakey: Metakey::Mode.into(),
             concurrent: 1,
             version: false,
         }
@@ -165,19 +155,6 @@ impl OpList {
     /// Get the current recursive.
     pub fn recursive(&self) -> bool {
         self.recursive
-    }
-
-    /// Change the metakey of this list operation.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn with_metakey(mut self, metakey: impl Into<FlagSet<Metakey>>) -> Self {
-        self.metakey = metakey.into();
-        self
-    }
-
-    /// Get the current metakey.
-    pub fn metakey(&self) -> FlagSet<Metakey> {
-        self.metakey
     }
 
     /// Change the concurrent of this list operation.
@@ -601,6 +578,7 @@ pub struct OpWrite {
     cache_control: Option<String>,
     executor: Option<Executor>,
     if_none_match: Option<String>,
+    if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -695,6 +673,17 @@ impl OpWrite {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Not-Exist of the option
+    pub fn with_if_not_exists(mut self, b: bool) -> Self {
+        self.if_not_exists = b;
+        self
+    }
+
+    /// Get If-Not-Exist from option
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
     }
 
     /// Merge given executor into option.

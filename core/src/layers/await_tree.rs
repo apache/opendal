@@ -17,7 +17,6 @@
 
 use await_tree::InstrumentAwait;
 use futures::Future;
-use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -86,16 +85,16 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
         self.inner
             .read(path, args)
             .instrument_await(format!("opendal::{}", Operation::Read))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
             .instrument_await(format!("opendal::{}", Operation::Write))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -130,8 +129,8 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
         self.inner
             .list(path, args)
             .instrument_await(format!("opendal::{}", Operation::List))
-            .map(|v| v.map(|(rp, r)| (rp, AwaitTreeWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -191,6 +191,8 @@ impl Access for FsBackend {
                 rename: true,
                 blocking: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
@@ -342,7 +344,7 @@ impl Access for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -356,7 +358,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 
@@ -511,7 +513,7 @@ impl Access for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -525,7 +527,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 

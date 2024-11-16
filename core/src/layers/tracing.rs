@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 
-use futures::FutureExt;
 use tracing::Span;
 
 use crate::raw::*;
@@ -166,7 +165,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug")]
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 
@@ -179,8 +178,8 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r))))
             .await
+            .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -215,8 +214,8 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, TracingWrapper::new(Span::current(), s))))
             .await
+            .map(|(rp, s)| (rp, TracingWrapper::new(Span::current(), s)))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

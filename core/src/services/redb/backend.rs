@@ -111,14 +111,17 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Redb,
             &self.datadir,
             Capability {
                 read: true,
                 write: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )

@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.11"
+version = "0.41.13"
 
 [features]
 default = ["frontends-webdav", "frontends-s3"]
@@ -36,20 +36,15 @@ frontends-s3 = []
 frontends-webdav = [
   "dep:dav-server",
   "dep:dav-server-opendalfs",
-  "dep:bytes",
   "dep:futures-util",
 ]
 
 [dependencies]
 anyhow = "1"
 axum = "0.7"
-bytes = { version = "1.5.0", optional = true }
 chrono = "0.4.31"
-clap = { version = "4", features = ["cargo", "string"] }
 dav-server = { version = "0.7", optional = true }
-dav-server-opendalfs = { version = "0.2.0", path = "../../integrations/dav-server", optional = true }
-dirs = "5.0.1"
-futures = "0.3"
+dav-server-opendalfs = { version = "0.2.1", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
 opendal = { version = "0.50.0", path = "../../core", features = [
   "services-fs",
@@ -63,9 +58,6 @@ tokio = { version = "1.39", features = [
   "io-std",
 ] }
 toml = "0.8.12"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["trace"] }
+tower = { version = "0.4", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-url = "2.5.1"
-uuid = { version = "1", features = ["v4", "fast-rng"] }

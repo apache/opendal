@@ -26,6 +26,7 @@ use std::sync::Arc;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
+use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -667,7 +668,7 @@ impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(mut self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -752,9 +753,10 @@ impl Builder for S3Builder {
             }
         }
 
-        if let Some(v) = self.config.region.clone() {
-            cfg.region = Some(v);
+        if let Some(ref v) = self.config.region {
+            cfg.region = Some(v.to_string());
         }
+
         if cfg.region.is_none() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -766,6 +768,9 @@ impl Builder for S3Builder {
 
         let region = cfg.region.to_owned().unwrap();
         debug!("backend use region: {region}");
+
+        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
+        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
 
         // Building endpoint.
         let endpoint = self.build_endpoint(&region);
@@ -919,7 +924,7 @@ impl Access for S3Backend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-                write_with_if_none_match: true,
+                write_with_if_not_exists: true,
                 write_with_user_metadata: true,
 
                 // The min multipart size of S3 is 5 MiB.
@@ -954,6 +959,8 @@ impl Access for S3Backend {
                 batch: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
 
+                shared: true,
+
                 ..Default::default()
             });
 
@@ -970,18 +977,7 @@ impl Access for S3Backend {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
 
-                let user_meta: HashMap<String, String> = headers
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        name.as_str()
-                            .strip_prefix(constants::X_AMZ_META_PREFIX)
-                            .and_then(|stripped_key| {
-                                parse_header_to_str(headers, name)
-                                    .unwrap_or(None)
-                                    .map(|val| (stripped_key.to_string(), val.to_string()))
-                            })
-                    })
-                    .collect();
+                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }
@@ -1043,13 +1039,6 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        if args.version() && !self.core.enable_versioning {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "the bucket doesn't enable versioning",
-            ));
-        }
-
         let l = if args.version() {
             TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),

@@ -20,7 +20,6 @@ use std::future::Future;
 use std::sync::Arc;
 
 use fastrace::prelude::*;
-use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -133,7 +132,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     }
 
     #[trace]
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 
@@ -144,32 +143,22 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
 
     #[trace(enter_on_poll = true)]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner
-            .write(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.write(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
@@ -194,17 +183,12 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
 
     #[trace(enter_on_poll = true)]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner
-            .list(path, args)
-            .map(|v| {
-                v.map(|(rp, s)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
-                    )
-                })
-            })
-            .await
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]

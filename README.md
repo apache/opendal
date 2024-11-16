@@ -1,9 +1,11 @@
-# Apache OpenDAL™: *Access Data Freely*
+# Apache OpenDAL™: *One Layer, All Storage.*
 
-[![](https://img.shields.io/badge/maillist-dev%40opendal.apache.org-blue)](mailto:dev@opendal.apache.org)
+[![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
 
-OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services. Our goal is to deliver a comprehensive solution for any languages, methods, integrations, and services.
+OpenDAL is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+
+OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/docs/vision).
 
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" width="61.8%" />
 
@@ -14,6 +16,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
 | [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
 | [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
+| [D Binding]   | -                                                | -                                                                                 |
 | [Dotnet Binding]  | -                                                | -                                                                                 |
 | [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                         |
 | [Haskell Binding] | -                                                | -                                                                                 |
@@ -38,6 +41,7 @@ OpenDAL offers a unified data access layer, empowering users to seamlessly and e
 [C Binding Dev Docs]: https://opendal.apache.org/docs/c/
 [Cpp Binding]: bindings/cpp/README.md
 [Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
+[D Binding]: bindings/d/README.md
 [Dotnet Binding]: bindings/dotnet/README.md
 [Go Binding]: bindings/go/README.md
 [Go Binding Image]: https://badge.fury.io/go/github.com%2Fapache%2Fopendal%2Fbindings%2Fgo.svg
@@ -225,9 +229,9 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 - Start with [Contributing Guide](CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/opendal/issues/new) for bug report or feature requests.
-- Discuss at [dev mailing list](mailto:dev@opendal.apache.org) ([subscribe](mailto:dev-subscribe@opendal.apache.org?subject=(send%20this%20email%20to%20subscribe)) / [unsubscribe](mailto:dev-unsubscribe@opendal.apache.org?subject=(send%20this%20email%20to%20unsubscribe)) / [archives](https://lists.apache.org/list.html?dev@opendal.apache.org))
-- Asking questions in the [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a).
+- Start [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a) for questions or ideas.
 - Talk to community directly at [Discord](https://opendal.apache.org/discord).
+- Report security vulnerabilities to [private mailing list](mailto:private@opendal.apache.org)
 
 ## Who is using OpenDAL?
 

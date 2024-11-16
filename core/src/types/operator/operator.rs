@@ -180,12 +180,6 @@ impl Operator {
     /// [`Operator::stat`] is a wrapper of [`Operator::stat_with`] without any options. To use extra
     /// options like `if_match` and `if_none_match`, please use [`Operator::stat_with`] instead.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use
-    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
-    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra stat requests.
-    ///
     /// # Examples
     ///
     /// ## Check if file exists
@@ -210,14 +204,6 @@ impl Operator {
     }
 
     /// Get given path's metadata with extra options.
-    ///
-    /// # Notes
-    ///
-    /// ## Reuse Metadata
-    ///
-    /// For fetch metadata of entries returned by [`Lister`], it's better to use
-    /// [`Operator::list_with`] and [`Operator::lister_with`] with `metakey` query like
-    /// `Metakey::ContentLength | Metakey::LastModified` so that we can avoid extra requests.
     ///
     /// # Options
     ///
@@ -723,20 +709,19 @@ impl Operator {
     ///
     /// ## Extra Options
     ///
-    /// [`Operator::write`] is a wrapper of [`Operator::write_with`] without any options. To use
-    /// extra options like `content_type` and `cache_control`, please use [`Operator::write_with`]
-    /// instead.
+    /// [`Operator::write`] is a simplified version of [`Operator::write_with`] without additional options.
+    /// For advanced features like `content_type` and `cache_control`, use [`Operator::write_with`] instead.
     ///
     /// ## Streaming Write
     ///
-    /// This function will write all bytes at once. For more precise memory control or
-    /// writing data continuously, please use [`Operator::writer`].
+    /// This method performs a single bulk write operation. For finer-grained memory control
+    /// or streaming data writes, use [`Operator::writer`] instead.
     ///
-    /// ## Multipart Uploads Write
+    /// ## Multipart Uploads
     ///
-    /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
-    /// handle the multipart uploads for you. You can control the behavior of multipart uploads
-    /// by setting `chunk`, `concurrent` via [`Operator::writer_with`]
+    /// OpenDAL provides multipart upload functionality through the [`Writer`] abstraction,
+    /// handling all upload details automatically. You can customize the upload behavior by
+    /// configuring `chunk` size and `concurrent` operations via [`Operator::writer_with`].
     ///
     /// # Examples
     ///
@@ -872,28 +857,34 @@ impl Operator {
         Ok(())
     }
 
-    /// Write multiple bytes into path.
+    /// Create a writer for streaming data to the given path.
     ///
     /// # Notes
     ///
+    /// ## Writer Features
+    ///
+    /// The writer provides several powerful capabilities:
+    /// - Streaming writes for continuous data transfer
+    /// - Automatic multipart upload handling
+    /// - Memory-efficient chunk-based writing
+    ///
     /// ## Extra Options
     ///
-    /// [`Operator::writer`] is a wrapper of [`Operator::writer_with`] without any options. To use
-    /// extra options like `content_type` and `cache_control`, please use [`Operator::writer_with`]
-    /// instead.
+    /// [`Operator::writer`] is a simplified version of [`Operator::writer_with`] without additional options.
+    /// For advanced features like `content_type` and `cache_control`, use [`Operator::writer_with`] instead.
     ///
-    /// ## Chunk
+    /// ## Chunk Size Handling
     ///
-    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
-    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
-    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
-    /// more money if we write data in small chunks.
+    /// Storage services often have specific requirements for chunk sizes:
+    /// - Services like `s3` may return `EntityTooSmall` errors for undersized chunks
+    /// - Using small chunks in cloud storage services can lead to increased costs
     ///
-    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
-    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
-    /// to the storage service.
+    /// OpenDAL automatically determines optimal chunk sizes based on the service's
+    /// [Capability](crate::types::Capability). However, you can override this by explicitly
+    /// setting the `chunk` parameter.
     ///
-    /// Users can use [`Operator::writer_with`] to set a good chunk size might improve the performance,
+    /// For improved performance, consider setting an appropriate chunk size using
+    /// [`Operator::writer_with`].
     ///
     /// # Examples
     ///
@@ -914,18 +905,29 @@ impl Operator {
         self.writer_with(path).await
     }
 
-    /// Write multiple bytes into path with extra options.
+    /// Create a writer for streaming data to the given path with more options.
     ///
-    /// # Options
+    /// # Usages
     ///
     /// ## `append`
     ///
-    /// Set `append` for this `write` request.
+    /// Sets append mode for this write request.
     ///
-    /// `write` by default to overwrite existing files. To append to the end of file instead,
-    /// please set `append` to true.
+    /// ### Capability
     ///
-    /// The following example will append data to existing file instead.
+    /// Check [`Capability::write_can_append`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - By default, write operations overwrite existing files
+    /// - When append is set to true:
+    ///   - New data will be appended to the end of existing file
+    ///   - If file doesn't exist, it will be created
+    /// - If not supported, will return an error
+    ///
+    /// This operation allows adding data to existing files instead of overwriting them.
+    ///
+    /// ### Example
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -945,21 +947,33 @@ impl Operator {
     ///
     /// ## `chunk`
     ///
-    /// Set `chunk` for the writer.
+    /// Sets chunk size for buffered writes.
     ///
-    /// Some storage services have a minimum chunk size requirement. For example, `s3` could return
-    /// hard errors like `EntityTooSmall` if the chunk size is too small. Some services like `gcs`
-    /// also return errors if the chunk size is not aligned. Besides, cloud storage services will cost
-    /// more money if we write data in small chunks.
+    /// ### Capability
     ///
-    /// OpenDAL sets the chunk size automatically based on the [Capability](crate::types::Capability)
-    /// of the service if users don't set it. Users can set `chunk` to control the exact size to send
-    /// to the storage service.
+    /// Check [`Capability::write_multi_min_size`] and [`Capability::write_multi_max_size`] for size limits.
     ///
-    /// Set a good chunk size might improve the performance, reduce the API calls and save money.
+    /// ### Behavior
     ///
-    /// The following example will set the writer chunk to 8MiB. Only one API call will be sent at
-    /// `close` instead.
+    /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - When chunk size is set:
+    ///   - Data will be buffered until reaching chunk size
+    ///   - One API call will be made per chunk
+    ///   - Last chunk may be smaller than chunk size
+    /// - Important considerations:
+    ///   - Some services require minimum chunk sizes (e.g. S3's EntityTooSmall error)
+    ///   - Smaller chunks increase API calls and costs
+    ///   - Larger chunks increase memory usage, but improve performance and reduce costs
+    ///
+    /// ### Performance Impact
+    ///
+    /// Setting appropriate chunk size can:
+    /// - Reduce number of API calls
+    /// - Improve overall throughput
+    /// - Lower operation costs
+    /// - Better utilize network bandwidth
+    ///
+    /// ### Example
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -969,6 +983,7 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set 8MiB chunk size - data will be sent in one API call at close
     /// let mut w = op
     ///     .writer_with("path/to/file")
     ///     .chunk(8 * 1024 * 1024)
@@ -980,19 +995,34 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `concurrent`
+    /// # `concurrent`
     ///
-    /// Set `concurrent` for the writer.
+    /// Sets concurrent write operations for this writer.
     ///
-    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
-    /// write large chunks of data. By setting `concurrent`, opendal will writing files concurrently
-    /// on support storage services.
+    /// ## Behavior
     ///
-    /// The following example will set the writer concurrent to 8.
+    /// - By default, OpenDAL writes files sequentially
+    /// - When concurrent is set:
+    ///   - Multiple write operations can execute in parallel
+    ///   - Write operations return immediately without waiting if tasks space are available
+    ///   - Close operation ensures all writes complete in order
+    ///   - Memory usage increases with concurrency level
+    /// - If not supported, falls back to sequential writes
     ///
-    /// - The first write will start and return immediately.
-    /// - The second write will start and return immediately.
-    /// - The close will make sure all writes are done in order and return result.
+    /// This feature significantly improves performance when:
+    /// - Writing large files
+    /// - Network latency is high
+    /// - Storage service supports concurrent uploads like multipart uploads
+    ///
+    /// ## Performance Impact
+    ///
+    /// Setting appropriate concurrency can:
+    /// - Increase write throughput
+    /// - Reduce total write time
+    /// - Better utilize available bandwidth
+    /// - Trade memory for performance
+    ///
+    /// ## Example
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -1002,19 +1032,49 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
+    /// // Enable concurrent writes with 8 parallel operations
     /// let mut w = op.writer_with("path/to/file").concurrent(8).await?;
-    /// w.write(vec![0; 4096]).await?; // Start the first write
-    /// w.write(vec![1; 4096]).await?; // Second write will be concurrent without wait
-    /// w.close().await?; // Close will make sure all writes are done and success
+    ///
+    /// // First write starts immediately
+    /// w.write(vec![0; 4096]).await?;
+    ///
+    /// // Second write runs concurrently with first
+    /// w.write(vec![1; 4096]).await?;
+    ///
+    /// // Ensures all writes complete successfully and in order
+    /// w.close().await?;
     /// # Ok(())
     /// # }
     /// ```
     ///
     /// ## `cache_control`
     ///
-    /// Set the `cache_control` for this `write` request.
+    /// Sets Cache-Control header for this write operation.
     ///
-    /// Some storage services support setting `cache_control` as system metadata.
+    /// ### Capability
+    ///
+    /// Sets `Cache-Control` header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_cache_control`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Cache-Control as system metadata on the target file
+    /// - The value should follow HTTP Cache-Control header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling caching behavior for the written content.
+    ///
+    /// ### Use Cases
+    ///
+    /// - Setting browser cache duration
+    /// - Configuring CDN behavior
+    /// - Optimizing content delivery
+    /// - Managing cache invalidation
+    ///
+    /// ### Example
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -1024,6 +1084,7 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
+    /// // Cache content for 7 days (604800 seconds)
     /// let mut w = op
     ///     .writer_with("path/to/file")
     ///     .cache_control("max-age=604800")
@@ -1035,11 +1096,28 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ### References
+    ///
+    /// - [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control)
+    /// - [RFC 7234 Section 5.2](https://tools.ietf.org/html/rfc7234#section-5.2)
+    ///
     /// ## `content_type`
     ///
-    /// Set the `content_type` for this `write` request.
+    /// Sets `Content-Type` header for this write operation.
     ///
-    /// Some storage services support setting `content_type` as system metadata.
+    /// ## Capability
+    ///
+    /// Check [`Capability::write_with_content_type`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Type as system metadata on the target file
+    /// - The value should follow MIME type format (e.g. "text/plain", "image/jpeg")
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the media type of the content being written.
+    ///
+    /// ## Example
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -1047,6 +1125,7 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set content type for plain text file
     /// let mut w = op
     ///     .writer_with("path/to/file")
     ///     .content_type("text/plain")
@@ -1060,9 +1139,25 @@ impl Operator {
     ///
     /// ## `content_disposition`
     ///
-    /// Set the `content_disposition` for this `write` request.
+    /// Sets Content-Disposition header for this write request.
     ///
-    /// Some storage services support setting `content_disposition` as system metadata.
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_disposition`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Disposition as system metadata on the target file
+    /// - The value should follow HTTP Content-Disposition header format
+    /// - Common values include:
+    ///   - `inline` - Content displayed within browser
+    ///   - `attachment` - Content downloaded as file
+    ///   - `attachment; filename="example.jpg"` - Downloaded with specified filename
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling how the content should be displayed or downloaded.
+    ///
+    /// ### Example
     ///
     /// ```
     /// # use opendal::Result;
@@ -1075,27 +1170,6 @@ impl Operator {
     /// let mut w = op
     ///     .writer_with("path/to/file")
     ///     .content_disposition("attachment; filename=\"filename.jpg\"")
-    ///     .await?;
-    /// w.write(vec![0; 4096]).await?;
-    /// w.write(vec![1; 4096]).await?;
-    /// w.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op
-    ///     .writer_with("path/to/file")
-    ///     .content_type("application/octet-stream")
     ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
@@ -1136,27 +1210,35 @@ impl Operator {
     ///
     /// ## Streaming Write
     ///
-    /// This function will write all bytes at once. For more precise memory control or
-    /// writing data lazily, please use [`Operator::writer_with`].
+    /// This method performs a single bulk write operation for all bytes. For finer-grained
+    /// memory control or lazy writing, consider using [`Operator::writer_with`] instead.
     ///
-    /// ## Multipart Uploads Write
+    /// ## Multipart Uploads
     ///
-    /// OpenDAL abstracts the multipart uploads into [`Writer`]. It will automatically
-    /// handle the multipart uploads for you. You can control the behavior of multipart uploads
-    /// by setting `chunk`, `concurrent` via [`Operator::writer_with`]
+    /// OpenDAL handles multipart uploads through the [`Writer`] abstraction, managing all
+    /// the upload details automatically. You can customize the upload behavior by configuring
+    /// `chunk` size and `concurrent` operations via [`Operator::writer_with`].
     ///
-    /// # Options
+    /// # Usages
     ///
     /// ## `append`
     ///
-    /// Set `append` for this `write` request.
+    /// Sets `append` mode for this write request.
     ///
-    /// `write` by default to overwrite existing files. To append to the end of file instead,
-    /// please set `append` to true.
+    /// ### Capability
     ///
-    /// The following example will append data to existing file instead.
+    /// Check [`Capability::write_with_append`] before using this feature.
     ///
-    /// ```
+    /// ### Behavior
+    ///
+    /// - If append is true, data will be appended to the end of existing file
+    /// - If append is false (default), existing file will be overwritten
+    ///
+    /// This operation allows appending data to existing files instead of overwriting them.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
@@ -1170,11 +1252,30 @@ impl Operator {
     ///
     /// ## `cache_control`
     ///
-    /// Set the `cache_control` for this `write` request.
+    /// Sets `Cache-Control` header for this write request.
     ///
-    /// Some storage services support setting `cache_control` as system metadata.
+    /// ### Capability
     ///
-    /// ```
+    /// Check [`Capability::write_with_cache_control`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Cache-Control as system metadata on the target file
+    /// - The value should follow HTTP Cache-Control header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling caching behavior for the written content.
+    ///
+    /// ## Use Cases
+    ///
+    /// - Setting browser cache duration
+    /// - Configuring CDN behavior
+    /// - Optimizing content delivery
+    /// - Managing cache invalidation
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
@@ -1191,11 +1292,23 @@ impl Operator {
     ///
     /// ## `content_type`
     ///
-    /// Set the `content_type` for this `write` request.
+    /// Sets Content-Type header for this write request.
     ///
-    /// Some storage services support setting `content_type` as system metadata.
+    /// ### Capability
     ///
-    /// ```
+    /// Check [`Capability::write_with_content_type`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Type as system metadata on the target file
+    /// - The value should follow MIME type format (e.g. "text/plain", "image/jpeg")
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the media type of the content being written.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
@@ -1212,11 +1325,27 @@ impl Operator {
     ///
     /// ## `content_disposition`
     ///
-    /// Set the `content_disposition` for this `write` request.
+    /// Sets Content-Disposition header for this write request.
     ///
-    /// Some storage services support setting `content_disposition` as system metadata.
+    /// ### Capability
     ///
-    /// ```
+    /// Check [`Capability::write_with_content_disposition`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Disposition as system metadata on the target file
+    /// - The value should follow HTTP Content-Disposition header format
+    /// - Common values include:
+    ///   - `inline` - Content displayed within browser
+    ///   - `attachment` - Content downloaded as file
+    ///   - `attachment; filename="example.jpg"` - Downloaded with specified filename
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling how the content should be displayed or downloaded.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
@@ -1233,40 +1362,60 @@ impl Operator {
     ///
     /// ## `if_none_match`
     ///
-    /// Set `if_none_match` for this `write` request.
+    /// Sets an `if none match` condition with specified ETag for this write request.
     ///
-    /// This feature can be used to check if the file already exists.
-    /// This prevents overwriting of existing objects with identical key names.
-    /// Users can use *(asterisk) to verify if a file already exists by matching with any ETag.
-    /// Note: S3 only support use *(asterisk).
+    /// ### Capability
     ///
-    /// If file exists, an error with kind [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// Check [`Capability::write_with_if_none_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If the target file's ETag equals the specified one, returns [`ErrorKind::ConditionNotMatch`]
+    /// - If the target file's ETag differs from the specified one, proceeds with the write operation
+    ///
+    /// This operation will succeed when the target's ETag is different from the specified one,
+    /// providing a way for concurrency control.
+    ///
+    /// ### Example
     ///
     /// ```no_run
     /// # use opendal::{ErrorKind, Result};
     /// use opendal::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let res = op.write_with("path/to/file", bs).if_none_match("*").await;
+    /// let res = op.write_with("path/to/file", bs).if_none_match(etag).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())
     /// # }
     /// ```
     ///
-    /// # Examples
+    /// ## `if_not_exists`
     ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
+    /// Sets an `if not exists` condition for this write request.
     ///
-    /// # async fn test(op: Operator) -> Result<()> {
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_not_exists`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If the target file exists, returns [`ErrorKind::ConditionNotMatch`]
+    /// - If the target file doesn't exist, proceeds with the write operation
+    ///
+    /// This operation provides atomic file creation that is concurrency-safe.
+    /// Only one write operation will succeed while others will fail.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let _ = op
-    ///     .write_with("path/to/file", bs)
-    ///     .content_type("text/plain")
-    ///     .await?;
+    /// let res = op.write_with("path/to/file", bs).if_not_exists(true).await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())
     /// # }
     /// ```
@@ -1527,11 +1676,6 @@ impl Operator {
     /// In order to avoid this, you can use [`Operator::lister`] to list entries in
     /// a streaming way.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// The only metadata that is guaranteed to be available is the `Mode`.
-    /// For fetching more metadata, please use [`Operator::list_with`] and `metakey`.
-    ///
     /// # Examples
     ///
     /// ## List entries under a dir
@@ -1541,7 +1685,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/").await?;
@@ -1571,7 +1714,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/prefix").await?;
@@ -1644,51 +1786,6 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `metakey`
-    ///
-    /// Specify the metadata that required to be fetched in entries.
-    ///
-    /// If `metakey` is not set, we will fetch only the entry's `mode`. Otherwise, we will retrieve
-    /// the required metadata from storage services. Even if `metakey` is specified, the metadata
-    /// may still be `None`, indicating that the storage service does not supply this information.
-    ///
-    /// Some storage services like `s3` could return more metadata like `content-length` and
-    /// `last-modified`. By using `metakey`, we can fetch those metadata without an extra `stat` call.
-    /// Please pick up the metadata you need to reduce the extra `stat` cost.
-    ///
-    /// This example shows how to list entries with `content-length` and `last-modified` metadata:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op
-    ///     .list_with("dir/")
-    ///     // Make sure content-length and last-modified been fetched.
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// for entry in entries {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// # Examples
     ///
     /// ## List all entries recursively
@@ -1698,7 +1795,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/dir/").recursive(true).await?;
@@ -1724,7 +1820,6 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/prefix").recursive(true).await?;
@@ -1770,11 +1865,6 @@ impl Operator {
     /// all entries recursively, use [`Operator::lister_with`] and `recursive(true)`
     /// instead.
     ///
-    /// ## Reuse Metadata
-    ///
-    /// The only metadata that is guaranteed to be available is the `Mode`.
-    /// For fetching more metadata, please use [`Operator::lister_with`] and `metakey`.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -1782,7 +1872,6 @@ impl Operator {
     /// # use futures::io;
     /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/").await?;
@@ -1847,52 +1936,6 @@ impl Operator {
     /// # }
     /// ```
     ///
-    /// ## `metakey`
-    ///
-    /// Specify the metadata that required to be fetched in entries.
-    ///
-    /// If `metakey` is not set, we will fetch only the entry's `mode`. Otherwise, we will retrieve
-    /// the required metadata from storage services. Even if `metakey` is specified, the metadata
-    /// may still be `None`, indicating that the storage service does not supply this information.
-    ///
-    /// Some storage services like `s3` could return more metadata like `content-length` and
-    /// `last-modified`. By using `metakey`, we can fetch those metadata without an extra `stat` call.
-    /// Please pick up the metadata you need to reduce the extra `stat` cost.
-    ///
-    /// This example shows how to list entries with `content-length` and `last-modified` metadata:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut lister = op
-    ///     .lister_with("dir/")
-    ///     // Make sure content-length and last-modified been fetched.
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// while let Some(mut entry) = lister.try_next().await? {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// # Examples
     ///
     /// ## List all files recursively
@@ -1901,7 +1944,6 @@ impl Operator {
     /// # use anyhow::Result;
     /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
-    /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
@@ -1909,40 +1951,6 @@ impl Operator {
     ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file {}", entry.path())
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## List files with required metadata
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op
-    ///     .lister_with("path/to/dir/")
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// while let Some(mut entry) = ds.try_next().await? {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir {}", entry.path())

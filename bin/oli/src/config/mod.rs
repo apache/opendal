@@ -30,7 +30,6 @@ use opendal::services;
 use opendal::Operator;
 use opendal::Scheme;
 use serde::Deserialize;
-use toml;
 use url::Url;
 
 #[derive(Deserialize, Default)]

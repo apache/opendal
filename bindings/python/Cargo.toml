@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.45.10"
+version = "0.45.12"
 
 [features]
 default = [
@@ -69,8 +69,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
-  # Workaround for https://github.com/apache/opendal/issues/5000
-  # "services-mysql",
+  "services-mysql",
   "services-redb",
   "services-redis",
   # FIXME how to support rocksdb services in bindings?
@@ -162,8 +161,8 @@ futures = "0.3.28"
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.21.2", features = ["abi3", "abi3-py311"] }
-pyo3-asyncio = { package = "pyo3-asyncio-0-21", version = "0.21", features = [
+pyo3 = { version = "0.22.5", features = ["abi3", "abi3-py311"] }
+pyo3-async-runtimes = { version = "0.22.0", features = [
   "tokio-runtime",
 ] }
 tokio = "1"

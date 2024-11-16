@@ -226,13 +226,16 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Mongodb,
             &format!("{}/{}", self.database, self.collection),
             Capability {
                 read: true,
                 write: true,
+                shared: true,
                 ..Default::default()
             },
         )

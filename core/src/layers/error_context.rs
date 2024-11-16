@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use futures::TryFutureExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -47,14 +45,14 @@ impl<A: Access> Layer<A> for ErrorContextLayer {
     type LayeredAccess = ErrorContextAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let meta = inner.info();
-        ErrorContextAccessor { meta, inner }
+        let info = inner.info();
+        ErrorContextAccessor { info, inner }
     }
 }
 
 /// Provide error context wrapper for backend.
 pub struct ErrorContextAccessor<A: Access> {
-    meta: Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
     inner: A,
 }
 
@@ -77,132 +75,118 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> Arc<AccessorInfo> {
-        self.meta.clone()
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner
-            .create_dir(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::CreateDir)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.create_dir(path, args).await.map_err(|err| {
+            err.with_operation(Operation::CreateDir)
+                .with_context("service", self.info.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let range = args.range();
         self.inner
             .read(path, args)
-            .map_ok(|(rp, r)| {
+            .await
+            .map(|(rp, r)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), r)
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), r)
                         .with_range(range),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::Read)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
             })
-            .await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map_ok(|(rp, w)| {
+            .await
+            .map(|(rp, w)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), w),
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), w),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::Write)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
-            .await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner
-            .copy(from, to, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Copy)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("from", from)
-                    .with_context("to", to)
-            })
-            .await
+        self.inner.copy(from, to, args).await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.info.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner
-            .rename(from, to, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Rename)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("from", from)
-                    .with_context("to", to)
-            })
-            .await
+        self.inner.rename(from, to, args).await.map_err(|err| {
+            err.with_operation(Operation::Rename)
+                .with_context("service", self.info.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner
-            .stat(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Stat)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.stat(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Stat)
+                .with_context("service", self.info.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner
-            .delete(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::Delete)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
+        self.inner.delete(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Delete)
+                .with_context("service", self.info.scheme())
+                .with_context("path", path)
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map_ok(|(rp, p)| {
+            .await
+            .map(|(rp, p)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), p),
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), p),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::List)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
-            .await
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner
             .batch(args)
-            .map_ok(|v| {
+            .await
+            .map(|v| {
                 let res = v
                     .into_results()
                     .into_iter()
                     .map(|(path, res)| {
                         let res = res.map_err(|err| {
                             err.with_operation(Operation::Delete)
-                                .with_context("service", self.meta.scheme())
+                                .with_context("service", self.info.scheme())
                                 .with_context("path", &path)
                         });
                         (path, res)
@@ -213,15 +197,14 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             })
             .map_err(|err| {
                 err.with_operation(Operation::Batch)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
             })
-            .await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await.map_err(|err| {
             err.with_operation(Operation::Presign)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
     }
@@ -229,7 +212,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreateDir)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
     }
@@ -241,13 +224,13 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             .map(|(rp, os)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), os)
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os)
                         .with_range(range),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingRead)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
             })
@@ -259,12 +242,12 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             .map(|(rp, os)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), os),
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingWrite)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
     }
@@ -272,7 +255,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner.blocking_copy(from, to, args).map_err(|err| {
             err.with_operation(Operation::BlockingCopy)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("from", from)
                 .with_context("to", to)
         })
@@ -281,7 +264,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner.blocking_rename(from, to, args).map_err(|err| {
             err.with_operation(Operation::BlockingRename)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("from", from)
                 .with_context("to", to)
         })
@@ -290,7 +273,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingStat)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
     }
@@ -298,7 +281,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.blocking_delete(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingDelete)
-                .with_context("service", self.meta.scheme())
+                .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
     }
@@ -309,12 +292,12 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             .map(|(rp, os)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.meta.scheme(), path.to_string(), os),
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingList)
-                    .with_context("service", self.meta.scheme())
+                    .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
     }

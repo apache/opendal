@@ -258,6 +258,8 @@ impl Access for CosBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
+                // TODO: set this to false while version has been enabled.
+                write_with_if_not_exists: true,
                 // The min multipart size of COS is 1 MiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -281,6 +283,8 @@ impl Access for CosBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+
+                shared: true,
 
                 ..Default::default()
             });

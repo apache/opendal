@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -363,6 +364,9 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
+                write_with_user_metadata: true,
+                write_with_if_not_exists: true,
+
                 // The min multipart size of Gcs is 5 MiB.
                 //
                 // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
@@ -390,6 +394,8 @@ impl Access for GcsBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -423,6 +429,10 @@ impl Access for GcsBackend {
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        if !meta.metadata.is_empty() {
+            m.with_user_metadata(meta.metadata);
+        }
 
         Ok(RpStat::new(m))
     }
@@ -593,6 +603,10 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+    /// Custom metadata of this object.
+    ///
+    /// For example: `"metadata" : { "my-key": "my-value" }`
+    metadata: HashMap<String, String>,
 }
 
 #[cfg(test)]
@@ -618,7 +632,10 @@ mod tests {
   "etag": "CKWasoTgyPkCEAE=",
   "timeCreated": "2022-08-15T11:33:34.866Z",
   "updated": "2022-08-15T11:33:34.866Z",
-  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z",
+  "metadata" : {
+    "location" : "everywhere"
+  }
 }"#;
 
         let meta: GetObjectJsonResponse =
@@ -629,5 +646,9 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
+        assert_eq!(
+            meta.metadata,
+            HashMap::from_iter([("location".to_string(), "everywhere".to_string())])
+        );
     }
 }

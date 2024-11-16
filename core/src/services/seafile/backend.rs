@@ -232,6 +232,8 @@ impl Access for SeafileBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

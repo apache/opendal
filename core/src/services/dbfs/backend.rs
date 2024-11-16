@@ -163,6 +163,8 @@ impl Access for DbfsBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         am.into()

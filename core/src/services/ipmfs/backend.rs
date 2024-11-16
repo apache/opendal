@@ -82,6 +82,8 @@ impl Access for IpmfsBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

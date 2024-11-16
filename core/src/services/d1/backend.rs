@@ -270,6 +270,7 @@ impl kv::Adapter for Adapter {
                 // Cloudflare D1 supports 1MB as max in write_total.
                 // refer to https://developers.cloudflare.com/d1/platform/limits/
                 write_total_max_size: Some(1000 * 1000),
+                shared: true,
                 ..Default::default()
             },
         )

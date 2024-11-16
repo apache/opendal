@@ -128,6 +128,7 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.batch as jboolean),
             JValue::Bool(cap.batch_delete as jboolean),
             JValue::Long(convert::usize_to_jlong(cap.batch_max_operations)),
+            JValue::Bool(cap.shared as jboolean),
             JValue::Bool(cap.blocking as jboolean),
         ],
     )?;

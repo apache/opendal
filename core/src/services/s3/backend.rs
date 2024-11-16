@@ -959,6 +959,8 @@ impl Access for S3Backend {
                 batch: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
 
+                shared: true,
+
                 ..Default::default()
             });
 

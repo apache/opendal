@@ -231,6 +231,8 @@ impl Access for WebdavBackend {
                 list: true,
                 // We already support recursive list but some details still need to polish.
                 // list_with_recursive: true,
+                shared: true,
+
                 ..Default::default()
             });
 

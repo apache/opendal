@@ -539,6 +539,8 @@ impl Access for WebhdfsBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         am.into()

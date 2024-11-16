@@ -64,6 +64,9 @@ impl Access for GdriveBackend {
                 delete: true,
                 rename: true,
                 copy: true,
+
+                shared: true,
+
                 ..Default::default()
             });
 

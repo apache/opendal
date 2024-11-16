@@ -291,6 +291,8 @@ impl Access for ObsBackend {
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

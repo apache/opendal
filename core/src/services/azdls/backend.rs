@@ -242,6 +242,8 @@ impl Access for AzdlsBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

@@ -169,6 +169,8 @@ impl Access for AlluxioBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

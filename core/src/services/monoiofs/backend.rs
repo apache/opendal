@@ -121,6 +121,7 @@ impl Access for MonoiofsBackend {
                 rename: true,
                 create_dir: true,
                 copy: true,
+                shared: true,
                 ..Default::default()
             });
         am.into()

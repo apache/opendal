@@ -191,6 +191,8 @@ impl Access for FsBackend {
                 rename: true,
                 blocking: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

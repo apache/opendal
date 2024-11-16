@@ -34,8 +34,7 @@ crate-type = ["staticlib"]
 anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
-# cxx-async v0.1.1 in crates.io has build problems, so we use git repo directly
-cxx-async = { git = "https://github.com/pcwalton/cxx-async", rev = "961dd106b8eb2a86991728e1a18948e597426c1a", optional = true }
+cxx-async = { version = "0.1.2", optional = true }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features

@@ -105,6 +105,9 @@ pub struct Capability {
     /// The max operations that operator supports in batch.
     pub batch_max_operations: Option<usize>,
 
+    /// If operator supports shared.
+    pub shared: bool,
+
     /// If operator supports blocking.
     pub blocking: bool,
 }
@@ -147,6 +150,7 @@ impl Capability {
             batch: capability.batch,
             batch_delete: capability.batch_delete,
             batch_max_operations: capability.batch_max_operations,
+            shared: capability.shared,
             blocking: capability.blocking,
         }
     }

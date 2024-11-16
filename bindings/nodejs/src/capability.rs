@@ -245,6 +245,12 @@ impl Capability {
         self.0.batch_max_operations
     }
 
+    /// If operator supports shared.
+    #[napi(getter)]
+    pub fn shared(&self) -> bool {
+        self.0.shared
+    }
+
     /// If operator supports blocking.
     #[napi(getter)]
     pub fn blocking(&self) -> bool {

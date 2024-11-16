@@ -61,6 +61,8 @@ impl Access for VercelArtifactsBackend {
 
                 write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

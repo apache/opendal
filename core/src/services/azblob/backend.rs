@@ -537,6 +537,8 @@ impl Access for AzblobBackend {
                 batch_delete: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
 
+                shared: true,
+
                 ..Default::default()
             });
 

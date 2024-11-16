@@ -68,6 +68,8 @@ impl Access for DropboxBackend {
                 batch: true,
                 batch_delete: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         ma.into()

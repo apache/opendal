@@ -223,6 +223,8 @@ impl Access for UpyunBackend {
                 list: true,
                 list_with_limit: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

@@ -205,6 +205,9 @@ pub struct Capability {
     /// Maximum number of operations supported in a single batch.
     pub batch_max_operations: Option<usize>,
 
+    /// Indicate if the operator supports shared access.
+    pub shared: bool,
+
     /// Indicates if blocking operations are supported.
     pub blocking: bool,
 }
@@ -223,6 +226,9 @@ impl Debug for Capability {
         }
         if self.presign {
             f.write_str("| Presign")?;
+        }
+        if self.shared {
+            f.write_str("| Shared")?;
         }
         if self.blocking {
             f.write_str("| Blocking")?;

@@ -192,6 +192,8 @@ export class Capability {
   get batchDelete(): boolean
   /** The max operations that operator supports in batch. */
   get batchMaxOperations(): bigint | null
+  /** If operator supports shared. */
+  get shared(): boolean
   /** If operator supports blocking. */
   get blocking(): boolean
 }

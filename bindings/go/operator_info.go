@@ -240,6 +240,10 @@ func (c *Capability) BatchMaxOperations() uint {
 	return c.inner.batchMaxOperations
 }
 
+func (c *Capability) Shared() bool {
+	return c.inner.shared == 1
+}
+
 func (c *Capability) Blocking() bool {
 	return c.inner.blocking == 1
 }

@@ -97,7 +97,8 @@ define_accessors!(Capability, {
     batch: bool,
     batch_delete: bool,
     batch_max_operations: Option<usize>,
-    blocking: bool
+    shared: bool,
+    blocking: bool,
 });
 
 // includes class into the Ruby module

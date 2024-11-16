@@ -135,6 +135,9 @@ pub struct opendal_capability {
     /// If it is not set, this will be zero
     pub batch_max_operations: usize,
 
+    /// If operator supports shared.
+    pub shared: bool,
+
     /// If operator supports blocking.
     pub blocking: bool,
 }
@@ -263,6 +266,7 @@ impl From<core::Capability> for opendal_capability {
             batch: value.batch,
             batch_delete: value.batch_delete,
             batch_max_operations: value.batch_max_operations.unwrap_or(0),
+            shared: value.shared,
             blocking: value.blocking,
         }
     }

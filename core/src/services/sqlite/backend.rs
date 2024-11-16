@@ -233,6 +233,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 list: true,
+                shared: false,
                 ..Default::default()
             },
         )

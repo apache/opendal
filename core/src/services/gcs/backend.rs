@@ -395,6 +395,8 @@ impl Access for GcsBackend {
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         am.into()

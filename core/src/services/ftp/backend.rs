@@ -281,6 +281,8 @@ impl Access for FtpBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

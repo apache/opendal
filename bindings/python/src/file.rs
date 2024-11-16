@@ -350,6 +350,7 @@ impl AsyncFile {
 #[pymethods]
 impl AsyncFile {
     /// Read and return at most size bytes, or if size is not given, until EOF.
+    #[pyo3(signature = (size=None))]
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<PyAny>> {
         let state = self.0.clone();
 

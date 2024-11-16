@@ -17,17 +17,26 @@
 
 import pytest
 import pickle
+from random import randint
+from uuid import uuid4
+import os
 
 
-@pytest.mark.need_capability()
-def test_operator_pickle(service_name, operator, async_operator):
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete", "shared")
+async def test_operator_pickle(service_name, operator, async_operator):
     """
-    Test Operator's pickle serialization and deserialization.
+    Test AsyncOperator's pickle serialization and deserialization.
     """
-    serialized = pickle.dumps(operator)
-    deserialized = pickle.loads(serialized)
-    assert repr(operator) == repr(deserialized)
+
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    await async_operator.write(filename, content)
 
     serialized = pickle.dumps(async_operator)
+
     deserialized = pickle.loads(serialized)
-    assert repr(async_operator) == repr(deserialized)
+    assert await deserialized.read(filename) == content
+
+    await async_operator.delete(filename)

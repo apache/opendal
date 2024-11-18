@@ -174,7 +174,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self
             .config
             .delegation
-            .map(|dt| format!("delegation_token={dt}"));
+            .map(|dt| format!("delegation={dt}"));
 
         let client = HttpClient::new()?;
 

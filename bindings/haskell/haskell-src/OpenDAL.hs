@@ -17,14 +17,14 @@
 
 -- |
 -- Module      : OpenDAL
--- Description : Haskell bindings for OpenDAL
--- Copyright   : (c) 2023 OpenDAL
+-- Description : Haskell bindings for Apache OpenDAL
+-- Copyright   : (c) 2023 Apache OpenDAL
 -- License     : Apache-2.0
 -- Maintainer  : OpenDAL Contributors <dev@opendal.apache.org>"
 -- Stability   : experimental
 -- Portability : non - portable (GHC extensions)
 --
--- This module provides Haskell bindings for OpenDAL.
+-- This module provides Haskell bindings for Apache OpenDAL.
 module OpenDAL
   ( -- * Operator APIs
 

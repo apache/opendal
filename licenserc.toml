@@ -23,7 +23,11 @@ excludes = [
 
   # Well known generated files
   "**/Cargo.lock",
-  "**/yarn.lock",
+  "**/pnpm-lock.yaml",
+
+  # Generated files to list all dependencies
+  "**/DEPENDENCIES.*.tsv",
+  "**/DEPENDENCIES.*.csv",
 
   # Python binding related files
   "**/venv/**",
@@ -35,4 +39,8 @@ excludes = [
   # Documents
   "**/*.md",
   "**/*.mdx",
+
+  # Test files
+  "**/tests/data/**",
+  "**/fixtures/data/**",
 ]

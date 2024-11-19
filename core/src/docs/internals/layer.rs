@@ -20,23 +20,23 @@
 //! [`Layer`] itself is quite simple:
 //!
 //! ```ignore
-//! pub trait Layer<A: Accessor> {
-//!     type LayeredAccessor: Accessor;
+//! pub trait Layer<A: Access> {
+//!     type LayeredAccess: Accessor;
 //!
-//!     fn layer(&self, inner: A) -> Self::LayeredAccessor;
+//!     fn layer(&self, inner: A) -> Self::LayeredAccess;
 //! }
 //! ```
 //!
-//! `XxxLayer` will wrap input [`Accessor`] as inner and return a new [`Accessor`]. So normally the implementation of [`Layer`] will be split into two parts:
+//! `XxxLayer` will wrap input [`Access`] as inner and return a new [`Access`]. So normally the implementation of [`Layer`] will be split into two parts:
 //!
-//! - `XxxLayer` will implement [`Layer`] and return `XxxAccessor` as `Self::LayeredAccessor`.
-//! - `XxxAccessor` will implement [`Accessor`] and be built by `XxxLayer`.
+//! - `XxxLayer` will implement [`Layer`] and return `XxxAccessor` as `Self::LayeredAccess`.
+//! - `XxxAccessor` will implement [`Access`] and be built by `XxxLayer`.
 //!
-//! Most layer only implements part of [`Accessor`], so we provide
-//! [`LayeredAccessor`] which will forward all unimplemented methods to
-//! `inner`. It's highly recommend to implement [`LayeredAccessor`] trait
+//! Most layer only implements part of [`Access`], so we provide
+//! [`LayeredAccess`] which will forward all unimplemented methods to
+//! `inner`. It's highly recommend to implement [`LayeredAccess`] trait
 //! instead.
 //!
 //! [`Layer`]: crate::raw::Layer
-//! [`Accessor`]: crate::raw::Accessor
-//! [`LayeredAccessor`]: crate::raw::LayeredAccessor
+//! [`Access`]: crate::raw::Access
+//! [`LayeredAccess`]: crate::raw::LayeredAccess

@@ -16,6 +16,8 @@
 // under the License.
 
 use criterion::Criterion;
+use opendal::raw::tests::init_test_service;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Size;
@@ -23,15 +25,9 @@ use size::Size;
 use super::utils::*;
 
 pub fn bench(c: &mut Criterion) {
-    for case in services() {
-        if case.1.is_none() {
-            println!("{} not set, ignore", case.0);
-            continue;
-        }
-
-        let op = case.1.unwrap();
-
-        bench_write_once(c, case.0, op.clone());
+    if let Some(op) = init_test_service().unwrap() {
+        bench_write_once(c, op.info().scheme().into_static(), op.clone());
+        bench_write_with_concurrent(c, op.info().scheme().into_static(), op.clone());
     }
 }
 
@@ -55,13 +51,41 @@ fn bench_write_once(c: &mut Criterion, name: &str, op: Operator) {
             size.to_string(),
             &(op.clone(), &path, content.clone()),
             |b, (op, path, content)| {
-                b.to_async(&*TOKIO).iter(|| async {
+                b.to_async(&*TEST_RUNTIME).iter(|| async {
                     op.write(path, content.clone()).await.unwrap();
                 })
             },
         );
 
         std::mem::drop(temp_data);
+    }
+
+    group.finish()
+}
+
+fn bench_write_with_concurrent(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_write_with_concurrent"));
+
+    let mut rng = thread_rng();
+
+    for concurrent in [1, 2, 4, 8] {
+        let content = gen_bytes(&mut rng, 5 * 1024 * 1024);
+        let path = uuid::Uuid::new_v4().to_string();
+
+        group.throughput(criterion::Throughput::Bytes(16 * 5 * 1024 * 1024));
+        group.bench_with_input(
+            concurrent.to_string(),
+            &(op.clone(), &path, content.clone()),
+            |b, (op, path, content)| {
+                b.to_async(&*TEST_RUNTIME).iter(|| async {
+                    let mut w = op.writer_with(path).concurrent(concurrent).await.unwrap();
+                    for _ in 0..16 {
+                        w.write(content.clone()).await.unwrap();
+                    }
+                    w.close().await.unwrap();
+                })
+            },
+        );
     }
 
     group.finish()

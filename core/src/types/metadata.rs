@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use chrono::prelude::*;
-use flagset::flags;
-use flagset::FlagSet;
 
 use crate::raw::*;
 use crate::*;
@@ -31,9 +31,6 @@ use crate::*;
 /// a.k.a., `Entry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Metadata {
-    /// bit stores current key store.
-    bit: FlagSet<Metakey>,
-
     mode: EntryMode,
 
     cache_control: Option<String>,
@@ -45,21 +42,14 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
+
+    user_metadata: Option<HashMap<String, String>>,
 }
 
 impl Metadata {
     /// Create a new metadata
     pub fn new(mode: EntryMode) -> Self {
-        // Mode is required to be set for metadata.
-        let mut bit: FlagSet<Metakey> = Metakey::Mode.into();
-        // If mode is dir, we should always mark it as complete.
-        if mode.is_dir() {
-            bit |= Metakey::Complete
-        }
-
         Self {
-            bit,
-
             mode,
 
             cache_control: None,
@@ -71,39 +61,12 @@ impl Metadata {
             etag: None,
             content_disposition: None,
             version: None,
+            user_metadata: None,
         }
-    }
-
-    /// Get the bit from metadata.
-    pub(crate) fn bit(&self) -> FlagSet<Metakey> {
-        self.bit
-    }
-
-    /// Set bit with given.
-    pub(crate) fn with_bit(mut self, bit: impl Into<FlagSet<Metakey>>) -> Self {
-        self.bit = bit.into();
-        self
-    }
-
-    /// Check if there metadata already contains given bit.
-    pub(crate) fn contains_bit(&self, bit: impl Into<FlagSet<Metakey>>) -> bool {
-        let input_bit = bit.into();
-
-        // If meta already contains complete, we don't need to check.
-        if self.bit.contains(Metakey::Complete) {
-            return true;
-        }
-
-        self.bit.contains(input_bit)
     }
 
     /// mode represent this entry's mode.
     pub fn mode(&self) -> EntryMode {
-        debug_assert!(
-            self.bit.contains(Metakey::Mode) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: mode, maybe a bug"
-        );
-
         self.mode
     }
 
@@ -120,26 +83,22 @@ impl Metadata {
     /// Set mode for entry.
     pub fn set_mode(&mut self, v: EntryMode) -> &mut Self {
         self.mode = v;
-        self.bit |= Metakey::Mode;
         self
     }
 
     /// Set mode for entry.
     pub fn with_mode(mut self, v: EntryMode) -> Self {
         self.mode = v;
-        self.bit |= Metakey::Mode;
         self
     }
 
     /// Cache control of this entry.
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::CacheControl`], otherwise this method returns `None`.
     pub fn cache_control(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::CacheControl) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: cache_control, maybe a bug"
-        );
-
         self.cache_control.as_deref()
     }
 
@@ -149,7 +108,6 @@ impl Metadata {
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
     pub fn set_cache_control(&mut self, v: &str) -> &mut Self {
         self.cache_control = Some(v.to_string());
-        self.bit |= Metakey::CacheControl;
         self
     }
 
@@ -159,7 +117,6 @@ impl Metadata {
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
     pub fn with_cache_control(mut self, v: String) -> Self {
         self.cache_control = Some(v);
-        self.bit |= Metakey::CacheControl;
         self
     }
 
@@ -173,30 +130,18 @@ impl Metadata {
     /// This value is only available when calling on result of `stat` or `list` with
     /// [`Metakey::ContentLength`], otherwise it will panic.
     pub fn content_length(&self) -> u64 {
-        debug_assert!(
-            self.bit.contains(Metakey::ContentLength) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: content_length, maybe a bug"
-        );
-
         self.content_length.unwrap_or_default()
-    }
-
-    /// Fetch the raw content length.
-    pub(crate) fn content_length_raw(&self) -> Option<u64> {
-        self.content_length
     }
 
     /// Set content length of this entry.
     pub fn set_content_length(&mut self, v: u64) -> &mut Self {
         self.content_length = Some(v);
-        self.bit |= Metakey::ContentLength;
         self
     }
 
     /// Set content length of this entry.
     pub fn with_content_length(mut self, v: u64) -> Self {
         self.content_length = Some(v);
-        self.bit |= Metakey::ContentLength;
         self
     }
 
@@ -207,16 +152,9 @@ impl Metadata {
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentMd5`], otherwise it will panic.
+    /// [`Metakey::ContentMd5`], otherwise this method returns `None`.
     pub fn content_md5(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::ContentMd5) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: content_md5, maybe a bug"
-        );
-
         self.content_md5.as_deref()
     }
 
@@ -226,7 +164,6 @@ impl Metadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn set_content_md5(&mut self, v: &str) -> &mut Self {
         self.content_md5 = Some(v.to_string());
-        self.bit |= Metakey::ContentMd5;
         self
     }
 
@@ -236,7 +173,6 @@ impl Metadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn with_content_md5(mut self, v: String) -> Self {
         self.content_md5 = Some(v);
-        self.bit |= Metakey::ContentMd5;
         self
     }
 
@@ -244,16 +180,9 @@ impl Metadata {
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentType`], otherwise it will panic.
+    /// [`Metakey::ContentType`], otherwise this method returns `None`.
     pub fn content_type(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::ContentType) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: content_type, maybe a bug"
-        );
-
         self.content_type.as_deref()
     }
 
@@ -262,7 +191,6 @@ impl Metadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn set_content_type(&mut self, v: &str) -> &mut Self {
         self.content_type = Some(v.to_string());
-        self.bit |= Metakey::ContentType;
         self
     }
 
@@ -271,7 +199,6 @@ impl Metadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: String) -> Self {
         self.content_type = Some(v);
-        self.bit |= Metakey::ContentType;
         self
     }
 
@@ -279,16 +206,9 @@ impl Metadata {
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentRange`], otherwise it will panic.
+    /// [`Metakey::ContentRange`], otherwise this method returns `None`.
     pub fn content_range(&self) -> Option<BytesContentRange> {
-        debug_assert!(
-            self.bit.contains(Metakey::ContentRange) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: content_range, maybe a bug"
-        );
-
         self.content_range
     }
 
@@ -297,7 +217,6 @@ impl Metadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
         self.content_range = Some(v);
-        self.bit |= Metakey::ContentRange;
         self
     }
 
@@ -306,7 +225,6 @@ impl Metadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
         self.content_range = Some(v);
-        self.bit |= Metakey::ContentRange;
         self
     }
 
@@ -317,16 +235,9 @@ impl Metadata {
     ///
     /// OpenDAL parse the raw value into [`DateTime`] for convenient.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::LastModified`], otherwise it will panic.
+    /// [`Metakey::LastModified`], otherwise this method returns `None`.
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
-        debug_assert!(
-            self.bit.contains(Metakey::LastModified) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: last_modified, maybe a bug"
-        );
-
         self.last_modified
     }
 
@@ -336,7 +247,6 @@ impl Metadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn set_last_modified(&mut self, v: DateTime<Utc>) -> &mut Self {
         self.last_modified = Some(v);
-        self.bit |= Metakey::LastModified;
         self
     }
 
@@ -346,7 +256,6 @@ impl Metadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn with_last_modified(mut self, v: DateTime<Utc>) -> Self {
         self.last_modified = Some(v);
-        self.bit |= Metakey::LastModified;
         self
     }
 
@@ -362,16 +271,9 @@ impl Metadata {
     ///
     /// `"` is part of etag.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Etag`], otherwise it will panic.
+    /// [`Metakey::Etag`], otherwise this method returns `None`.
     pub fn etag(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::Etag) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: etag, maybe a bug"
-        );
-
         self.etag.as_deref()
     }
 
@@ -388,7 +290,6 @@ impl Metadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn set_etag(&mut self, v: &str) -> &mut Self {
         self.etag = Some(v.to_string());
-        self.bit |= Metakey::Etag;
         self
     }
 
@@ -405,7 +306,6 @@ impl Metadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn with_etag(mut self, v: String) -> Self {
         self.etag = Some(v);
-        self.bit |= Metakey::Etag;
         self
     }
 
@@ -421,16 +321,9 @@ impl Metadata {
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentDisposition`], otherwise it will panic.
+    /// [`Metakey::ContentDisposition`], otherwise this method returns `None`.
     pub fn content_disposition(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::ContentDisposition) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: content_disposition, maybe a bug"
-        );
-
         self.content_disposition.as_deref()
     }
 
@@ -447,7 +340,6 @@ impl Metadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn with_content_disposition(mut self, v: String) -> Self {
         self.content_disposition = Some(v);
-        self.bit |= Metakey::ContentDisposition;
         self
     }
 
@@ -464,7 +356,6 @@ impl Metadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn set_content_disposition(&mut self, v: &str) -> &mut Self {
         self.content_disposition = Some(v.to_string());
-        self.bit |= Metakey::ContentDisposition;
         self
     }
 
@@ -474,16 +365,9 @@ impl Metadata {
     ///
     /// This field may come out from the version control system, like object versioning in AWS S3.
     ///
-    /// # Panics
-    ///
     /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Version`], otherwise it will panic.
+    /// [`Metakey::Version`], otherwise this method returns `None`.
     pub fn version(&self) -> Option<&str> {
-        debug_assert!(
-            self.bit.contains(Metakey::Version) || self.bit.contains(Metakey::Complete),
-            "visiting not set metadata: version, maybe a bug"
-        );
-
         self.version.as_deref()
     }
 
@@ -494,7 +378,6 @@ impl Metadata {
     /// This field may come out from the version control system, like object versioning in AWS S3.
     pub fn with_version(mut self, v: String) -> Self {
         self.version = Some(v);
-        self.bit |= Metakey::Version;
         self
     }
 
@@ -505,49 +388,20 @@ impl Metadata {
     /// This field may come out from the version control system, like object versioning in AWS S3.
     pub fn set_version(&mut self, v: &str) -> &mut Self {
         self.version = Some(v.to_string());
-        self.bit |= Metakey::Version;
         self
     }
-}
 
-flags! {
-    /// Metakey describes the metadata keys that can be stored
-    /// or queried.
+    /// User defined metadata of this entry
     ///
-    /// ## For store
-    ///
-    /// Internally, we will store a flag set of Metakey to check
-    /// whether we have set some key already.
-    ///
-    /// ## For query
-    ///
-    /// At user side, we will allow user to query the metadata. If
-    /// the meta has been stored, we will return directly. If no, we will
-    /// call `stat` internally to fetch the metadata.
-    pub enum Metakey: u64 {
-        /// The special metadata key that used to mark this entry
-        /// already contains all metadata.
-        Complete,
+    /// The prefix of the user defined metadata key(for example: in oss, it's x-oss-meta-)
+    /// is remove from the key
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.user_metadata.as_ref()
+    }
 
-        /// Key for mode.
-        Mode,
-        /// Key for cache control.
-        CacheControl,
-        /// Key for content disposition.
-        ContentDisposition,
-        /// Key for content length.
-        ContentLength,
-        /// Key for content md5.
-        ContentMd5,
-        /// Key for content range.
-        ContentRange,
-        /// Key for content type.
-        ContentType,
-        /// Key for etag.
-        Etag,
-        /// Key for last last modified.
-        LastModified,
-        /// Key for version.
-        Version,
+    /// Set user defined metadata of this entry
+    pub fn with_user_metadata(&mut self, data: HashMap<String, String>) -> &mut Self {
+        self.user_metadata = Some(data);
+        self
     }
 }

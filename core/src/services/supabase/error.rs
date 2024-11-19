@@ -15,15 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde_json::from_slice;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -35,9 +34,9 @@ struct SupabaseError {
 }
 
 /// Parse the supabase error type to the OpenDAL error type
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
     // Check HTTP status code first/
     let (mut kind, mut retryable) = match parts.status.as_u16() {
@@ -53,7 +52,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         })
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -61,7 +60,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 // Return the error kind and whether it is retryable

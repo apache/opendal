@@ -15,32 +15,51 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
+use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
+
+#[derive(Default, Debug, Deserialize)]
+struct GdriveError {
+    error: GdriveInnerError,
+}
+
+#[derive(Default, Debug, Deserialize)]
+struct GdriveInnerError {
+    message: String,
+}
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
-    let (kind, retryable) = match parts.status {
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        | StatusCode::GATEWAY_TIMEOUT
+        // Gdrive sometimes return METHOD_NOT_ALLOWED for our requests for abuse detection.
+        | StatusCode::METHOD_NOT_ALLOWED => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = String::from_utf8_lossy(&bs);
+    let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
+        .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    let mut err = Error::new(kind, &message);
+    if let Some(gdrive_err) = gdrive_err {
+        (kind, retryable) =
+            parse_gdrive_error_code(gdrive_err.error.message.as_str()).unwrap_or((kind, retryable));
+    }
+
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -48,5 +67,15 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
+}
+
+pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
+    match message {
+        // > Please reduce your request rate.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
+        _ => None,
+    }
 }

@@ -24,7 +24,6 @@
 //! # use opendal::EntryMode;
 //! # use opendal::Operator;
 //! use opendal::ErrorKind;
-//! # #[tokio::main]
 //! # async fn test(op: Operator) -> Result<()> {
 //! if let Err(e) = op.stat("test_file").await {
 //!     if e.kind() == ErrorKind::NotFound {
@@ -35,6 +34,8 @@
 //! # }
 //! ```
 
+use std::backtrace::Backtrace;
+use std::backtrace::BacktraceStatus;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -42,7 +43,7 @@ use std::fmt::Formatter;
 use std::io;
 
 /// Result that is a wrapper of `Result<T, opendal::Error>`
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// ErrorKind is all kinds of Error of opendal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,28 +82,10 @@ pub enum ErrorKind {
     /// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
     /// So users could to handle this error by themselves.
     ConditionNotMatch,
-    /// The content is truncated.
+    /// The range of the content is not satisfied.
     ///
-    /// This error kind means there are more content to come but been truncated.
-    ///
-    /// For examples:
-    ///
-    /// - Users expected to read 1024 bytes, but service returned more bytes.
-    /// - Service expected to write 1024 bytes, but users write more bytes.
-    ContentTruncated,
-    /// The content is incomplete.
-    ///
-    /// This error kind means expect content length is not reached.
-    ///
-    /// For examples:
-    ///
-    /// - Users expected to read 1024 bytes, but service returned less bytes.
-    /// - Service expected to write 1024 bytes, but users write less bytes.
-    ContentIncomplete,
-    /// The input is invalid.
-    ///
-    /// For example, user try to seek to a negative position
-    InvalidInput,
+    /// OpenDAL returns this error to indicate that the range of the read request is not satisfied.
+    RangeNotSatisfied,
 }
 
 impl ErrorKind {
@@ -132,9 +115,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
-            ErrorKind::ContentTruncated => "ContentTruncated",
-            ErrorKind::ContentIncomplete => "ContentIncomplete",
-            ErrorKind::InvalidInput => "InvalidInput",
+            ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
         }
     }
 }
@@ -172,6 +153,65 @@ impl Display for ErrorStatus {
 }
 
 /// Error is the error struct returned by all opendal functions.
+///
+/// ## Display
+///
+/// Error can be displayed in two ways:
+///
+/// - Via `Display`: like `err.to_string()` or `format!("{err}")`
+///
+/// Error will be printed in a single line:
+///
+/// ```shell
+/// Unexpected, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"
+/// ```
+///
+/// - Via `Debug`: like `format!("{err:?}")`
+///
+/// Error will be printed in multi lines with more details and backtraces (if captured):
+///
+/// ```shell
+/// Unexpected => something wrong happened
+///
+/// Context:
+///    path: /path/to/file
+///    called: send_async
+///
+/// Source: networking error
+///
+/// Backtrace:
+///    0: opendal::error::Error::new
+///              at ./src/error.rs:197:24
+///    1: opendal::error::tests::generate_error
+///              at ./src/error.rs:241:9
+///    2: opendal::error::tests::test_error_debug_with_backtrace::{{closure}}
+///              at ./src/error.rs:305:41
+///    ...
+/// ```
+///
+/// - For conventional struct-style Debug representation, like `format!("{err:#?}")`:
+///
+/// ```shell
+/// Error {
+///     kind: Unexpected,
+///     message: "something wrong happened",
+///     status: Permanent,
+///     operation: "Read",
+///     context: [
+///         (
+///             "path",
+///             "/path/to/file",
+///         ),
+///         (
+///             "called",
+///             "send_async",
+///         ),
+///     ],
+///     source: Some(
+///         "networking error",
+///     ),
+/// }
+/// ```
 pub struct Error {
     kind: ErrorKind,
     message: String,
@@ -180,6 +220,7 @@ pub struct Error {
     operation: &'static str,
     context: Vec<(&'static str, String)>,
     source: Option<anyhow::Error>,
+    backtrace: Backtrace,
 }
 
 impl Display for Error {
@@ -236,12 +277,18 @@ impl Debug for Error {
             writeln!(f)?;
             writeln!(f, "Context:")?;
             for (k, v) in self.context.iter() {
-                writeln!(f, "    {k}: {v}")?;
+                writeln!(f, "   {k}: {v}")?;
             }
         }
         if let Some(source) = &self.source {
             writeln!(f)?;
-            writeln!(f, "Source: {source:?}")?;
+            writeln!(f, "Source:")?;
+            writeln!(f, "   {source:#}")?;
+        }
+        if self.backtrace.status() == BacktraceStatus::Captured {
+            writeln!(f)?;
+            writeln!(f, "Backtrace:")?;
+            writeln!(f, "{}", self.backtrace)?;
         }
 
         Ok(())
@@ -256,15 +303,18 @@ impl std::error::Error for Error {
 
 impl Error {
     /// Create a new Error with error kind and message.
-    pub fn new(kind: ErrorKind, message: &str) -> Self {
+    pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
-            message: message.to_string(),
+            message: message.into(),
 
             status: ErrorStatus::Permanent,
             operation: "",
             context: Vec::default(),
             source: None,
+            // `Backtrace::capture()` will check if backtrace has been enabled
+            // internally. It's zero cost if backtrace is disabled.
+            backtrace: Backtrace::capture(),
         }
     }
 
@@ -284,8 +334,8 @@ impl Error {
     }
 
     /// Add more context in error.
-    pub fn with_context(mut self, key: &'static str, value: impl Into<String>) -> Self {
-        self.context.push((key, value.into()));
+    pub fn with_context(mut self, key: &'static str, value: impl ToString) -> Self {
+        self.context.push((key, value.to_string()));
         self
     }
 
@@ -323,6 +373,16 @@ impl Error {
         self
     }
 
+    /// Set temporary status for error by given temporary.
+    ///
+    /// By set temporary, we indicate this error is retryable.
+    pub(crate) fn with_temporary(mut self, temporary: bool) -> Self {
+        if temporary {
+            self.status = ErrorStatus::Temporary;
+        }
+        self
+    }
+
     /// Set persistent status for error.
     ///
     /// By setting persistent, we indicate the retry should be stopped.
@@ -347,7 +407,6 @@ impl From<Error> for io::Error {
         let kind = match err.kind() {
             ErrorKind::NotFound => io::ErrorKind::NotFound,
             ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
-            ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
             _ => io::ErrorKind::Other,
         };
 
@@ -359,6 +418,7 @@ impl From<Error> for io::Error {
 mod tests {
     use anyhow::anyhow;
     use once_cell::sync::Lazy;
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -372,6 +432,7 @@ mod tests {
             ("called", "send_async".to_string()),
         ],
         source: Some(anyhow!("networking error")),
+        backtrace: Backtrace::disabled(),
     });
 
     #[test]
@@ -380,7 +441,8 @@ mod tests {
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"#
-        )
+        );
+        println!("{:#?}", Lazy::force(&TEST_ERROR));
     }
 
     #[test]
@@ -391,10 +453,11 @@ mod tests {
             r#"Unexpected (permanent) at Read => something wrong happened
 
 Context:
-    path: /path/to/file
-    called: send_async
+   path: /path/to/file
+   called: send_async
 
-Source: networking error
+Source:
+   networking error
 "#
         )
     }

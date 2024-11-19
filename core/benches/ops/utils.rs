@@ -15,53 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::env;
-
 use bytes::Bytes;
-use once_cell::sync::Lazy;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::*;
 use rand::prelude::*;
-
-pub static TOKIO: Lazy<tokio::runtime::Runtime> =
-    Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
-
-fn service<AB: Builder>() -> Option<Operator> {
-    let test_key = format!("opendal_{}_test", AB::SCHEME).to_uppercase();
-    if env::var(test_key).unwrap_or_default() != "on" {
-        return None;
-    }
-
-    let prefix = format!("opendal_{}_", AB::SCHEME);
-    let envs = env::vars()
-        .filter_map(move |(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        })
-        .collect();
-
-    Some(
-        Operator::from_map::<AB>(envs)
-            .unwrap_or_else(|_| panic!("init {} must succeed", AB::SCHEME))
-            .finish(),
-    )
-}
-
-pub fn services() -> Vec<(&'static str, Option<Operator>)> {
-    let _ = dotenvy::dotenv();
-
-    vec![
-        ("fs", service::<services::Fs>()),
-        ("s3", service::<services::S3>()),
-        ("memory", service::<services::Memory>()),
-        #[cfg(feature = "services-mini-moka")]
-        ("mini-moka", service::<services::MiniMoka>()),
-        #[cfg(feature = "services-moka")]
-        ("moka", service::<services::Moka>()),
-        #[cfg(feature = "services-redis")]
-        ("redis", service::<services::Redis>()),
-    ]
-}
 
 pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Bytes {
     let mut content = vec![0; size];
@@ -84,7 +41,7 @@ impl TempData {
     }
 
     pub fn generate(op: Operator, path: &str, content: Bytes) -> Self {
-        TOKIO.block_on(async { op.write(path, content).await.expect("create test data") });
+        TEST_RUNTIME.block_on(async { op.write(path, content).await.expect("create test data") });
 
         Self {
             op,
@@ -95,7 +52,7 @@ impl TempData {
 
 impl Drop for TempData {
     fn drop(&mut self) {
-        TOKIO.block_on(async {
+        TEST_RUNTIME.block_on(async {
             self.op.delete(&self.path).await.expect("cleanup test data");
         })
     }

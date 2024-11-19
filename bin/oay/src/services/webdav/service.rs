@@ -23,21 +23,21 @@ use axum::http::Request;
 use axum::routing::any_service;
 use axum::Router;
 use dav_server::DavHandler;
+use dav_server_opendalfs::OpendalFs;
 use opendal::Operator;
 
-use super::webdavfs::WebdavFs;
 use crate::Config;
 
 pub struct WebdavService {
     cfg: Arc<Config>,
-    webdavfs: Box<WebdavFs>,
+    opendalfs: Box<OpendalFs>,
 }
 
 impl WebdavService {
     pub fn new(cfg: Arc<Config>, op: Operator) -> Self {
         Self {
             cfg,
-            webdavfs: WebdavFs::new(op),
+            opendalfs: OpendalFs::new(op),
         }
     }
 
@@ -45,7 +45,7 @@ impl WebdavService {
         let webdav_cfg = &self.cfg.frontends.webdav;
 
         let webdav_handler = DavHandler::builder()
-            .filesystem(self.webdavfs.clone())
+            .filesystem(self.opendalfs.clone())
             .build_handler();
 
         let webdav_service = tower::service_fn(move |req: Request<Body>| {
@@ -55,9 +55,10 @@ impl WebdavService {
 
         let app = Router::new().route("/*path", any_service(webdav_service));
 
-        axum::Server::bind(&webdav_cfg.addr.parse().unwrap())
-            .serve(app.into_make_service())
-            .await?;
+        let listener = tokio::net::TcpListener::bind(&webdav_cfg.addr)
+            .await
+            .unwrap();
+        axum::serve(listener, app.into_make_service()).await?;
 
         Ok(())
     }

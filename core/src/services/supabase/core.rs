@@ -84,8 +84,8 @@ impl SupabaseCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/{}/{}",
@@ -109,7 +109,7 @@ impl SupabaseCore {
         Ok(req)
     }
 
-    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/{}/{}",
@@ -119,7 +119,7 @@ impl SupabaseCore {
         );
 
         Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
@@ -127,7 +127,7 @@ impl SupabaseCore {
         &self,
         path: &str,
         _: BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/public/{}/{}",
@@ -138,14 +138,14 @@ impl SupabaseCore {
 
         let req = Request::get(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_auth_request(
         &self,
         path: &str,
         _: BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/authenticated/{}/{}",
@@ -156,10 +156,10 @@ impl SupabaseCore {
 
         let req = Request::get(&url);
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    pub fn supabase_head_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_head_object_public_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/public/{}/{}",
@@ -169,11 +169,11 @@ impl SupabaseCore {
         );
 
         Request::head(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub fn supabase_head_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_head_object_auth_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/authenticated/{}/{}",
@@ -183,14 +183,11 @@ impl SupabaseCore {
         );
 
         Request::head(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub fn supabase_get_object_info_public_request(
-        &self,
-        path: &str,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn supabase_get_object_info_public_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/info/public/{}/{}",
@@ -200,11 +197,11 @@ impl SupabaseCore {
         );
 
         Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/info/authenticated/{}/{}",
@@ -214,14 +211,14 @@ impl SupabaseCore {
         );
 
         Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 }
 
 // core utils
 impl SupabaseCore {
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.http_client.send(req).await
     }
 
@@ -229,17 +226,17 @@ impl SupabaseCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?
         } else {
             self.supabase_get_object_public_request(path, range)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        self.http_client.fetch(req).await
     }
 
-    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = if self.key.is_some() {
             self.supabase_head_object_auth_request(path)?
         } else {
@@ -249,10 +246,7 @@ impl SupabaseCore {
         self.send(req).await
     }
 
-    pub async fn supabase_get_object_info(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn supabase_get_object_info(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_info_auth_request(path)?
         } else {
@@ -262,7 +256,7 @@ impl SupabaseCore {
         self.send(req).await
     }
 
-    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
         self.send(req).await

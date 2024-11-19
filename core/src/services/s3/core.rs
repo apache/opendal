@@ -17,16 +17,23 @@
 
 use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::atomic;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Bytes;
+use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
@@ -41,7 +48,7 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
@@ -62,9 +69,13 @@ mod constants {
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
+    pub const X_AMZ_META_PREFIX: &str = "x-amz-meta-";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
+
+    pub const S3_QUERY_VERSION_ID: &str = "versionId";
 }
 
 pub struct S3Core {
@@ -78,12 +89,15 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
+    pub disable_stat_with_override: bool,
+    pub enable_versioning: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
+    pub credential_loaded: AtomicBool,
     pub client: HttpClient,
-    pub write_min_size: usize,
     pub batch_max_operations: usize,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
 impl Debug for S3Core {
@@ -101,23 +115,36 @@ impl S3Core {
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = self
             .loader
-            .load_credential(self.client.client())
+            .load_credential(GLOBAL_REQWEST_CLIENT.clone())
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else if self.allow_anonymous {
-            // If allow_anonymous has been set, we will not sign the request.
-            Ok(None)
-        } else {
-            // Mark this error as temporary since it could be caused by AWS STS.
-            Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "no valid credential found, please check configuration or try again",
-            )
-            .set_temporary())
+            // Update credential_loaded to true if we have load credential successfully.
+            self.credential_loaded
+                .store(true, atomic::Ordering::Relaxed);
+            return Ok(Some(cred));
         }
+
+        // If we have load credential before but failed to load this time, we should
+        // return error instead.
+        if self.credential_loaded.load(atomic::Ordering::Relaxed) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "credential was previously loaded successfully but has failed this time",
+            )
+            .set_temporary());
+        }
+
+        // Credential is empty and users allow anonymous access, we will not sign the request.
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "no valid credential found and anonymous access is not allowed",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
@@ -127,7 +154,19 @@ impl S3Core {
             return Ok(());
         };
 
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+        self.signer
+            .sign(req, &cred)
+            .map_err(new_request_sign_error)?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
@@ -139,11 +178,21 @@ impl S3Core {
 
         self.signer
             .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+            .map_err(new_request_sign_error)?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 
@@ -207,39 +256,102 @@ impl S3Core {
 
         req
     }
+    pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
+        match self.checksum_algorithm {
+            None => None,
+            Some(ChecksumAlgorithm::Crc32c) => {
+                let mut crc = 0u32;
+                body.clone()
+                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
+                Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
+            }
+        }
+    }
+    pub fn insert_checksum_header(
+        &self,
+        mut req: http::request::Builder,
+        checksum: &str,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            req = req.header(checksum_algorithm.to_header_name(), checksum);
+        }
+        req
+    }
+
+    pub fn insert_checksum_type_header(
+        &self,
+        mut req: http::request::Builder,
+    ) -> http::request::Builder {
+        if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
+            req = req.header("x-amz-checksum-algorithm", checksum_algorithm.to_string());
+        }
+        req
+    }
 }
 
 impl S3Core {
-    pub fn s3_head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_decode_path(version)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
 
         req = self.insert_sse_headers(req, false);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
 
-    pub fn s3_get_object_request(&self, path: &str, args: OpRead) -> Result<Request<AsyncBody>> {
+    pub fn s3_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
@@ -268,13 +380,19 @@ impl S3Core {
                 percent_encode_path(override_cache_control)
             ))
         }
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_decode_path(version)
+            ))
+        }
         if !query_args.is_empty() {
             url.push_str(&format!("?{}", query_args.join("&")));
         }
 
         let mut req = Request::get(&url);
 
-        let range = args.range();
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }
@@ -290,9 +408,7 @@ impl S3Core {
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -300,24 +416,23 @@ impl S3Core {
     pub async fn s3_get_object(
         &self,
         path: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, args)?;
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let mut req = self.s3_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn s3_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -325,19 +440,23 @@ impl S3Core {
         let mut req = Request::put(&url);
 
         if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
+            req = req.header(CONTENT_LENGTH, size.to_string())
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        if let Some(pos) = content_disposition {
+        if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
         }
 
         // Set storage class header
@@ -345,8 +464,21 @@ impl S3Core {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
+            }
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Calculate Checksum.
+        if let Some(checksum) = self.calculate_checksum(&body) {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -354,26 +486,35 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_head_object_request(path, if_none_match, if_match)?;
+    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
+        let mut req = self.s3_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        let mut query_args = Vec::new();
+
+        if let Some(version) = args.version() {
+            query_args.push(format!(
+                "{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -381,11 +522,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -434,8 +571,8 @@ impl S3Core {
         }
 
         let mut req = req
-            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
-            .body(AsyncBody::Empty)
+            .header(constants::X_AMZ_COPY_SOURCE, &source)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -450,7 +587,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}?list-type=2", self.endpoint);
@@ -483,7 +620,7 @@ impl S3Core {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -494,25 +631,23 @@ impl S3Core {
     pub async fn s3_initiate_multipart_upload(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::post(&url);
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        if let Some(content_disposition) = content_disposition {
+        if let Some(content_disposition) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, content_disposition)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
@@ -524,9 +659,10 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        // Set SSE headers.
+        let req = self.insert_checksum_type_header(req);
+
+        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -539,8 +675,9 @@ impl S3Core {
         upload_id: &str,
         part_number: usize,
         size: u64,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        body: Buffer,
+        checksum: Option<String>,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -558,6 +695,11 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
+        if let Some(checksum) = checksum {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -569,7 +711,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -592,7 +734,7 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -605,7 +747,7 @@ impl S3Core {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -616,16 +758,13 @@ impl S3Core {
         );
 
         let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn s3_delete_objects(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -648,7 +787,51 @@ impl S3Core {
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn s3_list_object_versions(
+        &self,
+        prefix: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        key_marker: &str,
+        version_id_marker: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, prefix);
+
+        let mut url = format!("{}?versions", self.endpoint);
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
+                .expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+        }
+
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+        }
+        if !key_marker.is_empty() {
+            write!(url, "&key-marker={}", percent_encode_path(key_marker))
+                .expect("write into string must succeed");
+        }
+        if !version_id_marker.is_empty() {
+            write!(
+                url,
+                "&version-id-marker={}",
+                percent_encode_path(version_id_marker)
+            )
+            .expect("write into string must succeed");
+        }
+
+        let mut req = Request::get(&url)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -693,7 +876,7 @@ pub struct CompleteMultipartUploadRequestPart {
     ///     etag: String,
     /// }
     ///
-    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
+    /// fn partial_escape<S>(s: &str, ser: S) -> Result<S::Ok, S::Error>
     /// where
     ///     S: serde::Serializer,
     /// {
@@ -706,6 +889,8 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
     pub etag: String,
+    #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
+    pub checksum_crc32c: Option<String>,
 }
 
 /// Request of DeleteObjects.
@@ -741,6 +926,85 @@ pub struct DeleteObjectsResultError {
     pub code: String,
     pub key: String,
     pub message: String,
+}
+
+/// Output of ListBucket/ListObjects.
+///
+/// ## Note
+///
+/// Use `Option` in `is_truncated` and `next_continuation_token` to make
+/// the behavior more clear so that we can be compatible to more s3 services.
+///
+/// And enable `serde(default)` so that we can keep going even when some field
+/// is not exist.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutput {
+    pub is_truncated: Option<bool>,
+    pub next_continuation_token: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub contents: Vec<ListObjectsOutputContent>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectsOutputContent {
+    pub key: String,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputCommonPrefix {
+    pub prefix: String,
+}
+
+/// Output of ListObjectVersions
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutput {
+    pub is_truncated: Option<bool>,
+    pub next_key_marker: Option<String>,
+    pub next_version_id_marker: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub version: Vec<ListObjectVersionsOutputVersion>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputVersion {
+    pub key: String,
+    pub version_id: String,
+    pub is_latest: bool,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+}
+
+pub enum ChecksumAlgorithm {
+    Crc32c,
+}
+impl ChecksumAlgorithm {
+    pub fn to_header_name(&self) -> HeaderName {
+        match self {
+            Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+        }
+    }
+}
+impl Display for ChecksumAlgorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Crc32c => "CRC32C",
+            }
+        )
+    }
 }
 
 #[cfg(test)]
@@ -779,14 +1043,17 @@ mod tests {
                 CompleteMultipartUploadRequestPart {
                     part_number: 1,
                     etag: "\"a54357aff0632cce46d942af68356b38\"".to_string(),
+                    ..Default::default()
                 },
                 CompleteMultipartUploadRequestPart {
                     part_number: 2,
                     etag: "\"0c78aef83f66abc1fa1e8477f296d394\"".to_string(),
+                    ..Default::default()
                 },
                 CompleteMultipartUploadRequestPart {
                     part_number: 3,
                     etag: "\"acbd18db4cc2f85cedef654fccc4a4d8\"".to_string(),
+                    ..Default::default()
                 },
             ],
         };
@@ -811,8 +1078,6 @@ mod tests {
             </CompleteMultipartUpload>"#
                 // Cleanup space and new line
                 .replace([' ', '\n'], "")
-                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
-                .replace('"', "&quot;")
         )
     }
 
@@ -873,5 +1138,170 @@ mod tests {
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
+    }
+
+    #[test]
+    fn test_parse_list_output() {
+        let bs = bytes::Bytes::from(
+            r#"<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>example-bucket</Name>
+  <Prefix>photos/2006/</Prefix>
+  <KeyCount>3</KeyCount>
+  <MaxKeys>1000</MaxKeys>
+  <Delimiter>/</Delimiter>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>photos/2006</Key>
+    <LastModified>2016-04-30T23:51:29.000Z</LastModified>
+    <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
+    <Size>56</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+  <Contents>
+    <Key>photos/2007</Key>
+    <LastModified>2016-04-30T23:51:29.000Z</LastModified>
+    <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
+    <Size>100</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+  <Contents>
+    <Key>photos/2008</Key>
+    <LastModified>2016-05-30T23:51:29.000Z</LastModified>
+    <Size>42</Size>
+  </Contents>
+
+  <CommonPrefixes>
+    <Prefix>photos/2006/February/</Prefix>
+  </CommonPrefixes>
+  <CommonPrefixes>
+    <Prefix>photos/2006/January/</Prefix>
+  </CommonPrefixes>
+</ListBucketResult>"#,
+        );
+
+        let out: ListObjectsOutput = quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert!(!out.is_truncated.unwrap());
+        assert!(out.next_continuation_token.is_none());
+        assert_eq!(
+            out.common_prefixes
+                .iter()
+                .map(|v| v.prefix.clone())
+                .collect::<Vec<String>>(),
+            vec!["photos/2006/February/", "photos/2006/January/"]
+        );
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "photos/2006".to_string(),
+                    size: 56,
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                },
+                ListObjectsOutputContent {
+                    key: "photos/2007".to_string(),
+                    size: 100,
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                },
+                ListObjectsOutputContent {
+                    key: "photos/2008".to_string(),
+                    size: 42,
+                    last_modified: "2016-05-30T23:51:29.000Z".to_string(),
+                    etag: None,
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn test_parse_list_object_versions() {
+        let bs = bytes::Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+                <ListVersionsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                <Name>mtp-versioning-fresh</Name>
+                <Prefix/>
+                <KeyMarker>key3</KeyMarker>
+                <VersionIdMarker>null</VersionIdMarker>
+                <NextKeyMarker>key3</NextKeyMarker>
+                <NextVersionIdMarker>d-d309mfjFrUmoQ0DBsVqmcMV15OI.</NextVersionIdMarker>
+                <MaxKeys>3</MaxKeys>
+                <IsTruncated>true</IsTruncated>
+                <Version>
+                    <Key>key3</Key>
+                    <VersionId>8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.</VersionId>
+                    <IsLatest>true</IsLatest>
+                    <LastModified>2009-12-09T00:18:23.000Z</LastModified>
+                    <ETag>"396fefef536d5ce46c7537ecf978a360"</ETag>
+                    <Size>217</Size>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                    </Owner>
+                    <StorageClass>STANDARD</StorageClass>
+                </Version>
+                <Version>
+                    <Key>key3</Key>
+                    <VersionId>d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.</VersionId>
+                    <IsLatest>false</IsLatest>
+                    <LastModified>2009-12-09T00:18:08.000Z</LastModified>
+                    <ETag>"396fefef536d5ce46c7537ecf978a360"</ETag>
+                    <Size>217</Size>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                    </Owner>
+                    <StorageClass>STANDARD</StorageClass>
+                </Version>
+                <CommonPrefixes>
+                    <Prefix>photos/</Prefix>
+                </CommonPrefixes>
+                <CommonPrefixes>
+                    <Prefix>videos/</Prefix>
+                </CommonPrefixes>
+                </ListVersionsResult>"#,
+        );
+
+        let output: ListObjectVersionsOutput =
+            quick_xml::de::from_reader(bs.reader()).expect("must succeed");
+
+        assert!(output.is_truncated.unwrap());
+        assert_eq!(output.next_key_marker, Some("key3".to_owned()));
+        assert_eq!(
+            output.next_version_id_marker,
+            Some("d-d309mfjFrUmoQ0DBsVqmcMV15OI.".to_owned())
+        );
+        assert_eq!(
+            output.common_prefixes,
+            vec![
+                OutputCommonPrefix {
+                    prefix: "photos/".to_owned()
+                },
+                OutputCommonPrefix {
+                    prefix: "videos/".to_owned()
+                }
+            ]
+        );
+
+        assert_eq!(
+            output.version,
+            vec![
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.".to_owned(),
+                    is_latest: true,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:23.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                },
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.".to_owned(),
+                    is_latest: false,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:08.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                }
+            ]
+        );
     }
 }

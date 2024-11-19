@@ -10,7 +10,6 @@ This service can be used to:
 - [x] copy
 - [x] rename
 - [ ] ~~list~~
-- [x] scan
 - [ ] ~~presign~~
 - [x] blocking
 
@@ -39,15 +38,15 @@ You can refer to [`RocksdbBuilder`]'s docs for more information.
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Rocksdb;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Rocksdb::default();
-    builder.datadir("/tmp/opendal/rocksdb");
+    let mut builder = Rocksdb::default()
+        .datadir("/tmp/opendal/rocksdb");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

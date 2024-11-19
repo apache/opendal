@@ -1,6 +1,8 @@
-# OpenDAL Haskell Binding (WIP)
+# Apache OpenDAL™ Haskell Binding (WIP)
 
-![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![](https://img.shields.io/badge/status-unreleased-red)
+
+![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Example
 
@@ -35,31 +37,28 @@ main = do
 
 ## Build
 
-1. Build OpenDAL Haskell Interface
-
 ```bash
-cargo build --package opendal-hs
-```
-
-2. Build Haskell binding
-
-If you don't want to install `libopendal_hs`, you need to specify library path manually by `LIBRARY_PATH=${OPENDAL_ROOT}/target/debug`.
-
-```bash
-LIBRARY_PATH=... cabal build
+cabal build
 ```
 
 ## Test
 
 ```bash
-LD_LIBRARY_PATH=... cabal test
+cabal test
 ```
 
 ## Doc
 
 To generate the documentation:
+
 ```bash
 cabal haddock
 ```
 
-If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-hs-$VERSION/doc/html/opendal-hs/index.html`.
+If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-$VERSION/doc/html/opendal/index.html`.
+
+## License and Trademarks
+
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

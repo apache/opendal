@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::IpmfsBackend;
@@ -36,34 +34,15 @@ impl IpmfsWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for IpmfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for IpmfsWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 - Proposal Name: `object_handler`
 - Start Date: 2022-12-19
-- RFC PR: [apache/incubator-opendal#1085](https://github.com/apache/incubator-opendal/pull/1085)
-- Tracking Issue: [apache/incubator-opendal#1085](https://github.com/apache/incubator-opendal/issues/1085)
+- RFC PR: [apache/opendal#1085](https://github.com/apache/opendal/pull/1085)
+- Tracking Issue: [apache/opendal#1085](https://github.com/apache/opendal/issues/1085)
 
 # Summary
 

@@ -28,28 +28,13 @@ use std::path::PathBuf;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use clap::value_parser;
-use clap::Arg;
-use clap::Command;
-use dirs::config_dir;
+use oli::commands::OliSubcommand;
 
-fn new_cmd(name: &'static str) -> Result<Command> {
-    let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
-    let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
-
-    Ok(Command::new(name)
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("config")
-                .long("config")
-                .help("Path to the config file")
-                .global(true)
-                .default_value(default_config_path)
-                .value_parser(value_parser!(PathBuf))
-                .required(false),
-        )
-        .subcommand_required(true)
-        .arg_required_else_help(true))
+#[derive(Debug, clap::Parser)]
+#[command(about, version)]
+pub struct Oli {
+    #[command(subcommand)]
+    subcommand: OliSubcommand,
 }
 
 #[tokio::main]
@@ -66,28 +51,28 @@ async fn main() -> Result<()> {
         .and_then(OsStr::to_str)
     {
         Some("oli") => {
-            let cmd = oli::commands::cli::cli(new_cmd("oli")?);
-            oli::commands::cli::main(&cmd.get_matches()).await?;
+            let cmd: Oli = clap::Parser::parse();
+            cmd.subcommand.run().await?;
         }
         Some("ocat") => {
-            let cmd = oli::commands::cat::cli(new_cmd("ocat")?);
-            oli::commands::cat::main(&cmd.get_matches()).await?;
+            let cmd: oli::commands::cat::CatCmd = clap::Parser::parse();
+            cmd.run().await?;
         }
         Some("ocp") => {
-            let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
-            oli::commands::cp::main(&cmd.get_matches()).await?;
+            let cmd: oli::commands::cp::CopyCmd = clap::Parser::parse();
+            cmd.run().await?;
         }
         Some("ols") => {
-            let cmd = oli::commands::ls::cli(new_cmd("ols")?);
-            oli::commands::ls::main(&cmd.get_matches()).await?;
+            let cmd: oli::commands::ls::LsCmd = clap::Parser::parse();
+            cmd.run().await?;
         }
         Some("orm") => {
-            let cmd = oli::commands::rm::cli(new_cmd("orm")?);
-            oli::commands::rm::main(&cmd.get_matches()).await?;
+            let cmd: oli::commands::rm::RmCmd = clap::Parser::parse();
+            cmd.run().await?;
         }
         Some("ostat") => {
-            let cmd = oli::commands::stat::cli(new_cmd("ostat")?);
-            oli::commands::stat::main(&cmd.get_matches()).await?;
+            let cmd: oli::commands::stat::StatCmd = clap::Parser::parse();
+            cmd.run().await?;
         }
         Some(v) => {
             println!("{v} is not supported")

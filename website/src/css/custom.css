@@ -92,3 +92,7 @@
 .footer__copyright {
   font-size: .7em;
 }
+
+.navbar__logo img {
+  height: 120%;
+}

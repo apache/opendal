@@ -17,6 +17,7 @@
 
 use http::Request;
 
+use crate::raw::*;
 use crate::*;
 
 /// Reply for `create_dir` operation
@@ -97,32 +98,58 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 }
 
 /// Reply for `read` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RpRead {
-    meta: Metadata,
+    /// Size is the size of the reader returned by this read operation.
+    ///
+    /// - `Some(size)` means the reader has at most size bytes.
+    /// - `None` means the reader has unknown size.
+    ///
+    /// It's ok to leave size as empty, but it's recommended to set size if possible. We will use
+    /// this size as hint to do some optimization like avoid an extra stat or read.
+    size: Option<u64>,
+    /// Range is the range of the reader returned by this read operation.
+    ///
+    /// - `Some(range)` means the reader's content range inside the whole file.
+    /// - `None` means the reader's content range is unknown.
+    ///
+    /// It's ok to leave range as empty, but it's recommended to set range if possible. We will use
+    /// this range as hint to do some optimization like avoid an extra stat or read.
+    range: Option<BytesContentRange>,
 }
 
 impl RpRead {
     /// Create a new reply for `read`.
-    pub fn new(content_length: u64) -> Self {
-        RpRead {
-            meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
-        }
+    pub fn new() -> Self {
+        RpRead::default()
     }
 
-    /// Create reply read with existing metadata.
-    pub fn with_metadata(meta: Metadata) -> Self {
-        RpRead { meta }
+    /// Got the size of the reader returned by this read operation.
+    ///
+    /// - `Some(size)` means the reader has at most size bytes.
+    /// - `None` means the reader has unknown size.
+    pub fn size(&self) -> Option<u64> {
+        self.size
     }
 
-    /// Get a ref of metadata.
-    pub fn metadata(&self) -> &Metadata {
-        &self.meta
+    /// Set the size of the reader returned by this read operation.
+    pub fn with_size(mut self, size: Option<u64>) -> Self {
+        self.size = size;
+        self
     }
 
-    /// Consume reply to get the meta.
-    pub fn into_metadata(self) -> Metadata {
-        self.meta
+    /// Got the range of the reader returned by this read operation.
+    ///
+    /// - `Some(range)` means the reader has content range inside the whole file.
+    /// - `None` means the reader has unknown size.
+    pub fn range(&self) -> Option<BytesContentRange> {
+        self.range
+    }
+
+    /// Set the range of the reader returned by this read operation.
+    pub fn with_range(mut self, range: Option<BytesContentRange>) -> Self {
+        self.range = range;
+        self
     }
 }
 
@@ -195,17 +222,6 @@ impl RpWrite {
     }
 }
 
-/// Reply for `append` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpAppend {}
-
-impl RpAppend {
-    /// Create a new reply for `append`.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 /// Reply for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct RpCopy {}
@@ -238,7 +254,6 @@ mod tests {
     use http::Uri;
 
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {
@@ -254,7 +269,7 @@ mod tests {
             },
         };
 
-        let req: Request<AsyncBody> = pr.into();
+        let req: Request<Buffer> = pr.into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
             "https://opendal.apache.org/path/to/file",

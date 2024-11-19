@@ -30,14 +30,9 @@ use crate::*;
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
 /// use opendal::Operator;
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
+///     let builder = Fs::default().root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
 ///     let op: Operator = Operator::new(builder)?.finish();
@@ -53,20 +48,15 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// Read more backend init examples in [examples](https://github.com/apache/incubator-opendal/tree/main/examples).
+    /// Read more backend init examples in [examples](https://github.com/apache/opendal/tree/main/examples).
     ///
     /// ```
     /// # use anyhow::Result;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     // Create fs backend builder.
-    ///     let mut builder = Fs::default();
-    ///     // Set the root for fs, all operations will happen under this root.
-    ///     //
-    ///     // NOTE: the root must be absolute path.
-    ///     builder.root("/tmp");
+    ///     let builder = Fs::default().root("/tmp");
     ///
     ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::new(builder)?.finish();
@@ -75,9 +65,245 @@ impl Operator {
     /// }
     /// ```
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
+    pub fn new<B: Builder>(ab: B) -> Result<OperatorBuilder<impl Access>> {
         let acc = ab.build()?;
         Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator from given config.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::services::MemoryConfig;
+    /// use opendal::Operator;
+    /// async fn test() -> Result<()> {
+    ///     let cfg = MemoryConfig::default();
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_config(cfg)?.finish();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_config<C: Configurator>(cfg: C) -> Result<OperatorBuilder<impl Access>> {
+        let builder = cfg.into_builder();
+        let acc = builder.build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator from given iterator in static dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `from_iter` generates a `OperatorBuilder` which allows adding layer in zero-cost way.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    /// async fn test() -> Result<()> {
+    ///     let map = HashMap::from([
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ]);
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_iter::<Fs>(map)?.finish();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_iter<B: Builder>(
+        iter: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<impl Access>> {
+        let builder = B::Config::from_iter(iter)?.into_builder();
+        let acc = builder.build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `via_iter` generates a `Operator` which allows building operator without generic type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::Operator;
+    /// use opendal::Scheme;
+    /// async fn test() -> Result<()> {
+    ///     let map = [
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ];
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::via_iter(Scheme::Fs, map)?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[allow(unused_variables, unreachable_code)]
+    pub fn via_iter(
+        scheme: Scheme,
+        iter: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Operator> {
+        let op = match scheme {
+            #[cfg(feature = "services-aliyun-drive")]
+            Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
+            #[cfg(feature = "services-atomicserver")]
+            Scheme::Atomicserver => Self::from_iter::<services::Atomicserver>(iter)?.finish(),
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
+            #[cfg(feature = "services-compfs")]
+            Scheme::Compfs => Self::from_iter::<services::Compfs>(iter)?.finish(),
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun => Self::from_iter::<services::Upyun>(iter)?.finish(),
+            #[cfg(feature = "services-koofr")]
+            Scheme::Koofr => Self::from_iter::<services::Koofr>(iter)?.finish(),
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk => Self::from_iter::<services::YandexDisk>(iter)?.finish(),
+            #[cfg(feature = "services-pcloud")]
+            Scheme::Pcloud => Self::from_iter::<services::Pcloud>(iter)?.finish(),
+            #[cfg(feature = "services-chainsafe")]
+            Scheme::Chainsafe => Self::from_iter::<services::Chainsafe>(iter)?.finish(),
+            #[cfg(feature = "services-azblob")]
+            Scheme::Azblob => Self::from_iter::<services::Azblob>(iter)?.finish(),
+            #[cfg(feature = "services-azdls")]
+            Scheme::Azdls => Self::from_iter::<services::Azdls>(iter)?.finish(),
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile => Self::from_iter::<services::Azfile>(iter)?.finish(),
+            #[cfg(feature = "services-b2")]
+            Scheme::B2 => Self::from_iter::<services::B2>(iter)?.finish(),
+            #[cfg(feature = "services-cacache")]
+            Scheme::Cacache => Self::from_iter::<services::Cacache>(iter)?.finish(),
+            #[cfg(feature = "services-cos")]
+            Scheme::Cos => Self::from_iter::<services::Cos>(iter)?.finish(),
+            #[cfg(feature = "services-d1")]
+            Scheme::D1 => Self::from_iter::<services::D1>(iter)?.finish(),
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap => Self::from_iter::<services::Dashmap>(iter)?.finish(),
+            #[cfg(feature = "services-dropbox")]
+            Scheme::Dropbox => Self::from_iter::<services::Dropbox>(iter)?.finish(),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Self::from_iter::<services::Etcd>(iter)?.finish(),
+            #[cfg(feature = "services-foundationdb")]
+            Scheme::Foundationdb => Self::from_iter::<services::Foundationdb>(iter)?.finish(),
+            #[cfg(feature = "services-fs")]
+            Scheme::Fs => Self::from_iter::<services::Fs>(iter)?.finish(),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => Self::from_iter::<services::Ftp>(iter)?.finish(),
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs => Self::from_iter::<services::Gcs>(iter)?.finish(),
+            #[cfg(feature = "services-ghac")]
+            Scheme::Ghac => Self::from_iter::<services::Ghac>(iter)?.finish(),
+            #[cfg(feature = "services-gridfs")]
+            Scheme::Gridfs => Self::from_iter::<services::Gridfs>(iter)?.finish(),
+            #[cfg(feature = "services-github")]
+            Scheme::Github => Self::from_iter::<services::Github>(iter)?.finish(),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => Self::from_iter::<services::Hdfs>(iter)?.finish(),
+            #[cfg(feature = "services-http")]
+            Scheme::Http => Self::from_iter::<services::Http>(iter)?.finish(),
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface => Self::from_iter::<services::Huggingface>(iter)?.finish(),
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs => Self::from_iter::<services::Ipfs>(iter)?.finish(),
+            #[cfg(feature = "services-ipmfs")]
+            Scheme::Ipmfs => Self::from_iter::<services::Ipmfs>(iter)?.finish(),
+            #[cfg(feature = "services-icloud")]
+            Scheme::Icloud => Self::from_iter::<services::Icloud>(iter)?.finish(),
+            #[cfg(feature = "services-libsql")]
+            Scheme::Libsql => Self::from_iter::<services::Libsql>(iter)?.finish(),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => Self::from_iter::<services::Memcached>(iter)?.finish(),
+            #[cfg(feature = "services-memory")]
+            Scheme::Memory => Self::from_iter::<services::Memory>(iter)?.finish(),
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka => Self::from_iter::<services::MiniMoka>(iter)?.finish(),
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => Self::from_iter::<services::Moka>(iter)?.finish(),
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs => Self::from_iter::<services::Monoiofs>(iter)?.finish(),
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql => Self::from_iter::<services::Mysql>(iter)?.finish(),
+            #[cfg(feature = "services-obs")]
+            Scheme::Obs => Self::from_iter::<services::Obs>(iter)?.finish(),
+            #[cfg(feature = "services-onedrive")]
+            Scheme::Onedrive => Self::from_iter::<services::Onedrive>(iter)?.finish(),
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql => Self::from_iter::<services::Postgresql>(iter)?.finish(),
+            #[cfg(feature = "services-gdrive")]
+            Scheme::Gdrive => Self::from_iter::<services::Gdrive>(iter)?.finish(),
+            #[cfg(feature = "services-oss")]
+            Scheme::Oss => Self::from_iter::<services::Oss>(iter)?.finish(),
+            #[cfg(feature = "services-persy")]
+            Scheme::Persy => Self::from_iter::<services::Persy>(iter)?.finish(),
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => Self::from_iter::<services::Redis>(iter)?.finish(),
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb => Self::from_iter::<services::Rocksdb>(iter)?.finish(),
+            #[cfg(feature = "services-s3")]
+            Scheme::S3 => Self::from_iter::<services::S3>(iter)?.finish(),
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile => Self::from_iter::<services::Seafile>(iter)?.finish(),
+            #[cfg(feature = "services-sftp")]
+            Scheme::Sftp => Self::from_iter::<services::Sftp>(iter)?.finish(),
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled => Self::from_iter::<services::Sled>(iter)?.finish(),
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite => Self::from_iter::<services::Sqlite>(iter)?.finish(),
+            #[cfg(feature = "services-supabase")]
+            Scheme::Supabase => Self::from_iter::<services::Supabase>(iter)?.finish(),
+            #[cfg(feature = "services-swift")]
+            Scheme::Swift => Self::from_iter::<services::Swift>(iter)?.finish(),
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv => Self::from_iter::<services::Tikv>(iter)?.finish(),
+            #[cfg(feature = "services-vercel-artifacts")]
+            Scheme::VercelArtifacts => Self::from_iter::<services::VercelArtifacts>(iter)?.finish(),
+            #[cfg(feature = "services-vercel-blob")]
+            Scheme::VercelBlob => Self::from_iter::<services::VercelBlob>(iter)?.finish(),
+            #[cfg(feature = "services-webdav")]
+            Scheme::Webdav => Self::from_iter::<services::Webdav>(iter)?.finish(),
+            #[cfg(feature = "services-webhdfs")]
+            Scheme::Webhdfs => Self::from_iter::<services::Webhdfs>(iter)?.finish(),
+            #[cfg(feature = "services-redb")]
+            Scheme::Redb => Self::from_iter::<services::Redb>(iter)?.finish(),
+            #[cfg(feature = "services-mongodb")]
+            Scheme::Mongodb => Self::from_iter::<services::Mongodb>(iter)?.finish(),
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative => Self::from_iter::<services::HdfsNative>(iter)?.finish(),
+            #[cfg(feature = "services-lakefs")]
+            Scheme::Lakefs => Self::from_iter::<services::Lakefs>(iter)?.finish(),
+            #[cfg(feature = "services-nebula-graph")]
+            Scheme::NebulaGraph => Self::from_iter::<services::NebulaGraph>(iter)?.finish(),
+            v => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "scheme is not enabled or supported",
+                )
+                .with_context("scheme", v))
+            }
+        };
+
+        Ok(op)
     }
 
     /// Create a new operator from given map.
@@ -97,8 +323,7 @@ impl Operator {
     ///
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     let map = HashMap::from([
     ///         // Set the root for fs, all operations will happen under this root.
     ///         //
@@ -112,11 +337,11 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated = "use from_iter instead"]
     pub fn from_map<B: Builder>(
         map: HashMap<String, String>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_map(map).build()?;
-        Ok(OperatorBuilder::new(acc))
+    ) -> Result<OperatorBuilder<impl Access>> {
+        Self::from_iter::<B>(map)
     }
 
     /// Create a new operator from given scheme and map.
@@ -136,8 +361,7 @@ impl Operator {
     ///
     /// use opendal::Operator;
     /// use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
+    /// async fn test() -> Result<()> {
     ///     let map = HashMap::from([
     ///         // Set the root for fs, all operations will happen under this root.
     ///         //
@@ -151,88 +375,9 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated = "use via_iter instead"]
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
-        let op = match scheme {
-            #[cfg(feature = "services-azblob")]
-            Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
-            #[cfg(feature = "services-azdfs")]
-            Scheme::Azdfs => Self::from_map::<services::Azdfs>(map)?.finish(),
-            #[cfg(feature = "services-cacache")]
-            Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
-            #[cfg(feature = "services-cos")]
-            Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
-            #[cfg(feature = "services-dashmap")]
-            Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
-            #[cfg(feature = "services-etcd")]
-            Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
-            #[cfg(feature = "services-foundationdb")]
-            Scheme::Foundationdb => Self::from_map::<services::Foundationdb>(map)?.finish(),
-            #[cfg(feature = "services-fs")]
-            Scheme::Fs => Self::from_map::<services::Fs>(map)?.finish(),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => Self::from_map::<services::Ftp>(map)?.finish(),
-            #[cfg(feature = "services-gcs")]
-            Scheme::Gcs => Self::from_map::<services::Gcs>(map)?.finish(),
-            #[cfg(feature = "services-ghac")]
-            Scheme::Ghac => Self::from_map::<services::Ghac>(map)?.finish(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
-            #[cfg(feature = "services-http")]
-            Scheme::Http => Self::from_map::<services::Http>(map)?.finish(),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
-            #[cfg(feature = "services-ipmfs")]
-            Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
-            #[cfg(feature = "services-memory")]
-            Scheme::Memory => Self::from_map::<services::Memory>(map)?.finish(),
-            #[cfg(feature = "services-mini-moka")]
-            Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
-            #[cfg(feature = "services-obs")]
-            Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
-            #[cfg(feature = "services-onedrive")]
-            Scheme::Onedrive => Self::from_map::<services::Onedrive>(map)?.finish(),
-            #[cfg(feature = "services-gdrive")]
-            Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
-            #[cfg(feature = "services-oss")]
-            Scheme::Oss => Self::from_map::<services::Oss>(map)?.finish(),
-            #[cfg(feature = "services-persy")]
-            Scheme::Persy => Self::from_map::<services::Persy>(map)?.finish(),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => Self::from_map::<services::Redis>(map)?.finish(),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),
-            #[cfg(feature = "services-s3")]
-            Scheme::S3 => Self::from_map::<services::S3>(map)?.finish(),
-            #[cfg(feature = "services-sftp")]
-            Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
-            #[cfg(feature = "services-sled")]
-            Scheme::Sled => Self::from_map::<services::Sled>(map)?.finish(),
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
-            #[cfg(feature = "services-vercel-artifacts")]
-            Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
-            #[cfg(feature = "services-wasabi")]
-            Scheme::Wasabi => Self::from_map::<services::Wasabi>(map)?.finish(),
-            #[cfg(feature = "services-webdav")]
-            Scheme::Webdav => Self::from_map::<services::Webdav>(map)?.finish(),
-            #[cfg(feature = "services-webhdfs")]
-            Scheme::Webhdfs => Self::from_map::<services::Webhdfs>(map)?.finish(),
-            #[cfg(feature = "services-redb")]
-            Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "scheme is not enabled or supported",
-                )
-                .with_context("scheme", v))
-            }
-        };
-
-        Ok(op)
+        Self::via_iter(scheme, map)
     }
 
     /// Create a new layer with dynamic dispatch.
@@ -255,8 +400,7 @@ impl Operator {
     /// use opendal::services::Fs;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Fs::default())?.finish();
     /// let op = op.layer(LoggingLayer::default());
     /// // All operations will go through the new_layer
@@ -265,7 +409,7 @@ impl Operator {
     /// # }
     /// ```
     #[must_use]
-    pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
+    pub fn layer<L: Layer<Accessor>>(self, layer: L) -> Self {
         Self::from_inner(Arc::new(
             TypeEraseLayer.layer(layer.layer(self.into_inner())),
         ))
@@ -316,14 +460,14 @@ impl Operator {
 ///     Ok(())
 /// }
 /// ```
-pub struct OperatorBuilder<A: Accessor> {
+pub struct OperatorBuilder<A: Access> {
     accessor: A,
 }
 
-impl<A: Accessor> OperatorBuilder<A> {
+impl<A: Access> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
+    pub fn new(accessor: A) -> OperatorBuilder<impl Access> {
         // Make sure error context layer has been attached.
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
@@ -350,8 +494,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// use opendal::services::Fs;
     /// use opendal::Operator;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Fs::default())?
     ///     .layer(LoggingLayer::default())
     ///     .finish();
@@ -361,7 +504,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// # }
     /// ```
     #[must_use]
-    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
+    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccess> {
         OperatorBuilder {
             accessor: layer.layer(self.accessor),
         }
@@ -370,6 +513,6 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         let ob = self.layer(TypeEraseLayer);
-        Operator::from_inner(Arc::new(ob.accessor) as FusedAccessor)
+        Operator::from_inner(Arc::new(ob.accessor) as Accessor)
     }
 }

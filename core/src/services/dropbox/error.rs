@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
@@ -31,9 +30,9 @@ pub struct DropboxErrorResponse {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
@@ -55,7 +54,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
             parse_dropbox_error_summary(&dropbox_err.error_summary).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -63,7 +62,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 /// We cannot get the error type from the response header when the status code is 409.
@@ -72,7 +71,10 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 ///
 /// See <https://www.dropbox.com/developers/documentation/http/documentation#error-handling>
 pub fn parse_dropbox_error_summary(summary: &str) -> Option<(ErrorKind, bool)> {
-    if summary.starts_with("path/not_found") || summary.starts_with("path_lookup/not_found") {
+    if summary.starts_with("path/not_found")
+        || summary.starts_with("path_lookup/not_found")
+        || summary.starts_with("from_lookup/not_found")
+    {
         Some((ErrorKind::NotFound, false))
     } else if summary.starts_with("path/conflict") {
         Some((ErrorKind::AlreadyExists, false))

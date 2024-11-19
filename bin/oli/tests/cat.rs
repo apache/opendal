@@ -50,9 +50,7 @@ async fn test_cat_for_path_in_current_dir() -> Result<()> {
 
     let mut cmd = Command::cargo_bin("oli")?;
 
-    cmd.arg("cat")
-        .arg("dst.txt")
-        .current_dir(dir.path().clone());
+    cmd.arg("cat").arg("dst.txt").current_dir(dir.path());
     let actual = fs::read_to_string(&dst_path)?;
     let res = cmd.assert().success();
     let output = res.get_output().stdout.clone();

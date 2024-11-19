@@ -15,5 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-mini-moka")]
 mod backend;
+#[cfg(feature = "services-mini-moka")]
 pub use backend::MiniMokaBuilder as MiniMoka;
+
+mod config;
+pub use config::MiniMokaConfig;

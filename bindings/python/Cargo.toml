@@ -19,21 +19,159 @@
 name = "opendal-python"
 publish = false
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.75"
+version = "0.45.12"
+
+[features]
+default = [
+  "services-azblob",
+  "services-azdls",
+  "services-cos",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+]
+
+services-all = [
+  "default",
+  "services-aliyun-drive",
+  "services-azfile",
+  "services-cacache",
+  "services-chainsafe",
+  "services-dashmap",
+  "services-dropbox",
+  # FIXME this service need protoc
+  # "services-etcd",
+  # FIXME this requires a preinstalled fdb library
+  # "services-foundationdb",
+  # "services-ftp",
+  "services-gdrive",
+  # FIXME how to support HDFS services in bindings?
+  # "services-hdfs",
+  "services-huggingface",
+  "services-ipfs",
+  "services-memcached",
+  "services-mini-moka",
+  "services-moka",
+  "services-onedrive",
+  "services-persy",
+  "services-postgresql",
+  "services-mysql",
+  "services-redb",
+  "services-redis",
+  # FIXME how to support rocksdb services in bindings?
+  # "services-rocksdb",
+  "services-sled",
+  "services-supabase",
+  "services-swift",
+  # FIXME this service need protoc
+  # "services-tikv",
+  "services-vercel-artifacts",
+  "services-mongodb",
+  "services-gridfs",
+  "services-sqlite",
+  "services-libsql",
+  "services-alluxio",
+  "services-b2",
+  "services-seafile",
+  "services-upyun",
+  "services-koofr",
+  "services-yandex-disk",
+]
+
+# Default services provided by opendal.
+services-aliyun-drive = ["opendal/services-aliyun-drive"]
+services-azblob = ["opendal/services-azblob"]
+services-azdls = ["opendal/services-azdls"]
+services-chainsafe = ["opendal/services-chainsafe"]
+services-cos = ["opendal/services-cos"]
+services-fs = ["opendal/services-fs"]
+services-gcs = ["opendal/services-gcs"]
+services-ghac = ["opendal/services-ghac"]
+services-http = ["opendal/services-http"]
+services-ipmfs = ["opendal/services-ipmfs"]
+services-memory = ["opendal/services-memory"]
+services-obs = ["opendal/services-obs"]
+services-oss = ["opendal/services-oss"]
+services-s3 = ["opendal/services-s3"]
+services-webdav = ["opendal/services-webdav"]
+services-webhdfs = ["opendal/services-webhdfs"]
+
+# Optional services provided by opendal.
+services-alluxio = ["opendal/services-alluxio"]
+services-azfile = ["opendal/services-azfile"]
+services-b2 = ["opendal/services-b2"]
+services-cacache = ["opendal/services-cacache"]
+services-dashmap = ["opendal/services-dashmap"]
+services-dropbox = ["opendal/services-dropbox"]
+services-etcd = ["opendal/services-etcd"]
+services-foundationdb = ["opendal/services-foundationdb"]
+services-ftp = ["opendal/services-ftp"]
+services-gdrive = ["opendal/services-gdrive"]
+services-gridfs = ["opendal/services-gridfs"]
+services-hdfs = ["opendal/services-hdfs"]
+services-huggingface = ["opendal/services-huggingface"]
+services-ipfs = ["opendal/services-ipfs"]
+services-koofr = ["opendal/services-koofr"]
+services-libsql = ["opendal/services-libsql"]
+services-memcached = ["opendal/services-memcached"]
+services-mini-moka = ["opendal/services-mini-moka"]
+services-moka = ["opendal/services-moka"]
+services-mongodb = ["opendal/services-mongodb"]
+services-monoiofs = ["opendal/services-monoiofs"]
+services-mysql = ["opendal/services-mysql"]
+services-onedrive = ["opendal/services-onedrive"]
+services-persy = ["opendal/services-persy"]
+services-postgresql = ["opendal/services-postgresql"]
+services-redb = ["opendal/services-redb"]
+services-redis = ["opendal/services-redis"]
+services-rocksdb = ["opendal/services-rocksdb"]
+services-seafile = ["opendal/services-seafile"]
+services-sftp = ["opendal/services-sftp"]
+services-sled = ["opendal/services-sled"]
+services-sqlite = ["opendal/services-sqlite"]
+services-supabase = ["opendal/services-supabase"]
+services-swift = ["opendal/services-swift"]
+services-tikv = ["opendal/services-tikv"]
+services-upyun = ["opendal/services-upyun"]
+services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
+services-yandex-disk = ["opendal/services-yandex-disk"]
 
 [lib]
 crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
+bytes = "1.5.0"
 futures = "0.3.28"
-opendal.workspace = true
-pyo3 = { version = "0.19", features = ["abi3-py37"] }
-pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
+  "layers-blocking",
+] }
+pyo3 = { version = "0.22.5", features = ["abi3", "abi3-py311"] }
+pyo3-async-runtimes = { version = "0.22.0", features = [
+  "tokio-runtime",
+] }
 tokio = "1"
+
+[target.'cfg(unix)'.dependencies.opendal]
+features = [
+  "layers-blocking",
+  # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
+  "services-sftp",
+]
+path = "../../core"
+version = ">=0"

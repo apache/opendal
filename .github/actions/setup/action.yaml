@@ -26,6 +26,11 @@ inputs:
     description: "This setup needs nextest or not"
   need-protoc:
     description: "This setup needs protoc or not"
+  need-deny:
+    description: "This setup needs cargo-deny or not"
+  github-token:
+    description: "Github Token"
+    default: ""
 
 runs:
   using: "composite"
@@ -35,32 +40,59 @@ runs:
       run: |
         # Disable full debug symbol generation to speed up CI build and keep memory down
         # "1" means line tables only, which is useful for panic tracebacks.
-        echo "RUSTFLAGS=-C debuginfo=1" >> $GITHUB_ENV
+        # About `force-frame-pointers`, here's the discussion history: https://github.com/apache/opendal/issues/3756
+        echo "RUSTFLAGS=-C force-frame-pointers=yes -C debuginfo=1" >> $GITHUB_ENV
         # Enable backtraces
         echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
         # Enable logging
-        echo "RUST_LOG=opendal=debug" >> $GITHUB_ENV
+        echo "RUST_LOG=opendal=trace" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+        # Make sure rust has been setup
+        cargo version
 
-    - name: Setup protoc on linux
-      if: inputs.need-protoc == 'true' && runner.os == 'Linux'
+    # Make sure all required lib has been installed.
+    - name: Setup Linux
+      if: runner.os == 'Linux'
       shell: bash
-      run: sudo apt install -y protobuf-compiler
+      run: sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
+    - name: Setup Protoc
+      if: inputs.need-protoc == 'true'
+      uses: arduino/setup-protoc@v3
+      with:
+        version: "23.4"
+        repo-token: ${{ inputs.github-token }}
 
     - name: Cache nextest on linux
       id: cache-nextest
-      uses: actions/cache@v3
-      if: inputs.need-nextest == 'true' && runner.os == 'Linux'
+      uses: actions/cache@v4
+      if: inputs.need-nextest == 'true'
       with:
-        path: ~/.cargo/bin/cargo-nextest
-        # TODO: remove the runner.os while bumping version
-        key: r0-${{runner.os}}-nextest-0.9.53
+        path: |
+          ~/.cargo/bin/cargo-nextest
+          ~/.cargo/bin/cargo-nextest.exe
+        key: r0-${{runner.os}}-nextest-0.9.72
 
     - name: Build nextest if not cached
       if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
       shell: bash
-      run: cargo install cargo-nextest@0.9.53 --locked
+      run: cargo install cargo-nextest@0.9.72 --locked
+
+    - name: Cache cargo-deny on linux
+      id: cache-deny
+      uses: actions/cache@v4
+      if: inputs.need-deny == 'true'
+      with:
+        path: |
+          ~/.cargo/bin/cargo-deny
+          ~/.cargo/bin/cargo-deny.exe
+        key: r0-${{runner.os}}-deny-0.14.22
+
+    - name: Build cargo-deny if not cached
+      if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
+      shell: bash
+      run: cargo install cargo-deny@0.14.22 --locked
 
     - name: Setup rust on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
@@ -68,15 +100,14 @@ runs:
       run: |
         # Set rocksdb lib path
         echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
-        echo "ROCKSDB_STATIC=true" >> $GITHUB_ENV
 
     - name: Cache rocksdb
       id: cache-rocksdb
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
-        key: r0-rocksdb-8.1.1
+        key: r2-rocksdb-8.1.1
 
     - name: Build rocksdb if not cached
       if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
@@ -84,29 +115,27 @@ runs:
       run: |
         set -e
 
-        sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
-
         cd /tmp
         curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
         tar -xzf rocksdb.tar.gz
         cd rocksdb-8.1.1
 
         mkdir /tmp/rocksdb
-        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
         make -j$(nproc)
         make install
 
         cd ..
         rm -rf /tmp/rocksdb-8.1.1
-    
+
     - name: Cache foundationdb
       id: cache-foundationdb
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       with:
         path: /etc/foundationdb
         key: r0-foundationdb-7.1.17
-    
+
     - name: Build foundationdb if not cached
       if: steps.cache-foundationdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       shell: bash

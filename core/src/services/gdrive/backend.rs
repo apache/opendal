@@ -18,96 +18,239 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use bytes::Buf;
+use bytes::Bytes;
+use chrono::Utc;
+use http::Request;
+use http::Response;
 use http::StatusCode;
+use serde_json::json;
 
 use super::core::GdriveCore;
+use super::core::GdriveFile;
 use super::error::parse_error;
+use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
 use crate::raw::*;
-use crate::types::Result;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
+use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
-    core: Arc<GdriveCore>,
+    pub core: Arc<GdriveCore>,
 }
 
-impl GdriveBackend {
-    pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
-        GdriveBackend {
-            core: Arc::new(GdriveCore {
-                root,
-                access_token,
-                client: http_client,
-                path_cache: Arc::default(),
-            }),
-        }
-    }
-}
-
-#[async_trait]
-impl Accessor for GdriveBackend {
-    type Reader = IncomingAsyncBody;
+impl Access for GdriveBackend {
+    type Reader = HttpBody;
+    type Writer = oio::OneShotWriter<GdriveWriter>;
+    type Lister = oio::PageLister<GdriveLister>;
     type BlockingReader = ();
-    type Writer = GdriveWriter;
     type BlockingWriter = ();
-    type Appender = ();
-    type Pager = ();
-    type BlockingPager = ();
+    type BlockingLister = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::Gdrive)
+        ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
-            .set_capability(Capability {
+            .set_native_capability(Capability {
+                stat: true,
+
                 read: true,
+
+                list: true,
+
                 write: true,
+
+                create_dir: true,
                 delete: true,
+                rename: true,
+                copy: true,
+
+                shared: true,
+
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gdrive_get(path).await?;
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let path = build_abs_path(&self.core.root, path);
+        let _ = self.core.path_cache.ensure_dir(&path).await?;
+
+        Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.gdrive_stat(path).await?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let bs = resp.into_body();
+        let gdrive_file: GdriveFile =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        };
+
+        let mut meta = Metadata::new(EntryMode::FILE);
+        if let Some(v) = gdrive_file.size {
+            meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?);
+        }
+        if let Some(v) = gdrive_file.modified_time {
+            meta = meta.with_last_modified(v.parse::<chrono::DateTime<Utc>>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?);
+        }
+        Ok(RpStat::new(meta))
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.gdrive_get(path, args.range()).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = build_abs_path(&self.core.root, path);
+
+        // As Google Drive allows files have the same name, we need to check if the file exists.
+        // If the file exists, we will keep its ID and update it.
+        let file_id = self.core.path_cache.get(&path).await?;
+
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(GdriveWriter::new(self.core.clone(), path, file_id)),
+        ))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let path = build_abs_path(&self.core.root, path);
+        let file_id = self.core.path_cache.get(&path).await?;
+        let file_id = if let Some(id) = file_id {
+            id
+        } else {
+            return Ok(RpDelete::default());
+        };
+
+        let resp = self.core.gdrive_trash(&file_id).await?;
+        let status = resp.status();
+        if status != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        self.core.path_cache.remove(&path).await;
+
+        Ok(RpDelete::default())
+    }
+
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+        let path = build_abs_path(&self.core.root, path);
+        let l = GdriveLister::new(path, self.core.clone());
+        Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = build_abs_path(&self.core.root, from);
+
+        let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            "the file to copy does not exist",
+        ))?;
+
+        let to_name = get_basename(to);
+        let to_path = build_abs_path(&self.core.root, to);
+        let to_parent_id = self
+            .core
+            .path_cache
+            .ensure_dir(get_parent(&to_path))
+            .await?;
+
+        // copy will overwrite `to`, delete it if exist
+        if let Some(id) = self.core.path_cache.get(&to_path).await? {
+            let resp = self.core.gdrive_trash(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            self.core.path_cache.remove(&to_path).await;
+        }
+
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{}/copy",
+            from_file_id
+        );
+
+        let request_body = &json!({
+            "name": to_name,
+            "parents": [to_parent_id],
+        });
+        let body = Buffer::from(Bytes::from(request_body.to_string()));
+
+        let mut req = Request::post(&url)
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.client.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let source = build_abs_path(&self.core.root, from);
+        let target = build_abs_path(&self.core.root, to);
+
+        // rename will overwrite `to`, delete it if exist
+        if let Some(id) = self.core.path_cache.get(&target).await? {
+            let resp = self.core.gdrive_trash(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            self.core.path_cache.remove(&target).await;
+        }
+
+        let resp = self
+            .core
+            .gdrive_patch_metadata_request(&source, &target)
+            .await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let body = resp.into_body();
+                let meta: GdriveFile =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+
+                let cache = &self.core.path_cache;
+
+                cache.remove(&build_abs_path(&self.core.root, from)).await;
+                cache
+                    .insert(&build_abs_path(&self.core.root, to), &meta.id)
+                    .await;
+
+                Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
-        Ok((
-            RpWrite::default(),
-            GdriveWriter::new(self.core.clone(), args, String::from(path)),
-        ))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gdrive_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

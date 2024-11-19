@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-PROJECT_NAME           = "OpenDAL C Binding"
-PROJECT_BRIEF          = "The C binding for Apache OpenDAL"
+PROJECT_NAME           = "Apache OpenDAL™ C Binding"
+PROJECT_BRIEF          = "The C binding for Apache OpenDAL™"
 OUTPUT_DIRECTORY       = ./docs/doxygen
 EXCLUDE_SYMBOLS        = "HashMap_String__String" \
                          "BlockingOperator" \
@@ -185,11 +185,10 @@ ALPHABETICAL_INDEX     = YES
 GENERATE_HTML          = YES
 HTML_OUTPUT            = html
 HTML_FILE_EXTENSION    = .html
-HTML_COLORSTYLE        = AUTO_LIGHT
+HTML_COLORSTYLE        = LIGHT
 HTML_COLORSTYLE_HUE    = 220
 HTML_COLORSTYLE_SAT    = 100
 HTML_COLORSTYLE_GAMMA  = 80
-HTML_TIMESTAMP         = NO
 HTML_DYNAMIC_MENUS     = YES
 HTML_DYNAMIC_SECTIONS  = NO
 HTML_INDEX_NUM_ENTRIES = 100
@@ -234,7 +233,6 @@ USE_PDFLATEX           = YES
 LATEX_BATCHMODE        = NO
 LATEX_HIDE_INDICES     = NO
 LATEX_BIB_STYLE        = plain
-LATEX_TIMESTAMP        = NO
 GENERATE_RTF           = NO
 RTF_OUTPUT             = rtf
 COMPACT_RTF            = NO
@@ -289,3 +287,4 @@ MAX_DOT_GRAPH_DEPTH    = 0
 DOT_MULTI_TARGETS      = NO
 GENERATE_LEGEND        = YES
 DOT_CLEANUP            = YES
+HTML_EXTRA_STYLESHEET  = ./docs/doxygen-awesome.css

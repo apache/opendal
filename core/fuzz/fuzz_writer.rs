@@ -17,80 +17,52 @@
 
 #![no_main]
 
-use bytes::{Bytes, BytesMut};
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
-use rand::prelude::*;
-use sha2::Digest;
-use sha2::Sha256;
-
+use opendal::raw::tests::init_test_service;
+use opendal::raw::tests::WriteAction;
+use opendal::raw::tests::WriteChecker;
+use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use opendal::Result;
-
-mod utils;
+use tracing::warn;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
-enum WriterAction {
-    Write { size: usize },
-}
-
-#[derive(Debug, Clone)]
 struct FuzzInput {
-    actions: Vec<WriterAction>,
+    actions: Vec<WriteAction>,
+    buffer: Option<usize>,
+    concurrent: Option<usize>,
 }
 
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let mut actions = vec![];
+        let buffer = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(1..=8 * 1024 * 1024)?)
+        } else {
+            None
+        };
+        let concurrent = if u.int_in_range(0..=1)? == 1 {
+            Some(u.int_in_range(0..=16)?)
+        } else {
+            None
+        };
 
-        let count = u.int_in_range(128..=1024)?;
+        let count = u.int_in_range(1..=1024)?;
 
         for _ in 0..count {
             let size = u.int_in_range(1..=MAX_DATA_SIZE)?;
-            actions.push(WriterAction::Write { size });
+            actions.push(WriteAction::Write(size));
         }
 
-        Ok(FuzzInput { actions })
-    }
-}
-
-struct WriteChecker {
-    chunks: Vec<Bytes>,
-    data: Bytes,
-}
-
-impl WriteChecker {
-    fn new(size: Vec<usize>) -> Self {
-        let mut rng = thread_rng();
-
-        let mut chunks = Vec::with_capacity(size.len());
-
-        for i in size {
-            let mut bs = vec![0u8; i];
-            rng.fill_bytes(&mut bs);
-            chunks.push(Bytes::from(bs));
-        }
-
-        let data = chunks.iter().fold(BytesMut::new(), |mut acc, x| {
-            acc.extend_from_slice(x);
-            acc
-        });
-
-        WriteChecker {
-            chunks,
-            data: data.freeze(),
-        }
-    }
-
-    fn check(&self, actual: &[u8]) {
-        assert_eq!(
-            format!("{:x}", Sha256::digest(actual)),
-            format!("{:x}", Sha256::digest(&self.data)),
-            "check failed: result is not expected"
-        )
+        Ok(FuzzInput {
+            actions,
+            buffer,
+            concurrent,
+        })
     }
 }
 
@@ -101,21 +73,31 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
         .actions
         .iter()
         .map(|a| match a {
-            WriterAction::Write { size } => *size,
+            WriteAction::Write(size) => *size,
         })
         .collect();
 
     let checker = WriteChecker::new(total_size);
 
-    let mut writer = op.writer(&path).await?;
+    let mut writer = op.writer_with(&path);
+    if let Some(buffer) = input.buffer {
+        writer = writer.chunk(buffer);
+    } else if let Some(min_size) = op.info().full_capability().write_multi_min_size {
+        writer = writer.chunk(min_size);
+    }
+    if let Some(concurrent) = input.concurrent {
+        writer = writer.concurrent(concurrent);
+    }
 
-    for chunk in &checker.chunks {
+    let mut writer = writer.await?;
+
+    for chunk in checker.chunks() {
         writer.write(chunk.clone()).await?;
     }
 
     writer.close().await?;
 
-    let result = op.read(&path).await?;
+    let result = op.read(&path).await?.to_bytes();
 
     checker.check(&result);
 
@@ -124,15 +106,23 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 }
 
 fuzz_target!(|input: FuzzInput| {
-    let _ = dotenvy::dotenv();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
-    let runtime = tokio::runtime::Runtime::new().expect("init runtime must succeed");
+    let op = init_test_service().expect("operator init must succeed");
+    if let Some(op) = op {
+        if !op.info().full_capability().write_can_multi {
+            warn!("service doesn't support write multi, skip fuzzing");
+            return;
+        }
 
-    for op in utils::init_services() {
-        runtime.block_on(async {
+        TEST_RUNTIME.block_on(async {
             fuzz_writer(op, input.clone())
                 .await
-                .unwrap_or_else(|_| panic!("fuzz reader must succeed"));
+                .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
         })
     }
 });

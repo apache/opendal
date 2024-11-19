@@ -16,26 +16,27 @@
 // under the License.
 
 import XCTest
+
 @testable import OpenDAL
 
 final class OpenDALTests: XCTestCase {
     func testSimple() throws {
-        let op = try Operator(scheme: "memory", options: [
-            "root": "/myroot"
-        ])
-        
-        let testContents = Data([1, 2, 3, 4])
-        try op.blockingWrite(testContents, to: "test")
-        
-        guard let readContents = try op.blockingRead("test") else {
-            XCTFail("Expected a `Data`")
-            return
-        }
-        
+        let op = try Operator(
+            scheme: "memory",
+            options: [
+                "root": "/myroot"
+            ]
+        )
+
+        var testContents = Data([1, 2, 3, 4])
+        try op.blockingWrite(&testContents, to: "test")
+
+        let readContents = try op.blockingRead("test")
+
         for (testByte, readByte) in zip(testContents, readContents) {
             XCTAssertEqual(testByte, readByte)
         }
-        
+
         XCTAssertThrowsError(try op.blockingRead("test_not_exists"))
     }
 }

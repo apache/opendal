@@ -15,18 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-class ConcurrentLimitLayer:
-    def __init__(self, permits: int) -> None: ...
+from typing import Optional, final
 
-class ImmutableIndexLayer:
-    def insert(self, key: str) -> None: ...
+class Layer:
+    pass
 
-class RetryLayer:
+@final
+class RetryLayer(Layer):
     def __init__(
         self,
-        max_times: int | None = None,
-        factor: float | None = None,
+        max_times: Optional[int] = None,
+        factor: Optional[float] = None,
         jitter: bool = False,
-        max_delay: float | None = None,
-        min_delay: float | None = None,
+        max_delay: Optional[float] = None,
+        min_delay: Optional[float] = None,
     ) -> None: ...
+
+@final
+class ConcurrentLimitLayer(Layer):
+    def __init__(self, limit: int) -> None: ...

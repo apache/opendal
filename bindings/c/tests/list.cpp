@@ -27,7 +27,7 @@ extern "C" {
 
 class OpendalListTest : public ::testing::Test {
 protected:
-    const opendal_operator_ptr* p;
+    const opendal_operator* p;
 
     // set up a brand new operator
     void SetUp() override
@@ -35,8 +35,11 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", "/myroot");
 
-        this->p = opendal_operator_new("memory", options);
-        EXPECT_TRUE(this->p->ptr);
+        opendal_result_operator_new result = opendal_operator_new("memory", options);
+        EXPECT_TRUE(result.error == nullptr);
+
+        this->p = result.op;
+        EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
     }
@@ -44,7 +47,7 @@ protected:
     void TearDown() override { opendal_operator_free(this->p); }
 };
 
-// Basic usecase of list
+// Basic use case of list
 TEST_F(OpendalListTest, ListDirTest)
 {
     std::string dname = "some_random_dir_name_152312";
@@ -62,25 +65,27 @@ TEST_F(OpendalListTest, ListDirTest)
     };
 
     // write must succeed
-    EXPECT_EQ(opendal_operator_blocking_write(this->p, path.c_str(), data),
-        OPENDAL_OK);
+    EXPECT_EQ(opendal_operator_write(this->p, path.c_str(), &data),
+        nullptr);
 
     // list must succeed since the write succeeded
-    opendal_result_list l = opendal_operator_blocking_list(this->p, (dname + "/").c_str());
-    EXPECT_EQ(l.code, OPENDAL_OK);
+    opendal_result_list l = opendal_operator_list(this->p, (dname + "/").c_str());
+    EXPECT_EQ(l.error, nullptr);
 
-    opendal_blocking_lister* lister = l.lister;
+    opendal_lister* lister = l.lister;
 
     // start checking the lister's result
     bool found = false;
 
-    opendal_list_entry* entry = opendal_lister_next(lister);
+    opendal_result_lister_next result = opendal_lister_next(lister);
+    EXPECT_EQ(result.error, nullptr);
+    opendal_entry* entry = result.entry;
     while (entry) {
-        char* de_path = opendal_list_entry_path(entry);
+        char* de_path = opendal_entry_path(entry);
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
-        EXPECT_EQ(s.code, OPENDAL_OK);
+        EXPECT_EQ(s.error, nullptr);
 
         if (!strcmp(de_path, path.c_str())) {
             found = true;
@@ -92,17 +97,19 @@ TEST_F(OpendalListTest, ListDirTest)
 
         free(de_path);
         opendal_metadata_free(s.meta);
-        opendal_list_entry_free(entry);
+        opendal_entry_free(entry);
 
-        entry = opendal_lister_next(lister);
+        result = opendal_lister_next(lister);
+        EXPECT_EQ(result.error, nullptr);
+        entry = result.entry;
     }
 
     // we must have found the file we wrote
     EXPECT_TRUE(found);
 
     // delete
-    EXPECT_EQ(opendal_operator_blocking_delete(this->p, path.c_str()),
-        OPENDAL_OK);
+    EXPECT_EQ(opendal_operator_delete(this->p, path.c_str()),
+        nullptr);
 
     opendal_lister_free(lister);
 }
@@ -112,9 +119,3 @@ TEST_F(OpendalListTest, ListEmptyDirTest) { }
 
 // todo: Try list a directory that does not exist
 TEST_F(OpendalListTest, ListNotExistDirTest) { }
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

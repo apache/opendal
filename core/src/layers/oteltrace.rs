@@ -15,47 +15,46 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-use std::task;
+use std::future::Future;
+use std::sync::Arc;
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use futures::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
-use opentelemetry::Context;
+use opentelemetry::Context as TraceContext;
 use opentelemetry::KeyValue;
 
 use crate::raw::*;
 use crate::*;
 
-/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operations.
+/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
 ///
 /// Examples
 ///
 /// ## Basic Setup
 ///
-/// ```
-/// use anyhow::Result;
-/// use opendal::layers::OtelTraceLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// ```no_run
+/// # use opendal::layers::OtelTraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelTraceLayer)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 pub struct OtelTraceLayer;
 
-impl<A: Accessor> Layer<A> for OtelTraceLayer {
-    type LayeredAccessor = OtelTraceAccessor<A>;
+impl<A: Access> Layer<A> for OtelTraceLayer {
+    type LayeredAccess = OtelTraceAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         OtelTraceAccessor { inner }
     }
 }
@@ -65,24 +64,22 @@ pub struct OtelTraceAccessor<A> {
     inner: A,
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
+impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     type Inner = A;
     type Reader = OtelTraceWrapper<A::Reader>;
     type BlockingReader = OtelTraceWrapper<A::BlockingReader>;
     type Writer = OtelTraceWrapper<A::Writer>;
     type BlockingWriter = OtelTraceWrapper<A::BlockingWriter>;
-    type Appender = A::Appender;
-    type Pager = OtelTraceWrapper<A::Pager>;
-    type BlockingPager = OtelTraceWrapper<A::BlockingPager>;
+    type Lister = OtelTraceWrapper<A::Lister>;
+    type BlockingLister = OtelTraceWrapper<A::BlockingLister>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let tracer = global::tracer("opendal");
-        tracer.in_span("metadata", |_cx| self.inner.info())
+        tracer.in_span("info", |_cx| self.inner.info())
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -90,7 +87,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("create");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner.create_dir(path, args).with_context(cx).await
     }
 
@@ -101,8 +98,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r))))
             .await
+            .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -116,17 +113,13 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
             .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
-    }
-
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().copy(from, to, args).with_context(cx).await
     }
 
@@ -136,7 +129,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().rename(from, to, args).with_context(cx).await
     }
 
@@ -145,7 +138,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("stat");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().stat(path, args).with_context(cx).await
     }
 
@@ -154,26 +147,26 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("delete");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().delete(path, args).with_context(cx).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s))))
             .await
+            .map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s)))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("batch");
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().batch(args).with_context(cx).await
     }
 
@@ -182,7 +175,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("presign");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().presign(path, args).with_context(cx).await
     }
 
@@ -258,7 +251,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -281,62 +274,33 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    fn poll_read(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> task::Poll<Result<usize>> {
-        self.inner.poll_read(cx, buf)
-    }
-
-    fn poll_seek(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        pos: io::SeekFrom,
-    ) -> task::Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut task::Context<'_>) -> task::Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx)
+    async fn read(&mut self) -> Result<Buffer> {
+        self.inner.read().await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        self.inner.next()
+    fn read(&mut self) -> Result<Buffer> {
+        self.inner.read()
     }
 }
 
-#[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).await
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.write(bs)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.abort()
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.close()
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 
@@ -345,15 +309,14 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     }
 }
 
-#[async_trait]
-impl<R: oio::Page> oio::Page for OtelTraceWrapper<R> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().await
     }
 }
 
-impl<R: oio::BlockingPage> oio::BlockingPage for OtelTraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+impl<R: oio::BlockingList> oio::BlockingList for OtelTraceWrapper<R> {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
     }
 }

@@ -15,40 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use flagset::FlagSet;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 use futures::Stream;
 
 use crate::raw::*;
 use crate::*;
 
-/// Future constructed by listing.
-type ListFuture = BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>;
-/// Future constructed by stating.
-type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
-
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
 ///
-/// Users can construct Lister by [`Operator::lister`].
-///
-/// User can use lister as `Stream<Item = Result<Entry>>`.
+/// - Lister implements `Stream<Item = Result<Entry>>`.
+/// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct Lister {
-    acc: FusedAccessor,
-    /// required_metakey is the metakey required by users.
-    required_metakey: FlagSet<Metakey>,
+    lister: Option<oio::Lister>,
 
-    buf: VecDeque<oio::Entry>,
-    pager: Option<oio::Pager>,
-    listing: Option<ListFuture>,
-    stating: Option<StatFuture>,
+    fut: Option<BoxedStaticFuture<(oio::Lister, Result<Option<oio::Entry>>)>>,
+    errored: bool,
 }
 
 /// # Safety
@@ -58,18 +44,14 @@ unsafe impl Sync for Lister {}
 
 impl Lister {
     /// Create a new lister.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
-        let required_metakey = args.metakey();
-        let (_, pager) = acc.list(path, args).await?;
+    pub(crate) async fn create(acc: Accessor, path: &str, args: OpList) -> Result<Self> {
+        let (_, lister) = acc.list(path, args).await?;
 
         Ok(Self {
-            acc,
-            required_metakey,
+            lister: Some(lister),
 
-            buf: VecDeque::new(),
-            pager: Some(pager),
-            listing: None,
-            stating: None,
+            fut: None,
+            errored: false,
         })
     }
 }
@@ -78,67 +60,51 @@ impl Stream for Lister {
     type Item = Result<Entry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(fut) = self.stating.as_mut() {
-            let (path, rp) = ready!(fut.poll_unpin(cx));
-            let metadata = rp?.into_metadata();
-
-            self.stating = None;
-            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
+        // Returns `None` if we have errored.
+        if self.errored {
+            return Poll::Ready(None);
         }
 
-        if let Some(oe) = self.buf.pop_front() {
-            let (path, metadata) = oe.into_entry().into_parts();
-            // TODO: we can optimize this by checking the provided metakey provided by services.
-            if metadata.contains_bit(self.required_metakey) {
-                return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
-            }
-
-            let acc = self.acc.clone();
+        if let Some(mut lister) = self.lister.take() {
             let fut = async move {
-                let path = path;
-                let res = acc.stat(&path, OpStat::default()).await;
-
-                (path, res)
+                let res = lister.next_dyn().await;
+                (lister, res)
             };
-            self.stating = Some(Box::pin(fut));
-            return self.poll_next(cx);
+            self.fut = Some(Box::pin(fut));
         }
 
-        if let Some(fut) = self.listing.as_mut() {
-            let (op, res) = ready!(fut.poll_unpin(cx));
-            self.pager = Some(op);
+        if let Some(fut) = self.fut.as_mut() {
+            let (lister, entry) = ready!(fut.as_mut().poll(cx));
+            self.lister = Some(lister);
+            self.fut = None;
 
-            return match res? {
-                Some(oes) => {
-                    self.listing = None;
-                    self.buf = oes.into();
-                    self.poll_next(cx)
-                }
-                None => {
-                    self.listing = None;
+            return match entry {
+                Ok(Some(oe)) => Poll::Ready(Some(Ok(oe.into_entry()))),
+                Ok(None) => {
+                    self.lister = None;
                     Poll::Ready(None)
                 }
+                Err(err) => {
+                    self.errored = true;
+                    Poll::Ready(Some(Err(err)))
+                }
             };
         }
 
-        let mut pager = self.pager.take().expect("pager must be valid");
-        let fut = async move {
-            let res = pager.next().await;
-
-            (pager, res)
-        };
-        self.listing = Some(Box::pin(fut));
-        self.poll_next(cx)
+        Poll::Ready(None)
     }
 }
 
 /// BlockingLister is designed to list entries at given path in a blocking
 /// manner.
 ///
-/// Users can construct Lister by `blocking_lister`.
+/// Users can construct Lister by [`BlockingOperator::lister`] or [`BlockingOperator::lister_with`].
+///
+/// - Lister implements `Iterator<Item = Result<Entry>>`.
+/// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct BlockingLister {
-    pager: oio::BlockingPager,
-    buf: VecDeque<oio::Entry>,
+    lister: oio::BlockingLister,
+    errored: bool,
 }
 
 /// # Safety
@@ -148,32 +114,73 @@ unsafe impl Sync for BlockingLister {}
 
 impl BlockingLister {
     /// Create a new lister.
-    pub(crate) fn new(pager: oio::BlockingPager) -> Self {
-        Self {
-            pager,
-            buf: VecDeque::default(),
-        }
+    pub(crate) fn create(acc: Accessor, path: &str, args: OpList) -> Result<Self> {
+        let (_, lister) = acc.blocking_list(path, args)?;
+
+        Ok(Self {
+            lister,
+            errored: false,
+        })
     }
 }
 
-/// TODO: we can implement next_chunk.
 impl Iterator for BlockingLister {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(oe) = self.buf.pop_front() {
-            return Some(Ok(oe.into_entry()));
+        // Returns `None` if we have errored.
+        if self.errored {
+            return None;
         }
 
-        self.buf = match self.pager.next() {
-            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-            //
-            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-            Ok(Some(entries)) => entries.into(),
-            Ok(None) => return None,
-            Err(err) => return Some(Err(err)),
-        };
+        match self.lister.next() {
+            Ok(Some(entry)) => Some(Ok(entry.into_entry())),
+            Ok(None) => None,
+            Err(err) => {
+                self.errored = true;
+                Some(Err(err))
+            }
+        }
+    }
+}
 
-        self.next()
+#[cfg(test)]
+#[cfg(feature = "services-azblob")]
+mod tests {
+    use futures::future;
+    use futures::StreamExt;
+
+    use super::*;
+    use crate::services::Azblob;
+
+    /// Inspired by <https://gist.github.com/kyle-mccarthy/1e6ae89cc34495d731b91ebf5eb5a3d9>
+    ///
+    /// Invalid lister should not panic nor endless loop.
+    #[tokio::test]
+    async fn test_invalid_lister() -> Result<()> {
+        let _ = tracing_subscriber::fmt().try_init();
+
+        let builder = Azblob::default()
+            .container("container")
+            .account_name("account_name")
+            .account_key("account_key")
+            .endpoint("https://account_name.blob.core.windows.net");
+
+        let operator = Operator::new(builder)?.finish();
+
+        let lister = operator.lister("/").await?;
+
+        lister
+            .filter_map(|entry| {
+                dbg!(&entry);
+                future::ready(entry.ok())
+            })
+            .for_each(|entry| {
+                println!("{:?}", entry);
+                future::ready(())
+            })
+            .await;
+
+        Ok(())
     }
 }

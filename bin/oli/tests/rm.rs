@@ -46,7 +46,7 @@ async fn test_rm_for_path_in_current_dir() -> Result<()> {
 
     let mut cmd = Command::cargo_bin("oli")?;
 
-    cmd.arg("rm").arg("dst.txt").current_dir(dir.path().clone());
+    cmd.arg("rm").arg("dst.txt").current_dir(dir.path());
     cmd.assert().success();
 
     assert!(fs::read_to_string(&dst_path).is_err());

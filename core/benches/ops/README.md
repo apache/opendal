@@ -29,11 +29,12 @@ Notice: The default will skip all benches if the env is not set.
 Test all available backend.
 
 ```shell
-cargo bench
+cargo bench --features tests
 ```
 
-Test specific backend.
+Test specific backend, take s3 for example, first set the corresponding environment variables of s3, then:
 
 ```shell
-cargo bench fs
+OPENDAL_TEST=s3
+cargo bench --features tests
 ```

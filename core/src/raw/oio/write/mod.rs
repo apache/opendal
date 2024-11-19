@@ -19,10 +19,25 @@ mod api;
 pub use api::BlockingWrite;
 pub use api::BlockingWriter;
 pub use api::Write;
-pub use api::WriteOperation;
 pub use api::Writer;
 
-mod multipart_upload_write;
-pub use multipart_upload_write::MultipartUploadPart;
-pub use multipart_upload_write::MultipartUploadWrite;
-pub use multipart_upload_write::MultipartUploadWriter;
+mod multipart_write;
+pub use multipart_write::MultipartPart;
+pub use multipart_write::MultipartWrite;
+pub use multipart_write::MultipartWriter;
+
+mod append_write;
+pub use append_write::AppendWrite;
+pub use append_write::AppendWriter;
+
+mod one_shot_write;
+pub use one_shot_write::OneShotWrite;
+pub use one_shot_write::OneShotWriter;
+
+mod block_write;
+pub use block_write::BlockWrite;
+pub use block_write::BlockWriter;
+
+mod position_write;
+pub use position_write::PositionWrite;
+pub use position_write::PositionWriter;

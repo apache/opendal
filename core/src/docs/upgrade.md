@@ -1,14 +1,491 @@
-# Unreleased
+# Upgrade to v0.50
 
 ## Public API
 
+### `services-postgresql`'s connect string now supports only URL format
+
+Previously, it supports both URL format and key-value format. After switching the implementation from `tokio-postgres` to `sqlx`, the service now supports only the URL format.
+
+### `list` now returns path itself
+
+Previously, `list("a/b")` would not return `a/b` even if it does exist. Since v0.50.0, this behavior has been changed. OpenDAL will now return the path itself if it exists. This change applies to all cases, whether the path is a directory or a file.
+
+### Refactoring of the metrics-related layer
+
+In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implemenationts. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
+
+# Upgrade to v0.49
+
+## Public API
+
+### `Configurator` now returns associated builder instead
+
+`Configurator` used to return `impl Builder`, but now it returns associated builder type directly. This will allow users to use the builder in a more flexible way.
+
+```diff
+impl Configurator for MemoryConfig {
+-    fn into_builder(self) -> impl Builder {
++    type Builder = MemoryBuilder;
++    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+```
+
+### `LoggingLayer` now accepts `LoggingInterceptor`
+
+`LoggingLayer` now accepts `LoggingInterceptor` trait instead of configuration. This change will allow users to customize the logging behavior more flexibly.
+
+```diff
+pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+```
+
+Users can now implement the log in the way they want.
+
+# Upgrade to v0.48
+
+## Public API
+
+### Typo in `customized_credential_load`
+
+Since v0.48, the `customed_credential_load` function has been renamed to `customized_credential_load` to fix the typo of `customized`.
+
+```diff
+- builder.customed_credential_load(v);
++ builder.customized_credential_load(v);
+```
+
+### S3 service rename `security_token` to `session_token`
+
+[In 2014 Amazon switched](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/) from `AWS_SECURITY_TOKEN` to `AWS_SESSION_TOKEN`. To be consistent with the naming of AWS STS, we have renamed the `security_token` field to `session_token` in the S3 service.
+
+```diff
+- builder.security_token(v);
++ builder.session_token(v);
+```
+
+### Operator `from_iter` and `via_iter` replaces `from_map` and `via_map`
+
+Since v0.48, Operator's new APIs `from_iter` and `via_iter` methods have deprecated the `from_map` and `via_map` methods.
+
+```diff
+- Operator::from_map::<Fs>(map)?.finish();
++ Operator::from_iter::<Fs>(map)?.finish();
+```
+
+New API `from_iter` and `via_iter` should cover all use cases of `from_map` and `via_map`.
+
+### Service builder now takes ownership
+
+Since v0.48, all service builder now takes ownership `self` instead of `&mut self`. This change will allow users to configure the service in a more flexible way.
+
+```diff
+- let mut builder = S3::default();
+- builder.bucket("test");
+- builder.root("/path/to/root");
++ let builder = S3::default().bucket("test").root("/path/to/root");
+  let op = Operator::new(builder)?.finish();
+```
+
+## Raw API
+
+### `oio::Write::write` will write the whole buffer
+
+Starting from version 0.48, `oio::Write::write` now writes the entire buffer. This update aligns the API more closely with `oio::Read::read` and simplifies the implementation of concurrent writing.
+
+```diff
+  trait Write {
+-     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>>;
++     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>>;
+  }
+```
+
+`write` will now return `Result<()>` instead of `Result<usize>`. The number of bytes written can be obtained from the buffer's length.
+
+### `Access::metadata()` will return `Arc<AccessInfo>`
+
+Starting from version 0.48, `Access::metadata()` will return `Arc<AccessInfo>` instead of `AccessInfo`. This change is intended to improve performance and reduce memory usage.
+
+```diff
+  trait Access {
+-     fn metadata(&self) -> AccessInfo;
++     fn metadata(&self) -> Arc<AccessInfo>;
+  }
+```
+
+### `MinitraceLayer` renamed to `FastraceLayer`
+
+The `MinitraceLayer` has been renamed to `FastraceLayer` to respond to the [transition from `minitrace` to `fastrace`](https://github.com/tikv/minitrace-rust/issues/229).
+
+```diff
+- use opendal::layers::MinitraceLayer;
++ use opendal::layers::FastraceLayer;
+```
+
+### Use `Configurator` to replace `Builder::from_config`
+
+Since v0.48, the `Builder::from_config` and `Builder::from_map` method has been replaced by the `Configurator` trait. The `Configurator` trait provides a more flexible and extensible way to configure OpenDAL.
+
+Service implementers should update their code to use the `Configurator` trait instead:
+
+```rust
+impl Configurator for MemoryConfig {
+    type Builder = MemoryBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+
+impl Builder for MemoryBuilder {
+    const SCHEME: Scheme = Scheme::Memory;
+    type Config = MemoryConfig;
+
+    fn build(self) -> Result<impl Access> {
+        ...
+    }
+}
+```
+
+# Upgrade to v0.47
+
+## Public API
+
+### Reader `into_xxx` APIs
+
+Since v0.47, `Reader`'s `into_xxx` APIs requires `async` and returns `Result` instead.
+
+```diff
+- let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048);
++ let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048).await?;
+```
+
+Affected API includes:
+
+- `Reader::into_futures_async_read`
+- `Reader::into_bytes_stream`
+- `BlockingReader::into_std_read`
+- `BlockingReader::into_bytes_iterator`
+
+## Raw API
+
+### Bring Streaming Read Back
+
+As explained in [core: Bring Streaming Read Back](https://github.com/apache/opendal/issues/4672), we do need read streaming back for better performance and low memory usage.
+
+So our `oio::Read` changed back to streaming read instead:
+
+```diff
+trait Read {
+-  async fn read(&self, offset: u64, size: usize) -> Result<Buffer>;
++  async fn read(&mut self) -> Result<Buffer>;
+}
+```
+
+All services and layers should be updated to meet this change.
+
+# Upgrade to v0.46
+
+## Public API
+
+### MSRV Changed to 1.75
+
+Since 0.46, OpenDAL requires Rust 1.75.0 or later to use features like [`RPITIT`](https://rust-lang.github.io/rfcs/3425-return-position-impl-trait-in-traits.html) and [`AFIT`](https://rust-lang.github.io/rfcs/3185-static-async-fn-in-trait.html).
+
+### Services Feature Flag
+
+Starting with version 0.46, OpenDAL only includes the memory service by default to prevent compiling unnecessary service code. To use other services, please activate their respective feature flags.
+
+Additionally, we have removed all `reqwest`-related feature flags:
+
+- Users must now directly use `reqwest`'s feature flags for options like `rustls`, `native-tls`, etc.
+- The `rustls` feature is no longer enabled by default; it must be activated manually.
+- OpenDAL no longer offers the `trust-dns` option; users should configure the client builder directly.
+
+### Range Based Read
+
+Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO.
+
+`opendal::Reader` now have APIs like:
+
+```rust
+let r = op.reader("test.txt").await?;
+let buf = r.read(1024..2048).await?;
+```
+
+### Buffer Based IO
+
+Since version 0.46, OpenDAL features a native `Buffer` struct that supports both contiguous and non-contiguous buffers. This update enhances IO efficiency by minimizing unnecessary byte copying and enabling vectored IO.
+
+OpenDAL's `Reader` will return `Buffer` and `Writer` will accept `Buffer` as input. Users who have implemented their own IO traits should update their code to use the new `Buffer` struct.
+
+```rust
+let r = op.reader("test.txt").await?;
+// read returns `Buffer`
+let buf: Buffer = r.read(1024..2048).await?;
+
+let w = op.writer("test.txt").await?;
+
+// Buffer can be created from continues bytes.
+w.write("hello, world").await?;
+// Buffer can also be created from non-continues bytes.
+w.write(vec![Bytes::from("hello,"), Bytes::from("world!")]).await?;
+
+// Make sure file has been written completely.
+w.close().await?;
+```
+
+To enhance usability, we've integrated bridges into `bytes::Buf` and `bytes::BufMut`, allowing users to directly interact with the bytes API.
+
+```rust
+let r = op.reader("test.txt").await?;
+let mut bs = vec![];
+// read_into accepts bytes::BufMut
+let buf: Buffer = r.read_into(&mut bs, 1024..2048).await?;
+
+let w = op.writer("test.txt").await?;
+
+// write_from accepts bytes::Buf
+w.write_from("hello, world".as_bytes()).await?;
+
+// Make sure file has been written completely.
+w.close().await?;
+```
+
+### Bridge API
+
+OpenDAL's `Reader` and `Writer` previously implemented APIs such as `AsyncRead` and `AsyncWrite` directly. This design was not user-friendly, as it could lead to unexpected costs that users were unaware of in advance.
+
+Since v0.46, OpenDAL provides bridge APIs for `Reader` and `Writer` instead.
+
+```rust
+let r = op.reader("test.txt").await?;
+
+// Convert into futures AsyncRead + AsyncSeek.
+let reader = r.into_futures_async_read(1024..2048);
+// Convert into futures bytes stream.
+let stream = r.into_bytes_stream(1024..2048);
+
+let w = op.writer("test.txt").await?;
+
+// Convert into futures AsyncWrite
+let writer = w.into_futures_async_write();
+// Convert into futures bytes sink;
+let sink = w.into_bytes_sink();
+```
+
+## Raw API
+
+### Async in IO trait
+
+Since version 0.46, OpenDAL has adopted Rust's native [`async_in_trait`](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html) for our core IO traits, including `oio::Read`, `oio::Write`, and `oio::List`.
+
+This update eliminates the need for manually written, poll-based state machines and simplifies the codebase. Consequently, OpenDAL now requires Rust version 1.75.0 or later.
+
+Users who have implemented their own IO traits should update their code to use the new async trait syntax.
+
+# Upgrade to v0.45
+
+## Public API
+
+### BlockingLayer is not enabled by default
+
+To further enhance the optionality of `tokio`, we have introduced a new feature called `layers-blocking`. The default usage of the blocking layer has been disabled. To utilize the `BlockingLayer`, please enable the `layers-blocking` feature.
+
+### TimeoutLayer deprecated `with_speed`
+
+The `with_speed` API has been deprecated. Please use `with_io_timeout` instead.
+
+## Raw API
+
+No raw API changes.
+
+# Upgrade to v0.44
+
+## Public API
+
+### Moka Service Configuration
+
+- The `thread_pool_enabled` option has been removed.
+
+### List Prefix Supported
+
+After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we have changed the behavior of `list` a path without `/`. OpenDAL used to return `NotADirectory` error, but now we will return the list of entries that start with given prefix instead.
+
+# Upgrade to v0.43
+
+## Public API
+
+### List Recursive
+
+After [RFC-3526: List Recursive](crate::docs::rfcs::rfc_3526_list_recursive) landed, we have changed the `list` API to accept `recursive` instead of `delimiter`:
+
+Users will need to change the following usage:
+
+- `op.list_with(path).delimiter("")` -> `op.list_with(path).recursive(true)`
+- `op.list_with(path).delimiter("/")` -> `op.list_with(path).recursive(false)`
+
+`delimiter` other than `""` and `"/"` is not supported anymore.
+
+### Stat a dir path
+
+After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we have changed the behavior of `stat` a dir path:
+
+Here are the behavior list:
+
+| Case                   | Path            | Result                                     |
+|------------------------|-----------------|--------------------------------------------|
+| stat existing dir      | `abc/`          | Metadata with dir mode                     |
+| stat existing file     | `abc/def_file`  | Metadata with file mode                    |
+| stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
+| stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
+| stat not existing path | `xyz`           | Error `NotFound`                           |
+
+Services like s3, azblob can handle `stat("abc/")` correctly by check if there are objects with prefix `abc/`.
+
+## Raw API
+
+### Lister Align
+
+We changed our internal `lister` implementation to align with the `list` public API for better performance and readability.
+
+- trait `Page` => `List`
+- struct `Pager` => `Lister`
+- trait `BlockingPage` => `BlockingList`
+- struct `BlockingPager` => `BlockingLister`
+
+Every call to `next` will return an entry instead a page of entries. Also, we changed our async list api into poll based instead of `async_trait`.
+
+# Upgrade to v0.42
+
+## Public API
+
+### MSRV Changed
+
+OpenDAL bumps it's MSRV to 1.67.0.
+
+### S3 Service Configuration
+
+- The `enable_exact_buf_write` option has been deprecated and is superseded by `BufferedWriter`, introduced in version 0.40.
+
+### Oss Service Configuration
+
+- The `write_min_size` option has been deprecated and replaced by `BufferedWriter`, also introduced in version 0.40.
+- A new setting, `allow_anonymous`, has been added. Since v0.41, OSS will now return an error if credential loading fails. Enabling `allow_anonymous` to fallback to request without credentials.
+
+### Ghac Service Configuration
+
+- The `enable_create_simulation` option has been removed. We add this option to allow ghac simulate create empty file, but it could result in unexpected behavior when users create a file with content length `1`. So we remove it.
+
+### Wasabi Service Removed
+
+`wasabi` service native support has been removed. Users who want to access wasabi can use our `s3` service instead.
+
+# Upgrade to v0.41
+
+There is no public API and raw API changes.
+
+# Upgrade to v0.40
+
+## Public API
+
+### RFC-2578 Merge Append Into Write
+
+[RFC-2578](crate::docs::rfcs::rfc_2758_merge_append_into_write) merges `append` into `write` and removes `append` API.
+
+- For writing a file at once, please use `op.write()` for convenience.
+- For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
+
+The same rule applies to `writer()` and `writer_with()`.
+
 ### RFC-2774 Lister API
 
-RFC-2774 proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
+[RFC-2774](crate::docs::rfcs::rfc_2774_lister_api) proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
 
 - For listing a directory at once, please use `list()` for convenience.
 - For listing a directory recursively, please use `list_with().delimiter("")` or `lister_with().delimiter("")` instead of `scan()`.
 - For listing in streaming, please use `lister()` or `lister_with()` instead.
+
+### RFC-2779 List With Metakey
+
+[RFC-2779](crate::docs::rfcs::rfc_2779_list_with_metakey) proposes a new `op.list_with().metakey()` API to allow list with metakey and removes `op.metadata(&entry)` API.
+
+Please use `op.list_with().metakey()` instead of `op.metadata(&entry)`, for example:
+
+```rust
+// Before
+let entries: Vec<Entry> = op.list("dir/").await?;
+for entry in entries {
+  let meta = op.metadata(&entry, Metakey::ContentLength | Metakey::ContentType).await?;
+  println!("{} {}", entry.name(), entry.metadata().content_length());
+}
+
+// After
+let entries: Vec<Entry> = op
+  .list_with("dir/")
+  .metakey(Metakey::ContentLength | Metakey::ContentType).await?;
+for entry in entries {
+  println!("{} {}", entry.name(), entry.metadata().content_length());
+}
+```
+
+### RFC-2852: Native Capability
+
+[RFC-2852](crate::docs::rfcs::rfc_2852_native_capability) proposes new `native_capability` and `full_capability` API to allow users to check if the underlying service supports a capability natively.
+
+- `native_capability` returns `true` if the capability is supported natively.
+- `full_capability` returns `true` if the capability is supported, maybe via a layer.
+
+Most of time, you can use `full_capability` to replace `capability` call. But to check if the capability is supported natively for better performance design, please use `native_capability` instead.
+
+### Buffered Writer
+
+OpenDAL v0.40 added buffered writer support!
+
+Users don't need to specify the `content_length()` for writer anymore!
+
+```diff
+- let mut w = op.writer_with("path/to/file").content_length(1024).await?;
++ let mut w = op.writer_with("path/to/file").await?;
+```
+
+Users can specify the `buffer()` to control the size we call underlying storage:
+
+```rust
+let mut w = op.writer_with("path/to/file").buffer(8 * 1024 * 1024).await?;
+```
+
+If buffer is not specified, we will call underlying storage everytime we call `write`. Otherwise, we will make sure to call underlying storage when buffer is full or `close` is called.
+
+### RangeRead and RangeReader
+
+OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, please use `read_with().range()` or `reader_with().range()`.
+
+```diff
+- op.range_read(path, range_start..range_end).await?;
++ op.read_with(path).range(range_start..range_end).await?;
+```
+
+```diff
+- let reader = op.range_reader(path, range_start..range_end).await?;
++ let reader = op.reader_with(path).range(range_start..range_end).await?;
+```
+
+
+
+## Raw API
+
+### RFC-3017 Remove Write Copy From
+
+[RFC-3017](crate::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
 
 # Upgrade to v0.39
 
@@ -38,9 +515,9 @@ There are no public API changes.
 
 OpenDAL add the `Write::sink` API to enable streaming writing. This is a breaking change for users who depend on the raw API.
 
-For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`. 
+For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`.
 
-More detailes could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
+More details could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
 
 # Upgrade to v0.37
 
@@ -94,7 +571,7 @@ let bs = bop.read_with("path/to/file")
 
 Along with this change, users don't need to call `OpXxx` anymore so we moved it to `raw` API.
 
-More detailes could be found at [RFC: Chain Based Operator API][crate::docs::rfcs::rfc_2299_chain_based_operator_api].
+More details could be found at [RFC: Chain Based Operator API][crate::docs::rfcs::rfc_2299_chain_based_operator_api].
 
 ## Raw API
 
@@ -116,7 +593,7 @@ Migrated `opendal::ops` to `opendal::raw::ops`.
 
 ## Public API
 
-- OpenDAL raises it's MSRV to 1.65 for dependences changes
+- OpenDAL raises it's MSRV to 1.65 for dependencies changes
 - `OperatorInfo::can_scan` has been removed, to check if underlying services support scan a dir natively, please use `Capability::list_without_delimiter` instead.
 
 ## Raw API
@@ -186,12 +663,12 @@ opendal = {
 
 In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.
 
-More detailes could be found at [RFC: Remove Object Concept][crate::docs::rfcs::rfc_1477_remove_object_concept].
+More details could be found at [RFC: Remove Object Concept][crate::docs::rfcs::rfc_1477_remove_object_concept].
 
 To upgrade to OpenDAL v0.30, users need to make the following changes:
 
 - regex replace `object\((.*)\).reader\(\)` to `reader($1)`
-	- replace the function on your case, it's recomanded to do it one by one
+	- replace the function on your case, it's recommended to do it one by one
 - rename `ObjectMetakey` => `Metakey`
 - rename `ObjectMode` => `EntryMode`
 - replace `ErrorKind::ObjectXxx` to `ErrorKind::Xxx`
@@ -245,7 +722,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
 ## User defined layers
 
-Due to this change, all layers implementation should be changed. If there is not changed over pager, they can by changed like the following:
+Due to this change, all layers implementation should be changed. If there is not changed over pager, they can be changed like the following:
 
 ```diff
 impl<A: Accessor> LayeredAccessor for MyAccessor<A> {
@@ -302,7 +779,7 @@ Due to this change, we have to refactor the logic of `Operator`'s init logic. In
 + let op = Operator::new(builder.build()?).finish();
 ```
 
-By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily to used everywhere as before.
+By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily used everywhere as before.
 
 ## Accessor
 
@@ -317,7 +794,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 }
 ```
 
-If your service doesn't support `read` or `blocking_read`, we can use `()` to represent an dummy reader:
+If your service doesn't support `read` or `blocking_read`, we can use `()` to represent a dummy reader:
 
 ```rust
 impl Accessor for MyDummyAccessor {
@@ -402,7 +879,7 @@ Thus, we removed the `seekable_reader` API. They can be replaced by `range_reade
 
 Most changes only happen inside. Users not using `opendal::raw::*` will not be affected.
 
-Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/apache/incubator-opendal/discussions).
+Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/apache/opendal/discussions).
 
 # Upgrade to v0.21
 

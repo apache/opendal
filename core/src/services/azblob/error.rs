@@ -24,9 +24,7 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// AzblobError is the error returned by azure blob service.
 #[derive(Default, Deserialize)]
@@ -60,37 +58,15 @@ impl Debug for AzblobError {
     }
 }
 
-pub fn parse_http_error(status: StatusCode, body: &str) -> Result<Error> {
-    let (kind, retryable) = match status {
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, false),
-    };
-    let message = match de::from_str::<AzblobError>(body) {
-        Ok(err) => format!("{err:?}"),
-        Err(_) => body.to_string(),
-    };
-    let mut err = Error::new(kind, &message).with_context("response", body.to_string());
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    Ok(err)
-}
-
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::INTERNAL_SERVER_ERROR
@@ -128,7 +104,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]

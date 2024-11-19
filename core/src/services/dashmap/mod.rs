@@ -15,5 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-dashmap")]
 mod backend;
+#[cfg(feature = "services-dashmap")]
 pub use backend::DashmapBuilder as Dashmap;
+
+mod config;
+pub use config::DashmapConfig;

@@ -1,2 +1,20 @@
 website export-ignore
 examples export-ignore
+
+# We will not export unreleased components.
+# If any of these are released, remove the line.
+bin export-ignore
+integrations export-ignore
+
+bindings/c export-ignore
+bindings/cpp export-ignore
+bindings/d export-ignore
+bindings/dotnet export-ignore
+bindings/go export-ignore
+bindings/haskell export-ignore
+bindings/lua export-ignore
+bindings/ocaml export-ignore
+bindings/php export-ignore
+bindings/ruby export-ignore
+bindings/swift export-ignore
+bindings/zig export-ignore

@@ -1,7 +1,7 @@
 - Proposal Name: `object_reader`
 - Start Date: 2022-11-13
-- RFC PR: [apache/incubator-opendal#926](https://github.com/apache/incubator-opendal/pull/926)
-- Tracking Issue: [apache/incubator-opendal#927](https://github.com/apache/incubator-opendal/issues/927)
+- RFC PR: [apache/opendal#926](https://github.com/apache/opendal/pull/926)
+- Tracking Issue: [apache/opendal#927](https://github.com/apache/opendal/issues/927)
 
 # Summary
 

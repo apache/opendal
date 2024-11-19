@@ -22,8 +22,6 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphApiOnedriveListResponse {
-    #[serde(rename = "@odata.count")]
-    pub odata_count: usize,
     #[serde(rename = "@odata.nextLink")]
     pub next_link: Option<String>,
     pub value: Vec<OneDriveItem>,
@@ -148,7 +146,6 @@ impl OneDriveUploadSessionCreationRequestBody {
 fn test_parse_one_drive_json() {
     let data = r#"{
         "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('user_id')/drive/root/children",
-        "@odata.count": 1,
         "value": [
             {
                 "createdDateTime": "2020-01-01T00:00:00Z",
@@ -209,7 +206,7 @@ fn test_parse_one_drive_json() {
                     "path": "/drive/root:"
                 },
                 "file": {
-                    "mimeType": "application/pdf",
+                    "mimeType": "application/pdf"
                 },
                 "fileSystemInfo": {
                     "createdDateTime": "2018-12-30T05:32:55.46Z",
@@ -220,7 +217,6 @@ fn test_parse_one_drive_json() {
     }"#;
 
     let response: GraphApiOnedriveListResponse = serde_json::from_str(data).unwrap();
-    assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
     assert_eq!(item.name, "name");
@@ -231,7 +227,6 @@ fn test_parse_folder_single() {
     let response_json = r#"
     {
         "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children",
-        "@odata.count": 1,
         "value": [
           {
             "createdDateTime": "2023-02-01T00:51:02.803Z",
@@ -288,7 +283,6 @@ fn test_parse_folder_single() {
       }"#;
 
     let response: GraphApiOnedriveListResponse = serde_json::from_str(response_json).unwrap();
-    assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 1);
     let item = &response.value[0];
     if let ItemType::Folder { folder, .. } = &item.item_type {

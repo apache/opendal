@@ -1,7 +1,7 @@
 - Proposal Name: `chain_based_operator_api`
 - Start Date: 2023-05-23
-- RFC PR: [apache/incubator-opendal#2299](https://github.com/apache/incubator-opendal/pull/2299)
-- Tracking Issue: [apache/incubator-opendal#2300](https://github.com/apache/incubator-opendal/issues/2300)
+- RFC PR: [apache/opendal#2299](https://github.com/apache/opendal/pull/2299)
+- Tracking Issue: [apache/opendal#2300](https://github.com/apache/opendal/issues/2300)
 
 # Summary
 
@@ -94,6 +94,6 @@ None
 
 # Future possibilities
 
-## Change API after fn_traits stablized
+## Change API after fn_traits stabilized
 
-After [fn_traits](https://github.com/rust-lang/rust/issues/29625) get stablized, we will implement `FnOnce` for `FunctionXxx` instead of `call`.
+After [fn_traits](https://github.com/rust-lang/rust/issues/29625) get stabilized, we will implement `FnOnce` for `FunctionXxx` instead of `call`.

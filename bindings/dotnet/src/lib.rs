@@ -36,9 +36,9 @@ pub unsafe extern "C" fn blocking_operator_construct(
         Err(_) => return std::ptr::null(),
     };
 
-    let mut map = HashMap::default();
+    let mut map = HashMap::<String, String>::default();
     map.insert("root".to_string(), "/tmp".to_string());
-    let op = match opendal::Operator::via_map(scheme, map) {
+    let op = match opendal::Operator::via_iter(scheme, map) {
         Ok(op) => op.blocking(),
         Err(err) => {
             println!("err={err:?}");
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn blocking_operator_read(
 ) -> *const c_char {
     let op = &*(op);
     let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
-    let mut res = op.read(path).unwrap();
+    let mut res = op.read(path).unwrap().to_vec();
     res.push(0);
     std::ffi::CString::from_vec_with_nul(res)
         .unwrap()

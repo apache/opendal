@@ -17,194 +17,205 @@
 
 //! Services will provide builders to build underlying backends.
 //!
-//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/incubator-opendal/issues/5). Please feel free to submit issues if there are services not covered.
+//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-azblob")]
+mod aliyun_drive;
+pub use aliyun_drive::*;
+
+mod alluxio;
+pub use alluxio::*;
+
+mod atomicserver;
+pub use self::atomicserver::*;
+
 mod azblob;
-#[cfg(feature = "services-azblob")]
-pub use azblob::Azblob;
+pub use azblob::*;
 
-#[cfg(feature = "services-azdfs")]
-mod azdfs;
-#[cfg(feature = "services-azdfs")]
-pub use azdfs::Azdfs;
+mod azdls;
+pub use azdls::*;
 
-#[cfg(feature = "services-cos")]
-mod cos;
-#[cfg(feature = "services-cos")]
-pub use cos::Cos;
+mod azfile;
+pub use azfile::*;
 
-#[cfg(feature = "services-dashmap")]
-mod dashmap;
-#[cfg(feature = "services-dashmap")]
-pub use self::dashmap::Dashmap;
+mod b2;
+pub use b2::*;
 
-#[cfg(feature = "services-etcd")]
-mod etcd;
-#[cfg(feature = "services-etcd")]
-pub use self::etcd::Etcd;
-
-#[cfg(feature = "services-fs")]
-mod fs;
-#[cfg(feature = "services-fs")]
-pub use fs::Fs;
-
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::Ftp;
-
-#[cfg(feature = "services-gcs")]
-mod gcs;
-#[cfg(feature = "services-gcs")]
-pub use gcs::Gcs;
-
-#[cfg(feature = "services-ghac")]
-mod ghac;
-#[cfg(feature = "services-ghac")]
-pub use ghac::Ghac;
-
-#[cfg(feature = "services-hdfs")]
-mod hdfs;
-#[cfg(feature = "services-hdfs")]
-pub use hdfs::Hdfs;
-
-#[cfg(feature = "services-http")]
-mod http;
-#[cfg(feature = "services-http")]
-pub use self::http::Http;
-
-#[cfg(feature = "services-ipfs")]
-mod ipfs;
-#[cfg(feature = "services-ipfs")]
-pub use self::ipfs::Ipfs;
-
-#[cfg(feature = "services-ipmfs")]
-mod ipmfs;
-#[cfg(feature = "services-ipmfs")]
-pub use ipmfs::Ipmfs;
-
-#[cfg(feature = "services-memcached")]
-mod memcached;
-#[cfg(feature = "services-memcached")]
-pub use memcached::Memcached;
-
-#[cfg(feature = "services-memory")]
-mod memory;
-#[cfg(feature = "services-memory")]
-pub use memory::Memory;
-
-#[cfg(feature = "services-mini-moka")]
-mod mini_moka;
-#[cfg(feature = "services-mini-moka")]
-pub use self::mini_moka::MiniMoka;
-
-#[cfg(feature = "services-moka")]
-mod moka;
-#[cfg(feature = "services-moka")]
-pub use self::moka::Moka;
-
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::Obs;
-
-#[cfg(feature = "services-oss")]
-mod oss;
-#[cfg(feature = "services-oss")]
-pub use oss::Oss;
-
-#[cfg(feature = "services-cacache")]
 mod cacache;
-#[cfg(feature = "services-cacache")]
-pub use self::cacache::Cacache;
+pub use self::cacache::*;
 
-#[cfg(feature = "services-persy")]
-mod persy;
-#[cfg(feature = "services-persy")]
-pub use self::persy::Persy;
+mod chainsafe;
+pub use chainsafe::*;
 
-#[cfg(feature = "services-redis")]
-mod redis;
-#[cfg(feature = "services-redis")]
-pub use self::redis::Redis;
+mod cloudflare_kv;
+pub use self::cloudflare_kv::*;
 
-#[cfg(feature = "services-rocksdb")]
-mod rocksdb;
-#[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::Rocksdb;
+mod compfs;
+pub use compfs::*;
 
-#[cfg(feature = "services-s3")]
-mod s3;
-#[cfg(feature = "services-s3")]
-pub use s3::S3;
+mod cos;
+pub use cos::*;
 
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::Sftp;
+mod d1;
+pub use self::d1::*;
 
-#[cfg(feature = "services-sled")]
-mod sled;
-#[cfg(feature = "services-sled")]
-pub use self::sled::Sled;
+mod dashmap;
+pub use self::dashmap::*;
 
-#[cfg(feature = "services-supabase")]
-mod supabase;
-#[cfg(feature = "services-supabase")]
-pub use supabase::Supabase;
+mod dbfs;
+pub use self::dbfs::*;
 
-#[cfg(feature = "services-wasabi")]
-mod wasabi;
-#[cfg(feature = "services-wasabi")]
-pub use wasabi::Wasabi;
-
-#[cfg(feature = "services-webdav")]
-mod webdav;
-#[cfg(feature = "services-webdav")]
-pub use webdav::Webdav;
-
-#[cfg(feature = "services-webhdfs")]
-mod webhdfs;
-
-#[cfg(feature = "services-onedrive")]
-mod onedrive;
-#[cfg(feature = "services-onedrive")]
-pub use onedrive::Onedrive;
-
-#[cfg(feature = "services-gdrive")]
-mod gdrive;
-#[cfg(feature = "services-gdrive")]
-pub use gdrive::Gdrive;
-
-#[cfg(feature = "services-dropbox")]
 mod dropbox;
-#[cfg(feature = "services-dropbox")]
-pub use dropbox::Dropbox;
-#[cfg(feature = "services-webhdfs")]
-pub use webhdfs::Webhdfs;
+pub use dropbox::*;
 
-#[cfg(feature = "services-vercel-artifacts")]
-mod vercel_artifacts;
-#[cfg(feature = "services-vercel-artifacts")]
-pub use vercel_artifacts::VercelArtifacts;
+mod etcd;
+pub use self::etcd::*;
 
-#[cfg(feature = "services-redb")]
-mod redb;
-#[cfg(feature = "services-redb")]
-pub use self::redb::Redb;
-
-#[cfg(feature = "services-tikv")]
-mod tikv;
-#[cfg(feature = "services-tikv")]
-pub use self::tikv::Tikv;
-
-#[cfg(feature = "services-foundationdb")]
 mod foundationdb;
-#[cfg(feature = "services-foundationdb")]
-pub use self::foundationdb::Foundationdb;
+pub use self::foundationdb::*;
 
-#[cfg(feature = "services-postgresql")]
+mod fs;
+pub use fs::*;
+
+mod ftp;
+pub use ftp::*;
+
+mod gcs;
+pub use gcs::*;
+
+mod gdrive;
+pub use gdrive::*;
+
+mod ghac;
+pub use ghac::*;
+
+mod github;
+pub use github::*;
+
+mod gridfs;
+pub use gridfs::*;
+
+mod hdfs;
+pub use self::hdfs::*;
+
+mod hdfs_native;
+pub use hdfs_native::*;
+
+mod http;
+pub use self::http::*;
+
+mod huggingface;
+pub use huggingface::*;
+
+mod icloud;
+pub use icloud::*;
+
+mod ipfs;
+pub use self::ipfs::*;
+
+mod ipmfs;
+pub use ipmfs::*;
+
+mod koofr;
+pub use koofr::*;
+
+mod lakefs;
+pub use lakefs::*;
+
+mod libsql;
+pub use libsql::*;
+
+mod memcached;
+pub use memcached::*;
+
+mod memory;
+pub use self::memory::*;
+
+mod mini_moka;
+pub use self::mini_moka::*;
+
+mod moka;
+pub use self::moka::*;
+
+mod mongodb;
+pub use self::mongodb::*;
+
+mod monoiofs;
+pub use monoiofs::*;
+
+mod mysql;
+pub use self::mysql::*;
+
+mod nebula_graph;
+pub use nebula_graph::*;
+
+mod obs;
+pub use obs::*;
+
+mod onedrive;
+pub use onedrive::*;
+
+mod oss;
+pub use oss::*;
+
+mod pcloud;
+pub use pcloud::*;
+
+mod persy;
+pub use self::persy::*;
+
 mod postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::Postgresql;
+pub use self::postgresql::*;
+
+mod redb;
+pub use self::redb::*;
+
+mod redis;
+pub use self::redis::*;
+
+mod rocksdb;
+pub use self::rocksdb::*;
+
+mod s3;
+pub use s3::*;
+
+mod seafile;
+pub use seafile::*;
+
+mod sftp;
+pub use sftp::*;
+
+mod sled;
+pub use self::sled::*;
+
+mod sqlite;
+pub use self::sqlite::*;
+
+mod supabase;
+pub use supabase::*;
+
+mod surrealdb;
+pub use surrealdb::*;
+
+mod swift;
+pub use self::swift::*;
+
+mod tikv;
+pub use self::tikv::*;
+
+mod upyun;
+pub use upyun::*;
+
+mod vercel_artifacts;
+pub use vercel_artifacts::*;
+
+mod vercel_blob;
+pub use vercel_blob::*;
+
+mod webdav;
+pub use webdav::*;
+
+mod webhdfs;
+pub use webhdfs::*;
+
+mod yandex_disk;
+pub use yandex_disk::*;

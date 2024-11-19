@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::*;
+mod _type;
+mod entry;
+mod metadata;
+mod reader;
 
-#[ocaml::sig]
-pub struct Operator(od::BlockingOperator);
-ocaml::custom!(Operator);
+use _type::*;
+
+use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("string -> (string * string) list -> (operator, string) Result.t ")]
@@ -29,6 +32,29 @@ pub fn operator(
 ) -> Result<ocaml::Pointer<Operator>, String> {
     let op = map_res_error(new_operator(scheme_str, map))?;
     Ok(Operator(op.blocking()).into())
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> string -> (entry array, string) Result.t ")]
+pub fn blocking_list(
+    operator: &mut Operator,
+    path: String,
+) -> Result<Vec<ocaml::Pointer<Entry>>, String> {
+    map_res_error(
+        operator
+            .0
+            .list(path.as_str())
+            .map(|m| m.into_iter().map(|it| Entry(it).into()).collect()),
+    )
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> string -> (metadata, string) Result.t ")]
+pub fn blocking_stat(
+    operator: &mut Operator,
+    path: String,
+) -> Result<ocaml::Pointer<Metadata>, String> {
+    map_res_error(operator.0.stat(path.as_str()).map(|m| Metadata(m).into()))
 }
 
 #[ocaml::func]
@@ -46,7 +72,16 @@ pub fn blocking_create_dir(operator: &mut Operator, path: String) -> Result<(), 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (char array, string) Result.t ")]
 pub fn blocking_read(operator: &mut Operator, path: String) -> Result<Vec<u8>, String> {
-    map_res_error(operator.0.read(path.as_str()))
+    map_res_error(operator.0.read(path.as_str()).map(|v| v.to_vec()))
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> string -> (reader, string) Result.t ")]
+pub fn blocking_reader(
+    operator: &mut Operator,
+    path: String,
+) -> Result<ocaml::Pointer<Reader>, String> {
+    map_res_error(operator.0.reader(path.as_str())).map(|op| Reader(op).into())
 }
 
 #[ocaml::func]

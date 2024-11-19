@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::DropboxCore;
@@ -38,40 +36,16 @@ impl DropboxWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for DropboxWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for DropboxWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .core
-            .dropbox_update(
-                &self.path,
-                Some(bs.len()),
-                self.op.content_type(),
-                AsyncBody::Bytes(bs),
-            )
+            .dropbox_update(&self.path, Some(bs.len()), &self.op, bs)
             .await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

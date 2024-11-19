@@ -15,61 +15,51 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use openssh_sftp_client::file::File;
+use std::pin::Pin;
 
-use crate::raw::oio;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use bytes::Buf;
+use openssh_sftp_client::file::File;
+use openssh_sftp_client::file::TokioCompatFile;
+use tokio::io::AsyncWriteExt;
+
+use crate::raw::*;
+use crate::*;
 
 pub struct SftpWriter {
-    file: File,
+    /// TODO: maybe we can use `File` directly?
+    file: Pin<Box<TokioCompatFile>>,
 }
 
 impl SftpWriter {
     pub fn new(file: File) -> Self {
-        SftpWriter { file }
+        SftpWriter {
+            file: Box::pin(TokioCompatFile::new(file)),
+        }
     }
 }
 
-#[async_trait]
 impl oio::Write for SftpWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.file.write_all(&bs).await?;
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        while bs.has_remaining() {
+            let n = self
+                .file
+                .write(bs.chunk())
+                .await
+                .map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
 
         Ok(())
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn close(&mut self) -> Result<()> {
+        self.file.shutdown().await.map_err(new_std_io_error)
     }
 
     async fn abort(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "SFTP does not support aborting writes",
+            "SftpWriter doesn't support abort",
         ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl oio::Append for SftpWriter {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.file.write_all(&bs).await?;
-
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

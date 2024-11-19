@@ -19,45 +19,6 @@ use crate::raw::*;
 use crate::*;
 
 /// Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
-///
-/// # Notes
-///
-/// Entry returned by [`Lister`] or [`BlockingLister`] may carry some already known metadata.
-/// Lister by default only make sure that `Mode` is fetched. To make sure the entry contains
-/// metadata you want, please use `list_with` or `lister_with` and `metakey`.
-///
-/// For example:
-///
-/// ```no_run
-/// # use anyhow::Result;
-/// use opendal::EntryMode;
-/// use opendal::Metakey;
-/// use opendal::Operator;
-/// # #[tokio::main]
-/// # async fn test(op: Operator) -> Result<()> {
-/// let mut entries = op
-///     .list_with("dir/")
-///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-///     .await?;
-/// for entry in entries {
-///     let meta = entry.metadata();
-///     match meta.mode() {
-///         EntryMode::FILE => {
-///             println!(
-///                 "Handling file {} with size {}",
-///                 entry.path(),
-///                 meta.content_length()
-///             )
-///         }
-///         EntryMode::DIR => {
-///             println!("Handling dir {}", entry.path())
-///         }
-///         EntryMode::Unknown => continue,
-///     }
-/// }
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Clone, Debug)]
 pub struct Entry {
     /// Path of this entry.
@@ -97,99 +58,11 @@ impl Entry {
     }
 
     /// Fetch metadata of this entry.
-    ///
-    /// # Notes
-    ///
-    /// Metadata only guaranteed to have results of `metakey` (which default to `Metakey::Mode`).
-    ///
-    /// - `Some(T)` means the metadata is valid.
-    /// - `None` means the metadata is not provided by services.
-    ///
-    /// Visiting a metadata that not covered by `metakey` could result in panic.
-    ///
-    /// # Examples
-    ///
-    /// Please use `metakey` to specify the metadata you want, for example:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op
-    ///     .list_with("dir/")
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// for entry in entries {
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 entry.path(),
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
     }
 
     /// Consume this entry to get it's path and metadata.
-    ///
-    /// # Notes
-    ///
-    /// Metadata only guaranteed to have results of `metakey` (which default to `Metakey::Mode`).
-    ///
-    /// - `Some(T)` means the metadata is valid.
-    /// - `None` means the metadata is not provided by services.
-    ///
-    /// Visiting a metadata that not covered by `metakey` could result in panic.
-    ///
-    /// # Examples
-    ///
-    /// Please use `metakey` to specify the metadata you want, for example:
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op
-    ///     .list_with("dir/")
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
-    ///     .await?;
-    /// for entry in entries {
-    ///     let (path, meta) = entry.into_parts();
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 path,
-    ///                 meta.content_length()
-    ///             )
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", path)
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn into_parts(self) -> (String, Metadata) {
         (self.path, self.metadata)
     }

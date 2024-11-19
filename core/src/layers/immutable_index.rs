@@ -17,9 +17,8 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::mem;
-
-use async_trait::async_trait;
+use std::sync::Arc;
+use std::vec::IntoIter;
 
 use crate::raw::*;
 use crate::*;
@@ -31,22 +30,25 @@ use crate::*;
 /// # Examples
 ///
 /// ```rust, no_run
-/// use std::collections::HashMap;
+/// # use std::collections::HashMap;
 ///
-/// use opendal::layers::ImmutableIndexLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// # use opendal::layers::ImmutableIndexLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
+/// # fn main() -> Result<()> {
 /// let mut iil = ImmutableIndexLayer::default();
 ///
 /// for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_map::<services::Http>(HashMap::default())
-///     .unwrap()
+/// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
 ///     .layer(iil)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {
@@ -68,10 +70,10 @@ impl ImmutableIndexLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
-    type LayeredAccessor = ImmutableIndexAccessor<A>;
+impl<A: Access> Layer<A> for ImmutableIndexLayer {
+    type LayeredAccess = ImmutableIndexAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ImmutableIndexAccessor {
             vec: self.vec.clone(),
             inner,
@@ -80,12 +82,12 @@ impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
 }
 
 #[derive(Debug, Clone)]
-pub struct ImmutableIndexAccessor<A: Accessor> {
+pub struct ImmutableIndexAccessor<A: Access> {
     inner: A,
     vec: Vec<String>,
 }
 
-impl<A: Accessor> ImmutableIndexAccessor<A> {
+impl<A: Access> ImmutableIndexAccessor<A> {
     fn children_flat(&self, path: &str) -> Vec<String> {
         self.vec
             .iter()
@@ -133,52 +135,44 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
+impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Appender = A::Appender;
-    type Pager = ImmutableDir;
-    type BlockingPager = ImmutableDir;
+    type Lister = ImmutableDir;
+    type BlockingLister = ImmutableDir;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     /// Add list capabilities for underlying storage services.
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.inner.info();
+    fn info(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.inner.info()).clone();
 
-        let cap = meta.capability_mut();
+        let cap = meta.full_capability_mut();
         cap.list = true;
-        cap.list_with_delimiter_slash = true;
-        cap.list_without_delimiter = true;
+        cap.list_with_recursive = true;
 
-        meta
+        meta.into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        let idx = if args.delimiter() == "/" {
-            self.children_hierarchy(path)
-        } else if args.delimiter().is_empty() {
+        let idx = if args.recursive() {
             self.children_flat(path)
         } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                &format!("delimiter {} is not supported", args.delimiter()),
-            ));
+            self.children_hierarchy(path)
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
@@ -196,25 +190,16 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        let idx = if args.delimiter() == "/" {
-            self.children_hierarchy(path)
-        } else if args.delimiter().is_empty() {
+        let idx = if args.recursive() {
             self.children_flat(path)
         } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                &format!("delimiter {} is not supported", args.delimiter()),
-            ));
+            self.children_hierarchy(path)
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
@@ -222,51 +207,43 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 }
 
 pub struct ImmutableDir {
-    idx: Vec<String>,
+    idx: IntoIter<String>,
 }
 
 impl ImmutableDir {
     fn new(idx: Vec<String>) -> Self {
-        Self { idx }
-    }
-
-    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
-        if self.idx.is_empty() {
-            return None;
+        Self {
+            idx: idx.into_iter(),
         }
+    }
 
-        let vs = mem::take(&mut self.idx);
-
-        Some(
-            vs.into_iter()
-                .map(|v| {
-                    let mode = if v.ends_with('/') {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    };
-                    let meta = Metadata::new(mode);
-                    oio::Entry::with(v, meta)
-                })
-                .collect(),
-        )
+    fn inner_next(&mut self) -> Option<oio::Entry> {
+        self.idx.next().map(|v| {
+            let mode = if v.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let meta = Metadata::new(mode);
+            oio::Entry::with(v, meta)
+        })
     }
 }
 
-#[async_trait]
-impl oio::Page for ImmutableDir {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+impl oio::List for ImmutableDir {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 
-impl oio::BlockingPage for ImmutableDir {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        Ok(self.inner_next_page())
+impl oio::BlockingList for ImmutableDir {
+    fn next(&mut self) -> Result<Option<oio::Entry>> {
+        Ok(self.inner_next())
     }
 }
 
 #[cfg(test)]
+#[cfg(feature = "services-http")]
 mod tests {
     use std::collections::HashMap;
     use std::collections::HashSet;
@@ -277,7 +254,7 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
-    use crate::services::Http;
+    use crate::services::HttpConfig;
     use crate::EntryMode;
     use crate::Operator;
 
@@ -290,12 +267,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -328,17 +305,17 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
 
-        let mut ds = op.lister_with("/").delimiter("").await?;
+        let mut ds = op.lister_with("/").recursive(true).await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
@@ -372,12 +349,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -430,17 +407,17 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
 
-        let mut ds = op.lister_with("/").delimiter("").await?;
+        let mut ds = op.lister_with("/").recursive(true).await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();

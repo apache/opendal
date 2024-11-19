@@ -1,7 +1,7 @@
 - Proposal Name: `limited_reader`
 - Start Date: 2022-03-02
-- RFC PR: [apache/incubator-opendal#0090](https://github.com/apache/incubator-opendal/pull/0090)
-- Tracking Issue: [apache/incubator-opendal#0090](https://github.com/apache/incubator-opendal/issues/0090)
+- RFC PR: [apache/opendal#0090](https://github.com/apache/opendal/pull/0090)
+- Tracking Issue: [apache/opendal#0090](https://github.com/apache/opendal/issues/0090)
 
 # Summary
 

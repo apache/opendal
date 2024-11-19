@@ -22,15 +22,31 @@ val new_operator :
   (string * string) list ->
   (Opendal_core.Operator.operator, string) result
 (** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
-    
+
     @param scheme Supported services, for details, refer to https://opendal.apache.org/docs/category/services/
     @param config_map Configuration information required by the target service
     @return The block operator
 *)
 
+val list :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.entry array, string) result
+
+val stat :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.metadata, string) result
+(** [is_exist operator path] Get current path's metadata **without cache** directly.
+
+    @param operator The operator
+    @param path want to stat
+    @return metadata
+*)
+
 val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
-    
+
     @param operator The operator
     @param path want to check
     @return is exists
@@ -39,15 +55,15 @@ val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 val create_dir :
   Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [create_dir operator path] Create a dir at given path.
-    
+
     # Notes
-    
+
     To indicate that a path is a directory, it is compulsory to include
     a trailing / in the path. Failure to do so may result in
     `NotADirectory` error being returned by OpenDAL.
-    
+
     # Behavior
-    
+
     - Create on existing dir will succeed.
     - Create dir is always recursive, works like `mkdir -p`
     @param operator The operator
@@ -57,10 +73,21 @@ val create_dir :
 val read :
   Opendal_core.Operator.operator -> string -> (char array, string) result
 (** [read operator path] Read the whole path into a bytes.
-    
+
     @param operator The operator
     @param path want to read
     @return data of path
+*)
+
+val reader :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.reader, string) result
+(** [read operator path] Create a new reader which can read the whole path.
+
+    @param operator The operator
+    @param path want to read
+    @return reader
 *)
 
 val write :
@@ -117,3 +144,41 @@ val remove_all :
     @param operator The block operator
     @param path file path
 *)
+
+module Reader : sig
+  val pread :
+    Opendal_core.Operator.reader -> bytes -> int64 -> (int, string) result
+  (** [read reader buf] Read data to [buf] and return data size.*)
+end
+
+module Metadata : sig
+  val is_file : Opendal_core.Operator.metadata -> bool
+  (** [is_file metadata] Returns `true` if this metadata is for a file.*)
+
+  val is_dir : Opendal_core.Operator.metadata -> bool
+  (** [is_dir metadata] Returns `true` if this metadata is for a directory.*)
+
+  val content_length : Opendal_core.Operator.metadata -> int64
+  (** [content_length metadata] Content length of this entry.*)
+
+  val content_md5 : Opendal_core.Operator.metadata -> string option
+  (** [content_md5 metadata] Content MD5 of this entry.*)
+
+  val content_type : Opendal_core.Operator.metadata -> string option
+  (** [content_type metadata] Content Type of this entry.*)
+
+  val content_disposition : Opendal_core.Operator.metadata -> string option
+  (** [content_disposition metadata] Content-Disposition of this entry*)
+
+  val etag : Opendal_core.Operator.metadata -> string option
+  (** [etag metadata] ETag of this entry.*)
+
+  val last_modified : Opendal_core.Operator.metadata -> int64 option
+  (** [last_modified metadata] Last modified of this entry.*)
+end
+
+module Entry : sig
+  val path : Opendal_core.Operator.entry -> string
+  val name : Opendal_core.Operator.entry -> string
+  val metadata : Opendal_core.Operator.entry -> Opendal_core.Operator.metadata
+end

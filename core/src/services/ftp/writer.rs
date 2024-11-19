@@ -15,56 +15,108 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
+use bb8::PooledConnection;
+use bytes::Buf;
+use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
-use super::backend::FtpBackend;
+use super::backend::Manager;
 use crate::raw::*;
+use crate::services::ftp::err::parse_error;
 use crate::*;
 
 pub struct FtpWriter {
-    backend: FtpBackend,
-    path: String,
+    target_path: String,
+    tmp_path: Option<String>,
+    ftp_stream: PooledConnection<'static, Manager>,
+    data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
 }
+
+/// # Safety
+///
+/// We only have `&mut self` for FtpWrite.
+unsafe impl Sync for FtpWriter {}
 
 /// # TODO
 ///
 /// Writer is not implemented correctly.
 ///
-/// After we can use datastream, we should return it directly.
+/// After we can use data stream, we should return it directly.
 impl FtpWriter {
-    pub fn new(backend: FtpBackend, path: String) -> Self {
-        FtpWriter { backend, path }
+    pub fn new(
+        ftp_stream: PooledConnection<'static, Manager>,
+        target_path: String,
+        tmp_path: Option<String>,
+    ) -> Self {
+        FtpWriter {
+            target_path,
+            tmp_path,
+            ftp_stream,
+            data_stream: None,
+        }
     }
 }
 
-#[async_trait]
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
-        let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
-        data_stream.write_all(&bs).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-        })?;
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let path = if let Some(tmp_path) = &self.tmp_path {
+            tmp_path
+        } else {
+            &self.target_path
+        };
 
-        ftp_stream.finalize_put_stream(data_stream).await?;
+        if self.data_stream.is_none() {
+            self.data_stream = Some(Box::new(
+                self.ftp_stream
+                    .append_with_stream(path)
+                    .await
+                    .map_err(parse_error)?,
+            ));
+        }
 
-        Ok(())
-    }
+        while bs.has_remaining() {
+            let n = self
+                .data_stream
+                .as_mut()
+                .unwrap()
+                .write(bs.chunk())
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+                })?;
+            bs.advance(n);
+        }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
+        let data_stream = self.data_stream.take();
+        if let Some(mut data_stream) = data_stream {
+            data_stream.flush().await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
+            })?;
+
+            self.ftp_stream
+                .finalize_put_stream(data_stream)
+                .await
+                .map_err(parse_error)?;
+
+            if let Some(tmp_path) = &self.tmp_path {
+                self.ftp_stream
+                    .rename(tmp_path, &self.target_path)
+                    .await
+                    .map_err(parse_error)?;
+            }
+        }
+
         Ok(())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "FtpWriter doesn't support abort",
+        ))
     }
 }

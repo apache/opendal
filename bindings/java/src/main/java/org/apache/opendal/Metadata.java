@@ -19,26 +19,130 @@
 
 package org.apache.opendal;
 
+import java.time.Instant;
+import lombok.Data;
+
 /**
  * Metadata carries all metadata associated with a path.
  */
-public class Metadata extends NativeObject {
-    protected Metadata(long nativeHandle) {
-        super(nativeHandle);
+@Data
+public class Metadata {
+    /**
+     * Mode of the entry.
+     */
+    public final EntryMode mode;
+
+    /**
+     * Content Length of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be -1.
+     */
+    public final long contentLength;
+
+    /**
+     * Content-Disposition of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String contentDisposition;
+
+    /**
+     * Content MD5 of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String contentMd5;
+
+    /**
+     * Content Type of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String contentType;
+
+    /**
+     * Cache Control of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String cacheControl;
+
+    /**
+     * Etag of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String etag;
+
+    /**
+     * Last Modified of the entry.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final Instant lastModified;
+
+    /**
+     * Version of the entry.
+     * Version is a string that can be used to identify the version of this entry.
+     * This field may come out from the version control system, like object
+     * versioning in AWS S3.
+     * <p>
+     * Note: For now, this value is only available when calling on result of `stat`, otherwise it will be null.
+     */
+    public final String version;
+
+    public Metadata(
+            int mode,
+            long contentLength,
+            String contentDisposition,
+            String contentMd5,
+            String contentType,
+            String cacheControl,
+            String etag,
+            Instant lastModified,
+            String version) {
+        this.mode = EntryMode.of(mode);
+        this.contentLength = contentLength;
+        this.contentDisposition = contentDisposition;
+        this.contentMd5 = contentMd5;
+        this.contentType = contentType;
+        this.cacheControl = cacheControl;
+        this.etag = etag;
+        this.lastModified = lastModified;
+        this.version = version;
     }
 
     public boolean isFile() {
-        return isFile(nativeHandle);
+        return mode == EntryMode.FILE;
     }
 
-    public long getContentLength() {
-        return getContentLength(nativeHandle);
+    public boolean isDir() {
+        return mode == EntryMode.DIR;
     }
 
-    @Override
-    protected native void disposeInternal(long handle);
+    public enum EntryMode {
+        /**
+         * FILE means the path has data to read.
+         */
+        FILE,
+        /**
+         * DIR means the path can be listed.
+         */
+        DIR,
+        /**
+         * Unknown means we don't know what we can do on this path.
+         */
+        UNKNOWN;
 
-    private static native boolean isFile(long nativeHandle);
-
-    private static native long getContentLength(long nativeHandle);
+        public static EntryMode of(int mode) {
+            switch (mode) {
+                case 0:
+                    return EntryMode.FILE;
+                case 1:
+                    return EntryMode.DIR;
+                default:
+                    return EntryMode.UNKNOWN;
+            }
+        }
+    }
 }

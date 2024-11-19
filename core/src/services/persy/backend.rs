@@ -15,81 +15,74 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use async_trait::async_trait;
 use persy;
+use tokio::task;
 
 use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::PersyConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
+impl Configurator for PersyConfig {
+    type Builder = PersyBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PersyBuilder { config: self }
+    }
+}
+
 /// persy service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PersyBuilder {
-    /// That path to the persy data file. The directory in the path must already exist.
-    datafile: Option<String>,
-    /// That name of the persy segment.
-    segment: Option<String>,
-    /// That name of the persy index.
-    index: Option<String>,
+    config: PersyConfig,
 }
 
 impl PersyBuilder {
     /// Set the path to the persy data directory. Will create if not exists.
-    pub fn datafile(&mut self, path: &str) -> &mut Self {
-        self.datafile = Some(path.into());
+    pub fn datafile(mut self, path: &str) -> Self {
+        self.config.datafile = Some(path.into());
         self
     }
 
     /// Set the name of the persy segment. Will create if not exists.
-    pub fn segment(&mut self, path: &str) -> &mut Self {
-        self.segment = Some(path.into());
+    pub fn segment(mut self, path: &str) -> Self {
+        self.config.segment = Some(path.into());
         self
     }
 
     /// Set the name of the persy index. Will create if not exists.
-    pub fn index(&mut self, path: &str) -> &mut Self {
-        self.index = Some(path.into());
+    pub fn index(mut self, path: &str) -> Self {
+        self.config.index = Some(path.into());
         self
     }
 }
 
 impl Builder for PersyBuilder {
     const SCHEME: Scheme = Scheme::Persy;
-    type Accessor = PersyBackend;
+    type Config = PersyConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = PersyBuilder::default();
-
-        map.get("datafile").map(|v| builder.datafile(v));
-        map.get("segment").map(|v| builder.segment(v));
-        map.get("index").map(|v| builder.index(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datafile_path = self.datafile.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datafile_path = self.config.datafile.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
-        let segment_name = self.segment.take().ok_or_else(|| {
+        let segment_name = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
         let segment = segment_name.clone();
 
-        let index_name = self.index.take().ok_or_else(|| {
+        let index_name = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
@@ -112,7 +105,7 @@ impl Builder for PersyBuilder {
             persy: &persy::Persy,
             segment_name: &str,
             index_name: &str,
-        ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        ) -> Result<(), Box<dyn std::error::Error>> {
             let mut tx = persy.begin()?;
 
             if !tx.exists_segment(segment_name)? {
@@ -158,10 +151,11 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Persy,
             &self.datafile,
             Capability {
@@ -169,35 +163,49 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.blocking_get(path)
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let mut read_id = self
             .persy
             .get::<String, persy::PersyId>(&self.index, &path.to_string())
             .map_err(parse_error)?;
         if let Some(id) = read_id.next() {
             let value = self.persy.read(&self.segment, &id).map_err(parse_error)?;
-            return Ok(value);
+            return Ok(value.map(Buffer::from));
         }
 
         Ok(None)
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.blocking_set(path, value)
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let cloned_path = path.to_string();
+        let cloned_self = self.clone();
+
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let mut tx = self.persy.begin().map_err(parse_error)?;
-        let id = tx.insert(&self.segment, value).map_err(parse_error)?;
+        let id = tx
+            .insert(&self.segment, &value.to_vec())
+            .map_err(parse_error)?;
 
         tx.put::<String, persy::PersyId>(&self.index, path.to_string(), id)
             .map_err(parse_error)?;
@@ -208,7 +216,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
+        let cloned_path = path.to_string();
+        let cloned_self = self.clone();
+
+        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {

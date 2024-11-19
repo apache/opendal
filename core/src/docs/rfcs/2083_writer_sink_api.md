@@ -1,7 +1,7 @@
 - Proposal Name: `writer_sink_api`
 - Start Date: 2023-04-23
-- RFC PR: [apache/incubator-opendal#2083](https://github.com/apache/incubator-opendal/pull/2083)
-- Tracking Issue: [apache/incubator-opendal#2084](https://github.com/apache/incubator-opendal/issues/2084)
+- RFC PR: [apache/opendal#2083](https://github.com/apache/opendal/pull/2083)
+- Tracking Issue: [apache/opendal#2084](https://github.com/apache/opendal/issues/2084)
 
 # Summary
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::response::Parts;
 use http::Response;
 use http::StatusCode;
@@ -39,14 +40,14 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
+    let (parts, mut body) = resp.into_parts();
+    let bs = body.copy_to_bytes(body.remaining());
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }
 
-fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
+pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Error {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
@@ -65,7 +66,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         Err(_) => body.to_owned(),
     };
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -73,13 +74,12 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-    use futures::stream;
     use serde_json::from_reader;
 
     use super::*;
@@ -99,16 +99,13 @@ mod tests {
 }
     "#,
         );
-        let body = IncomingAsyncBody::new(
-            Box::new(oio::into_stream(stream::iter(vec![Ok(ill_args.clone())]))),
-            None,
-        );
+        let body = Buffer::from(ill_args.clone());
         let resp = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(body)
             .unwrap();
 
-        let err = parse_error(resp).await?;
+        let err = parse_error(resp);
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 

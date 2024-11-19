@@ -15,5 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-etcd")]
 mod backend;
+#[cfg(feature = "services-etcd")]
 pub use backend::EtcdBuilder as Etcd;
+
+mod config;
+pub use config::EtcdConfig;

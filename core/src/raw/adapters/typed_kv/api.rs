@@ -16,12 +16,14 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::future::ready;
+use std::future::Future;
 use std::mem::size_of;
 
-use async_trait::async_trait;
-use bytes::Bytes;
 use chrono::Utc;
 
+use crate::raw::MaybeSend;
+use crate::Buffer;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
@@ -36,44 +38,43 @@ use crate::Scheme;
 /// # Notes
 ///
 /// `typed_kv::Adapter` is the typed version of `kv::Adapter`. It's more
-/// efficient if the uderlying kv service can store data with its type. For
-/// example, we can store `Bytes` along with it's metadata so that we don't
+/// efficient if the underlying kv service can store data with its type. For
+/// example, we can store `Bytes` along with its metadata so that we don't
 /// need to serialize/deserialize it when we get it from the service.
 ///
 /// Ideally, we should use `typed_kv::Adapter` instead of `kv::Adapter` for
 /// in-memory rust libs like moka and dashmap.
-#[async_trait]
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// Get the scheme and name of current adapter.
+    /// Return the info of this key value accessor.
     fn info(&self) -> Info;
 
     /// Get a value from adapter.
-    async fn get(&self, path: &str) -> Result<Option<Value>>;
+    fn get(&self, path: &str) -> impl Future<Output = Result<Option<Value>>> + MaybeSend;
 
     /// Get a value from adapter.
     fn blocking_get(&self, path: &str) -> Result<Option<Value>>;
 
     /// Set a value into adapter.
-    async fn set(&self, path: &str, value: Value) -> Result<()>;
+    fn set(&self, path: &str, value: Value) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Set a value into adapter.
     fn blocking_set(&self, path: &str, value: Value) -> Result<()>;
 
     /// Delete a value from adapter.
-    async fn delete(&self, path: &str) -> Result<()>;
+    fn delete(&self, path: &str) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Delete a value from adapter.
     fn blocking_delete(&self, path: &str) -> Result<()>;
 
     /// Scan a key prefix to get all keys that start with this key.
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
         let _ = path;
 
-        Err(Error::new(
+        ready(Err(Error::new(
             ErrorKind::Unsupported,
             "typed_kv adapter doesn't support this operation",
         )
-        .with_operation("typed_kv::Adapter::scan"))
+        .with_operation("typed_kv::Adapter::scan")))
     }
 
     /// Scan a key prefix to get all keys that start with this key
@@ -96,8 +97,8 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 pub struct Value {
     /// Metadata of this value.
     pub metadata: Metadata,
-    /// The correbonding content of this value.
-    pub value: Bytes,
+    /// The corresponding content of this value.
+    pub value: Buffer,
 }
 
 impl Value {
@@ -107,7 +108,7 @@ impl Value {
             metadata: Metadata::new(EntryMode::DIR)
                 .with_content_length(0)
                 .with_last_modified(Utc::now()),
-            value: Bytes::new(),
+            value: Buffer::new(),
         }
     }
 
@@ -121,14 +122,16 @@ impl Value {
 /// by Typed KV Operator.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
-    /// If typed_kv operator supports get natively, it will be true.
+    /// If typed_kv operator supports get natively.
     pub get: bool,
-    /// If typed_kv operator supports set natively, it will be true.
+    /// If typed_kv operator supports set natively.
     pub set: bool,
-    /// If typed_kv operator supports delete natively, it will be true.
+    /// If typed_kv operator supports delete natively.
     pub delete: bool,
-    /// If typed_kv operator supports scan natively, it will be true.
+    /// If typed_kv operator supports scan natively.
     pub scan: bool,
+    /// If typed_kv operator supports shared access.
+    pub shared: bool,
 }
 
 impl Debug for Capability {
@@ -146,6 +149,9 @@ impl Debug for Capability {
         }
         if self.scan {
             s.push("Scan");
+        }
+        if self.shared {
+            s.push("Shared");
         }
 
         write!(f, "{{ {} }}", s.join(" | "))

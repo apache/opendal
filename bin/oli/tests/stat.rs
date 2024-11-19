@@ -54,9 +54,7 @@ async fn test_stat_for_path_in_current_dir() -> Result<()> {
 
     let mut cmd = Command::cargo_bin("oli")?;
 
-    cmd.arg("stat")
-        .arg("dst.txt")
-        .current_dir(dir.path().clone());
+    cmd.arg("stat").arg("dst.txt").current_dir(dir.path());
     let res = cmd.assert().success();
     let output = res.get_output().stdout.clone();
 

@@ -23,9 +23,9 @@ Both `opendal` and `object_store` are licensed under [Apache 2.0](https://www.ap
 
 ### Owner
 
-`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
+`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by the [Apache Software Foundation](https://www.apache.org/).
 
-`opendal` is now hosted by [Apache Incubator](https://incubator.apache.org/projects/opendal.html).
+`opendal` is now hosted by the [Apache Software Foundation](https://www.apache.org/) also.
 
 ### Domain
 
@@ -64,7 +64,7 @@ let stream = object_store
     .into_stream();
 ```
 
-`opendal` has a similar trait called [`Accessor`][crate::raw::Accessor]
+`opendal` has a similar trait called [`Access`][crate::raw::Access]
 
 But `opendal` don't expose this trait to end users directly. Instead, `opendal` expose a new struct called [`Operator`][crate::Operator] and builds public API on it.
 

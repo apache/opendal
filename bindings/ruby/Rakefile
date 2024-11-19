@@ -17,32 +17,26 @@
 
 # frozen_string_literal: true
 
+require "bundler/gem_tasks"
 require "rake/testtask"
 require "rake/extensiontask"
-require "bundler/gem_tasks"
 require "standard/rake"
-require "cucumber"
-require "cucumber/rake/task"
 
-task default: ["lint", "test"]
+GEMSPEC = Gem::Specification.load("opendal.gemspec")
+CRATE_PACKAGE_NAME = "opendal-ruby"
 
-Rake::ExtensionTask.new do |ext|
+Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
   ext.lib_dir = "lib/opendal_ruby"
 end
 
-task lint: :standard
-
-task :dev do
-  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
-end
+Rake::Task[:test].prerequisites << :compile
 
 Rake::TestTask.new do |t|
-  t.deps << :dev << :compile
-  t.test_files = FileList[File.expand_path("tests/*_test.rb", __dir__)]
+  t.libs << "lib"
+  t.libs << "test"
+  t.pattern = "test/**/*_test.rb"
 end
 
-Cucumber::Rake::Task.new(:test) do |t|
-  t.cucumber_opts = ["--format pretty", "--publish-quiet"] # Any valid command line option can go here.
-end
+task default: %i[clobber compile test standard]

@@ -10,7 +10,6 @@ This service can be used to:
 - [ ] copy
 - [ ] rename
 - [ ] list
-- [ ] ~~scan~~
 - [ ] ~~presign~~
 - [x] blocking
 
@@ -26,17 +25,17 @@ You can refer to [`PersyBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Persy;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Persy::default();
-    builder.datafile("./test.persy");
-    builder.segment("data");
-    builder.index("index");
+    let mut builder = Persy::default()
+        .datafile("./test.persy")
+        .segment("data")
+        .index("index");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

@@ -1,7 +1,7 @@
 - Proposal Name: `path-normalization`
 - Start Date: 2022-03-08
-- RFC PR: [apache/incubator-opendal#112](https://github.com/apache/incubator-opendal/pull/112)
-- Tracking Issue: [apache/incubator-opendal#112](https://github.com/apache/incubator-opendal/issues/112)
+- RFC PR: [apache/opendal#112](https://github.com/apache/opendal/pull/112)
+- Tracking Issue: [apache/opendal#112](https://github.com/apache/opendal/issues/112)
 
 # Summary
 
@@ -11,8 +11,8 @@ Implement path normalization to enhance user experience.
 
 OpenDAL's current path behavior makes users confused:
 
-- [operator.object("/admin/data/") error](https://github.com/apache/incubator-opendal/issues/107)
-- [Read /admin/data//ontime_200.csv return empty](https://github.com/apache/incubator-opendal/issues/109)
+- [operator.object("/admin/data/") error](https://github.com/apache/opendal/issues/107)
+- [Read /admin/data//ontime_200.csv return empty](https://github.com/apache/opendal/issues/109)
 
 They are different bugs that reflect the exact root cause: the path is not well normalized.
 

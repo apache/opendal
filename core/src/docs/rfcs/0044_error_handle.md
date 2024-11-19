@@ -1,7 +1,7 @@
 - Proposal Name: `error_handle`
 - Start Date: 2022-02-23
-- RFC PR: [apache/incubator-opendal#44](https://github.com/apache/incubator-opendal/pull/44)
-- Tracking Issue: [apache/incubator-opendal#43](https://github.com/apache/incubator-opendal/pull/43)
+- RFC PR: [apache/opendal#44](https://github.com/apache/opendal/pull/44)
+- Tracking Issue: [apache/opendal#43](https://github.com/apache/opendal/pull/43)
 
 # Summary
 
@@ -21,8 +21,8 @@ Most time, we return a path that is meaningless for debugging.
 
 There are two issues about this shortcoming:
 
-- [error: Split ErrorKind and Context for error check easier](https://github.com/apache/incubator-opendal/issues/24)
-- [Improvement: provides more information about the cause of DalTransportError](https://github.com/apache/incubator-opendal/issues/29)
+- [error: Split ErrorKind and Context for error check easier](https://github.com/apache/opendal/issues/24)
+- [Improvement: provides more information about the cause of DalTransportError](https://github.com/apache/opendal/issues/29)
 
 First, we can't check `ErrorKind` quickly. We have to use `matches` for the help:
 
@@ -73,7 +73,7 @@ if let Err(e) = meta {
 }
 ```
 
-For a backend implementor, we can provide as much information as possible. For example, we can return `bucket is empty` to let the user know:
+For a backend implementer, we can provide as much information as possible. For example, we can return `bucket is empty` to let the user know:
 
 ```rust
 return Err(Error::Backend {
@@ -162,7 +162,7 @@ pub fn kind(&self) -> Kind {
 }
 ```
 
-The implementor should do their best to carry as much context as possible. Such as, they should return `Error::Object` to carry the `op` and `path`, instead of just returns `Error::Unexpected(anyhow::Error::from(err))`.
+The implementer should do their best to carry as much context as possible. Such as, they should return `Error::Object` to carry the `op` and `path`, instead of just returns `Error::Unexpected(anyhow::Error::from(err))`.
 
 ```rust
 Error::Object {

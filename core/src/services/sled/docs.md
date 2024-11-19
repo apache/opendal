@@ -10,7 +10,6 @@ This service can be used to:
 - [x] copy
 - [x] rename
 - [ ] ~~list~~
-- [x] scan
 - [ ] ~~presign~~
 - [x] blocking
 
@@ -24,15 +23,15 @@ You can refer to [`SledBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Sled;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Sled::default();
-    builder.datadir("/tmp/opendal/sled");
+    let mut builder = Sled::default()
+        .datadir("/tmp/opendal/sled");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

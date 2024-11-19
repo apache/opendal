@@ -10,5 +10,5 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["."],
-  "exclude": ["node_modules", "benchmark"]
+  "exclude": ["node_modules", "benchmark", "theme"]
 }

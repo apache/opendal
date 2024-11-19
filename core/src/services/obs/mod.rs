@@ -15,11 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-obs")]
+mod core;
+#[cfg(feature = "services-obs")]
+mod error;
+#[cfg(feature = "services-obs")]
+mod lister;
+#[cfg(feature = "services-obs")]
+mod writer;
+
+#[cfg(feature = "services-obs")]
 mod backend;
+#[cfg(feature = "services-obs")]
 pub use backend::ObsBuilder as Obs;
 
-mod appender;
-mod core;
-mod error;
-mod pager;
-mod writer;
+mod config;
+pub use config::ObsConfig;

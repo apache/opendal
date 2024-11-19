@@ -1,0 +1,48 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+version: "3.8"
+
+services:
+  ceph-demo:
+    image: quay.io/ceph/demo
+    container_name: ceph-demo
+    environment:
+      - MON_IP=127.0.0.1
+      - CEPH_PUBLIC_NETWORK=0.0.0.0/0
+      - DEMO_DAEMONS=osd,mds,rgw
+      - CEPH_DEMO_UID=demo
+      - CEPH_DEMO_ACCESS_KEY=demo
+      - CEPH_DEMO_SECRET_KEY=demo
+      # ceph/demo failed to create bucket for us, let's create it by hand.
+      # - CEPH_DEMO_BUCKET=demo
+    ports:
+      - "8080:8080" # Dashboard
+      - "5000:5000" # REST API
+      - "6789:6789" # Ceph monitor
+    volumes:
+      - ceph-vol:/var/lib/ceph/
+    network_mode: "host"
+    # Give ceph enough time to start up, it's really, really slow.
+    # We will wait up to 10 minutes.
+    healthcheck:
+      test: [ "CMD", "s3cmd", "ls" ]
+      interval: 6s
+      retries: 100
+
+volumes:
+  ceph-vol:

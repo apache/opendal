@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -23,10 +24,9 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
+use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
@@ -37,10 +37,19 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
 use crate::*;
+use constants::*;
+
+pub mod constants {
+    pub const X_GOOG_ACL: &str = "x-goog-acl";
+    pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
+    pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+}
 
 pub struct GcsCore {
     pub endpoint: String,
@@ -50,12 +59,14 @@ pub struct GcsCore {
     pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
+    pub token: Option<String>,
+    pub scope: String,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
 
-    pub write_fixed_size: usize,
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsCore {
@@ -72,54 +83,92 @@ static BACKOFF: Lazy<ExponentialBuilder> =
     Lazy::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
-    async fn load_token(&self) -> Result<GoogleToken> {
+    async fn load_token(&self) -> Result<Option<GoogleToken>> {
+        if let Some(token) = &self.token {
+            return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
+        }
+
         let cred = { || self.token_loader.load() }
-            .retry(&*BACKOFF)
+            .retry(*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
-    fn load_credential(&self) -> Result<GoogleCredential> {
+    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_token().await?;
+        if let Some(cred) = self.load_token().await? {
+            self.signer
+                .sign(req, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential()?;
+    pub fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        if let Some(cred) = self.load_credential()? {
+            self.signer
+                .sign_query(req, duration, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.client.send(req).await
     }
 }
@@ -129,9 +178,8 @@ impl GcsCore {
         &self,
         path: &str,
         range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+        args: &OpRead,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -143,50 +191,37 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
 
     // It's for presign operation. Gcs only supports query sign over XML API.
-    pub fn gcs_get_object_xml_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_get_object_xml_request(&self, path: &str, args: &OpRead) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -195,32 +230,38 @@ impl GcsCore {
         &self,
         path: &str,
         range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, range, if_match, if_none_match)?;
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn gcs_insert_object_request(
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        op: &OpWrite,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
+
+        let request_metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            metadata: op.user_metadata(),
+        };
 
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
             self.endpoint,
             self.bucket,
-            if self.default_storage_class.is_some() {
-                "multipart"
-            } else {
+            if request_metadata.is_empty() {
                 "media"
+            } else {
+                "multipart"
             },
             percent_encode_path(&p)
         );
@@ -229,40 +270,40 @@ impl GcsCore {
             write!(&mut url, "&predefinedAcl={}", acl).unwrap();
         }
 
+        // Makes the operation conditional on whether the object's current generation
+        // matches the given value. Setting to 0 makes the operation succeed only if
+        // there are no live versions of the object.
+        if op.if_not_exists() {
+            write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        }
+
         let mut req = Request::post(&url);
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(storage_class) = &self.default_storage_class {
-            req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
-
-            let mut req_body = BytesMut::with_capacity(100);
-            write!(
-                &mut req_body,
-                "--my-boundary\nContent-Type: application/json; charset=UTF-8\n\n{{\"storageClass\": \"{}\"}}\n\n--my-boundary\n",
-                storage_class
-            ).unwrap();
-
-            if let Some(mime) = content_type {
-                write!(&mut req_body, "Content-Type: {}\n\n", mime).unwrap();
-            } else {
-                write!(&mut req_body, "Content-Type: application/octet-stream\n\n").unwrap();
-            }
-
-            if let AsyncBody::Bytes(bytes) = body {
-                req_body.extend_from_slice(&bytes);
-            }
-            write!(&mut req_body, "\n--my-boundary").unwrap();
-
-            let req_body = AsyncBody::Bytes(req_body.freeze());
-            let req = req.body(req_body).map_err(new_request_build_error)?;
+        if request_metadata.is_empty() {
+            // If the metadata is empty, we do not set any `Content-Type` header,
+            // since if we had it in the `op.content_type()`, it would be already set in the
+            // `multipart` metadata body and this branch won't be executed.
+            let req = req.body(body).map_err(new_request_build_error)?;
             Ok(req)
         } else {
-            if let Some(content_type) = content_type {
-                req = req.header(CONTENT_TYPE, content_type);
-            }
+            let mut multipart = Multipart::new();
+            let metadata_part = FormDataPart::new("metadata")
+                .header(
+                    CONTENT_TYPE,
+                    "application/json; charset=UTF-8".parse().unwrap(),
+                )
+                .content(
+                    serde_json::to_vec(&request_metadata)
+                        .expect("metadata serialization should success"),
+                );
+            multipart = multipart.part(metadata_part);
 
-            let req = req.body(body).map_err(new_request_build_error)?;
+            let media_part = FormDataPart::new("media").content(body);
+            multipart = multipart.part(media_part);
+
+            let req = multipart.apply(Request::post(url))?;
             Ok(req)
         }
     }
@@ -271,25 +312,31 @@ impl GcsCore {
     pub fn gcs_insert_object_xml_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+        args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::put(&url);
 
-        if let Some(content_type) = content_type {
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_GOOG_META_PREFIX}{key}"), value)
+            }
+        }
+
+        if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
         if let Some(acl) = &self.predefined_acl {
-            req = req.header("x-goog-acl", acl);
+            req = req.header(X_GOOG_ACL, acl);
         }
 
         if let Some(storage_class) = &self.default_storage_class {
-            req = req.header("x-goog-storage-class", storage_class);
+            req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -297,12 +344,7 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub fn gcs_head_object_request(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -314,17 +356,15 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -333,26 +373,23 @@ impl GcsCore {
     pub fn gcs_head_object_xml_request(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+        args: &OpStat,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::head(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -360,24 +397,23 @@ impl GcsCore {
     pub async fn gcs_get_object_metadata(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_head_object_request(path, if_match, if_none_match)?;
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
+        let mut req = self.gcs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
         let mut req = self.gcs_delete_object_request(path)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -388,14 +424,11 @@ impl GcsCore {
         );
 
         Request::delete(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_delete_objects(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gcs_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -415,11 +448,7 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let dest = build_abs_path(&self.root, to);
 
@@ -434,7 +463,7 @@ impl GcsCore {
 
         let mut req = Request::post(req_uri)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -448,7 +477,7 @@ impl GcsCore {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -481,7 +510,7 @@ impl GcsCore {
         }
 
         let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -489,93 +518,319 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_initiate_resumable_upload(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gcs_initiate_multipart_upload(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
-            self.endpoint, self.bucket, p
-        );
+
+        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
 
         let mut req = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub fn gcs_upload_in_resumable_upload(
+    pub async fn gcs_upload_part(
         &self,
-        location: &str,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
         size: u64,
-        written: u64,
-        is_last_part: bool,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let mut req = Request::put(location);
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
 
-        let range_header = if is_last_part {
-            format!(
-                "bytes {}-{}/{}",
-                written,
-                written + size - 1,
-                written + size
-            )
-        } else {
-            format!("bytes {}-{}/*", written, written + size - 1)
-        };
+        let url = format!(
+            "{}/{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
 
-        req = req
-            .header(CONTENT_LENGTH, size)
-            .header(CONTENT_RANGE, range_header);
+        let mut req = Request::put(&url);
 
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        req = req.header(CONTENT_LENGTH, size);
 
-        Ok(req)
-    }
-
-    pub async fn gcs_complete_resumable_upload(
-        &self,
-        location: &str,
-        written_bytes: u64,
-        bs: Bytes,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let size = bs.len() as u64;
-        let mut req = Request::post(location)
-            .header(CONTENT_LENGTH, size)
-            .header(
-                CONTENT_RANGE,
-                format!(
-                    "bytes {}-{}/{}",
-                    written_bytes,
-                    written_bytes + size - 1,
-                    written_bytes + size
-                ),
-            )
-            .body(AsyncBody::Bytes(bs))
-            .map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 
-    pub async fn gcs_abort_resumable_upload(
+    pub async fn gcs_complete_multipart_upload(
         &self,
-        location: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::delete(location)
-            .header(CONTENT_LENGTH, 0)
-            .body(AsyncBody::Empty)
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
+    }
+
+    pub async fn gcs_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct InsertRequestMetadata<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_class: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<&'a HashMap<String, String>>,
+}
+
+impl InsertRequestMetadata<'_> {
+    pub fn is_empty(&self) -> bool {
+        self.content_type.is_none()
+            && self.storage_class.is_none()
+            && self.cache_control.is_none()
+            && self.metadata.is_none()
+    }
+}
+/// Response JSON from GCS list objects API.
+///
+/// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListResponse {
+    /// The continuation token.
+    ///
+    /// If this is the last page of results, then no continuation token is returned.
+    pub next_page_token: Option<String>,
+    /// Object name prefixes for objects that matched the listing request
+    /// but were excluded from [items] because of a delimiter.
+    pub prefixes: Vec<String>,
+    /// The list of objects, ordered lexicographically by name.
+    pub items: Vec<ListResponseItem>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListResponseItem {
+    pub name: String,
+    pub size: String,
+    // metadata
+    pub etag: String,
+    pub md5_hash: String,
+    pub updated: String,
+    pub content_type: String,
+}
+
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    pub upload_id: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_list_response() {
+        let content = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
+    }
+  ]
+}
+    "#;
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert!(output.next_page_token.is_none());
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
+        assert_eq!(output.items[1].content_type, "image/png");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
+    }
+
+    #[test]
+    fn test_deserialize_list_response_with_next_page_token() {
+        let content = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "nextPageToken": "CgYxMC5wbmc=",
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
+    }
+  ]
+}
+    "#;
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert_eq!(output.next_page_token, Some("CgYxMC5wbmc=".to_string()));
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }

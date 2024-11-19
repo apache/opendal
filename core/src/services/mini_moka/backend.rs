@@ -15,63 +15,39 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use log::debug;
 use mini_moka::sync::Cache;
 use mini_moka::sync::CacheBuilder;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
+use crate::services::MiniMokaConfig;
 use crate::*;
 
+impl Configurator for MiniMokaConfig {
+    type Builder = MiniMokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MiniMokaBuilder { config: self }
+    }
+}
+
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [ ] ~~scan~~
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Notes
-///
-/// To better assist you in choosing the right cache for your use case,
-/// Here's a comparison table with [moka](https://github.com/moka-rs/moka#choosing-the-right-cache-for-your-use-case)
+#[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct MiniMokaBuilder {
-    /// Sets the max capacity of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    max_capacity: Option<u64>,
-    /// Sets the time to live of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    time_to_live: Option<Duration>,
-    /// Sets the time to idle of the cache.
-    ///
-    /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    time_to_idle: Option<Duration>,
+    config: MiniMokaConfig,
 }
 
 impl MiniMokaBuilder {
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-    pub fn max_capacity(&mut self, v: u64) -> &mut Self {
+    pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
-            self.max_capacity = Some(v);
+            self.config.max_capacity = Some(v);
         }
         self
     }
@@ -79,9 +55,9 @@ impl MiniMokaBuilder {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.time_to_live = Some(v);
+            self.config.time_to_live = Some(v);
         }
         self
     }
@@ -89,54 +65,54 @@ impl MiniMokaBuilder {
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
+    pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.time_to_idle = Some(v);
+            self.config.time_to_idle = Some(v);
         }
+        self
+    }
+
+    /// Set root path of this backend
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
         self
     }
 }
 
 impl Builder for MiniMokaBuilder {
     const SCHEME: Scheme = Scheme::MiniMoka;
-    type Accessor = MiniMokaBackend;
+    type Config = MiniMokaConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = MiniMokaBuilder::default();
-
-        map.get("max_capacity")
-            .map(|v| v.parse::<u64>().map(|v| builder.max_capacity(v)));
-        map.get("time_to_live").map(|v| {
-            v.parse::<u64>()
-                .map(|v| builder.time_to_live(Duration::from_secs(v)))
-        });
-        map.get("time_to_idle").map(|v| {
-            v.parse::<u64>()
-                .map(|v| builder.time_to_idle(Duration::from_secs(v)))
-        });
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
         // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
-        if let Some(v) = self.max_capacity {
+        if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v)
         }
-        if let Some(v) = self.time_to_live {
+        if let Some(v) = self.config.time_to_live {
             builder = builder.time_to_live(v)
         }
-        if let Some(v) = self.time_to_idle {
+        if let Some(v) = self.config.time_to_idle {
             builder = builder.time_to_idle(v)
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(MiniMokaBackend::new(Adapter {
+        let mut backend = MiniMokaBackend::new(Adapter {
             inner: builder.build(),
-        }))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
@@ -157,7 +133,6 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(
@@ -167,7 +142,8 @@ impl typed_kv::Adapter for Adapter {
                 get: true,
                 set: true,
                 delete: true,
-                ..Default::default()
+                scan: true,
+                shared: false,
             },
         )
     }
@@ -201,5 +177,18 @@ impl typed_kv::Adapter for Adapter {
         self.inner.invalidate(&path.to_string());
 
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let keys = self.inner.iter().map(|kv| kv.key().to_string());
+        if path.is_empty() {
+            Ok(keys.collect())
+        } else {
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
+        }
     }
 }

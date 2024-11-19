@@ -15,62 +15,57 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
 
 use crate::raw::adapters::kv;
-use crate::raw::normalize_root;
+use crate::raw::*;
+use crate::services::FoundationdbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-/// Foundationdb service support.
+impl Configurator for FoundationdbConfig {
+    type Builder = FoundationdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        FoundationdbBuilder { config: self }
+    }
+}
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {
-    root: Option<String>,
-    config_path: Option<String>,
+    config: FoundationdbConfig,
 }
 
 impl FoundationdbBuilder {
     /// Set the root for Foundationdb.
-    pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = Some(path.into());
         self
     }
 
     /// Set the config path for Foundationdb. If not set, will fallback to use default
-    pub fn config_path(&mut self, path: &str) -> &mut Self {
-        self.config_path = Some(path.into());
+    pub fn config_path(mut self, path: &str) -> Self {
+        self.config.config_path = Some(path.into());
         self
     }
 }
 
 impl Builder for FoundationdbBuilder {
     const SCHEME: Scheme = Scheme::Foundationdb;
-    type Accessor = FoundationdbBackend;
+    type Config = FoundationdbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = FoundationdbBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("config_path").map(|v| builder.config_path(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let _network = Arc::new(unsafe { foundationdb::boot() });
         let db;
-        if let Some(cfg_path) = &self.config_path {
+        if let Some(cfg_path) = &self.config.config_path {
             db = Database::from_path(cfg_path).map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open foundation db")
                     .with_context("service", Scheme::Foundationdb)
@@ -87,13 +82,14 @@ impl Builder for FoundationdbBuilder {
         let db = Arc::new(db);
 
         let root = normalize_root(
-            self.root
+            self.config
+                .root
                 .clone()
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
 
-        Ok(FoundationdbBackend::new(Adapter { db, _network }).with_root(&root))
+        Ok(FoundationdbBackend::new(Adapter { db, _network }).with_normalized_root(root))
     }
 }
 
@@ -113,28 +109,29 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Foundationdb,
             "foundationdb",
             Capability {
                 read: true,
                 write: true,
                 delete: true,
-                create_dir: true,
+                shared: true,
                 ..Default::default()
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let transaction = self.db.create_trx().expect("Unable to create transaction");
 
         match transaction.get(path.as_bytes(), false).await {
             Ok(slice) => match slice {
-                Some(data) => Ok(Some(data.to_vec())),
+                Some(data) => Ok(Some(Buffer::from(data.to_vec()))),
                 None => Err(Error::new(
                     ErrorKind::NotFound,
                     "foundationdb: key not found",
@@ -147,10 +144,10 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let transaction = self.db.create_trx().expect("Unable to create transaction");
 
-        transaction.set(path.as_bytes(), value);
+        transaction.set(path.as_bytes(), &value.to_vec());
 
         match transaction.commit().await {
             Ok(_) => Ok(()),

@@ -15,10 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-hdfs")]
+mod lister;
+#[cfg(feature = "services-hdfs")]
+mod reader;
+#[cfg(feature = "services-hdfs")]
+mod writer;
+
+#[cfg(feature = "services-hdfs")]
 mod backend;
+#[cfg(feature = "services-hdfs")]
 pub use backend::HdfsBuilder as Hdfs;
 
-mod appender;
-mod error;
-mod pager;
-mod writer;
+mod config;
+pub use config::HdfsConfig;

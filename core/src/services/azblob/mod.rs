@@ -15,12 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-azblob")]
+mod core;
+#[cfg(feature = "services-azblob")]
+mod error;
+#[cfg(feature = "services-azblob")]
+mod lister;
+#[cfg(feature = "services-azblob")]
+mod writer;
+
+#[cfg(feature = "services-azblob")]
 mod backend;
+#[cfg(feature = "services-azblob")]
 pub use backend::AzblobBuilder as Azblob;
 
-mod appender;
-mod batch;
-mod core;
-mod error;
-mod pager;
-mod writer;
+mod config;
+pub use config::AzblobConfig;

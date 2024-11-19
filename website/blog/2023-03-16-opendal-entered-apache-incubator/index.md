@@ -12,7 +12,7 @@ authors:
 
 ![OpenDAL successfully entered Apache Incubator](opendal-entered-apache.png)
 
-On February 27th, 2023, the [OpenDAL](https://github.com/apache/incubator-opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
+On February 27th, 2023, the [OpenDAL](https://github.com/apache/opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
 
 <!--truncate-->
 
@@ -65,9 +65,9 @@ Then, [RisingWave](https://github.com/risingwavelabs/risingwave) and [Vector](ht
 
 ### Sky's the Limit
 
-OpenDAL has established a small community and formed a product matrix. In addition to the [Rust - opendal](https://crates.io/crates/opendal), it also provides [Python - opendal](https://pypi.org/project/opendal/) and [Nodejs - opendal](https://www.npmjs.com/package/opendal) bindings.
+OpenDAL has established a small community and formed a product matrix. In addition to the [Rust - opendal](https://crates.io/crates/opendal), it also provides [Python - opendal](https://pypi.org/project/opendal/) and [Node.js - opendal](https://www.npmjs.com/package/opendal) bindings.
 
-OpenDAL has released 99 versions since its open source, with 700+ Github stars, 349K downloads, and 48 developers. The project has been actively updated. We sincerely thank every contributor for their efforts and dedication.
+OpenDAL has released 99 versions since its open source, with 700+ GitHub stars, 349K downloads, and 48 developers. The project has been actively updated. We sincerely thank every contributor for their efforts and dedication.
 
 Being a part of Apache incubator is an important milestone in OpenDAL's development history. We hope to leverage ASF's platform and resources to let OpenDAL focus on providing a neutral, vendor-free, painless, and efficient storage access layer, and better serve the developers.
 
@@ -81,17 +81,17 @@ We expect OpenDAL to be widely used in the following application scenarios:
 
 **_From Xuanwo_**
 
-Hello everyone, I'm Xuanwo, the Committer of Apache OpenDAL (Incubating).
+Hello everyone, I'm Xuanwo, the Committer of Apache OpenDAL.
 
 The OpenDAL project embodies my personal dream. Now it has entered the Apache incubator with the collaboration of the community. I feel very happy at this moment. Thank you all contributors for your contributions, thank Databend Labs for your support, thank Champion tison for your guidance, thank Mentors ningjiang, wusheng, tedliu and hexiaoqiao for your advice.
 
 Let us follow the guidance of Apache Way to build a community together and create value for users by providing free, painless and efficient data access experience!
 
-## Join OpenDAL Community
+## Join Apache OpenDAL Community
 
 We welcome developers and users who are interested in participating in OpenDAL project to join OpenDAL community and follow OpenDAL's latest news. You can get more information through the following ways:
 
 - Visit OpenDAL official website: <https://opendal.apache.org>
-- Explore OpenDAL GitHub repository: <https://github.com/apache/incubator-opendal>
-- Join OpenDAL Discord channel: <https://discord.gg/XQy8yGR2dg>
+- Explore OpenDAL GitHub repository: <https://github.com/apache/opendal>
+- Join OpenDAL Discord channel: <https://opendal.apache.org/discord>
 - Subscribe to OpenDAL mailing list: <dev@opendal.apache.org>

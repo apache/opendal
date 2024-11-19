@@ -18,7 +18,6 @@
  */
 
 /**
- * This package contains Java bindings over <a href="https://opendal.apache.org/">OpenDAL</a>
- * via Java Native Interface (JNI).
+ * JNI-based Java binding for <a href="https://opendal.apache.org/">Apache OpenDAL™</a>.
  */
 package org.apache.opendal;

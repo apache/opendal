@@ -1,7 +1,7 @@
 {
   "name": "@opendal/lib-linux-x64-gnu",
-  "version": "0.39.0",
-  "repository": "git@github.com/apache/incubator-opendal.git",
+  "version": "0.47.7",
+  "repository": "git@github.com/apache/opendal.git",
   "os": [
     "linux"
   ],

@@ -171,10 +171,7 @@ impl Builder for WebhdfsBuilder {
 
         let atomic_write_dir = self.config.atomic_write_dir;
 
-        let auth = self
-            .config
-            .delegation
-            .map(|dt| format!("delegation={dt}"));
+        let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let client = HttpClient::new()?;
 

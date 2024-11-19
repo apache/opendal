@@ -62,8 +62,6 @@ jobs:
           - { os: ubuntu-latest, target: "aarch64" }
           - { os: ubuntu-latest, target: "armv7l" }
     env:
-      # help avoid compile local crate twice
-      CARGO_TARGET_DIR: "./target/"
       # Workaround ring 0.17 build issue
       CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
     steps:

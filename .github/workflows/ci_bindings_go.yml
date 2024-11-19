@@ -30,6 +30,7 @@ on:
       - "core/**"
       - "bindings/c/**"
       - "bindings/go/**"
+      - ".github/scripts/test_go_binding/matrix.yaml"
       - ".github/workflows/ci_bindings_go.yml"
   workflow_dispatch:
 

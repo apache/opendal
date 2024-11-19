@@ -150,6 +150,8 @@ services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 
+abi3 = ["pyo3/abi3-py311"]
+
 [lib]
 crate-type = ["cdylib"]
 doc = false
@@ -161,7 +163,7 @@ futures = "0.3.28"
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.22.5", features = ["abi3", "abi3-py311"] }
+pyo3 = { version = "0.22.5", features = [] }
 pyo3-async-runtimes = { version = "0.22.0", features = [
   "tokio-runtime",
 ] }

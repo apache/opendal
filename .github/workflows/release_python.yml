@@ -66,7 +66,17 @@ jobs:
           manylinux: auto
           working-directory: "bindings/python"
           command: build
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
+          args: --release -o dist --find-interpreter -i python3.11 --features=pyo3/extension-module,services-all,abi3
+        env:
+          # Workaround ring 0.17 build issue
+          CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          working-directory: "bindings/python"
+          command: build
+          args: --release -o dist --find-interpreter -i python3.10 --features=pyo3/extension-module,services-all
         env:
           # Workaround ring 0.17 build issue
           CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
@@ -86,7 +96,12 @@ jobs:
         with:
           working-directory: "bindings/python"
           command: build
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
+          args: --release -o dist --find-interpreter -i python3.11 --features=pyo3/extension-module,services-all,abi3
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: "bindings/python"
+          command: build
+          args: --release -o dist --find-interpreter -i python3.10 --features=pyo3/extension-module,services-all
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -104,7 +119,13 @@ jobs:
           working-directory: "bindings/python"
           command: build
           target: universal2-apple-darwin
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
+          args: --release -o dist --find-interpreter -i python3.11 --features=pyo3/extension-module,services-all,abi3
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: "bindings/python"
+          command: build
+          target: universal2-apple-darwin
+          args: --release -o dist --find-interpreter -i python3.10 --features=pyo3/extension-module,services-all
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

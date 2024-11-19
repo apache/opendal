@@ -53,10 +53,14 @@ impl Access for GdriveBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
                 list: true,
+                list_has_content_type: true,
 
                 write: true,
 
@@ -91,11 +95,12 @@ impl Access for GdriveBackend {
         let gdrive_file: GdriveFile =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        let file_type = if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
         };
-
-        let mut meta = Metadata::new(EntryMode::FILE);
+        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
         if let Some(v) = gdrive_file.size {
             meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)

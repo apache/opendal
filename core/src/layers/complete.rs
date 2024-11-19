@@ -177,8 +177,19 @@ impl<A: Access> CompleteAccessor<A> {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        // Forward to inner if create_dir is supported.
-        if path.ends_with('/') && capability.create_dir {
+        if path.ends_with('/')
+            && (capability.create_dir || // Delegate to the service if the service supports `create_dir`
+            capability.stat_has_cache_control || // Delegate to the service if the service returns metadata.
+            capability.stat_has_content_disposition ||
+            capability.stat_has_content_length ||
+            capability.stat_has_content_md5 ||
+            capability.stat_has_content_range ||
+            capability.stat_has_content_type ||
+            capability.stat_has_etag ||
+            capability.stat_has_last_modified ||
+            capability.stat_has_version ||
+            capability.stat_has_user_metadata)
+        {
             let meta = self.inner.stat(path, args).await?.into_metadata();
 
             if meta.is_file() {
@@ -188,7 +199,7 @@ impl<A: Access> CompleteAccessor<A> {
                 ));
             }
 
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(meta));
         }
 
         // Otherwise, we can simulate stat dir via `list`.

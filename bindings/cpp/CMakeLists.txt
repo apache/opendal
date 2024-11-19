@@ -16,6 +16,13 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.22)
+
+# CMP0135: set the timestamps of all extracted contents 
+# to the time of the extraction in FetchContent
+if (POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(opendal-cpp LANGUAGES CXX)
 
 include(FetchContent)

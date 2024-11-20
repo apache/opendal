@@ -23,13 +23,12 @@ requires = ["maturin>=1.0,<2.0"]
 classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
 ]
 description = "Apache OpenDAL™ Python Binding"
 license = { text = "Apache-2.0" }
 name = "opendal"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 
 dynamic = ['version']
 

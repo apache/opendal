@@ -149,7 +149,7 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
-
+# we build cp311-abi3 and cp310 wheels now, mive this to pyo3 after we drop cp319
 abi3 = ["pyo3/abi3-py311"]
 
 [lib]

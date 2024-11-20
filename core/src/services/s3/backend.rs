@@ -1109,7 +1109,10 @@ impl Access for S3Backend {
             .with_context("length", ops.len().to_string()));
         }
 
-        let paths = ops.into_iter().map(|(p, _)| p).collect();
+        let paths = ops
+            .into_iter()
+            .map(|(p, BatchOperation::Delete(del))| (p, del))
+            .collect();
 
         let resp = self.core.s3_delete_objects(paths).await?;
 

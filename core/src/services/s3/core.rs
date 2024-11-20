@@ -764,7 +764,10 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn s3_delete_objects(
+        &self,
+        paths: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -772,8 +775,9 @@ impl S3Core {
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
                 .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
+                .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),
+                    version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -904,6 +908,8 @@ pub struct DeleteObjectsRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -1088,9 +1094,11 @@ mod tests {
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "sample2.txt".to_string(),
+                    version_id: Some("11111".to_owned()),
                 },
             ],
         };
@@ -1105,6 +1113,7 @@ mod tests {
              </Object>
              <Object>
                <Key>sample2.txt</Key>
+               <VersionId>11111</VersionId>
              </Object>
              </Delete>"#
                 // Cleanup space and new line

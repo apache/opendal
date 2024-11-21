@@ -188,7 +188,7 @@ impl<A: Access> CompleteAccessor<A> {
                 ));
             }
 
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(meta));
         }
 
         // Otherwise, we can simulate stat dir via `list`.

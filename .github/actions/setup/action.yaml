@@ -31,6 +31,8 @@ inputs:
   github-token:
     description: "Github Token"
     default: ""
+  need-hadoop:
+    description: "This setup needs hadoop or not"
 
 runs:
   using: "composite"
@@ -151,4 +153,19 @@ runs:
 
         rm foundationdb-clients_7.1.17-1_amd64.deb
         rm foundationdb-server_7.1.17-1_amd64.deb
+
+    - name: Cache hadoop
+      id: cache-hadoop
+      uses: actions/cache@v4
+      if: inputs.need-hadoop == 'true'
+      with:
+        path: /home/runner/hadoop-3.3.5
+        key: r0-hadoop-3.3.5
+
+    - name: Build hadoop if not cached
+      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
+      shell: bash
+      run: |
+        set -e
+        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
 

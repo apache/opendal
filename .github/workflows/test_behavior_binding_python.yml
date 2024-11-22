@@ -43,6 +43,7 @@ jobs:
           need-nextest: true
           need-protoc: true
           need-rocksdb: true
+          need-hadoop: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # TODO: 1password is only supported on linux

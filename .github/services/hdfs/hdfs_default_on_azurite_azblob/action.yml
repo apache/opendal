@@ -43,8 +43,6 @@ runs:
         OPENDAL_AZBLOB_ACCOUNT_NAME=devstoreaccount1
         OPENDAL_AZBLOB_ACCOUNT_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
 
-        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
-
         export HADOOP_HOME="/home/runner/hadoop-3.3.5"
 
         curl -LsSf -o ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-azure-3.3.5.jar https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-azure/3.3.5/hadoop-azure-3.3.5.jar

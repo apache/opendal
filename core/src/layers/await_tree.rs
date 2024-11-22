@@ -76,6 +76,8 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     type BlockingWriter = AwaitTreeWrapper<A::BlockingWriter>;
     type Lister = AwaitTreeWrapper<A::Lister>;
     type BlockingLister = AwaitTreeWrapper<A::BlockingLister>;
+    type Deleter = AwaitTreeWrapper<A::Deleter>;
+    type BlockingDeleter = AwaitTreeWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -118,11 +120,12 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
             .await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner
-            .delete(path, args)
+            .delete()
             .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -137,13 +140,6 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
         self.inner
             .presign(path, args)
             .instrument_await(format!("opendal::{}", Operation::Presign))
-            .await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner
-            .batch(args)
-            .instrument_await(format!("opendal::{}", Operation::Batch))
             .await
     }
 
@@ -162,6 +158,13 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner
             .blocking_list(path, args)
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner
+            .blocking_delete()
+            .instrument_await(format!("opendal::{}", Operation::BlockingDelete))
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 }
@@ -233,5 +236,28 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for AwaitTreeWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner
+            .flush()
+            .instrument_await(format!("opendal::{}", Operation::DeleterFlush))
+            .await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for AwaitTreeWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }

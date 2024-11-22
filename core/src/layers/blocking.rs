@@ -168,6 +168,8 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     type BlockingWriter = BlockingWrapper<A::Writer>;
     type Lister = A::Lister;
     type BlockingLister = BlockingWrapper<A::Lister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = BlockingWrapper<A::Deleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -203,8 +205,8 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -213,10 +215,6 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -252,8 +250,12 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         self.handle.block_on(self.inner.stat(path, args))
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.handle.block_on(self.inner.delete(path, args))
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.handle.block_on(async {
+            let (rp, writer) = self.inner.delete().await?;
+            let blocking_deleter = Self::BlockingDeleter::new(self.handle.clone(), writer);
+            Ok((rp, blocking_deleter))
+        })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -295,6 +297,16 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
 impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.handle.block_on(self.inner.next())
+    }
+}
+
+impl<I: oio::Delete> oio::BlockingDelete for BlockingWrapper<I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.handle.block_on(self.inner.flush())
     }
 }
 

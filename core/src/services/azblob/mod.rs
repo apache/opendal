@@ -30,4 +30,6 @@ mod backend;
 pub use backend::AzblobBuilder as Azblob;
 
 mod config;
+mod delete;
+
 pub use config::AzblobConfig;

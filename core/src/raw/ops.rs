@@ -66,6 +66,19 @@ impl OpDelete {
     }
 }
 
+/// Args for `delete` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpDeleter {}
+
+impl OpDeleter {
+    /// Create a new `OpDelete`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Args for `list` operation.
 #[derive(Debug, Clone)]
 pub struct OpList {
@@ -244,53 +257,6 @@ impl From<OpRead> for PresignOperation {
 impl From<OpWrite> for PresignOperation {
     fn from(v: OpWrite) -> Self {
         Self::Write(v)
-    }
-}
-
-/// Args for `batch` operation.
-#[derive(Debug, Clone)]
-pub struct OpBatch {
-    ops: Vec<(String, BatchOperation)>,
-}
-
-impl OpBatch {
-    /// Create a new batch options.
-    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
-        Self { ops }
-    }
-
-    /// Get operation from op.
-    pub fn operation(&self) -> &[(String, BatchOperation)] {
-        &self.ops
-    }
-
-    /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
-        self.ops
-    }
-}
-
-/// Batch operation used for batch.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum BatchOperation {
-    /// Batch delete operation.
-    Delete(OpDelete),
-}
-
-impl From<OpDelete> for BatchOperation {
-    fn from(op: OpDelete) -> Self {
-        Self::Delete(op)
-    }
-}
-
-impl BatchOperation {
-    /// Return the operation of this batch.
-    pub fn operation(&self) -> Operation {
-        use BatchOperation::*;
-        match self {
-            Delete(_) => Operation::Delete,
-        }
     }
 }
 

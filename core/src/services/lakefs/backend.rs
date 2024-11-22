@@ -288,7 +288,7 @@ impl Access for LakefsBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         // This would delete the bucket, do not perform
         if self.core.root == "/" && path == "/" {
             return Ok(RpDelete::default());

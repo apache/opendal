@@ -39,6 +39,7 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::delete::AzblobDeleter;
 use crate::services::azblob::writer::AzblobWriters;
 use crate::services::AzblobConfig;
 use crate::*;
@@ -492,9 +493,11 @@ impl Access for AzblobBackend {
     type Reader = HttpBody;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
+    type Deleter = oio::BatchDeleter<AzblobDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -521,6 +524,8 @@ impl Access for AzblobBackend {
                 write_with_user_metadata: true,
 
                 delete: true,
+                delete_max_size: Some(AZBLOB_BATCH_LIMIT),
+
                 copy: true,
 
                 list: true,
@@ -530,10 +535,6 @@ impl Access for AzblobBackend {
                 presign_stat: self.has_sas_token,
                 presign_read: self.has_sas_token,
                 presign_write: self.has_sas_token,
-
-                batch: true,
-                batch_delete: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });
@@ -591,15 +592,11 @@ impl Access for AzblobBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.azblob_delete_blob(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(AzblobDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -646,77 +643,6 @@ impl Access for AzblobBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-        if paths.len() > AZBLOB_BATCH_LIMIT {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "batch delete limit exceeded",
-            ));
-        }
-
-        // construct and complete batch request
-        let resp = self.core.azblob_batch_delete(&paths).await?;
-
-        // check response status
-        if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp));
-        }
-
-        // get boundary from response header
-        let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "response data should have CONTENT_TYPE header",
-            )
-        })?;
-        let content_type = content_type
-            .to_str()
-            .map(|ty| ty.to_string())
-            .map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    format!("get invalid CONTENT_TYPE header in response: {:?}", e),
-                )
-            })?;
-        let splits = content_type.split("boundary=").collect::<Vec<&str>>();
-        let boundary = splits.get(1).to_owned().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "No boundary message provided in CONTENT_TYPE",
-            )
-        })?;
-
-        let mut bs = resp.into_body();
-        let bs = bs.copy_to_bytes(bs.remaining());
-
-        let multipart: Multipart<MixedPart> = Multipart::new().with_boundary(boundary).parse(bs)?;
-        let parts = multipart.into_parts();
-
-        if paths.len() != parts.len() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "invalid batch response, paths and response parts don't match",
-            ));
-        }
-
-        let mut results = Vec::with_capacity(parts.len());
-
-        for (i, part) in parts.into_iter().enumerate() {
-            let resp = part.into_response();
-            let path = paths[i].clone();
-
-            // deleting not existing objects is ok
-            if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
-                results.push((path, Ok(RpDelete::default().into())));
-            } else {
-                results.push((path, Err(parse_error(resp))));
-            }
-        }
-        Ok(RpBatch::new(results))
     }
 }
 

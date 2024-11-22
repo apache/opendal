@@ -70,4 +70,6 @@ mod capability;
 pub use capability::Capability;
 
 mod context;
+mod delete;
+
 pub(crate) use context::*;

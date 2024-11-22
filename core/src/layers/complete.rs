@@ -361,6 +361,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -435,13 +437,13 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         self.complete_stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let capability = self.info.full_capability();
         if !capability.delete {
             return Err(self.new_unsupported_error(Operation::Delete));
         }
 
-        self.inner().delete(path, args).await
+        self.inner().delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -451,15 +453,6 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         }
 
         self.complete_list(path, args).await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.info.full_capability();
-        if !capability.batch {
-            return Err(self.new_unsupported_error(Operation::Batch));
-        }
-
-        self.inner().batch(args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -530,13 +523,13 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         self.complete_blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let capability = self.info.full_capability();
         if !capability.delete || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingDelete));
         }
 
-        self.inner().blocking_delete(path, args)
+        self.inner().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -713,9 +706,11 @@ mod tests {
         type Reader = oio::Reader;
         type Writer = oio::Writer;
         type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
         type BlockingReader = oio::BlockingReader;
         type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
+        type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut info = AccessorInfo::default();
@@ -738,10 +733,6 @@ mod tests {
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
             Ok((RpWrite::new(), Box::new(())))
-        }
-
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
-            Ok(RpDelete {})
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

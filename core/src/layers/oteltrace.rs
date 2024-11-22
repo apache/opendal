@@ -72,6 +72,8 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     type BlockingWriter = OtelTraceWrapper<A::BlockingWriter>;
     type Lister = OtelTraceWrapper<A::Lister>;
     type BlockingLister = OtelTraceWrapper<A::BlockingLister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -142,13 +144,8 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         self.inner().stat(path, args).with_context(cx).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("delete");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = TraceContext::current_with_span(span);
-        self.inner().delete(path, args).with_context(cx).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner().delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -160,14 +157,6 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
             .list(path, args)
             .await
             .map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("batch");
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = TraceContext::current_with_span(span);
-        self.inner().batch(args).with_context(cx).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -241,14 +230,8 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let tracer = global::tracer("opendal");
-        tracer.in_span("blocking_delete", |cx| {
-            let span = cx.span();
-            span.set_attribute(KeyValue::new("path", path.to_string()));
-            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-            self.inner().blocking_delete(path, args)
-        })
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

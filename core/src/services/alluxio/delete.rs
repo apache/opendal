@@ -15,19 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod api;
-pub use api::BlockingDelete;
-pub use api::BlockingDeleter;
-pub use api::Delete;
-pub use api::DeleteDyn;
-pub use api::Deleter;
+use super::core::*;
+use crate::raw::*;
+use crate::*;
+use std::sync::Arc;
 
-mod batch_delete;
-pub use batch_delete::BatchDelete;
-pub use batch_delete::BatchDeleteResult;
-pub use batch_delete::BatchDeleter;
+pub struct AlluxioDeleter {
+    core: Arc<AlluxioCore>,
+}
 
-mod one_shot_delete;
-pub use one_shot_delete::BlockingOneShotDelete;
-pub use one_shot_delete::OneShotDelete;
-pub use one_shot_delete::OneShotDeleter;
+impl AlluxioDeleter {
+    pub fn new(core: Arc<AlluxioCore>) -> Self {
+        AlluxioDeleter { core }
+    }
+}
+
+impl oio::OneShotDelete for AlluxioDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        self.core.delete(&path).await
+    }
+}

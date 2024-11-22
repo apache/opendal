@@ -534,7 +534,7 @@ impl Access for OssBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let resp = self.core.oss_delete_object(path, &args).await?;
         let status = resp.status();
         match status {

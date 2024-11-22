@@ -65,9 +65,6 @@ impl Access for DropboxBackend {
 
                 rename: true,
 
-                batch: true,
-                batch_delete: true,
-
                 ..Default::default()
             });
         ma.into()
@@ -229,54 +226,6 @@ impl Access for DropboxBackend {
                     _ => Err(err),
                 }
             }
-        }
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "dropbox services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-
-        let resp = self.core.dropbox_delete_batch(paths).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let bs = resp.into_body();
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        match decoded_response.tag.as_str() {
-            "complete" => {
-                let entries = decoded_response.entries.unwrap_or_default();
-                let results = self.core.handle_batch_delete_complete_result(entries);
-                Ok(RpBatch::new(results))
-            }
-            "async_job_id" => {
-                let job_id = decoded_response
-                    .async_job_id
-                    .expect("async_job_id should be present");
-                let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
-                    .retry(*BACKOFF)
-                    .when(|e| e.is_temporary())
-                    .await?;
-
-                Ok(res)
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                format!(
-                    "delete batch failed with unexpected tag {}",
-                    decoded_response.tag
-                ),
-            )),
         }
     }
 }

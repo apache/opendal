@@ -30,4 +30,6 @@ mod writer;
 pub use backend::AliyunDriveBuilder as AliyunDrive;
 
 mod config;
+mod delete;
+
 pub use config::AliyunDriveConfig;

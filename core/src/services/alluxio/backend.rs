@@ -28,6 +28,7 @@ use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
+use crate::services::alluxio::delete::AlluxioDeleter;
 use crate::services::AlluxioConfig;
 use crate::*;
 
@@ -144,9 +145,11 @@ impl Access for AlluxioBackend {
     type Reader = HttpBody;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
+    type Deleter = AlluxioDeleter;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -204,10 +207,8 @@ impl Access for AlluxioBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.delete(path).await?;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((RpDelete::default(), AlluxioDeleter::new(self.core.clone())))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

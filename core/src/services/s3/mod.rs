@@ -30,4 +30,6 @@ mod backend;
 pub use backend::S3Builder as S3;
 
 mod config;
+mod delete;
+
 pub use config::S3Config;

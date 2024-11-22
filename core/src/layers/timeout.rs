@@ -220,6 +220,8 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = TimeoutWrapper<A::Lister>;
     type BlockingLister = A::BlockingLister;
+    type Deleter = TimeoutWrapper<A::Deleter>;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -271,19 +273,16 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.timeout(Operation::Delete, self.inner.delete(path, args))
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.io_timeout(Operation::Write, self.inner.delete())
             .await
+            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.io_timeout(Operation::List, self.inner.list(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.timeout(Operation::Batch, self.inner.batch(args)).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -382,6 +381,17 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     }
 }
 
+impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        let fut = self.inner.flush();
+        Self::io_timeout(self.timeout, Operation::DeleterFlush.into_static(), fut).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::pending;
@@ -408,6 +418,8 @@ mod tests {
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
+        type Deleter = ();
+        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
@@ -426,10 +438,10 @@ mod tests {
         }
 
         /// This function will never return.
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             sleep(Duration::from_secs(u64::MAX)).await;
 
-            Ok(RpDelete::default())
+            Ok((RpDelete::default(), ()))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

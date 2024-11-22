@@ -42,6 +42,7 @@ use reqsign::AwsV4Signer;
 use reqwest::Url;
 
 use super::core::*;
+use super::delete::S3Deleter;
 use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
@@ -893,9 +894,11 @@ impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = S3Listers;
+    type Deleter = S3Deleter;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -1016,24 +1019,8 @@ impl Access for S3Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        // This would delete the bucket, do not perform
-        if self.core.root == "/" && path == "/" {
-            return Ok(RpDelete::default());
-        }
-
-        let resp = self.core.s3_delete_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
-            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((RpDelete::default(), S3Deleter::new(self.core.clone())))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -1095,53 +1082,6 @@ impl Access for S3Backend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect();
-
-        let resp = self.core.s3_delete_objects(paths).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            for i in result.error {
-                let path = build_rel_path(&self.core.root, &i.key);
-
-                // set the error kind and mark temporary if retryable
-                let (kind, retryable) =
-                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, format!("{i:?}"));
-                if retryable {
-                    err = err.set_temporary();
-                }
-
-                batched_result.push((path, Err(err)));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            Err(parse_error(resp))
-        }
     }
 }
 

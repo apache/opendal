@@ -47,12 +47,14 @@ pub enum Operation {
     Stat,
     /// Operation for [`crate::raw::Access::delete`]
     Delete,
+    /// Operation for [`crate::raw::oio::Delete::delete`]
+    DeleterDelete,
+    /// Operation for [`crate::raw::oio::Delete::flush`]
+    DeleterFlush,
     /// Operation for [`crate::raw::Access::list`]
     List,
     /// Operation for [`crate::raw::oio::List::next`]
     ListerNext,
-    /// Operation for [`crate::raw::Access::batch`]
-    Batch,
     /// Operation for [`crate::raw::Access::presign`]
     Presign,
     /// Operation for [`crate::raw::Access::blocking_create_dir`]
@@ -75,6 +77,10 @@ pub enum Operation {
     BlockingStat,
     /// Operation for [`crate::raw::Access::blocking_delete`]
     BlockingDelete,
+    /// Operation for [`crate::raw::oio::BlockingDelete::delete`]
+    BlockingDeleterDelete,
+    /// Operation for [`crate::raw::oio::BlockingDelete::flush`]
+    BlockingDeleterFlush,
     /// Operation for [`crate::raw::Access::blocking_list`]
     BlockingList,
     /// Operation for [`crate::raw::oio::BlockingList::next`]
@@ -98,9 +104,11 @@ impl Operation {
             Operation::ReaderRead
                 | Operation::WriterWrite
                 | Operation::ListerNext
+                | Operation::DeleterDelete
                 | Operation::BlockingReaderRead
                 | Operation::BlockingWriterWrite
                 | Operation::BlockingListerNext
+                | Operation::BlockingDeleterDelete
         )
     }
 }
@@ -142,6 +150,10 @@ impl From<Operation> for &'static str {
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",
             Operation::BlockingListerNext => "BlockingLister::next",
+            Operation::DeleterDelete => "Deleter::delete",
+            Operation::DeleterFlush => "Deleter::flush",
+            Operation::BlockingDeleterDelete => "BlockingDeleter::delete",
+            Operation::BlockingDeleterFlush => "BlockingDeleter::flush",
         }
     }
 }

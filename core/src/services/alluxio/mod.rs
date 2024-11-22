@@ -30,4 +30,6 @@ mod backend;
 pub use backend::AlluxioBuilder as Alluxio;
 
 mod config;
+mod delete;
+
 pub use config::AlluxioConfig;

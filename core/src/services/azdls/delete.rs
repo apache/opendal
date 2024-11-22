@@ -15,19 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod api;
-pub use api::BlockingDelete;
-pub use api::BlockingDeleter;
-pub use api::Delete;
-pub use api::DeleteDyn;
-pub use api::Deleter;
+use super::core::*;
+use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
+use http::StatusCode;
+use std::sync::Arc;
 
-mod batch_delete;
-pub use batch_delete::BatchDelete;
-pub use batch_delete::BatchDeleteResult;
-pub use batch_delete::BatchDeleter;
+pub struct AzdlsDeleter {
+    core: Arc<AzdlsCore>,
+}
 
-mod one_shot_delete;
-pub use one_shot_delete::BlockingOneShotDelete;
-pub use one_shot_delete::OneShotDelete;
-pub use one_shot_delete::OneShotDeleter;
+impl AzdlsDeleter {
+    pub fn new(core: Arc<AzdlsCore>) -> Self {
+        Self { core }
+    }
+}
+
+impl oio::OneShotDelete for AzdlsDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let resp = self.core.azdls_delete(&path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::NOT_FOUND => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
+}

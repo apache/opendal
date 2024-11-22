@@ -30,4 +30,6 @@ mod backend;
 pub use backend::AzdlsBuilder as Azdls;
 
 mod config;
+mod delete;
+
 pub use config::AzdlsConfig;

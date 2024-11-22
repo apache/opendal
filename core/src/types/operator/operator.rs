@@ -18,14 +18,16 @@
 use std::future::Future;
 use std::time::Duration;
 
-use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use futures::{stream, SinkExt};
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
+use crate::raw::oio::Delete;
 use crate::raw::*;
+use crate::types::delete::Deleter;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
@@ -1501,10 +1503,17 @@ impl Operator {
             path,
             OpDelete::default(),
             |inner, path, args| async move {
-                let _ = inner.delete(&path, args).await?;
+                let (_, mut deleter) = inner.delete().await?;
+                deleter.delete(path, args).await?;
+                deleter.flush().await?;
                 Ok(())
             },
         )
+    }
+
+    /// TODO.
+    pub async fn deleter(&self) -> Result<Deleter> {
+        Deleter::create(self.inner().clone()).await
     }
 
     ///
@@ -1526,8 +1535,14 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated("use `Deleter::send_all` instead")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.remove_via(stream::iter(paths)).await
+        let mut deleter = self.deleter().await?;
+        deleter
+            .send_all(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
+            .await?;
+        deleter.close().await?;
+        Ok(())
     }
 
     /// remove will remove files via the given paths.
@@ -1555,35 +1570,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated("use `Deleter::send_all` instead")]
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
-        let input = input.map(|v| normalize_path(&v));
-
-        if self.info().full_capability().batch {
-            let mut input = input
-                .map(|v| (v, OpDelete::default().into()))
-                .chunks(self.limit());
-
-            while let Some(batches) = input.next().await {
-                let results = self
-                    .inner()
-                    .batch(OpBatch::new(batches))
-                    .await?
-                    .into_results();
-
-                // TODO: return error here directly seems not a good idea?
-                for (_, result) in results {
-                    let _ = result?;
-                }
-            }
-        } else {
-            input
-                .map(Ok)
-                .try_for_each_concurrent(self.limit, |path| async move {
-                    let _ = self.inner().delete(&path, OpDelete::default()).await?;
-                    Ok::<(), Error>(())
-                })
-                .await?;
-        }
+        let mut deleter = self.deleter().await?;
+        deleter
+            .send_all(&mut input.map(|v| Ok(normalize_path(&v))))
+            .await?;
+        deleter.close().await?;
 
         Ok(())
     }
@@ -1626,33 +1619,10 @@ impl Operator {
             Err(e) => return Err(e),
         };
 
-        let obs = self.lister_with(path).recursive(true).await?;
-
-        if self.info().full_capability().batch {
-            let mut obs = obs.try_chunks(self.limit());
-
-            while let Some(batches) = obs.next().await {
-                let batches = batches
-                    .map_err(|err| err.1)?
-                    .into_iter()
-                    .map(|v| (v.path().to_string(), OpDelete::default().into()))
-                    .collect();
-
-                let results = self
-                    .inner()
-                    .batch(OpBatch::new(batches))
-                    .await?
-                    .into_results();
-
-                // TODO: return error here directly seems not a good idea?
-                for (_, result) in results {
-                    let _ = result?;
-                }
-            }
-        } else {
-            obs.try_for_each(|v| async move { self.delete(v.path()).await })
-                .await?;
-        }
+        let mut lister = self.lister_with(path).recursive(true).await?;
+        let mut deleter = self.deleter().await?;
+        deleter.send_all(&mut lister).await?;
+        deleter.close().await?;
 
         Ok(())
     }

@@ -22,31 +22,38 @@ use std::future::Future;
 /// Deleter is a type erased [`Delete`]
 pub type Deleter = Box<dyn DeleteDyn>;
 
-/// Delete is the trait to perform delete operations.
+/// The Delete trait defines interfaces for performing deletion operations.
 pub trait Delete: Unpin + Send + Sync {
-    /// Delete given path with optional arguments.
+    /// Requests deletion of a resource at the specified path with optional arguments
     ///
-    /// # Behavior
+    /// # Parameters
+    /// - `path`: The path of the resource to delete
+    /// - `args`: Additional arguments for the delete operation
     ///
-    /// - `Ok(())` means the path has been queued for deletion.
-    /// - `Err(err)` means error happens and no deletion has been queued.
-    fn delete(
-        &mut self,
-        path: String,
-        args: OpDelete,
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    /// # Returns
+    /// - `Ok(())`: The deletion request has been successfully queued (does not guarantee actual deletion)
+    /// - `Err(err)`: An error occurred and the deletion request was not queued
+    ///
+    /// # Notes
+    /// This method just queue the delete request. The actual deletion will be
+    /// performed when `flush` is called.
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
-    /// Flush the deletion queue to make sure all enqueued paths are deleted.
+    /// Flushes the deletion queue to ensure queued deletions are executed
     ///
-    /// # Behavior
+    /// # Returns
+    /// - `Ok(0)`: All queued deletions have been processed or the queue is empty.
+    /// - `Ok(count)`: The number of resources successfully deleted. Implementations should
+    ///   return an error if the queue is non-empty but no resources were deleted
+    /// - `Err(err)`: An error occurred while performing the deletions
     ///
-    /// - `Ok(())` means all enqueued paths are deleted successfully.
-    /// - `Err(err)` means error happens while performing deletion.
-    fn flush(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
+    /// # Notes
+    /// - This method is asynchronous and will wait for queued deletions to complete
+    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend;
 }
 
 impl Delete for () {
-    async fn delete(&mut self, _: String, _: OpDelete) -> Result<()> {
+    fn delete(&mut self, _: String, _: OpDelete) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output deleter doesn't support delete",
@@ -62,14 +69,14 @@ impl Delete for () {
 }
 
 pub trait DeleteDyn: Unpin + Send + Sync {
-    fn delete_dyn(&mut self, path: String, args: OpDelete) -> BoxedFuture<Result<()>>;
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
     fn flush_dyn(&mut self) -> BoxedFuture<Result<()>>;
 }
 
 impl<T: Delete + ?Sized> DeleteDyn for T {
-    fn delete_dyn(&mut self, path: String, args: OpDelete) -> BoxedFuture<Result<()>> {
-        Box::pin(self.delete(path, args))
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        Delete::delete(self, path, args)
     }
 
     fn flush_dyn(&mut self) -> BoxedFuture<Result<()>> {
@@ -78,8 +85,8 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
 }
 
 impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
-    async fn delete(&mut self, path: String, args: OpDelete) -> Result<()> {
-        self.delete_dyn(path, args).await
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        DeleteDyn::delete(self, path, args)
     }
 
     async fn flush(&mut self) -> Result<()> {
@@ -100,13 +107,14 @@ pub trait BlockingDelete: Send + Sync + 'static {
     /// - `Err(err)` means error happens and no deletion has been queued.
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
-    /// Flush the deletion queue to make sure all enqueued paths are deleted.
+    /// Flushes the deletion queue to ensure queued deletions are executed
     ///
-    /// # Behavior
-    ///
-    /// - `Ok(())` means all enqueued paths are deleted successfully.
-    /// - `Err(err)` means error happens while performing deletion.
-    fn flush(&mut self) -> Result<()>;
+    /// # Returns
+    /// - `Ok(0)`: All queued deletions have been processed or the queue is empty.
+    /// - `Ok(count)`: The number of resources successfully deleted. Implementations should
+    ///   return an error if the queue is non-empty but no resources were deleted
+    /// - `Err(err)`: An error occurred while performing the deletions
+    fn flush(&mut self) -> Result<usize>;
 }
 
 impl BlockingDelete for () {
@@ -117,7 +125,7 @@ impl BlockingDelete for () {
         ))
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<usize> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output deleter doesn't support flush",
@@ -133,7 +141,7 @@ impl<T: BlockingDelete + ?Sized> BlockingDelete for Box<T> {
         (**self).delete(path, args)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<usize> {
         (**self).flush()
     }
 }

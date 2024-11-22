@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -39,6 +40,7 @@ use crate::*;
 /// - `size`: The size of the current write operation.
 /// - `written`: The already written size in given writer.
 /// - `listed`: The already listed size in given lister.
+/// - `deleted`: The already deleted size in given deleter.
 pub struct ErrorContextLayer;
 
 impl<A: Access> Layer<A> for ErrorContextLayer {
@@ -70,6 +72,8 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type BlockingWriter = ErrorContextWrapper<A::BlockingWriter>;
     type Lister = ErrorContextWrapper<A::Lister>;
     type BlockingLister = ErrorContextWrapper<A::BlockingLister>;
+    type Deleter = ErrorContextWrapper<A::Deleter>;
+    type BlockingDeleter = ErrorContextWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -150,12 +154,20 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Delete)
-                .with_context("service", self.info.scheme())
-                .with_context("path", path)
-        })
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, w)| {
+                (
+                    rp,
+                    ErrorContextWrapper::new(self.info.scheme(), "".to_string(), w),
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Delete)
+                    .with_context("service", self.info.scheme())
+            })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -172,32 +184,6 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 err.with_operation(Operation::List)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
-            })
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner
-            .batch(args)
-            .await
-            .map(|v| {
-                let res = v
-                    .into_results()
-                    .into_iter()
-                    .map(|(path, res)| {
-                        let res = res.map_err(|err| {
-                            err.with_operation(Operation::Delete)
-                                .with_context("service", self.info.scheme())
-                                .with_context("path", &path)
-                        });
-                        (path, res)
-                    })
-                    .collect();
-
-                RpBatch::new(res)
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Batch)
-                    .with_context("service", self.info.scheme())
             })
     }
 
@@ -278,12 +264,19 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.blocking_delete(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingDelete)
-                .with_context("service", self.info.scheme())
-                .with_context("path", path)
-        })
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .blocking_delete()
+            .map(|(rp, w)| {
+                (
+                    rp,
+                    ErrorContextWrapper::new(self.info.scheme(), "".to_string(), w),
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::BlockingDelete)
+                    .with_context("service", self.info.scheme())
+            })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -460,6 +453,57 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())
+            })
+    }
+}
+
+impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).map_err(|err| {
+            err.with_operation(Operation::DeleterDelete)
+                .with_context("service", self.scheme)
+                .with_context("path", path)
+                .with_context("deleted", self.processed.to_string())
+        })
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner
+            .flush()
+            .await
+            .map(|n| {
+                self.processed += n as u64;
+                n
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::DeleterFlush)
+                    .with_context("service", self.scheme)
+                    .with_context("deleted", self.processed.to_string())
+            })
+    }
+}
+
+impl<T: oio::BlockingDelete> oio::BlockingDelete for ErrorContextWrapper<T> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).map_err(|err| {
+            err.with_operation(Operation::DeleterDelete)
+                .with_context("service", self.scheme)
+                .with_context("path", path)
+                .with_context("deleted", self.processed.to_string())
+        })
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner
+            .flush()
+            .map(|n| {
+                self.processed += n as u64;
+                n
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::DeleterFlush)
+                    .with_context("service", self.scheme)
+                    .with_context("deleted", self.processed.to_string())
             })
     }
 }

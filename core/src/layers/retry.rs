@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -299,6 +300,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type BlockingWriter = RetryWrapper<A::BlockingWriter, I>;
     type Lister = RetryWrapper<A::Lister, I>;
     type BlockingLister = RetryWrapper<A::BlockingLister, I>;
+    type Deleter = RetryWrapper<A::Deleter, I>;
+    type BlockingDeleter = RetryWrapper<A::BlockingDeleter, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -346,12 +349,13 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        { || self.inner.delete(path, args.clone()) }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        { || self.inner.delete() }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
@@ -379,30 +383,8 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await
-            .map(|(l, p)| {
-                let lister = RetryWrapper::new(p, self.notify.clone(), self.builder);
-                (l, lister)
-            })
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        {
-            || async {
-                let rp = self.inner.batch(args.clone()).await?;
-                let mut nrp = Vec::with_capacity(rp.results().len());
-                for (path, result) in rp.into_results() {
-                    let result = result?;
-                    nrp.push((path, Ok(result)))
-                }
-                Ok(RpBatch::new(nrp))
-            }
-        }
-        .retry(self.builder)
-        .when(|e: &Error| e.is_temporary())
-        .notify(|err, dur| self.notify.intercept(err, dur))
-        .await
-        .map_err(|e| e.set_persistent())
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -447,12 +429,13 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        { || self.inner.blocking_delete(path, args.clone()) }
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        { || self.inner.blocking_delete() }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| self.notify.intercept(err, dur))
             .call()
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
@@ -751,6 +734,65 @@ impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapp
     }
 }
 
+impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        { || self.inner.as_mut().unwrap().delete(path, args.clone()) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                self.notify.intercept(err, dur);
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+
+        let (inner, res) = {
+            |mut p: P| async move {
+                let res = p.flush().await;
+
+                (p, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| self.notify.intercept(err, dur))
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+}
+
+impl<P: oio::BlockingDelete, I: RetryInterceptor> oio::BlockingDelete for RetryWrapper<P, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        { || self.inner.as_mut().unwrap().delete(path, args.clone()) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                self.notify.intercept(err, dur);
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        { || self.inner.as_mut().unwrap().flush() }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                self.notify.intercept(err, dur);
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -788,9 +830,11 @@ mod tests {
         type Reader = MockReader;
         type Writer = MockWriter;
         type Lister = MockLister;
+        type Deleter = ();
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
+        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
@@ -832,63 +876,6 @@ mod tests {
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             let lister = MockLister::default();
             Ok((RpList::default(), lister))
-        }
-
-        async fn batch(&self, op: OpBatch) -> Result<RpBatch> {
-            let mut attempt = self.attempt.lock().unwrap();
-            *attempt += 1;
-
-            match *attempt {
-                1 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                2 => Ok(RpBatch::new(
-                    op.into_operation()
-                        .into_iter()
-                        .map(|(s, _)| {
-                            (
-                                s,
-                                Err(Error::new(
-                                    ErrorKind::Unexpected,
-                                    "retryable_error from reader",
-                                )
-                                .set_temporary()),
-                            )
-                        })
-                        .collect(),
-                )),
-                3 => Ok(RpBatch::new(
-                    op.into_operation()
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, (s, _))| {
-                            (
-                                s,
-                                match i {
-                                    0 => Err(Error::new(
-                                        ErrorKind::Unexpected,
-                                        "retryable_error from reader",
-                                    )
-                                    .set_temporary()),
-                                    _ => Ok(RpDelete {}.into()),
-                                },
-                            )
-                        })
-                        .collect(),
-                )),
-                4 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                        .set_temporary(),
-                ),
-                5 => Ok(RpBatch::new(
-                    op.into_operation()
-                        .into_iter()
-                        .map(|(s, _)| (s, Ok(RpDelete {}.into())))
-                        .collect(),
-                )),
-                _ => unreachable!(),
-            }
         }
     }
 

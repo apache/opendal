@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -105,6 +106,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
     type BlockingLister = A::BlockingLister;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -137,6 +140,14 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 

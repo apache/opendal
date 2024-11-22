@@ -68,34 +68,21 @@ use crate::*;
 /// 1. reader_read_start, arguments: path
 /// 2. reader_read_ok, arguments: path, length
 /// 3. reader_read_error, arguments: path
-/// 4. reader_seek_start, arguments: path
-/// 5. reader_seek_ok, arguments: path, offset
-/// 6. reader_seek_error, arguments: path
-/// 7. reader_next_start, arguments: path
-/// 8. reader_next_ok, arguments: path, length
-/// 9. reader_next_error, arguments: path
-/// 10. reader_next_end, arguments: path
 ///
 /// ### For BlockingReader
 ///
 /// 1. blocking_reader_read_start, arguments: path
 /// 2. blocking_reader_read_ok, arguments: path, length
 /// 3. blocking_reader_read_error, arguments: path
-/// 4. blocking_reader_seek_start, arguments: path
-/// 5. blocking_reader_seek_ok, arguments: path, offset
-/// 6. blocking_reader_seek_error, arguments: path
-/// 7. blocking_reader_next_start, arguments: path
-/// 8. blocking_reader_next_ok, arguments: path, length
-/// 9. blocking_reader_next_error, arguments: path
 ///
 /// ### For Writer
 ///
 /// 1. writer_write_start, arguments: path
 /// 2. writer_write_ok, arguments: path, length
 /// 3. writer_write_error, arguments: path
-/// 4. writer_poll_abort_start, arguments: path
-/// 5. writer_poll_abort_ok, arguments: path
-/// 6. writer_poll_abort_error, arguments: path
+/// 4. writer_abort_start, arguments: path
+/// 5. writer_abort_ok, arguments: path
+/// 6. writer_abort_error, arguments: path
 /// 7. writer_close_start, arguments: path
 /// 8. writer_close_ok, arguments: path
 /// 9. writer_close_error, arguments: path
@@ -192,6 +179,8 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type BlockingWriter = DtraceLayerWrapper<A::BlockingWriter>;
     type Lister = A::Lister;
     type BlockingLister = A::BlockingLister;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -238,12 +227,8 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         result
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, delete_start, c_path.as_ptr());
-        let result = self.inner.delete(path, args).await;
-        probe_lazy!(opendal, delete_end, c_path.as_ptr());
-        result
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -252,10 +237,6 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         let result = self.inner.list(path, args).await;
         probe_lazy!(opendal, list_end, c_path.as_ptr());
         result
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -304,12 +285,8 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         result
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_delete_start, c_path.as_ptr());
-        let result = self.inner.blocking_delete(path, args);
-        probe_lazy!(opendal, blocking_delete_end, c_path.as_ptr());
-        result
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

@@ -66,8 +66,8 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type BlockingWriter = AsyncBacktraceWrapper<A::BlockingWriter>;
     type Lister = AsyncBacktraceWrapper<A::Lister>;
     type BlockingLister = AsyncBacktraceWrapper<A::BlockingLister>;
-    type Deleter = AsyncBacktraceWrapper<A::Lister>;
-    type BlockingDeleter = AsyncBacktraceWrapper<A::BlockingLister>;
+    type Deleter = AsyncBacktraceWrapper<A::Deleter>;
+    type BlockingDeleter = AsyncBacktraceWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner

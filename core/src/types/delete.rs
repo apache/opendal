@@ -141,7 +141,7 @@ impl Sink<String> for Deleter {
                 let mut deleter = deleter
                     .take()
                     .expect("deleter must be valid while calling start_send");
-                let res = deleter.delete(item, OpDelete::default());
+                let res = deleter.delete(&item, OpDelete::default());
                 self.state = State::Idle(Some(deleter));
                 self.cur_size += 1;
                 res
@@ -175,7 +175,47 @@ impl Sink<(String, OpDelete)> for Deleter {
                 let mut deleter = deleter
                     .take()
                     .expect("deleter must be valid while calling start_send");
-                let res = deleter.delete(item.0, item.1);
+                let res = deleter.delete(&item.0, item.1);
+                self.state = State::Idle(Some(deleter));
+                self.cur_size += 1;
+                res
+            }
+            _ => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Deleter is not ready to start_send, please poll_ready first",
+            )),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush_inner(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_close_inner(cx)
+    }
+}
+
+impl Sink<Entry> for Deleter {
+    type Error = Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_ready_inner(cx)
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: Entry) -> Result<()> {
+        match &mut self.state {
+            State::Idle(deleter) if self.cur_size < self.max_size => {
+                let mut deleter = deleter
+                    .take()
+                    .expect("deleter must be valid while calling start_send");
+
+                let mut args = OpDelete::default();
+                if let Some(version) = item.metadata().version() {
+                    args = args.with_version(version);
+                }
+
+                let res = deleter.delete(item.name(), args);
                 self.state = State::Idle(Some(deleter));
                 self.cur_size += 1;
                 res

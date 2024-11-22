@@ -58,7 +58,7 @@ impl oio::BatchDelete for AzblobDeleter {
         }
 
         // get boundary from response header
-        let boundary = parse_multipart_boundary(resp.headers()).ok_or_else(|| {
+        let boundary = parse_multipart_boundary(resp.headers())?.ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "invalid response: no boundary provided in header",

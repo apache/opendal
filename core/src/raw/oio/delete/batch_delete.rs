@@ -114,7 +114,7 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
             if !err.is_temporary() {
                 return Err(err
                     .with_context("path", path)
-                    .with_context("version", op.version()));
+                    .with_context("version", op.version().unwrap_or("<latest>")));
             }
         }
 

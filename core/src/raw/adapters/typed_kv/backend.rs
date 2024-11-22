@@ -55,11 +55,11 @@ impl<S: Adapter> Access for Backend<S> {
     type Reader = Buffer;
     type Writer = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
-    type Deleter = oio::OneShotDeleter<S>;
+    type Deleter = oio::OneShotDeleter<KvDeleter<S>>;
     type BlockingReader = Buffer;
     type BlockingWriter = KvWriter<S>;
     type BlockingLister = HierarchyLister<KvLister>;
-    type BlockingDeleter = oio::OneShotDeleter<S>;
+    type BlockingDeleter = oio::OneShotDeleter<KvDeleter<S>>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();

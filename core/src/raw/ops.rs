@@ -41,7 +41,7 @@ impl OpCreateDir {
 /// Args for `delete` operation.
 ///
 /// The path must be normalized.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
 }

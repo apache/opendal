@@ -113,3 +113,6 @@ mod dtrace;
 pub use self::dtrace::DtraceLayer;
 
 pub mod observe;
+
+mod capability_check;
+pub use capability_check::CapabilityCheckLayer;

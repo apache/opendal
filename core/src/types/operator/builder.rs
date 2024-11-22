@@ -472,6 +472,7 @@ impl<A: Access> OperatorBuilder<A> {
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
             .layer(CompleteLayer)
+            .layer(CapabilityCheckLayer::default())
     }
 
     /// Create a new layer with static dispatch.

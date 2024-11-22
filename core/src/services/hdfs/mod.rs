@@ -28,4 +28,6 @@ mod backend;
 pub use backend::HdfsBuilder as Hdfs;
 
 mod config;
+mod delete;
+
 pub use config::HdfsConfig;

@@ -21,8 +21,8 @@ use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
 use super::backend::Manager;
+use super::err::parse_error;
 use crate::raw::*;
-use crate::services::ftp::err::parse_error;
 use crate::*;
 
 pub struct FtpWriter {

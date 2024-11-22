@@ -30,4 +30,6 @@ mod backend;
 pub use backend::CompfsBuilder as Compfs;
 
 mod config;
+mod delete;
+
 pub use config::CompfsConfig;

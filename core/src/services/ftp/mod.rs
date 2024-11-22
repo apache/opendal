@@ -30,4 +30,6 @@ mod backend;
 pub use backend::FtpBuilder as Ftp;
 
 mod config;
+mod delete;
+
 pub use config::FtpConfig;

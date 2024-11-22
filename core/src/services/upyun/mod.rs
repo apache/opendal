@@ -30,4 +30,6 @@ mod backend;
 pub use backend::UpyunBuilder as Upyun;
 
 mod config;
+mod delete;
+
 pub use config::UpyunConfig;

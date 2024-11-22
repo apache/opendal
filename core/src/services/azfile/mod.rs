@@ -30,4 +30,6 @@ mod backend;
 pub use backend::AzfileBuilder as Azfile;
 
 mod config;
+mod delete;
+
 pub use config::AzfileConfig;

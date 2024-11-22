@@ -32,4 +32,6 @@ mod backend;
 pub use backend::GcsBuilder as Gcs;
 
 mod config;
+mod delete;
+
 pub use config::GcsConfig;

@@ -30,4 +30,6 @@ mod backend;
 pub use backend::CosBuilder as Cos;
 
 mod config;
+mod delete;
+
 pub use config::CosConfig;

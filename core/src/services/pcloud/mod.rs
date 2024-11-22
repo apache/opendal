@@ -30,4 +30,6 @@ mod backend;
 pub use backend::PcloudBuilder as Pcloud;
 
 mod config;
+mod delete;
+
 pub use config::PcloudConfig;

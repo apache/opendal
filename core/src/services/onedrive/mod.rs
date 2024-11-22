@@ -32,4 +32,6 @@ mod builder;
 pub use builder::OnedriveBuilder as Onedrive;
 
 mod config;
+mod delete;
+
 pub use config::OnedriveConfig;

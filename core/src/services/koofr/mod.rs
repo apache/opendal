@@ -30,4 +30,6 @@ mod backend;
 pub use backend::KoofrBuilder as Koofr;
 
 mod config;
+mod delete;
+
 pub use config::KoofrConfig;

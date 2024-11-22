@@ -30,4 +30,6 @@ mod backend;
 pub use backend::WebdavBuilder as Webdav;
 
 mod config;
+mod delete;
+
 pub use config::WebdavConfig;

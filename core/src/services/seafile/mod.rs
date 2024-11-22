@@ -30,4 +30,6 @@ mod backend;
 pub use backend::SeafileBuilder as Seafile;
 
 mod config;
+mod delete;
+
 pub use config::SeafileConfig;

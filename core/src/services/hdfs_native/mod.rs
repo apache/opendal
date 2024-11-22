@@ -30,4 +30,6 @@ mod backend;
 pub use backend::HdfsNativeBuilder as HdfsNative;
 
 mod config;
+mod delete;
+
 pub use config::HdfsNativeConfig;

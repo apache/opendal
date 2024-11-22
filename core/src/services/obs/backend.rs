@@ -28,11 +28,12 @@ use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
 use super::core::ObsCore;
+use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
+use super::writer::ObsWriters;
 use crate::raw::*;
-use crate::services::obs::writer::ObsWriters;
 use crate::services::ObsConfig;
 use crate::*;
 
@@ -242,9 +243,11 @@ impl Access for ObsBackend {
     type Reader = HttpBody;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
+    type Deleter = oio::OneShotDeleter<ObsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -345,17 +348,11 @@ impl Access for ObsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.obs_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(ObsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

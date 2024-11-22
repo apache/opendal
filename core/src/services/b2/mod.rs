@@ -30,4 +30,6 @@ mod backend;
 pub use backend::B2Builder as B2;
 
 mod config;
+mod delete;
+
 pub use config::B2Config;

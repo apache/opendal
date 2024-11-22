@@ -32,4 +32,6 @@ mod builder;
 pub use builder::DropboxBuilder as Dropbox;
 
 mod config;
+mod delete;
+
 pub use config::DropboxConfig;

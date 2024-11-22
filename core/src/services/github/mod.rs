@@ -30,4 +30,6 @@ mod backend;
 pub use backend::GithubBuilder as Github;
 
 mod config;
+mod delete;
+
 pub use config::GithubConfig;

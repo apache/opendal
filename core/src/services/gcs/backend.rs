@@ -32,10 +32,12 @@ use serde::Deserialize;
 use serde_json;
 
 use super::core::*;
+use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
 use crate::*;
@@ -341,9 +343,11 @@ impl Access for GcsBackend {
     type Reader = HttpBody;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
+    type Deleter = oio::BatchDeleter<GcsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -459,15 +463,11 @@ impl Access for GcsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gcs_delete_object(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            Err(parse_error(resp))
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -30,4 +30,6 @@ mod builder;
 pub use builder::IpmfsBuilder as Ipmfs;
 
 mod config;
+mod delete;
+
 pub use config::IpmfsConfig;

@@ -30,4 +30,6 @@ mod backend;
 pub use backend::ChainsafeBuilder as Chainsafe;
 
 mod config;
+mod delete;
+
 pub use config::ChainsafeConfig;

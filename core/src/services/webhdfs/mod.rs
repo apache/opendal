@@ -30,4 +30,6 @@ mod backend;
 pub use backend::WebhdfsBuilder as Webhdfs;
 
 mod config;
+mod delete;
+
 pub use config::WebhdfsConfig;

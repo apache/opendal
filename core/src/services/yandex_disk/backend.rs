@@ -27,6 +27,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
@@ -148,9 +149,11 @@ impl Access for YandexDiskBackend {
     type Reader = HttpBody;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
+    type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -258,21 +261,11 @@ impl Access for YandexDiskBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Yandex Disk deleting a non-empty folder can take an unknown amount of time,
-            // So the API responds with the code 202 Accepted (the deletion process has started).
-            StatusCode::ACCEPTED => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(YandexDiskDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

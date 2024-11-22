@@ -27,12 +27,12 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzdlsCore;
+use super::delete::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
-use crate::services::azdls::delete::AzdlsDeleter;
 use crate::services::AzdlsConfig;
 use crate::*;
 

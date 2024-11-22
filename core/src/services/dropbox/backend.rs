@@ -24,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 
 use super::core::*;
+use super::delete::DropboxDeleter;
 use super::error::*;
 use super::lister::DropboxLister;
 use super::writer::DropboxWriter;
@@ -39,9 +40,11 @@ impl Access for DropboxBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
+    type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -88,16 +91,7 @@ impl Access for DropboxBackend {
             }
         }
 
-        // Dropbox has very, very, very strong limitation on the create_folder requests.
-        //
-        // Let's try our best to make sure it won't failed for rate limited issues.
-        let res = { || self.core.dropbox_create_folder(path) }
-            .retry(*BACKOFF)
-            .when(|e| e.is_temporary())
-            .await
-            // Set this error to permanent to avoid retrying.
-            .map_err(|e| e.set_permanent())?;
-
+        let res = self.core.dropbox_create_folder(path).await?;
         Ok(res)
     }
 
@@ -166,21 +160,11 @@ impl Access for DropboxBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dropbox_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

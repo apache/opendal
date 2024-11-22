@@ -30,4 +30,6 @@ mod backend;
 pub use backend::YandexDiskBuilder as YandexDisk;
 
 mod config;
+mod delete;
+
 pub use config::YandexDiskConfig;

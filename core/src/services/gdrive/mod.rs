@@ -32,4 +32,6 @@ mod builder;
 pub use builder::GdriveBuilder as Gdrive;
 
 mod config;
+mod delete;
+
 pub use config::GdriveConfig;

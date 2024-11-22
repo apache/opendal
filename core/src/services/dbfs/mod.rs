@@ -30,4 +30,6 @@ mod backend;
 pub use backend::DbfsBuilder as Dbfs;
 
 mod config;
+mod delete;
+
 pub use config::DbfsConfig;

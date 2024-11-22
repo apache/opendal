@@ -28,4 +28,6 @@ mod backend;
 pub use backend::MonoiofsBuilder as Monoiofs;
 
 mod config;
+mod delete;
+
 pub use config::MonoiofsConfig;

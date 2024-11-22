@@ -30,4 +30,6 @@ mod backend;
 pub use backend::SwiftBuilder as Swift;
 
 mod config;
+mod delete;
+
 pub use config::SwiftConfig;

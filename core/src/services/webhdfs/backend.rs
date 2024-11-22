@@ -29,6 +29,7 @@ use log::debug;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
+use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
@@ -517,9 +518,11 @@ impl Access for WebhdfsBackend {
     type Reader = HttpBody;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
+    type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -641,13 +644,11 @@ impl Access for WebhdfsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.webhdfs_delete(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(WebhdfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

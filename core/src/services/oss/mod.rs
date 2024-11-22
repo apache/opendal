@@ -30,4 +30,6 @@ mod backend;
 pub use backend::OssBuilder as Oss;
 
 mod config;
+mod delete;
+
 pub use config::OssConfig;

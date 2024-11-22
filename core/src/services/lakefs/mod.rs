@@ -32,5 +32,6 @@ mod backend;
 pub use backend::LakefsBuilder as Lakefs;
 
 mod config;
+mod delete;
 
 pub use config::LakefsConfig;

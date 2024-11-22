@@ -30,4 +30,6 @@ mod backend;
 pub use backend::ObsBuilder as Obs;
 
 mod config;
+mod delete;
+
 pub use config::ObsConfig;

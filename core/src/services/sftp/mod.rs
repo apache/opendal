@@ -32,4 +32,6 @@ mod backend;
 pub use backend::SftpBuilder as Sftp;
 
 mod config;
+mod delete;
+
 pub use config::SftpConfig;

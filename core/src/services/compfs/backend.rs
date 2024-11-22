@@ -22,9 +22,11 @@ use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
 
 use super::core::CompfsCore;
+use super::delete::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
+use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;
 use crate::*;
@@ -106,9 +108,11 @@ impl Access for CompfsBackend {
     type Reader = CompfsReader;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
+    type Deleter = OneShotDeleter<CompfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -167,20 +171,11 @@ impl Access for CompfsBackend {
         Ok(RpStat::new(ret))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        if path.ends_with('/') {
-            let path = self.core.prepare_path(path);
-            self.core
-                .exec(move || async move { compio::fs::remove_dir(path).await })
-                .await?;
-        } else {
-            let path = self.core.prepare_path(path);
-            self.core
-                .exec(move || async move { compio::fs::remove_file(path).await })
-                .await?;
-        }
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

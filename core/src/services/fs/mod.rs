@@ -30,4 +30,6 @@ mod backend;
 pub use backend::FsBuilder as Fs;
 
 mod config;
+mod delete;
+
 pub use config::FsConfig;

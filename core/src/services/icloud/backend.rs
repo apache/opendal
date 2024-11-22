@@ -226,11 +226,13 @@ pub struct IcloudBackend {
 
 impl Access for IcloudBackend {
     type Reader = HttpBody;
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = ();
+    type Deleter = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();

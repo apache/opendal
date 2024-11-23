@@ -96,7 +96,7 @@ class OpenDalTest < ActiveSupport::TestCase
     assert File.exist?("#{@root}/new_name")
   end
 
-  test "opens an OpenDALIO" do
+  test "opens an IO" do
     io = @op.open("/sample", "rb")
 
     assert_not io.closed?

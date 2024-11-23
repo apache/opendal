@@ -15,33 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: hdfs_default_with_atomic_write_dir
-description: 'Behavior test for hdfs default with atomic write dir'
+name: Setup Hadoop
+description: 'Prepare Hadoop'
+
+inputs:
+  need-hadoop:
+    description: "This setup needs hadoop or not"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup java env
-      uses: actions/setup-java@v4
+    - name: Cache hadoop
+      id: cache-hadoop
+      uses: actions/cache@v4
+      if: inputs.need-hadoop == 'true'
       with:
-        distribution: temurin
-        java-version: "11"
-    - name: Setup
+        path: /home/runner/hadoop-3.3.5
+        key: cache-hadoop-3.3.5
+
+    - name: Build hadoop if not cached
+      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
       shell: bash
       run: |
+        set -e
         curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
 
-        export HADOOP_HOME="/home/runner/hadoop-3.3.5"
-        export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
 
-        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 
-        cat << EOF >> $GITHUB_ENV
-        HADOOP_HOME=${HADOOP_HOME}
-        CLASSPATH=${CLASSPATH}
-        LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
-        OPENDAL_HDFS_ROOT=/tmp/opendal/
-        OPENDAL_HDFS_ATOMIC_WRITE_DIR=/tmp/atomic_write_dir/opendal/
-        OPENDAL_HDFS_NAME_NODE=default
-        OPENDAL_HDFS_ENABLE_APPEND=false
-        EOF
+
+

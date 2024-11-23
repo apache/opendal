@@ -33,6 +33,7 @@ runs:
     - name: Setup hadoop env
       shell: bash
       run: |
+        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
         export HADOOP_HOME=/home/runner/hadoop-3.3.5
         echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
         echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV 

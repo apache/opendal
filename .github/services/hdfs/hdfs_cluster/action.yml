@@ -30,6 +30,10 @@ runs:
       with:
         distribution: temurin
         java-version: "11"
+    - name: Setup hadoop
+      uses: ./.github/actions/setup-hadoop
+      with:
+        need-hadoop: true
     - name: Setup hadoop env
       shell: bash
       run: |

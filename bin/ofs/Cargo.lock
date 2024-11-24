@@ -1031,7 +1031,6 @@ dependencies = [
  "chrono",
  "crc32c",
  "dotenvy",
- "flagset",
  "futures",
  "getrandom",
  "http",

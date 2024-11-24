@@ -153,7 +153,7 @@ jobs:
         shell: bash
         working-directory: .
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: bindings-linux-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -201,7 +201,7 @@ jobs:
       - name: Build
         shell: bash
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: bindings-windows-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -223,7 +223,7 @@ jobs:
             build: |
               rustup target add x86_64-apple-darwin;
               export NAPI_TARGET=x86_64-apple-darwin;
-              
+
               pnpm build
               strip -x *.node
           - target: aarch64-apple-darwin
@@ -291,7 +291,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts

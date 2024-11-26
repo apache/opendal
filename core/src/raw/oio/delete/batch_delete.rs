@@ -49,7 +49,9 @@ pub trait BatchDelete: Send + Sync + Unpin + 'static {
 /// BatchDeleteResult is the result of batch delete operation.
 #[derive(Default)]
 pub struct BatchDeleteResult {
+    /// Collection of successful deletions, containing tuples of (path, args)
     pub succeeded: Vec<(String, OpDelete)>,
+    /// Collection of failed deletions, containing tuples of (path, args, error)
     pub failed: Vec<(String, OpDelete, Error)>,
 }
 

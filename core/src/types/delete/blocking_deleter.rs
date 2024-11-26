@@ -60,13 +60,15 @@ impl BlockingDeleter {
     }
 
     /// Delete a stream of paths.
-    pub fn delete_from<S, E>(&mut self, mut iter: S) -> Result<()>
+    pub fn delete_iter<I, D, E>(&mut self, mut iter: I) -> Result<()>
     where
-        S: Iterator<Item = Result<E>>,
-        E: IntoDeleteInput,
+        I: IntoIterator,
+        D: IntoDeleteInput,
+        I::Item: Into<Result<D, Error>>,
     {
+        let mut iter = iter.into_iter();
         loop {
-            match iter.next() {
+            match iter.next().into() {
                 Some(Ok(entry)) => {
                     self.delete(entry)?;
                 }

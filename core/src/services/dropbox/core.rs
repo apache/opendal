@@ -525,20 +525,6 @@ pub struct DropboxDeleteBatchResponseEntry {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
-pub struct DropboxDeleteBatchFailureResponse {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    // During the batch deletion process, Dropbox returns
-    // part of the error information in the form of a JSON key.
-    // Since it is impossible to determine the JSON key in advance,
-    // the error information is parsed into a HashMap here.
-    // The key of the HashMap is equal to the value of the tag above.
-    #[serde(flatten)]
-    pub failure_cause_map: HashMap<String, DropboxDeleteBatchFailureResponseCause>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
 pub struct DropboxDeleteBatchFailureResponseCause {
     #[serde(rename(deserialize = ".tag"))]
     pub tag: String,

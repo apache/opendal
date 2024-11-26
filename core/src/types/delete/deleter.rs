@@ -55,7 +55,7 @@ use std::pin::pin;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut d = op.deleter().await?;
-///     d.delete_from(stream::iter(vec!["path/to/file"])).await?;
+///     d.delete_stream(stream::iter(vec!["path/to/file"])).await?;
 ///     d.close().await?;
 ///     Ok(())
 /// }
@@ -115,19 +115,34 @@ impl Deleter {
         Ok(())
     }
 
-    /// Delete a stream of paths.
-    pub async fn delete_from<S, E>(&mut self, mut stream: S) -> Result<()>
+    /// Delete an iterator of paths.
+    pub async fn delete_iter<I, D, E>(&mut self, mut iter: I) -> Result<()>
     where
-        S: Stream<Item = Result<E>>,
-        E: IntoDeleteInput,
+        I: IntoIterator,
+        D: IntoDeleteInput,
+        I::Item: Into<Result<D, Error>>,
+    {
+        let iter = iter.into_iter();
+        for entry in iter {
+            self.delete(entry?).await?;
+        }
+        Ok(())
+    }
+
+    /// Delete a stream of paths.
+    pub async fn delete_stream<S, D, E>(&mut self, mut stream: S) -> Result<()>
+    where
+        S: Stream,
+        D: IntoDeleteInput,
+        S::Item: Into<Result<D, Error>>,
     {
         let mut stream = pin!(stream);
         loop {
-            match stream.next().await {
+            match stream.next().await.into() {
                 Some(Ok(entry)) => {
                     self.delete(entry).await?;
                 }
-                Some(Err(err)) => return Err(err),
+                Some(Err(err)) => return Err(err.into()),
                 None => break,
             }
         }

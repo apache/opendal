@@ -366,7 +366,7 @@ mod tests {
             am.into()
         }
 
-        async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
             let mut x = self.stated.lock().await;
             *x = true;
 

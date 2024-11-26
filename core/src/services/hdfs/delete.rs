@@ -61,7 +61,7 @@ impl oio::OneShotDelete for HdfsDeleter {
 }
 
 impl oio::BlockingOneShotDelete for HdfsDeleter {
-    fn blocking_delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+    fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.core.root, &path);
 
         let meta = self.core.client.metadata(&p);

@@ -799,7 +799,7 @@ mod tests {
     use std::sync::Mutex;
 
     use bytes::Bytes;
-    use futures::TryStreamExt;
+    use futures::{stream, StreamExt, TryStreamExt};
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
@@ -1070,13 +1070,8 @@ mod tests {
             )
             .finish();
 
-        let paths = vec![
-            "hello".into(),
-            "world".into(),
-            "test".into(),
-            "batch".into(),
-        ];
-        op.remove(paths).await.expect("batch must succeed");
+        let paths = vec!["hello", "world", "test", "batch"];
+        op.delete_stream(stream::iter(paths)).await.unwrap();
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
     }
 }

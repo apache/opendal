@@ -33,7 +33,7 @@ impl ObsDeleter {
 }
 
 impl oio::OneShotDelete for ObsDeleter {
-    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let resp = self.core.obs_delete_object(&path).await?;
 
         let status = resp.status();

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::pin::pin;
 use std::time::Duration;
 
 use futures::stream;
@@ -1511,12 +1512,41 @@ impl Operator {
         )
     }
 
-    /// TODO.
+    /// Delete an iterator of paths.
+    pub async fn delete_iter<I, D, E>(&mut self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D, E>>,
+        D: IntoDeleteInput,
+        E: Into<Error>,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_iter(iter).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete a stream of paths.
+    pub async fn delete_stream<S, D, E>(&self, stream: S) -> Result<()>
+    where
+        S: Stream<Item = Result<D, E>>,
+        D: IntoDeleteInput,
+        E: Into<Error>,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_stream(stream).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Create a [`Deleter`] to continuously remove content from storage.
+    ///
+    /// It leverages batch deletion capabilities provided by storage services for efficient removal.
+    ///
+    /// Users can have more control over the deletion process by using [`Deleter`] directly.
     pub async fn deleter(&self) -> Result<Deleter> {
         Deleter::create(self.inner().clone()).await
     }
 
-    ///
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1535,11 +1565,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `Deleter::delete_from` instead", since = "0.52")]
+    #[deprecated(note = "use `Operator::delete_iter` instead", since = "0.52")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter
-            .delete_from(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
+            .delete_stream(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
             .await?;
         deleter.close().await?;
         Ok(())
@@ -1570,11 +1600,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `Deleter::delete_from` instead", since = "0.52")]
+    #[deprecated(note = "use `Operator::delete_stream` instead", since = "0.52")]
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter
-            .delete_from(&mut input.map(|v| Ok(normalize_path(&v))))
+            .delete_stream(input.map(|v| normalize_path(&v)))
             .await?;
         deleter.close().await?;
 
@@ -1620,9 +1650,7 @@ impl Operator {
         };
 
         let mut lister = self.lister_with(path).recursive(true).await?;
-        let mut deleter = self.deleter().await?;
-        deleter.delete_from(&mut lister).await?;
-        deleter.close().await?;
+        self.delete_stream(lister).await?;
 
         Ok(())
     }

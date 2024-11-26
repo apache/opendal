@@ -19,7 +19,6 @@ mod api;
 pub use api::BlockingDelete;
 pub use api::BlockingDeleter;
 pub use api::Delete;
-pub use api::DeleteDyn;
 pub use api::Deleter;
 
 mod batch_delete;

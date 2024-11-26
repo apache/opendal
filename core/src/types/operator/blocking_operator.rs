@@ -775,6 +775,28 @@ impl BlockingOperator {
         ))
     }
 
+    /// Delete an iterator of paths.
+    pub fn delete_iter<I, D, E>(&self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D, E>>,
+        D: IntoDeleteInput,
+        E: Into<Error>,
+    {
+        let mut deleter = self.deleter()?;
+        deleter.delete_iter(iter)?;
+        deleter.close()?;
+        Ok(())
+    }
+
+    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    ///
+    /// It leverages batch deletion capabilities provided by storage services for efficient removal.
+    ///
+    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    pub fn deleter(&self) -> Result<BlockingDeleter> {
+        BlockingDeleter::create(self.inner().clone())
+    }
+
     /// remove will remove files via the given paths.
     ///
     /// remove_via will remove files via the given vector iterators.
@@ -795,6 +817,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52")]
     pub fn remove_via(&self, input: impl Iterator<Item = String>) -> Result<()> {
         for path in input {
             self.delete(&path)?;
@@ -817,6 +840,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52")]
     pub fn remove(&self, paths: Vec<String>) -> Result<()> {
         self.remove_via(paths.into_iter())?;
 
@@ -856,16 +880,8 @@ impl BlockingOperator {
             Err(e) => return Err(e),
         };
 
-        let obs = self.lister_with(path).recursive(true).call()?;
-
-        for v in obs {
-            match v {
-                Ok(entry) => {
-                    self.inner().blocking_delete()?;
-                }
-                Err(e) => return Err(e),
-            }
-        }
+        let lister = self.lister_with(path).recursive(true).call()?;
+        self.delete_iter(lister)?;
 
         Ok(())
     }

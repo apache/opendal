@@ -245,6 +245,24 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `stat` request.
+    ///
+    /// This feature can be used to retrieve the metadata of a specific version of the given path
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ## Get metadata while `ETag` matches
@@ -547,6 +565,24 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `read` request.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut bs = op.read_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// Read the whole path into a bytes.
@@ -662,6 +698,24 @@ impl Operator {
     ///     .reader_with("path/to/file")
     ///     .chunk(4 * 1024 * 1024)
     ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `reader`.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut bs = op.reader_with("path/to/file").version(version).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1481,6 +1535,26 @@ impl Operator {
     ///
     /// - Deleting a file that does not exist won't return errors.
     ///
+    /// # Options
+    ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `delete` request.
+    ///
+    /// remove a specific version of the given path.
+    ///
+    /// If the version doesn't exist, OpenDAL will not return errors.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    ///```
+    ///
     /// # Examples
     ///
     /// ```
@@ -1786,6 +1860,22 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Specify whether to list files along with all their versions
+    ///
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list_with("path/to/dir/").version(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ## List all entries recursively
@@ -1932,6 +2022,22 @@ impl Operator {
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `version`
+    ///
+    /// Specify whether to list files along with all their versions
+    ///
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.lister_with("path/to/dir/").version(true).await?;
     /// # Ok(())
     /// # }
     /// ```

@@ -249,10 +249,9 @@ impl Operator {
     ///
     /// Set `version` for this `stat` request.
     ///
-    /// This feature can be used to retrieve the file metadata that matches a specified version.
+    /// This feature can be used to retrieve the metadata of a specific version of the given path
     ///
-    /// If file exists, but the version doesn't match, an error with kind [`ErrorKind::NotFound`]
-    /// will be returned.
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -570,11 +569,9 @@ impl Operator {
     ///
     /// Set `version` for this `read` request.
     ///
-    /// By default, OpenDAL reads a file using the current version. By setting the `version`, OpenDAL will read
-    /// the file with the specified version.
+    /// This feature can be used to retrieve the data of a specified version of the given path.
     ///
-    /// If the file exists, but the version doesn't match, an error with kind [`ErrorKind::NotFound`]
-    /// will be returned.
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -709,11 +706,9 @@ impl Operator {
     ///
     /// Set `version` for this `reader`.
     ///
-    /// By default, OpenDAL reads a file using the current version. By setting the `version`, OpenDAL will read
-    /// the file with the specified version.
+    /// This feature can be used to retrieve the data of a specified version of the given path.
     ///
-    /// If the file exists, but the version doesn't match, an error with kind [`ErrorKind::NotFound`]
-    /// will be returned.
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -1546,13 +1541,9 @@ impl Operator {
     ///
     /// Set `version` for this `delete` request.
     ///
-    /// If `versioning` is not enabled, a `delete` request will permanently remove the file.
+    /// remove a specific version of the given path.
     ///
-    /// when `versioning` is enabled, a simple `delete` request won't permanently remove the file,
-    /// it can still be accessed using its version.
-    /// By setting the `version`, OpenDAL will permanently remove the file with the specified version.
-    ///
-    /// If the file exists, but the version doesn't match, OpenDAL will not return errors.
+    /// If the version doesn't exist, OpenDAL will not return errors.
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -1868,14 +1859,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    ///
     /// ## `version`
     ///
-    /// Specify whether to list all object versions or not
+    /// Specify whether to list files along with all their versions
     ///
-    /// if `version` is not set, or is set to false, only the active files with the current version will be returned.
-    ///
-    /// when `version` is set to true and the backend service has `versioning` enabled, all object versions will be returned.
-    /// if `versioning` is not enabled, an error with kind [`ErrorKind::Unsupported`] will be returned.
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
     ///
     /// ```no_run
     /// # use opendal::Result;
@@ -2038,12 +2028,10 @@ impl Operator {
     ///
     /// ## `version`
     ///
-    /// Specify whether to list all object versions or not
+    /// Specify whether to list files along with all their versions
     ///
-    /// if `version` is not set, or is set to false, only the active files with the current version will be returned.
-    ///
-    /// when `version` is set to true and the backend service has `versioning` enabled, all object versions will be returned.
-    /// if `versioning` is not enabled, an error with kind [`ErrorKind::Unsupported`] will be returned.
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
     ///
     /// ```no_run
     /// # use opendal::Result;

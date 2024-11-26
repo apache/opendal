@@ -145,7 +145,7 @@ impl Access for AlluxioBackend {
     type Reader = HttpBody;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
-    type Deleter = AlluxioDeleter;
+    type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -208,7 +208,10 @@ impl Access for AlluxioBackend {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((RpDelete::default(), AlluxioDeleter::new(self.core.clone())))
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AlluxioDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

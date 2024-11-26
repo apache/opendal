@@ -429,7 +429,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         { || self.inner.blocking_delete() }
             .retry(self.builder)
             .when(|e| e.is_temporary())

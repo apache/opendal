@@ -894,7 +894,7 @@ impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = S3Listers;
-    type Deleter = S3Deleter;
+    type Deleter = oio::BatchDeleter<S3Deleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -1020,7 +1020,10 @@ impl Access for S3Backend {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((RpDelete::default(), S3Deleter::new(self.core.clone())))
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(S3Deleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

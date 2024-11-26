@@ -301,6 +301,10 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
     }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
+    }
 }
 
 pub struct TimeoutExecutor {

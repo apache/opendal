@@ -230,7 +230,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         })
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.inner().blocking_delete()
     }
 

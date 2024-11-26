@@ -36,7 +36,7 @@ impl FtpDeleter {
 
 impl oio::OneShotDelete for FtpDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Delete).await?;
 
         let result = if path.ends_with('/') {
             ftp_stream.rmdir(&path).await

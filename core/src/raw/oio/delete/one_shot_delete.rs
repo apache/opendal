@@ -36,7 +36,7 @@ pub trait OneShotDelete: Send + Sync + Unpin + 'static {
 /// BlockingOneShotDelete is used to implement [`oio::BlockingDelete`] based on one shot operation.
 ///
 /// BlockingOneShotDeleter will perform delete operation while calling `flush`.
-pub trait BlockingOneShotDelete: 'static {
+pub trait BlockingOneShotDelete: Send + Sync + 'static {
     /// delete_once delete one path at once.
     ///
     /// Implementations should make sure that the data is deleted correctly at once.
@@ -72,8 +72,8 @@ impl<D> OneShotDeleter<D> {
 }
 
 impl<D: OneShotDelete> oio::Delete for OneShotDeleter<D> {
-    fn delete(&mut self, path: String, args: OpDelete) -> Result<()> {
-        self.delete_inner(path, args)
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.delete_inner(path.to_string(), args)
     }
 
     async fn flush(&mut self) -> Result<usize> {
@@ -88,8 +88,8 @@ impl<D: OneShotDelete> oio::Delete for OneShotDeleter<D> {
 }
 
 impl<D: BlockingOneShotDelete> oio::BlockingDelete for OneShotDeleter<D> {
-    fn delete(&mut self, path: String, args: OpDelete) -> Result<()> {
-        self.delete_inner(path, args)
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.delete_inner(path.to_string(), args)
     }
 
     fn flush(&mut self) -> Result<usize> {

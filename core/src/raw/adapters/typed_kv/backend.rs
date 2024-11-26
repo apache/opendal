@@ -341,7 +341,7 @@ impl<S> KvDeleter<S> {
     }
 }
 
-impl<S: crate::raw::adapters::kv::Adapter> oio::OneShotDelete for KvDeleter<S> {
+impl<S: Adapter> oio::OneShotDelete for KvDeleter<S> {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, &path);
 
@@ -350,7 +350,7 @@ impl<S: crate::raw::adapters::kv::Adapter> oio::OneShotDelete for KvDeleter<S> {
     }
 }
 
-impl<S: crate::raw::adapters::kv::Adapter> oio::BlockingOneShotDelete for KvDeleter<S> {
+impl<S: Adapter> oio::BlockingOneShotDelete for KvDeleter<S> {
     fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, &path);
 

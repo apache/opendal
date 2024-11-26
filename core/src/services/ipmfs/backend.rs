@@ -207,7 +207,7 @@ impl IpmfsBackend {
         self.client.fetch(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

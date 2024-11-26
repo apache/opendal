@@ -420,7 +420,7 @@ impl Access for OssBackend {
     type Reader = HttpBody;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;
-    type Deleter = oio::OneShotDeleter<OssDeleter>;
+    type Deleter = oio::BatchDeleter<OssDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -541,7 +541,7 @@ impl Access for OssBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(OssDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(OssDeleter::new(self.core.clone())),
         ))
     }
 

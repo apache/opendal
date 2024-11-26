@@ -204,7 +204,7 @@ impl Access for AliyunDriveBackend {
     type Reader = HttpBody;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
-    type Deleter = AliyunDriveDeleter;
+    type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -382,7 +382,7 @@ impl Access for AliyunDriveBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            AliyunDriveDeleter::new(self.core.clone()),
+            oio::OneShotDeleter::new(AliyunDriveDeleter::new(self.core.clone())),
         ))
     }
 

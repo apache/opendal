@@ -15,32 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::IpmfsBackend;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
-use http::StatusCode;
-use std::sync::Arc;
+mod deleter;
+pub use deleter::DeleteInput;
+pub use deleter::Deleter;
+pub use deleter::IntoDeleteInput;
 
-pub struct IpmfsDeleter {
-    core: Arc<IpmfsBackend>,
-}
-
-impl IpmfsDeleter {
-    pub fn new(core: Arc<IpmfsBackend>) -> Self {
-        Self { core }
-    }
-}
-
-impl oio::OneShotDelete for IpmfsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.ipmfs_rm(&path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
-}
+mod futures_delete_sink;
+pub use futures_delete_sink::FuturesDeleteSink;

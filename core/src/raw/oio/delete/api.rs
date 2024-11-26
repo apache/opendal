@@ -53,14 +53,14 @@ pub trait Delete: Unpin + Send + Sync {
 }
 
 impl Delete for () {
-    fn delete(&mut self, _: String, _: OpDelete) -> Result<()> {
+    fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output deleter doesn't support delete",
         ))
     }
 
-    async fn flush(&mut self) -> Result<()> {
+    async fn flush(&mut self) -> Result<usize> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output deleter doesn't support flush",
@@ -71,7 +71,7 @@ impl Delete for () {
 pub trait DeleteDyn: Unpin + Send + Sync {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
-    fn flush_dyn(&mut self) -> BoxedFuture<Result<()>>;
+    fn flush_dyn(&mut self) -> BoxedFuture<Result<usize>>;
 }
 
 impl<T: Delete + ?Sized> DeleteDyn for T {
@@ -79,7 +79,7 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
         Delete::delete(self, path, args)
     }
 
-    fn flush_dyn(&mut self) -> BoxedFuture<Result<()>> {
+    fn flush_dyn(&mut self) -> BoxedFuture<Result<usize>> {
         Box::pin(self.flush())
     }
 }
@@ -89,7 +89,7 @@ impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
         DeleteDyn::delete(self, path, args)
     }
 
-    async fn flush(&mut self) -> Result<()> {
+    async fn flush(&mut self) -> Result<usize> {
         self.flush_dyn().await
     }
 }

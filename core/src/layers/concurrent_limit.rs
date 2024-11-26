@@ -210,7 +210,7 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
         self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         let permit = self
             .semaphore
             .clone()

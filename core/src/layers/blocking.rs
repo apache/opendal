@@ -250,7 +250,7 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         self.handle.block_on(self.inner.stat(path, args))
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.handle.block_on(async {
             let (rp, writer) = self.inner.delete().await?;
             let blocking_deleter = Self::BlockingDeleter::new(self.handle.clone(), writer);
@@ -300,7 +300,7 @@ impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     }
 }
 
-impl<I: oio::Delete> oio::BlockingDelete for BlockingWrapper<I> {
+impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.delete(path, args)
     }

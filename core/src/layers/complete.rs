@@ -523,7 +523,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         self.complete_blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         let capability = self.info.full_capability();
         if !capability.delete || !capability.blocking {
             return Err(self.new_unsupported_error(Operation::BlockingDelete));

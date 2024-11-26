@@ -724,13 +724,13 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let op = Operation::Delete;
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        let op = Operation::BlockingDelete;
 
         let start = Instant::now();
         let (rp, writer) = self
             .inner
-            .delete()
+            .blocking_delete()
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.scheme,

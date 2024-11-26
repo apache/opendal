@@ -264,7 +264,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.inner
             .blocking_delete()
             .map(|(rp, w)| {

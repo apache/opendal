@@ -555,7 +555,7 @@ where
         self.blocking_write(path, args)
     }
 
-    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::Deleter)> {
+    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)> {
         self.blocking_delete()
     }
 

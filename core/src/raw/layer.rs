@@ -198,9 +198,7 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
         self.inner().stat(path, args)
     }
 
-    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
-        self.inner().delete()
-    }
+    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend;
 
     fn list(
         &self,
@@ -236,9 +234,7 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
         self.inner().blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner().blocking_delete()
-    }
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)>;
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)>;
 }
@@ -318,7 +314,7 @@ impl<L: LayeredAccess> Access for L {
         LayeredAccess::blocking_stat(self, path, args)
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         LayeredAccess::blocking_delete(self)
     }
 

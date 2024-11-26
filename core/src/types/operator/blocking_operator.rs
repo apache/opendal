@@ -858,8 +858,7 @@ impl BlockingOperator {
         for v in obs {
             match v {
                 Ok(entry) => {
-                    self.inner()
-                        .blocking_delete(entry.path(), OpDelete::new())?;
+                    self.inner().blocking_delete()?;
                 }
                 Err(e) => return Err(e),
             }

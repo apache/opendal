@@ -70,8 +70,8 @@ impl<D: BatchDelete> BatchDeleter<D> {
 }
 
 impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
-    fn delete(&mut self, path: String, args: OpDelete) -> Result<()> {
-        self.buffer.insert((path, args));
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.buffer.insert((path.to_string(), args));
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
             return Ok(1);
         }
 
-        let batch = self.buffer.iter().collect();
+        let batch = self.buffer.iter().cloned().collect();
         let mut result = self.inner.delete_batch(batch).await?;
         debug_assert!(
             !result.succeeded.is_empty(),

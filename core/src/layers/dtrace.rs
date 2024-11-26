@@ -285,7 +285,7 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         result
     }
 
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.inner.blocking_delete()
     }
 

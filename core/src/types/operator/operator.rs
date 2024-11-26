@@ -18,10 +18,10 @@
 use std::future::Future;
 use std::time::Duration;
 
+use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use futures::{stream, SinkExt};
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
@@ -1504,7 +1504,7 @@ impl Operator {
             OpDelete::default(),
             |inner, path, args| async move {
                 let (_, mut deleter) = inner.delete().await?;
-                deleter.delete(path, args).await?;
+                deleter.delete(&path, args)?;
                 deleter.flush().await?;
                 Ok(())
             },
@@ -1535,11 +1535,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated("use `Deleter::send_all` instead")]
+    #[deprecated(note = "use `Deleter::delete_from` instead", since = "0.52")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter
-            .send_all(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
+            .delete_from(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
             .await?;
         deleter.close().await?;
         Ok(())
@@ -1570,11 +1570,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated("use `Deleter::send_all` instead")]
+    #[deprecated(note = "use `Deleter::delete_from` instead", since = "0.52")]
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter
-            .send_all(&mut input.map(|v| Ok(normalize_path(&v))))
+            .delete_from(&mut input.map(|v| Ok(normalize_path(&v))))
             .await?;
         deleter.close().await?;
 
@@ -1621,7 +1621,7 @@ impl Operator {
 
         let mut lister = self.lister_with(path).recursive(true).await?;
         let mut deleter = self.deleter().await?;
-        deleter.send_all(&mut lister).await?;
+        deleter.delete_from(&mut lister).await?;
         deleter.close().await?;
 
         Ok(())

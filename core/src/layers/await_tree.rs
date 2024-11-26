@@ -164,7 +164,6 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.inner
             .blocking_delete()
-            .instrument_await(format!("opendal::{}", Operation::BlockingDelete))
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 }

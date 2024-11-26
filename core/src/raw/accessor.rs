@@ -463,6 +463,8 @@ where
         BlockingWriter = oio::BlockingWriter,
         Lister = oio::Lister,
         BlockingLister = oio::BlockingLister,
+        Deleter = oio::Deleter,
+        BlockingDeleter = oio::BlockingDeleter,
     >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {

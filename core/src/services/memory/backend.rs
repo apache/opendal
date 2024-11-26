@@ -143,10 +143,8 @@ impl typed_kv::Adapter for Adapter {
 
 #[cfg(test)]
 mod tests {
-    use super::backend;
     use super::*;
-    use crate::raw::adapters::typed_kv::Adapter;
-    use crate::raw::adapters::typed_kv::Value;
+    use crate::raw::adapters::typed_kv::{Adapter, Value};
 
     #[test]
     fn test_accessor_metadata_name() {
@@ -159,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_blocking_scan() {
-        let adapter = backend::Adapter {
+        let adapter = super::Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 

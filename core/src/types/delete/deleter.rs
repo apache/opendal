@@ -22,12 +22,67 @@ use futures::{Stream, StreamExt};
 use std::future::IntoFuture;
 use std::pin::pin;
 
+/// Deleter is designed to continuously remove content from storage.
+///
+/// It leverages batch deletion capabilities provided by storage services for efficient removal.
+///
+/// # Usage
+///
+/// [`Deleter`] provides several ways to delete files:
+///
+/// ## Direct Deletion
+///
+/// Use the `delete` method to remove a single file:
+///
+/// ```rust
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// async fn example(op: Operator) -> Result<()> {
+///     let mut d = op.deleter().await?;
+///     d.delete("path/to/file").await?;
+///     d.close().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// Delete multiple files via a stream:
+///
+/// ```rust
+/// use opendal::Operator;
+/// use opendal::Result;
+/// use futures::stream;
+///
+/// async fn example(op: Operator) -> Result<()> {
+///     let mut d = op.deleter().await?;
+///     d.delete_from(stream::iter(vec!["path/to/file"])).await?;
+///     d.close().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Using as a Sink
+///
+/// Deleter can be used as a Sink for file deletion:
+///
+/// ```rust
+/// use opendal::Operator;
+/// use opendal::Result;
+/// use futures::stream;
+/// use futures::SinkExt;
+///
+/// async fn example(op: Operator) -> Result<()> {
+///     let mut sink = op.deleter().await?.into_sink();
+///     sink.send_all(&mut stream::iter(vec!["path/to/file"])).await?;
+///     sink.close().await?;
+///     Ok(())
+/// }
+/// ```
 pub struct Deleter {
     deleter: oio::Deleter,
 
     max_size: usize,
     cur_size: usize,
-    closed: bool,
 }
 
 impl Deleter {
@@ -39,7 +94,6 @@ impl Deleter {
             deleter,
             max_size,
             cur_size: 0,
-            closed: false,
         })
     }
 
@@ -102,66 +156,5 @@ impl Deleter {
     /// Convert the deleter into a sink.
     pub fn into_sink(self) -> FuturesDeleteSink {
         FuturesDeleteSink::new(self)
-    }
-}
-
-/// DeleteInput is the input for delete operations.
-#[non_exhaustive]
-#[derive(Default, Debug)]
-pub struct DeleteInput {
-    /// The path of the path to delete.
-    pub path: String,
-    /// The version of the path to delete.
-    pub version: Option<String>,
-}
-
-/// IntoDeleteInput is a helper trait that makes it easier for users to play with `Deleter`.
-pub trait IntoDeleteInput {
-    /// Convert `self` into a `DeleteInput`.
-    fn into_delete_input(self) -> DeleteInput;
-}
-
-/// Implement `IntoDeleteInput` for `Entry` so we can use `Vec<String>` as a DeleteInput stream.
-impl IntoDeleteInput for String {
-    fn into_delete_input(self) -> DeleteInput {
-        DeleteInput {
-            path: self,
-            ..Default::default()
-        }
-    }
-}
-
-/// Implement `IntoDeleteInput` for `(String, OpDelete)` so we can use `(String, OpDelete)`
-/// as a DeleteInput stream.
-impl IntoDeleteInput for (String, OpDelete) {
-    fn into_delete_input(self) -> DeleteInput {
-        let (path, args) = self;
-
-        let mut input = DeleteInput {
-            path,
-            ..Default::default()
-        };
-
-        if let Some(version) = args.version() {
-            input.version = Some(version.to_string());
-        }
-        input
-    }
-}
-
-/// Implement `IntoDeleteInput` for `Entry` so we can use `Lister` as a DeleteInput stream.
-impl IntoDeleteInput for Entry {
-    fn into_delete_input(self) -> DeleteInput {
-        let (path, mut meta) = self.into_parts();
-
-        let mut input = DeleteInput {
-            path,
-            ..Default::default()
-        };
-
-        if let Some(version) = meta.version() {
-            input.version = Some(version.to_string());
-        }
-        input
     }
 }

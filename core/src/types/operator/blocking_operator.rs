@@ -16,6 +16,7 @@
 // under the License.
 
 use super::operator_functions::*;
+use crate::raw::oio::BlockingDelete;
 use crate::raw::*;
 use crate::*;
 
@@ -765,7 +766,9 @@ impl BlockingOperator {
             path,
             OpDelete::new(),
             |inner, path, args| {
-                let _ = inner.blocking_delete(&path, args)?;
+                let (_, mut deleter) = inner.blocking_delete()?;
+                deleter.delete(&path, args)?;
+                deleter.flush()?;
 
                 Ok(())
             },

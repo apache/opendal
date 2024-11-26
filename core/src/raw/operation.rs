@@ -137,7 +137,6 @@ impl From<Operation> for &'static str {
             Operation::List => "list",
             Operation::ListerNext => "List::next",
             Operation::Presign => "presign",
-            Operation::Batch => "batch",
             Operation::BlockingCreateDir => "blocking_create_dir",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingReaderRead => "BlockingReader::read",

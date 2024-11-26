@@ -33,7 +33,7 @@ impl SftpDeleter {
 
 impl oio::OneShotDelete for SftpDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let client = self.connect().await?;
+        let client = self.core.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);

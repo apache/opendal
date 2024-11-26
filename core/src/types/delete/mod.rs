@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod input;
+pub use input::DeleteInput;
+pub use input::IntoDeleteInput;
+
 mod deleter;
-pub use deleter::DeleteInput;
 pub use deleter::Deleter;
-pub use deleter::IntoDeleteInput;
 
 mod futures_delete_sink;
 pub use futures_delete_sink::FuturesDeleteSink;
+
+mod blocking_deleter;
+pub use blocking_deleter::BlockingDeleter;

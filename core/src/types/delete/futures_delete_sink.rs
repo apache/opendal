@@ -67,7 +67,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink {
         }
     }
 
-    fn start_send(self: Pin<&mut Self>, item: T) -> Result<()> {
+    fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<()> {
         match &mut self.state {
             State::Idle(deleter) => {
                 let mut deleter = deleter.take().ok_or_else(|| {
@@ -76,8 +76,9 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink {
                         "FuturesDeleteSink has been closed or errored",
                     )
                 })?;
+                let input = item.into_delete_input();
                 let fut = async move {
-                    let res = deleter.delete(item).await;
+                    let res = deleter.delete(input).await;
                     (deleter, res)
                 };
                 self.state = State::Delete(Box::pin(fut));

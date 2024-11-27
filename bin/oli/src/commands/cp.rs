@@ -29,8 +29,10 @@ use crate::params::config::ConfigParams;
 pub struct CopyCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
     #[arg()]
     pub source: String,
+    /// In the form of `<profile>:/<path>`.
     #[arg()]
     pub destination: String,
     /// Copy objects recursively.

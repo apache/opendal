@@ -30,6 +30,7 @@ use crate::params::config::ConfigParams;
 pub struct CatCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
     #[arg()]
     pub target: String,
 }

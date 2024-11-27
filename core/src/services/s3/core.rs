@@ -455,6 +455,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }

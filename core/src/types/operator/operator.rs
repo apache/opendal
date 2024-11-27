@@ -1473,6 +1473,36 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// ## `if_match`
+    ///
+    /// Sets an `if match` condition with specified ETag for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If the target file's ETag does not match the specified one, returns [`ErrorKind::ConditionNotMatch`]
+    /// - If the target file's ETag matches the specified one, proceeds with the write operation
+    ///
+    /// This operation will succeed when the target's ETag matches the specified one,
+    /// providing a way for conditional writes.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let res = op.write_with("path/to/file", bs).if_match(etag).await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn write_with(
         &self,
         path: &str,

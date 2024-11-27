@@ -130,6 +130,8 @@ pub struct Capability {
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
+    /// Indicates if conditional write operations using If-Match are supported.
+    pub write_with_if_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.

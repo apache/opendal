@@ -1484,8 +1484,8 @@ impl Operator {
     ///
     /// ### Behavior
     ///
-    /// - If the target file's ETag does not match the specified one, returns [`ErrorKind::ConditionNotMatch`]
     /// - If the target file's ETag matches the specified one, proceeds with the write operation
+    /// - If the target file's ETag does not match the specified one, returns [`ErrorKind::ConditionNotMatch`]
     ///
     /// This operation will succeed when the target's ETag matches the specified one,
     /// providing a way for conditional writes.
@@ -1495,9 +1495,9 @@ impl Operator {
     /// ```no_run
     /// # use opendal::{ErrorKind, Result};
     /// use opendal::Operator;
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// # async fn test(op: Operator, incorrect_etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let res = op.write_with("path/to/file", bs).if_match(etag).await;
+    /// let res = op.write_with("path/to/file", bs).if_match(incorrect_etag).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())

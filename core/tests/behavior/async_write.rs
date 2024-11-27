@@ -683,14 +683,23 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
     }
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let (path_incorrect, _, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content.clone()).await?;
+    op.write(&path_incorrect, content.clone()).await?;
 
     let meta = op.stat(&path).await?;
     let etag = meta.etag().expect("etag must exist");
 
     let res = op.write_with(&path, content.clone()).if_match(etag).await;
     assert!(res.is_ok());
+
+    let res = op
+        .write_with(&path_incorrect, content.clone())
+        .if_match(etag)
+        .await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
 }

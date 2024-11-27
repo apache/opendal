@@ -682,21 +682,31 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-    let (path_incorrect, _, _) = TEST_FIXTURE.new_file(op.clone());
+    // Create two different files with different content
+    let (path_a, content_a, _) = TEST_FIXTURE.new_file(op.clone());
+    let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
 
-    op.write(&path, content.clone()).await?;
-    op.write(&path_incorrect, content.clone()).await?;
+    // Write initial content to both files
+    op.write(&path_a, content_a.clone()).await?;
+    op.write(&path_b, content_b.clone()).await?;
 
-    let meta = op.stat(&path).await?;
-    let etag = meta.etag().expect("etag must exist");
+    // Get etags for both files
+    let meta_a = op.stat(&path_a).await?;
+    let etag_a = meta_a.etag().expect("etag must exist");
+    let meta_b = op.stat(&path_b).await?;
+    let etag_b = meta_b.etag().expect("etag must exist");
 
-    let res = op.write_with(&path, content.clone()).if_match(etag).await;
+    // Should succeed: Writing to path_a with its own etag
+    let res = op
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_a)
+        .await;
     assert!(res.is_ok());
 
+    // Should fail: Writing to path_a with path_b's etag
     let res = op
-        .write_with(&path_incorrect, content.clone())
-        .if_match(etag)
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_b)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

@@ -173,6 +173,10 @@ pub struct S3Config {
     /// Available options:
     /// - "crc32c"
     pub checksum_algorithm: Option<String>,
+    /// Disable write with if match so that opendal will not send write request with if match headers.
+    ///
+    /// For example, Ceph RADOS S3 doesn't support write with if match.
+    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Config {

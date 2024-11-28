@@ -98,6 +98,7 @@ pub struct S3Core {
     pub client: HttpClient,
     pub batch_max_operations: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Core {

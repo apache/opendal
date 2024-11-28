@@ -37,7 +37,7 @@ pub struct Config {
     profiles: HashMap<String, HashMap<String, String>>,
 }
 
-/// resolve_relative_path turns a relative path to a absolute path.
+/// resolve_relative_path turns a relative path to an absolute path.
 ///
 /// The reason why we don't use `fs::canonicalize` here is `fs::canonicalize`
 /// will return an error if the path does not exist, which is unwanted.

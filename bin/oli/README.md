@@ -32,7 +32,7 @@ cargo install oli --all-features
 - `~/Library/Application Support/oli/config.toml` on macOS
 - `C:\Users\<UserName>\AppData\Roaming\oli\config.toml` on Windows
 
-The content of `config.toml` should be follow these pattern:
+The content of `config.toml` should follow these pattern:
 
 ```toml
 [profiles.<profile_name>]

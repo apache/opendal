@@ -46,7 +46,7 @@ After `venv` has been prepared, you can activate it by `source venv/bin/activate
 To simplify our work, we will utilize the tool [`maturin`](https://github.com/PyO3/maturin). Kindly install it beforehand.
 
 ```shell
-pip install maturin[patchelf]
+pip install 'maturin[patchelf]'
 ```
 
 ## Build

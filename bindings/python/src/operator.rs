@@ -228,10 +228,10 @@ impl Operator {
     }
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
-        let args = vec![self.__scheme.to_string().to_object(py)];
-        let args = PyTuple::new_bound(py, args);
-        let kwargs = self.__map.clone().into_py(py);
-        Ok(PyTuple::new_bound(py, [args.to_object(py), kwargs.to_object(py)]).to_object(py))
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_any().unbind();
+        let kwargs = self.__map.clone().into_pyobject(py)?.into_any().unbind();
+        Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
     }
 }
 
@@ -434,7 +434,14 @@ impl AsyncOperator {
         let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+
+            let pylister = Python::with_gil(|py| {
+                AsyncLister::new(lister)
+                    .into_pyobject(py)
+                    .map_err(|err| PyErr::new::<pyo3::exceptions::PyException, _>(err.to_string()))
+                    .map(|py_obj| py_obj.into_any().unbind())
+            })?;
+
             Ok(pylister)
         })
     }
@@ -448,7 +455,12 @@ impl AsyncOperator {
                 .recursive(true)
                 .await
                 .map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            let pylister: PyObject = Python::with_gil(|py| {
+                AsyncLister::new(lister)
+                    .into_pyobject(py)
+                    .map_err(|err| PyErr::new::<pyo3::exceptions::PyException, _>(err.to_string()))
+                    .map(|py_obj| py_obj.into_any().unbind())
+            })?;
             Ok(pylister)
         })
     }
@@ -543,10 +555,10 @@ impl AsyncOperator {
     }
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
-        let args = vec![self.__scheme.to_string().to_object(py)];
-        let args = PyTuple::new_bound(py, args);
-        let kwargs = self.__map.clone().into_py(py);
-        Ok(PyTuple::new_bound(py, [args.to_object(py), kwargs.to_object(py)]).to_object(py))
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_any().unbind();
+        let kwargs = self.__map.clone().into_pyobject(py)?.into_any().unbind();
+        Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
     }
 }
 

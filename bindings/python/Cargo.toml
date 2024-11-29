@@ -163,10 +163,8 @@ futures = "0.3.28"
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = "0.22.5"
-pyo3-async-runtimes = { version = "0.22.0", features = [
-  "tokio-runtime",
-] }
+pyo3 = "0.23.2"
+pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

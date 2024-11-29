@@ -463,12 +463,14 @@ impl AsyncFile {
                 }
             };
 
-            let ret = reader
+            let pos = reader
                 .seek(whence)
                 .await
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| ret.into_py(py)))
+            Ok(pos)
         })
+        .and_then(|pos| pos.into_pyobject(py).map_err(Into::into))
+        .map(|pyobj| pyobj.into_any())
     }
 
     /// Return the current stream position.
@@ -495,8 +497,10 @@ impl AsyncFile {
                 .stream_position()
                 .await
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| pos.into_py(py)))
+            Ok(pos)
         })
+        .and_then(|pos| pos.into_pyobject(py).map_err(Into::into))
+        .map(|pyobj| pyobj.into_any())
     }
 
     fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
@@ -514,7 +518,7 @@ impl AsyncFile {
     }
 
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-        let slf = slf.into_py(py);
+        let slf = slf.into_pyobject(py)?.into_any().unbind();
         future_into_py(py, async move { Ok(slf) })
     }
 

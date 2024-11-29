@@ -33,14 +33,14 @@ impl Buffer {
 
     /// Consume self to build a bytes
     pub fn into_bytes(self, py: Python) -> PyResult<Py<PyAny>> {
-        let buffer = self.into_py(py);
+        let buffer = self.into_pyobject(py)?.into_any().unbind();
 
         unsafe { PyObject::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr())) }
     }
 
     /// Consume self to build a bytes
     pub fn into_bytes_ref(self, py: Python) -> PyResult<Bound<PyAny>> {
-        let buffer = self.into_py(py);
+        let buffer = self.into_pyobject(py)?.into_any().unbind();
         let view =
             unsafe { Bound::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr()))? };
 

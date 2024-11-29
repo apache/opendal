@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::AsyncBufReadExt;
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
+use opendal::Metadata;
 use std::path::Path;
 
 use anyhow::Result;
@@ -23,6 +27,20 @@ use futures::TryStreamExt;
 
 use crate::config::Config;
 use crate::params::config::ConfigParams;
+
+/// Template for the progress bar display.
+///
+/// The template includes:
+/// - `{spinner:.green}`: A green spinner to indicate ongoing progress.
+/// - `{elapsed_precise}`: The precise elapsed time.
+/// - `{bar:40.cyan/blue}`: A progress bar with a width of 40 characters,
+///   cyan for the completed portion and blue for the remaining portion.
+/// - `{bytes}/{total_bytes}`: The number of bytes copied so far and the total bytes to be copied.
+/// - `{eta}`: The estimated time of arrival (completion).
+const PROGRESS_BAR_TEMPLATE: &str =
+    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})";
+
+const PROGRESS_CHARS: &str = "#>-";
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "cp", about = "Copy object", disable_version_flag = true)]
@@ -53,8 +71,9 @@ impl CopyCmd {
             let buf_reader = reader
                 .into_futures_async_read(0..src_meta.content_length())
                 .await?;
-            futures::io::copy_buf(buf_reader, &mut dst_w).await?;
-            // flush data
+
+            let copy_progress = CopyProgress::new(&src_meta, src_path.clone());
+            copy_progress.copy(buf_reader, &mut dst_w).await?;
             dst_w.close().await?;
             return Ok(());
         }
@@ -78,15 +97,59 @@ impl CopyCmd {
                 .into_futures_async_read(0..meta.content_length())
                 .await?;
 
+            let copy_progress = CopyProgress::new(&meta, de.path().to_string());
             let mut writer = dst_op
                 .writer(&dst_root.join(fp).to_string_lossy())
                 .await?
                 .into_futures_async_write();
 
-            println!("Copying {}", de.path());
-            futures::io::copy_buf(buf_reader, &mut writer).await?;
+            copy_progress.copy(buf_reader, &mut writer).await?;
             writer.close().await?;
         }
         Ok(())
+    }
+}
+
+/// Helper struct to display progress of a copy operation.
+struct CopyProgress {
+    progress_bar: ProgressBar,
+    path: String,
+}
+
+impl CopyProgress {
+    fn new(meta: &Metadata, path: String) -> Self {
+        let pb = ProgressBar::new(meta.content_length());
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template(PROGRESS_BAR_TEMPLATE)
+                .expect("invalid template")
+                .progress_chars(PROGRESS_CHARS),
+        );
+        Self {
+            progress_bar: pb,
+            path,
+        }
+    }
+
+    async fn copy<R, W>(&self, mut reader: R, writer: &mut W) -> std::io::Result<u64>
+    where
+        R: futures::AsyncBufRead + Unpin,
+        W: futures::AsyncWrite + Unpin + ?Sized,
+    {
+        let mut written = 0;
+        loop {
+            let buf = reader.fill_buf().await?;
+            if buf.is_empty() {
+                break;
+            }
+            writer.write_all(buf).await?;
+            let len = buf.len();
+            reader.consume_unpin(len);
+            written += len as u64;
+            self.progress_bar.inc(len as u64);
+        }
+        self.progress_bar.finish_and_clear();
+        println!("Finish {}", self.path);
+        Ok(written)
     }
 }

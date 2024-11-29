@@ -77,10 +77,17 @@ impl AsyncLister {
             let mut lister = lister.lock().await;
             let entry = lister.try_next().await.map_err(format_pyerr)?;
             match entry {
-                Some(entry) => Ok(Python::with_gil(|py| Entry::new(entry).into_py(py))),
+                Some(entry) => Python::with_gil(|py| {
+                    let py_obj = Entry::new(entry).into_pyobject(py)?.into_any().unbind();
+                    Ok(Some(py_obj))
+                }),
                 None => Err(PyStopAsyncIteration::new_err("stream exhausted")),
             }
-        })?;
-        Ok(Some(fut.into()))
+        });
+
+        match fut {
+            Ok(fut) => Ok(Some(fut.into())),
+            Err(e) => Err(e),
+        }
     }
 }

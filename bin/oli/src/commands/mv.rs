@@ -44,13 +44,18 @@ impl MoveCmd {
         let (dst_op, dst_path) = cfg.parse_location(&self.destination)?;
 
         let src_meta = src_op.stat(&src_path).await?;
-        if !self.recursive {
+        if !self.recursive || src_meta.is_file() {
             if src_meta.is_dir() {
                 return Err(Error::msg("can not move a directory in non-recursive mode"));
             }
 
             let mut actual_dst_path = dst_path.clone();
-            if dst_path.is_empty() || dst_path.ends_with("/") {
+            if let Ok(meta) = dst_op.stat(&dst_path).await {
+                if meta.is_dir() && !dst_path.ends_with("/") {
+                    actual_dst_path.push('/');
+                }
+            }
+            if actual_dst_path.is_empty() || actual_dst_path.ends_with("/") {
                 let file_name = src_path.rsplit_once("/").unwrap_or(("", &src_path)).1;
                 actual_dst_path.push_str(file_name);
             }
@@ -74,13 +79,18 @@ impl MoveCmd {
         let mut lst = src_op.lister_with(&src_path).recursive(true).await?;
         while let Some(entry) = lst.try_next().await? {
             let path = entry.path();
+            if path == src_path {
+                continue;
+            }
+
             let suffix = path.strip_prefix(prefix).expect("invalid path");
             let depath = dst_root.join(suffix);
 
-            println!("Moving: {}", src_path);
+            println!("Moving: {}", path);
             let meta = entry.metadata();
             if meta.is_dir() {
                 dst_op.create_dir(&depath.to_string_lossy()).await?;
+                src_op.delete(path).await?;
                 continue;
             }
 
@@ -93,8 +103,9 @@ impl MoveCmd {
                 path_metadata.content_length(),
             )
             .await?;
+
+            src_op.delete(path).await?;
         }
-        src_op.remove_all(&src_path).await?;
 
         Ok(())
     }

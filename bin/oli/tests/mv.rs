@@ -102,7 +102,9 @@ async fn test_mv_with_recursive() -> Result<()> {
     assert_eq!(dst_file2_content, file2_content);
     assert!(fs::exists(dst_path.path().join("empty_dir/"))?);
 
-    assert!(!fs::exists(&src_path)?);
+    // src_path is empty now
+    let mut src_data = fs::read_dir(&src_path)?;
+    assert!(src_data.next().is_none());
 
     Ok(())
 }

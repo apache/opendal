@@ -100,7 +100,7 @@ async fn test_mv_with_recursive() -> Result<()> {
     let dst_file2_content =
         fs::read_to_string(dst_path.path().join("dir/file2.txt")).expect("read dir/file2 error");
     assert_eq!(dst_file2_content, file2_content);
-    assert!(fs::exists(&dst_path.path().join("empty_dir/"))?);
+    assert!(fs::exists(dst_path.path().join("empty_dir/"))?);
 
     assert!(!fs::exists(&src_path)?);
 

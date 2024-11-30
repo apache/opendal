@@ -6,5 +6,6 @@
     "${workspaceFolder}/bindings/python/Cargo.toml",
     "${workspaceFolder}/bindings/java/Cargo.toml",
     "${workspaceFolder}/bindings/nodejs/Cargo.toml",
-  ]
+  ],
+  "java.compile.nullAnalysis.mode": "automatic"
 }

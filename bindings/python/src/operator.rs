@@ -23,6 +23,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
+use pyo3::IntoPyObjectExt;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -230,7 +231,7 @@ impl Operator {
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_any().unbind();
-        let kwargs = self.__map.clone().into_pyobject(py)?.into_any().unbind();
+        let kwargs = self.__map.clone().into_py_any(py)?;
         Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
     }
 }
@@ -556,8 +557,8 @@ impl AsyncOperator {
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
         let args = vec![self.__scheme.to_string()];
-        let args = PyTuple::new(py, args)?.into_any().unbind();
-        let kwargs = self.__map.clone().into_pyobject(py)?.into_any().unbind();
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
+        let kwargs = self.__map.clone().into_py_any(py)?;
         Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
     }
 }

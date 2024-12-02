@@ -32,6 +32,7 @@ use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 
@@ -518,7 +519,7 @@ impl AsyncFile {
     }
 
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-        let slf = slf.into_pyobject(py)?.into_any().unbind();
+        let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })
     }
 

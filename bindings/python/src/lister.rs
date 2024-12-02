@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use futures::TryStreamExt;
 use pyo3::exceptions::PyStopAsyncIteration;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 
@@ -78,7 +78,7 @@ impl AsyncLister {
             let entry = lister.try_next().await.map_err(format_pyerr)?;
             match entry {
                 Some(entry) => Python::with_gil(|py| {
-                    let py_obj = Entry::new(entry).into_pyobject(py)?.into_any().unbind();
+                    let py_obj = Entry::new(entry).into_py_any(py)?;
                     Ok(Some(py_obj))
                 }),
                 None => Err(PyStopAsyncIteration::new_err("stream exhausted")),

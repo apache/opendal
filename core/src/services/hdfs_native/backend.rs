@@ -32,7 +32,6 @@ use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
-
 impl Configurator for HdfsNativeConfig {
     type Builder = HdfsNativeBuilder;
     fn into_builder(self) -> Self::Builder {

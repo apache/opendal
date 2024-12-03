@@ -84,10 +84,10 @@ impl oio::PageList for PcloudLister {
                     return Ok(());
                 }
 
-                return Err(Error::new(
+                Err(Error::new(
                     ErrorKind::Unexpected,
                     String::from_utf8_lossy(&bs.to_bytes()),
-                ));
+                ))
             }
             _ => Err(parse_error(resp)),
         }

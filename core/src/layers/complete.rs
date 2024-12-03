@@ -136,7 +136,7 @@ impl<A: Access> CompleteAccessor<A> {
             return Ok(RpCreateDir::default());
         }
 
-        unreachable!("with capability check, we cannot reach here")
+        unreachable!("with correctness check, we cannot reach here")
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -151,7 +151,7 @@ impl<A: Access> CompleteAccessor<A> {
             return Ok(RpCreateDir::default());
         }
 
-        unreachable!("with capability check, we cannot reach here")
+        unreachable!("with correctness check, we cannot reach here")
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

@@ -42,12 +42,7 @@ impl BlockingLister {
     }
     fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
         match slf.0.next() {
-            Some(Ok(entry)) => Ok(Some(
-                Entry::new(entry)
-                    .into_pyobject(slf.py())?
-                    .into_any()
-                    .unbind(),
-            )),
+            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(slf.py())?)),
             Some(Err(err)) => {
                 let pyerr = format_pyerr(err);
                 Err(pyerr)

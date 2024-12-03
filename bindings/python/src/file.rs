@@ -470,8 +470,7 @@ impl AsyncFile {
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
             Ok(pos)
         })
-        .and_then(|pos| pos.into_pyobject(py).map_err(Into::into))
-        .map(|pyobj| pyobj.into_any())
+        .and_then(|pos| pos.into_bound_py_any(py))
     }
 
     /// Return the current stream position.
@@ -500,8 +499,7 @@ impl AsyncFile {
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
             Ok(pos)
         })
-        .and_then(|pos| pos.into_pyobject(py).map_err(Into::into))
-        .map(|pyobj| pyobj.into_any())
+        .and_then(|pos| pos.into_bound_py_any(py))
     }
 
     fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {

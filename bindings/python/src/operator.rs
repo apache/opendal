@@ -230,9 +230,9 @@ impl Operator {
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
         let args = vec![self.__scheme.to_string()];
-        let args = PyTuple::new(py, args)?.into_any().unbind();
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
     }
 }
 
@@ -435,13 +435,7 @@ impl AsyncOperator {
         let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
-
-            let pylister = Python::with_gil(|py| {
-                AsyncLister::new(lister)
-                    .into_pyobject(py)
-                    .map_err(|err| PyErr::new::<pyo3::exceptions::PyException, _>(err.to_string()))
-                    .map(|py_obj| py_obj.into_any().unbind())
-            })?;
+            let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
 
             Ok(pylister)
         })
@@ -456,12 +450,8 @@ impl AsyncOperator {
                 .recursive(true)
                 .await
                 .map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| {
-                AsyncLister::new(lister)
-                    .into_pyobject(py)
-                    .map_err(|err| PyErr::new::<pyo3::exceptions::PyException, _>(err.to_string()))
-                    .map(|py_obj| py_obj.into_any().unbind())
-            })?;
+            let pylister: PyObject =
+                Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
             Ok(pylister)
         })
     }
@@ -559,7 +549,7 @@ impl AsyncOperator {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_any().unbind())
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
     }
 }
 

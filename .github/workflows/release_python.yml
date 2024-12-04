@@ -84,6 +84,16 @@ jobs:
           args: --release -o dist -i python3.10 --features=pyo3/extension-module,services-all
           sccache: true
           manylinux: auto
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: "1.7.7"
+          working-directory: "bindings/python"
+          target: "${{ matrix.target }}"
+          command: build
+          args: --release -o dist -i python3.13t --features=pyo3/extension-module,services-all
+          sccache: true
+          manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

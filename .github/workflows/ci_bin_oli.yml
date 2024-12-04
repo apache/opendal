@@ -25,7 +25,7 @@ on:
     branches:
       - main
     paths:
-      - "bin/oay/**"
+      - "bin/oli/**"
       - "core/**"
       - ".github/workflows/ci_bin_oli.yml"
 

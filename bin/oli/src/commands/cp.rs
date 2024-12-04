@@ -99,7 +99,7 @@ impl CopyCmd {
                 .into_futures_async_read(0..meta.content_length())
                 .await?;
 
-            let copy_progress = CopyProgress::new(&meta, de.path().to_string());
+            let copy_progress = CopyProgress::new(meta, de.path().to_string());
             let mut writer = dst_op
                 .writer(&dst_root.join(fp).to_string_lossy())
                 .await?

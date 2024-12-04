@@ -136,7 +136,7 @@ impl<A: Access> CompleteAccessor<A> {
             return Ok(RpCreateDir::default());
         }
 
-        return self.inner.create_dir(path, args).await;
+        self.inner.create_dir(path, args).await
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -151,7 +151,7 @@ impl<A: Access> CompleteAccessor<A> {
             return Ok(RpCreateDir::default());
         }
 
-        return self.inner.blocking_create_dir(path, args);
+        self.inner.blocking_create_dir(path, args)
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

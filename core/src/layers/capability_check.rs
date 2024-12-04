@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::layers::correctness_check::new_unsupported_args_error;
+use crate::layers::correctness_check::new_unsupported_error;
 use crate::raw::*;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -93,61 +93,40 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
-        let capability = self.info.full_capability();
-        if !capability.read_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::Read,
-                "version",
-            ));
-        }
-
         self.inner.read(path, args).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
         let capability = self.info.full_capability();
         if !capability.write_with_content_type && args.content_type().is_some() {
-            return Err(new_unsupported_args_error(
+            return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::Write,
                 "content_type",
+            ));
+        }
+        if !capability.write_with_cache_control && args.cache_control().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Write,
+                "cache_control",
+            ));
+        }
+        if !capability.write_with_content_disposition && args.content_disposition().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Write,
+                "content_disposition",
             ));
         }
 
         self.inner.write(path, args).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> crate::Result<RpStat> {
-        let capability = self.info.full_capability();
-        if !capability.stat_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::Stat,
-                "version",
-            ));
-        }
-
-        self.inner.stat(path, args).await
-    }
-
-    async fn delete(&self, path: &str, args: OpDelete) -> crate::Result<RpDelete> {
-        let capability = self.info.full_capability();
-        if !capability.delete_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::Delete,
-                "version",
-            ));
-        }
-
-        self.inner.delete(path, args).await
-    }
-
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
         let capability = self.info.full_capability();
         if !capability.list_with_version && args.version() {
-            return Err(new_unsupported_args_error(
+            return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::List,
                 "version",
@@ -162,16 +141,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> crate::Result<(RpRead, Self::BlockingReader)> {
-        let capability = self.info.full_capability();
-        if !capability.read_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::BlockingRead,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_read(path, args)
+        self.inner().blocking_read(path, args)
     }
 
     fn blocking_write(
@@ -181,40 +151,28 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     ) -> crate::Result<(RpWrite, Self::BlockingWriter)> {
         let capability = self.info.full_capability();
         if !capability.write_with_content_type && args.content_type().is_some() {
-            return Err(new_unsupported_args_error(
+            return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::BlockingWrite,
                 "content_type",
             ));
         }
+        if !capability.write_with_cache_control && args.cache_control().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::BlockingWrite,
+                "cache_control",
+            ));
+        }
+        if !capability.write_with_content_disposition && args.content_disposition().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::BlockingWrite,
+                "content_disposition",
+            ));
+        }
 
         self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> crate::Result<RpStat> {
-        let capability = self.info.full_capability();
-        if !capability.stat_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::BlockingStat,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_stat(path, args)
-    }
-
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> crate::Result<RpDelete> {
-        let capability = self.info.full_capability();
-        if !capability.delete_with_version && args.version().is_some() {
-            return Err(new_unsupported_args_error(
-                self.info.as_ref(),
-                Operation::BlockingDelete,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_delete(path, args)
     }
 
     fn blocking_list(
@@ -224,7 +182,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     ) -> crate::Result<(RpList, Self::BlockingLister)> {
         let capability = self.info.full_capability();
         if !capability.list_with_version && args.version() {
-            return Err(new_unsupported_args_error(
+            return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::BlockingList,
                 "version",
@@ -238,13 +196,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::{
-        oio, OpCopy, OpCreateDir, OpPresign, OpRename, PresignedRequest, RpCopy, RpCreateDir,
-        RpPresign, RpRename,
-    };
-    use crate::{Capability, EntryMode, ErrorKind, Metadata, Operator};
-    use http::HeaderMap;
-    use http::Method as HttpMethod;
+    use crate::{Capability, ErrorKind, Operator};
 
     #[derive(Debug)]
     struct MockService {
@@ -266,44 +218,12 @@ mod tests {
             info.into()
         }
 
-        async fn create_dir(&self, _: &str, _: OpCreateDir) -> crate::Result<RpCreateDir> {
-            Ok(RpCreateDir {})
-        }
-
-        async fn stat(&self, _: &str, _: OpStat) -> crate::Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
-        }
-
-        async fn read(&self, _: &str, _: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
-        }
-
         async fn write(&self, _: &str, _: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
             Ok((RpWrite::new(), Box::new(())))
         }
 
-        async fn delete(&self, _: &str, _: OpDelete) -> crate::Result<RpDelete> {
-            Ok(RpDelete {})
-        }
-
         async fn list(&self, _: &str, _: OpList) -> crate::Result<(RpList, Self::Lister)> {
             Ok((RpList {}, Box::new(())))
-        }
-
-        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> crate::Result<RpCopy> {
-            Ok(RpCopy {})
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> crate::Result<RpRename> {
-            Ok(RpRename {})
-        }
-
-        async fn presign(&self, _: &str, _: OpPresign) -> crate::Result<RpPresign> {
-            Ok(RpPresign::new(PresignedRequest::new(
-                HttpMethod::POST,
-                "https://example.com/presign".parse().expect("should parse"),
-                HeaderMap::new(),
-            )))
         }
     }
 
@@ -311,44 +231,6 @@ mod tests {
         let srv = MockService { capability };
 
         Operator::from_inner(Arc::new(srv)).layer(CapabilityCheckLayer)
-    }
-
-    #[tokio::test]
-    async fn test_read_with() {
-        let op = new_test_operator(Capability {
-            read: true,
-            ..Default::default()
-        });
-        let res = op.read_with("path").version("version").await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let op = new_test_operator(Capability {
-            read: true,
-            read_with_version: true,
-            ..Default::default()
-        });
-        let res = op.read_with("path").version("version").await;
-        assert!(res.is_ok())
-    }
-
-    #[tokio::test]
-    async fn test_stat_with() {
-        let op = new_test_operator(Capability {
-            stat: true,
-            ..Default::default()
-        });
-        let res = op.stat_with("path").version("version").await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let op = new_test_operator(Capability {
-            stat: true,
-            stat_with_version: true,
-            ..Default::default()
-        });
-        let res = op.stat_with("path").version("version").await;
-        assert!(res.is_ok())
     }
 
     #[tokio::test]
@@ -360,32 +242,33 @@ mod tests {
         let res = op.writer_with("path").content_type("type").await;
         assert!(res.is_err());
 
+        let res = op.writer_with("path").cache_control("cache").await;
+        assert!(res.is_err());
+
+        let res = op
+            .writer_with("path")
+            .content_disposition("disposition")
+            .await;
+        assert!(res.is_err());
+
         let op = new_test_operator(Capability {
             write: true,
             write_with_content_type: true,
+            write_with_cache_control: true,
+            write_with_content_disposition: true,
             ..Default::default()
         });
         let res = op.writer_with("path").content_type("type").await;
         assert!(res.is_ok());
-    }
 
-    #[tokio::test]
-    async fn test_delete_with() {
-        let op = new_test_operator(Capability {
-            delete: true,
-            ..Default::default()
-        });
-        let res = op.delete_with("path").version("version").await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+        let res = op.writer_with("path").cache_control("cache").await;
+        assert!(res.is_ok());
 
-        let op = new_test_operator(Capability {
-            delete: true,
-            delete_with_version: true,
-            ..Default::default()
-        });
-        let res = op.delete_with("path").version("version").await;
-        assert!(res.is_ok())
+        let res = op
+            .writer_with("path")
+            .content_disposition("disposition")
+            .await;
+        assert!(res.is_ok());
     }
 
     #[tokio::test]

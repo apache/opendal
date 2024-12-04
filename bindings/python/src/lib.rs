@@ -70,7 +70,7 @@ pub use options::*;
 ///
 /// asyncio.run(main())
 /// ```
-#[pymodule]
+#[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<AsyncOperator>()?;

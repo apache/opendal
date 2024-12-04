@@ -87,7 +87,6 @@ jobs:
       - name: Build free-threaded wheels
         uses: PyO3/maturin-action@v1
         with:
-          maturin-version: "1.7.7"
           working-directory: "bindings/python"
           target: "${{ matrix.target }}"
           command: build

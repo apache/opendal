@@ -62,7 +62,7 @@ impl Entry {
         &self.metadata
     }
 
-    /// Consume this entry to get it's path and metadata.
+    /// Consume this entry to get its path and metadata.
     pub fn into_parts(self) -> (String, Metadata) {
         (self.path, self.metadata)
     }

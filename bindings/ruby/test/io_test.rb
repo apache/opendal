@@ -20,7 +20,7 @@
 require "test_helper"
 require "tmpdir"
 
-class OpenDALIOTest < ActiveSupport::TestCase
+class IOTest < ActiveSupport::TestCase
   setup do
     @root = Dir.mktmpdir
     File.write(

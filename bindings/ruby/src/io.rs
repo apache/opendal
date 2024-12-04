@@ -31,16 +31,14 @@ use magnus::RModule;
 
 use crate::*;
 
-// `OpenDALIO` follows similar Ruby IO classes, such as:
+// `Io` is the rust implementation for `OpenDAL::IO`. `Io` follows similar Ruby IO classes, such as:
 // - IO
 // - StringIO
 //
-// `OpenDALIO` is not exactly an `IO` but is unidirectional (either `Reader` or `Writer`).
+// `Io` is not exactly an `IO` but is unidirectional (either `Reader` or `Writer`).
 // TODO: implement encoding.
-//
-// The name of OpenDALIO is an arbitrary choice. Open to changes before 1.0.
 #[magnus::wrap(class = "OpenDAL::IO", free_immediately, size)]
-pub struct OpenDALIO(RefCell<FileState>);
+pub struct Io(RefCell<FileState>);
 
 enum FileState {
     Reader(ocore::StdReader, bool), // bool indicates binary mode
@@ -52,7 +50,7 @@ pub fn format_io_error(err: std::io::Error) -> Error {
     Error::new(exception::runtime_error(), err.to_string())
 }
 
-impl OpenDALIO {
+impl Io {
     /// Creates a new `OpenDAL::IO` object in Ruby.
     ///
     // @param ruby Ruby handle, required for exception handling.
@@ -168,7 +166,7 @@ impl OpenDALIO {
     }
 }
 
-impl OpenDALIO {
+impl Io {
     /// Reads data from the stream.
     /// TODO:
     ///   - support default parameters
@@ -241,7 +239,7 @@ impl OpenDALIO {
     }
 }
 
-impl OpenDALIO {
+impl Io {
     /// Moves the file position based on the offset and whence.
     ///
     /// @param offset The position offset.
@@ -314,19 +312,19 @@ impl OpenDALIO {
 /// [Magnus Safety Documentation](https://github.com/matsadler/magnus#safety).
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
     let class = gem_module.define_class("IO", class::object())?;
-    class.define_method("binmode", method!(OpenDALIO::binary_mode, 0))?;
-    class.define_method("binmode?", method!(OpenDALIO::is_binary_mode, 0))?;
-    class.define_method("close", method!(OpenDALIO::close, 0))?;
-    class.define_method("close_read", method!(OpenDALIO::close_read, 0))?;
-    class.define_method("close_write", method!(OpenDALIO::close_write, 0))?;
-    class.define_method("closed?", method!(OpenDALIO::is_closed, 0))?;
-    class.define_method("closed_read?", method!(OpenDALIO::is_closed_read, 0))?;
-    class.define_method("closed_write?", method!(OpenDALIO::is_closed_write, 0))?;
-    class.define_method("read", method!(OpenDALIO::read, 1))?;
-    class.define_method("write", method!(OpenDALIO::write, 1))?;
-    class.define_method("readline", method!(OpenDALIO::readline, 0))?;
-    class.define_method("seek", method!(OpenDALIO::seek, 2))?;
-    class.define_method("tell", method!(OpenDALIO::tell, 0))?;
+    class.define_method("binmode", method!(Io::binary_mode, 0))?;
+    class.define_method("binmode?", method!(Io::is_binary_mode, 0))?;
+    class.define_method("close", method!(Io::close, 0))?;
+    class.define_method("close_read", method!(Io::close_read, 0))?;
+    class.define_method("close_write", method!(Io::close_write, 0))?;
+    class.define_method("closed?", method!(Io::is_closed, 0))?;
+    class.define_method("closed_read?", method!(Io::is_closed_read, 0))?;
+    class.define_method("closed_write?", method!(Io::is_closed_write, 0))?;
+    class.define_method("read", method!(Io::read, 1))?;
+    class.define_method("write", method!(Io::write, 1))?;
+    class.define_method("readline", method!(Io::readline, 0))?;
+    class.define_method("seek", method!(Io::seek, 2))?;
+    class.define_method("tell", method!(Io::tell, 0))?;
 
     Ok(())
 }

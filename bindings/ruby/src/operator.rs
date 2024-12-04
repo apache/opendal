@@ -28,7 +28,7 @@ use magnus::Ruby;
 
 use crate::capability::Capability;
 use crate::metadata::Metadata;
-use crate::opendal_io::OpenDALIO;
+use crate::io::Io;
 use crate::*;
 
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
@@ -137,9 +137,9 @@ impl Operator {
     }
 
     /// Opens a IO-like reader for the given path.
-    fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<OpenDALIO, Error> {
+    fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
         let operator = rb_self.0.clone();
-        Ok(OpenDALIO::new(&ruby, operator, path, mode)?)
+        Ok(Io::new(&ruby, operator, path, mode)?)
     }
 }
 

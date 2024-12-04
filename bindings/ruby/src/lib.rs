@@ -25,8 +25,8 @@ use magnus::Ruby;
 pub use ::opendal as ocore;
 
 mod capability;
-mod metadata;
 mod io;
+mod metadata;
 mod operator;
 
 pub fn format_magnus_error(err: ocore::Error) -> Error {

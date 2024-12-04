@@ -27,8 +27,8 @@ use magnus::RString;
 use magnus::Ruby;
 
 use crate::capability::Capability;
-use crate::metadata::Metadata;
 use crate::io::Io;
+use crate::metadata::Metadata;
 use crate::*;
 
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]

@@ -548,6 +548,12 @@ impl S3Builder {
         self
     }
 
+    /// Disable write with if match so that opendal will not send write request with if match headers.
+    pub fn disable_write_with_if_match(mut self) -> Self {
+        self.config.disable_write_with_if_match = true;
+        self
+    }
+
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -878,6 +884,7 @@ impl Builder for S3Builder {
                 client,
                 batch_max_operations,
                 checksum_algorithm,
+                disable_write_with_if_match: self.config.disable_write_with_if_match,
             }),
         })
     }
@@ -924,6 +931,7 @@ impl Access for S3Backend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_if_match: !self.core.disable_write_with_if_match,
                 write_with_if_not_exists: true,
                 write_with_user_metadata: true,
 

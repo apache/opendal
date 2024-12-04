@@ -28,8 +28,9 @@ This service can be used to:
 - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
 - `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
 - `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
-- `disable_config_load`: Disable aws config load from env
+- `disable_config_load`: Disable aws config load from env.
 - `enable_virtual_host_style`: Enable virtual host style.
+- `disable_write_with_if_match`: Disable write with if match.
 
 Refer to [`S3Builder`]'s public API docs for more information.
 

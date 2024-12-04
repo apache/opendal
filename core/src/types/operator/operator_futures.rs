@@ -323,6 +323,11 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
         self.map(|(args, options, bs)| (args.with_executor(executor), options, bs))
     }
 
+    /// Set the If-Match for this operation.
+    pub fn if_match(self, s: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_if_match(s), options, bs))
+    }
+
     /// Set the If-None-Match for this operation.
     pub fn if_none_match(self, s: &str) -> Self {
         self.map(|(args, options, bs)| (args.with_if_none_match(s), options, bs))

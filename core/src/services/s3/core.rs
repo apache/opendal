@@ -98,6 +98,7 @@ pub struct S3Core {
     pub client: HttpClient,
     pub batch_max_operations: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Core {
@@ -453,6 +454,10 @@ impl S3Core {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
         }
 
         if args.if_not_exists() {

@@ -115,6 +115,6 @@ pub use self::dtrace::DtraceLayer;
 pub mod observe;
 
 mod correctness_check;
-pub(crate) use correctness_check::CorrectnessChecker;
+pub(crate) use correctness_check::CorrectnessCheckLayer;
 mod capability_check;
-pub use capability_check::CapabilityChecker;
+pub use capability_check::CapabilityCheckLayer;

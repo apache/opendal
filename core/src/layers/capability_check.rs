@@ -16,10 +16,7 @@
 // under the License.
 
 use crate::layers::correctness_check::new_unsupported_args_error;
-use crate::raw::{
-    Access, AccessorInfo, Layer, LayeredAccess, OpDelete, OpList, OpRead, OpStat, OpWrite,
-    Operation, RpDelete, RpList, RpRead, RpStat, RpWrite,
-};
+use crate::raw::*;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
@@ -42,24 +39,24 @@ use std::sync::Arc;
 /// # examples
 ///
 /// ```no_run
-/// # use opendal::layers::CapabilityChecker;
+/// # use opendal::layers::CapabilityCheckLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
 /// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
-/// use opendal::layers::CapabilityChecker;
+/// use opendal::layers::CapabilityCheckLayer;
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(CapabilityChecker)
+///     .layer(CapabilityCheckLayer)
 ///     .finish();
 /// Ok(())
 /// # }
 /// ```
 #[derive(Default)]
-pub struct CapabilityChecker;
+pub struct CapabilityCheckLayer;
 
-impl<A: Access> Layer<A> for CapabilityChecker {
+impl<A: Access> Layer<A> for CapabilityCheckLayer {
     type LayeredAccess = CapabilityAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
@@ -313,7 +310,7 @@ mod tests {
     fn new_test_operator(capability: Capability) -> Operator {
         let srv = MockService { capability };
 
-        Operator::from_inner(Arc::new(srv)).layer(CapabilityChecker)
+        Operator::from_inner(Arc::new(srv)).layer(CapabilityCheckLayer)
     }
 
     #[tokio::test]

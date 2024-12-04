@@ -18,11 +18,7 @@
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
-use crate::raw::{
-    Access, AccessorInfo, Layer, LayeredAccess, OpBatch, OpCopy, OpCreateDir, OpDelete, OpList,
-    OpPresign, OpRead, OpRename, OpStat, OpWrite, Operation, RpBatch, RpCopy, RpCreateDir,
-    RpDelete, RpList, RpPresign, RpRead, RpRename, RpStat, RpWrite,
-};
+use crate::raw::*;
 use crate::{Error, ErrorKind};
 
 /// Add a correctness capability check layer for every operation
@@ -40,9 +36,9 @@ use crate::{Error, ErrorKind};
 /// for example, when calling `write_with_append`, but `append` is not supported by the underlying
 /// service, an `Unsupported` error is returned. without this check, undesired data may be written.
 #[derive(Default)]
-pub struct CorrectnessChecker;
+pub struct CorrectnessCheckLayer;
 
-impl<A: Access> Layer<A> for CorrectnessChecker {
+impl<A: Access> Layer<A> for CorrectnessCheckLayer {
     type LayeredAccess = CorrectnessAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
@@ -427,7 +423,7 @@ mod tests {
     fn new_test_operator(capability: Capability) -> Operator {
         let srv = MockService { capability };
 
-        Operator::from_inner(Arc::new(srv)).layer(CorrectnessChecker)
+        Operator::from_inner(Arc::new(srv)).layer(CorrectnessCheckLayer)
     }
 
     #[tokio::test]

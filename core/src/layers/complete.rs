@@ -384,11 +384,6 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.info.full_capability();
-        if !capability.presign {
-            return Err(self.new_unsupported_error(Operation::Presign));
-        }
-
         self.inner.presign(path, args).await
     }
 

@@ -56,10 +56,7 @@ impl oio::BatchDelete for S3Deleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        // TODO: fix https://github.com/apache/opendal/issues/5329
-        let paths = batch.into_iter().map(|(p, _)| p).collect();
-
-        let resp = self.core.s3_delete_objects(paths).await?;
+        let resp = self.core.s3_delete_objects(batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {

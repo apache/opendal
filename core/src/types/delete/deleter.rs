@@ -67,12 +67,12 @@ use std::pin::pin;
 /// ```rust
 /// use opendal::Operator;
 /// use opendal::Result;
-/// use futures::stream;
+/// use futures::{stream, Sink};
 /// use futures::SinkExt;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut sink = op.deleter().await?.into_sink();
-///     sink.send_all(&mut stream::iter(vec!["path/to/file"])).await?;
+///     sink.send("path/to/file").await?;
 ///     sink.close().await?;
 ///     Ok(())
 /// }
@@ -210,7 +210,7 @@ impl Deleter {
     }
 
     /// Convert the deleter into a sink.
-    pub fn into_sink(self) -> FuturesDeleteSink {
+    pub fn into_sink<T: IntoDeleteInput>(self) -> FuturesDeleteSink<T> {
         FuturesDeleteSink::new(self)
     }
 }

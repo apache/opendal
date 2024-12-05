@@ -29,7 +29,7 @@ pub struct DeleteInput {
 }
 
 /// IntoDeleteInput is a helper trait that makes it easier for users to play with `Deleter`.
-pub trait IntoDeleteInput: Send + Sync {
+pub trait IntoDeleteInput: Send + Sync + Unpin {
     /// Convert `self` into a `DeleteInput`.
     fn into_delete_input(self) -> DeleteInput;
 }

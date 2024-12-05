@@ -16,7 +16,7 @@
 // under the License.
 
 use jni::objects::JClass;
-use jni::objects::JObject;
+use jni::objects::JObject;  w
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use jni::JNIEnv;

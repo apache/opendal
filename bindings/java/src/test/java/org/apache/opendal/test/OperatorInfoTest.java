@@ -50,7 +50,6 @@ public class OperatorInfoTest {
             assertThat(info.fullCapability.writeCanAppend).isTrue();
             assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
-            assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);
 
             assertThat(info.nativeCapability).isNotNull();
         }
@@ -72,7 +71,6 @@ public class OperatorInfoTest {
             assertThat(info.fullCapability.writeCanAppend).isFalse();
             assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
             assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
-            assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);
 
             assertThat(info.nativeCapability).isNotNull();
         }

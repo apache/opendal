@@ -62,8 +62,6 @@ pub struct Operator {
     // accessor is what Operator delegates for
     accessor: Accessor,
 
-    // limit is usually the maximum size of data that operator will handle in one operation
-    limit: usize,
     /// The default executor that used to run futures in background.
     default_executor: Option<Executor>,
 }
@@ -77,14 +75,8 @@ impl Operator {
 
     /// Convert inner accessor into operator.
     pub fn from_inner(accessor: Accessor) -> Self {
-        let limit = accessor
-            .info()
-            .full_capability()
-            .batch_max_operations
-            .unwrap_or(1000);
         Self {
             accessor,
-            limit,
             default_executor: None,
         }
     }
@@ -96,17 +88,17 @@ impl Operator {
 
     /// Get current operator's limit.
     /// Limit is usually the maximum size of data that operator will handle in one operation.
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
     pub fn limit(&self) -> usize {
-        self.limit
+        0
     }
 
     /// Specify the batch limit.
     ///
     /// Default: 1000
-    pub fn with_limit(&self, limit: usize) -> Self {
-        let mut op = self.clone();
-        op.limit = limit;
-        op
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
+    pub fn with_limit(&self, _: usize) -> Self {
+        self.clone()
     }
 
     /// Get the default executor.
@@ -143,7 +135,7 @@ impl Operator {
     ///
     /// This operation is nearly no cost.
     pub fn blocking(&self) -> BlockingOperator {
-        BlockingOperator::from_inner(self.accessor.clone()).with_limit(self.limit)
+        BlockingOperator::from_inner(self.accessor.clone())
     }
 }
 

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-oss")]
 mod core;
 #[cfg(feature = "services-oss")]
+mod delete;
+#[cfg(feature = "services-oss")]
 mod error;
 #[cfg(feature = "services-oss")]
 mod lister;

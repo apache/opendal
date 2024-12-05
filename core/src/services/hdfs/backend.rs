@@ -25,10 +25,11 @@ use std::sync::Arc;
 use log::debug;
 use uuid::Uuid;
 
+use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
+use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
 use crate::raw::*;
-use crate::services::hdfs::reader::HdfsReader;
 use crate::services::HdfsConfig;
 use crate::*;
 
@@ -192,9 +193,9 @@ fn tmp_file_of(path: &str) -> String {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
-    root: String,
+    pub root: String,
     atomic_write_dir: Option<String>,
-    client: Arc<hdrs::Client>,
+    pub client: Arc<hdrs::Client>,
     enable_append: bool,
 }
 
@@ -206,9 +207,11 @@ impl Access for HdfsBackend {
     type Reader = HdfsReader<hdrs::AsyncFile>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
+    type Deleter = oio::OneShotDeleter<HdfsDeleter>;
     type BlockingReader = HdfsReader<hdrs::File>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type BlockingLister = Option<HdfsLister>;
+    type BlockingDeleter = oio::OneShotDeleter<HdfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -342,31 +345,11 @@ impl Access for HdfsBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p);
-
-        if let Err(err) = meta {
-            return if err.kind() == io::ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(new_std_io_error(err))
-            };
-        }
-
-        // Safety: Err branch has been checked, it's OK to unwrap.
-        let meta = meta.ok().unwrap();
-
-        let result = if meta.is_dir() {
-            self.client.remove_dir(&p)
-        } else {
-            self.client.remove_file(&p)
-        };
-
-        result.map_err(new_std_io_error)?;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(HdfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -536,31 +519,11 @@ impl Access for HdfsBackend {
         ))
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p);
-
-        if let Err(err) = meta {
-            return if err.kind() == io::ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(new_std_io_error(err))
-            };
-        }
-
-        // Safety: Err branch has been checked, it's OK to unwrap.
-        let meta = meta.ok().unwrap();
-
-        let result = if meta.is_dir() {
-            self.client.remove_dir(&p)
-        } else {
-            self.client.remove_file(&p)
-        };
-
-        result.map_err(new_std_io_error)?;
-
-        Ok(RpDelete::default())
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(HdfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {

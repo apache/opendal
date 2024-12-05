@@ -28,6 +28,7 @@ use log::debug;
 
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
+use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
@@ -197,9 +198,11 @@ impl Access for LakefsBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
+    type Deleter = oio::OneShotDeleter<LakefsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -289,21 +292,11 @@ impl Access for LakefsBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        // This would delete the bucket, do not perform
-        if self.core.root == "/" && path == "/" {
-            return Ok(RpDelete::default());
-        }
-
-        let resp = self.core.delete_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(LakefsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

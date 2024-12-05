@@ -28,6 +28,7 @@ use serde_json::json;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::delete::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
@@ -43,9 +44,11 @@ impl Access for GdriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
+    type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -141,24 +144,11 @@ impl Access for GdriveBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = build_abs_path(&self.core.root, path);
-        let file_id = self.core.path_cache.get(&path).await?;
-        let file_id = if let Some(id) = file_id {
-            id
-        } else {
-            return Ok(RpDelete::default());
-        };
-
-        let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
-        if status != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        self.core.path_cache.remove(&path).await;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

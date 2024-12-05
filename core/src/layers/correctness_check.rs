@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::{Debug, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -76,11 +77,13 @@ impl<A: Access> Debug for CorrectnessAccessor<A> {
 impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
+    type Deleter = CheckWrapper<A::Deleter>;
+    type BlockingReader = A::BlockingReader;
+    type BlockingWriter = A::BlockingWriter;
     type BlockingLister = A::BlockingLister;
+    type BlockingDeleter = CheckWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -143,17 +146,11 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.info.full_capability();
-        if !capability.delete_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Delete,
-                "version",
-            ));
-        }
-
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await.map(|(rp, deleter)| {
+            let deleter = CheckWrapper::new(deleter, self.info.clone());
+            (rp, deleter)
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -213,21 +210,60 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.info.full_capability();
-        if !capability.delete_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::BlockingDelete,
-                "version",
-            ));
-        }
-
-        self.inner().blocking_delete(path, args)
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete().map(|(rp, deleter)| {
+            let deleter = CheckWrapper::new(deleter, self.info.clone());
+            (rp, deleter)
+        })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+}
+
+pub struct CheckWrapper<T> {
+    info: Arc<AccessorInfo>,
+    inner: T,
+}
+
+impl<T> CheckWrapper<T> {
+    fn new(inner: T, info: Arc<AccessorInfo>) -> Self {
+        Self { inner, info }
+    }
+
+    fn check_delete(&self, args: &OpDelete) -> Result<()> {
+        if args.version().is_some() && !self.info.full_capability().delete_with_version {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::DeleterDelete,
+                "version",
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.check_delete(&args)?;
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend {
+        self.inner.flush()
+    }
+}
+
+impl<T: oio::BlockingDelete> oio::BlockingDelete for CheckWrapper<T> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.check_delete(&args)?;
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }
 
@@ -246,9 +282,11 @@ mod tests {
         type Reader = oio::Reader;
         type Writer = oio::Writer;
         type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
         type BlockingReader = oio::BlockingReader;
         type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
+        type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut info = AccessorInfo::default();
@@ -269,12 +307,24 @@ mod tests {
             Ok((RpWrite::new(), Box::new(())))
         }
 
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
-            Ok(RpDelete {})
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+            Ok((RpList::default(), Box::new(())))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList {}, Box::new(())))
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+            Ok((RpDelete::default(), Box::new(MockDeleter)))
+        }
+    }
+
+    struct MockDeleter;
+
+    impl oio::Delete for MockDeleter {
+        fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            Ok(())
+        }
+
+        async fn flush(&mut self) -> Result<usize> {
+            Ok(1)
         }
     }
 

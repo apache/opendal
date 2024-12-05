@@ -61,6 +61,8 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     type Writer: oio::Write;
     /// Lister is the associated lister returned in `list` operation.
     type Lister: oio::List;
+    /// Deleter is the associated deleter returned in `delete` operation.
+    type Deleter: oio::Delete;
 
     /// BlockingReader is the associated reader returned `blocking_read` operation.
     type BlockingReader: oio::BlockingRead;
@@ -68,6 +70,8 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     type BlockingWriter: oio::BlockingWrite;
     /// BlockingLister is the associated lister returned `blocking_list` operation.
     type BlockingLister: oio::BlockingList;
+    /// BlockingDeleter is the associated deleter returned `blocking_delete` operation.
+    type BlockingDeleter: oio::BlockingDelete;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -172,13 +176,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
-    fn delete(
-        &self,
-        path: &str,
-        args: OpDelete,
-    ) -> impl Future<Output = Result<RpDelete>> + MaybeSend {
-        let (_, _) = (path, args);
-
+    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
         ready(Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -266,18 +264,6 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
         )))
     }
 
-    /// Invoke the `batch` operations.
-    ///
-    /// Require [`Capability::batch`]
-    fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
-        let _ = args;
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
     /// Invoke the `blocking_create` operation on the specified path.
     ///
     /// This operation is the blocking version of [`Accessor::create_dir`]
@@ -339,9 +325,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// This operation is the blocking version of [`Accessor::delete`]
     ///
     /// Require [`Capability::write`] and [`Capability::blocking`]
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let (_, _) = (path, args);
-
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -421,8 +405,7 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         args: OpWrite,
     ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>>;
     /// Dyn version of [`Accessor::delete`]
-    fn delete_dyn<'a>(&'a self, path: &'a str, args: OpDelete)
-        -> BoxedFuture<'a, Result<RpDelete>>;
+    fn delete_dyn(&self) -> BoxedFuture<Result<(RpDelete, oio::Deleter)>>;
     /// Dyn version of [`Accessor::list`]
     fn list_dyn<'a>(
         &'a self,
@@ -449,8 +432,6 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         path: &'a str,
         args: OpPresign,
     ) -> BoxedFuture<'a, Result<RpPresign>>;
-    /// Dyn version of [`Accessor::batch`]
-    fn batch_dyn(&self, args: OpBatch) -> BoxedFuture<'_, Result<RpBatch>>;
     /// Dyn version of [`Accessor::blocking_create_dir`]
     fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir>;
     /// Dyn version of [`Accessor::blocking_stat`]
@@ -464,7 +445,7 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         args: OpWrite,
     ) -> Result<(RpWrite, oio::BlockingWriter)>;
     /// Dyn version of [`Accessor::blocking_delete`]
-    fn blocking_delete_dyn(&self, path: &str, args: OpDelete) -> Result<RpDelete>;
+    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)>;
     /// Dyn version of [`Accessor::blocking_list`]
     fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)>;
     /// Dyn version of [`Accessor::blocking_copy`]
@@ -482,6 +463,8 @@ where
         BlockingWriter = oio::BlockingWriter,
         Lister = oio::Lister,
         BlockingLister = oio::BlockingLister,
+        Deleter = oio::Deleter,
+        BlockingDeleter = oio::BlockingDeleter,
     >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {
@@ -516,12 +499,8 @@ where
         Box::pin(self.write(path, args))
     }
 
-    fn delete_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpDelete,
-    ) -> BoxedFuture<'a, Result<RpDelete>> {
-        Box::pin(self.delete(path, args))
+    fn delete_dyn(&self) -> BoxedFuture<Result<(RpDelete, oio::Deleter)>> {
+        Box::pin(self.delete())
     }
 
     fn list_dyn<'a>(
@@ -558,10 +537,6 @@ where
         Box::pin(self.presign(path, args))
     }
 
-    fn batch_dyn(&self, args: OpBatch) -> BoxedFuture<'_, Result<RpBatch>> {
-        Box::pin(self.batch(args))
-    }
-
     fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.blocking_create_dir(path, args)
     }
@@ -582,8 +557,8 @@ where
         self.blocking_write(path, args)
     }
 
-    fn blocking_delete_dyn(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.blocking_delete(path, args)
+    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)> {
+        self.blocking_delete()
     }
 
     fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)> {
@@ -603,9 +578,11 @@ impl Access for dyn AccessDyn {
     type Reader = oio::Reader;
     type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
+    type Deleter = oio::Deleter;
     type BlockingWriter = oio::BlockingWriter;
     type Lister = oio::Lister;
     type BlockingLister = oio::BlockingLister;
+    type BlockingDeleter = oio::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info_dyn()
@@ -627,8 +604,8 @@ impl Access for dyn AccessDyn {
         self.write_dyn(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.delete_dyn(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.delete_dyn().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -647,10 +624,6 @@ impl Access for dyn AccessDyn {
         self.presign_dyn(path, args).await
     }
 
-    fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
-        self.batch_dyn(args)
-    }
-
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.blocking_create_dir_dyn(path, args)
     }
@@ -667,8 +640,8 @@ impl Access for dyn AccessDyn {
         self.blocking_write_dyn(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.blocking_delete_dyn(path, args)
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.blocking_delete_dyn()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -689,9 +662,11 @@ impl Access for () {
     type Reader = ();
     type Writer = ();
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         AccessorInfo {
@@ -714,9 +689,11 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     type Reader = T::Reader;
     type Writer = T::Writer;
     type Lister = T::Lister;
+    type Deleter = T::Deleter;
     type BlockingReader = T::BlockingReader;
     type BlockingWriter = T::BlockingWriter;
     type BlockingLister = T::BlockingLister;
+    type BlockingDeleter = T::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.as_ref().info()
@@ -750,12 +727,8 @@ impl<T: Access + ?Sized> Access for Arc<T> {
         async move { self.as_ref().write(path, args).await }
     }
 
-    fn delete(
-        &self,
-        path: &str,
-        args: OpDelete,
-    ) -> impl Future<Output = Result<RpDelete>> + MaybeSend {
-        async move { self.as_ref().delete(path, args).await }
+    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
+        async move { self.as_ref().delete().await }
     }
 
     fn list(
@@ -792,10 +765,6 @@ impl<T: Access + ?Sized> Access for Arc<T> {
         async move { self.as_ref().presign(path, args).await }
     }
 
-    fn batch(&self, args: OpBatch) -> impl Future<Output = Result<RpBatch>> + MaybeSend {
-        async move { self.as_ref().batch(args).await }
-    }
-
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().blocking_create_dir(path, args)
     }
@@ -812,8 +781,8 @@ impl<T: Access + ?Sized> Access for Arc<T> {
         self.as_ref().blocking_write(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().blocking_delete(path, args)
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.as_ref().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

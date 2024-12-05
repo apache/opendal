@@ -18,6 +18,8 @@
 #[cfg(feature = "services-pcloud")]
 mod core;
 #[cfg(feature = "services-pcloud")]
+mod delete;
+#[cfg(feature = "services-pcloud")]
 mod error;
 #[cfg(feature = "services-pcloud")]
 mod lister;

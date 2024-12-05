@@ -82,11 +82,13 @@ impl<A: Access> Debug for CapabilityAccessor<A> {
 impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
+    type Deleter = A::Deleter;
+    type BlockingReader = A::BlockingReader;
+    type BlockingWriter = A::BlockingWriter;
     type BlockingLister = A::BlockingLister;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -121,6 +123,10 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         }
 
         self.inner.write(path, args).await
+    }
+
+    async fn delete(&self) -> crate::Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
@@ -175,6 +181,10 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
+    fn blocking_delete(&self) -> crate::Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
+    }
+
     fn blocking_list(
         &self,
         path: &str,
@@ -207,9 +217,11 @@ mod tests {
         type Reader = oio::Reader;
         type Writer = oio::Writer;
         type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
         type BlockingReader = oio::BlockingReader;
         type BlockingWriter = oio::BlockingWriter;
         type BlockingLister = oio::BlockingLister;
+        type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut info = AccessorInfo::default();

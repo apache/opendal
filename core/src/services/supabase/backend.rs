@@ -149,9 +149,11 @@ impl Access for SupabaseBackend {
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -164,7 +166,6 @@ impl Access for SupabaseBackend {
                 read: true,
 
                 write: true,
-                delete: true,
 
                 shared: true,
 
@@ -214,21 +215,5 @@ impl Access for SupabaseBackend {
             RpWrite::default(),
             oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
         ))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.supabase_delete_object(path).await?;
-
-        if resp.status().is_success() {
-            Ok(RpDelete::default())
-        } else {
-            // deleting not existing objects is ok
-            let e = parse_error(resp);
-            if e.kind() == ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(e)
-            }
-        }
     }
 }

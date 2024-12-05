@@ -336,6 +336,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -373,8 +375,16 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         self.complete_stat(path, args).await
     }
 
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner().delete().await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.complete_list(path, args).await
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -396,6 +406,10 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.complete_blocking_stat(path, args)
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

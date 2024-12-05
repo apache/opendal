@@ -261,6 +261,8 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type BlockingWriter = LoggingWriter<A::BlockingWriter, I>;
     type Lister = LoggingLister<A::Lister, I>;
     type BlockingLister = LoggingLister<A::BlockingLister, I>;
+    type Deleter = LoggingDeleter<A::Deleter, I>;
+    type BlockingDeleter = LoggingDeleter<A::BlockingDeleter, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -486,36 +488,22 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.logger.log(
-            &self.info,
-            Operation::Delete,
-            &[("path", path)],
-            "started",
-            None,
-        );
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.logger
+            .log(&self.info, Operation::Delete, &[], "started", None);
 
         self.inner
-            .delete(path, args.clone())
+            .delete()
             .await
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Delete,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-                v
+            .map(|(rp, d)| {
+                self.logger
+                    .log(&self.info, Operation::Delete, &[], "finished", None);
+                let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
+                (rp, d)
             })
             .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Delete,
-                    &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
+                self.logger
+                    .log(&self.info, Operation::Delete, &[], "failed", Some(&err));
                 err
             })
     }
@@ -582,47 +570,6 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     &self.info,
                     Operation::Presign,
                     &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
-
-        self.logger.log(
-            &self.info,
-            Operation::Batch,
-            &[("op", op.into_static()), ("count", &count.to_string())],
-            "started",
-            None,
-        );
-
-        self.inner
-            .batch(args)
-            .await
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Batch,
-                    &[("op", op.into_static()), ("count", &count.to_string())],
-                    &format!(
-                        "finished: {}, succeed: {}, failed: {}",
-                        v.results().len(),
-                        v.results().iter().filter(|(_, v)| v.is_ok()).count(),
-                        v.results().iter().filter(|(_, v)| v.is_err()).count(),
-                    ),
-                    None,
-                );
-                v
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Batch,
-                    &[("op", op.into_static()), ("count", &count.to_string())],
                     "failed",
                     Some(&err),
                 );
@@ -830,32 +777,23 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingDelete,
-            &[("path", path)],
-            "started",
-            None,
-        );
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.logger
+            .log(&self.info, Operation::BlockingDelete, &[], "started", None);
 
         self.inner
-            .blocking_delete(path, args)
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDelete,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-                v
+            .blocking_delete()
+            .map(|(rp, d)| {
+                self.logger
+                    .log(&self.info, Operation::BlockingDelete, &[], "finished", None);
+                let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
+                (rp, d)
             })
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::BlockingDelete,
-                    &[("path", path)],
+                    &[],
                     "failed",
                     Some(&err),
                 );
@@ -1342,6 +1280,226 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
                     &self.info,
                     Operation::BlockingListerNext,
                     &[("path", &self.path), ("listed", &self.listed.to_string())],
+                    "failed",
+                    Some(err),
+                );
+            }
+        };
+
+        res
+    }
+}
+
+pub struct LoggingDeleter<D, I: LoggingInterceptor> {
+    info: Arc<AccessorInfo>,
+    logger: I,
+
+    queued: usize,
+    deleted: usize,
+    inner: D,
+}
+
+impl<D, I: LoggingInterceptor> LoggingDeleter<D, I> {
+    fn new(info: Arc<AccessorInfo>, logger: I, inner: D) -> Self {
+        Self {
+            info,
+            logger,
+
+            queued: 0,
+            deleted: 0,
+            inner,
+        }
+    }
+}
+
+impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let version = args
+            .version()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "<latest>".to_string());
+
+        self.logger.log(
+            &self.info,
+            Operation::DeleterDelete,
+            &[("path", path), ("version", &version)],
+            "started",
+            None,
+        );
+
+        let res = self.inner.delete(path, args);
+
+        match &res {
+            Ok(_) => {
+                self.queued += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::DeleterDelete,
+                    &[
+                        ("path", path),
+                        ("version", &version),
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "succeeded",
+                    None,
+                );
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::DeleterDelete,
+                    &[
+                        ("path", path),
+                        ("version", &version),
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "failed",
+                    Some(err),
+                );
+            }
+        };
+
+        res
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        self.logger.log(
+            &self.info,
+            Operation::DeleterFlush,
+            &[
+                ("queued", &self.queued.to_string()),
+                ("deleted", &self.deleted.to_string()),
+            ],
+            "started",
+            None,
+        );
+
+        let res = self.inner.flush().await;
+
+        match &res {
+            Ok(flushed) => {
+                self.queued -= flushed;
+                self.deleted += flushed;
+                self.logger.log(
+                    &self.info,
+                    Operation::DeleterFlush,
+                    &[
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "succeeded",
+                    None,
+                );
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::DeleterFlush,
+                    &[
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "failed",
+                    Some(err),
+                );
+            }
+        };
+
+        res
+    }
+}
+
+impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for LoggingDeleter<D, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let version = args
+            .version()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "<latest>".to_string());
+
+        self.logger.log(
+            &self.info,
+            Operation::BlockingDeleterDelete,
+            &[("path", path), ("version", &version)],
+            "started",
+            None,
+        );
+
+        let res = self.inner.delete(path, args);
+
+        match &res {
+            Ok(_) => {
+                self.queued += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingDeleterDelete,
+                    &[
+                        ("path", path),
+                        ("version", &version),
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "succeeded",
+                    None,
+                );
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingDeleterDelete,
+                    &[
+                        ("path", path),
+                        ("version", &version),
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "failed",
+                    Some(err),
+                );
+            }
+        };
+
+        res
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.logger.log(
+            &self.info,
+            Operation::BlockingDeleterFlush,
+            &[
+                ("queued", &self.queued.to_string()),
+                ("deleted", &self.deleted.to_string()),
+            ],
+            "started",
+            None,
+        );
+
+        let res = self.inner.flush();
+
+        match &res {
+            Ok(flushed) => {
+                self.queued -= flushed;
+                self.deleted += flushed;
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingDeleterFlush,
+                    &[
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
+                    "succeeded",
+                    None,
+                );
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::BlockingDeleterFlush,
+                    &[
+                        ("queued", &self.queued.to_string()),
+                        ("deleted", &self.deleted.to_string()),
+                    ],
                     "failed",
                     Some(err),
                 );

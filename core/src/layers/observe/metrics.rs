@@ -179,6 +179,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     type BlockingWriter = MetricsWrapper<A::BlockingWriter, I>;
     type Lister = MetricsWrapper<A::Lister, I>;
     type BlockingLister = MetricsWrapper<A::BlockingLister, I>;
+    type Deleter = MetricsWrapper<A::Deleter, I>;
+    type BlockingDeleter = MetricsWrapper<A::BlockingDeleter, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -396,35 +398,48 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let op = Operation::Delete;
 
         let start = Instant::now();
-        self.inner()
-            .delete(path, args)
+        let (rp, writer) = self
+            .inner
+            .delete()
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.scheme,
                     self.namespace.clone(),
                     self.root.clone(),
-                    path,
+                    "",
                     op,
                     start.elapsed(),
                 );
                 v
             })
-            .map_err(move |err| {
+            .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.scheme,
                     self.namespace.clone(),
                     self.root.clone(),
-                    path,
+                    "",
                     op,
                     err.kind(),
                 );
                 err
-            })
+            })?;
+
+        Ok((
+            rp,
+            MetricsWrapper::new(
+                writer,
+                self.interceptor.clone(),
+                self.scheme,
+                self.namespace.clone(),
+                self.root.clone(),
+                "".to_string(),
+            ),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -469,37 +484,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 path.to_string(),
             ),
         ))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let op = Operation::Batch;
-
-        let start = Instant::now();
-        self.inner()
-            .batch(args)
-            .await
-            .map(|v| {
-                self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
-                    "",
-                    op,
-                    start.elapsed(),
-                );
-                v
-            })
-            .map_err(move |err| {
-                self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
-                    "",
-                    op,
-                    err.kind(),
-                );
-                err
-            })
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -739,34 +723,47 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         let op = Operation::BlockingDelete;
 
         let start = Instant::now();
-        self.inner()
-            .blocking_delete(path, args)
+        let (rp, writer) = self
+            .inner
+            .blocking_delete()
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.scheme,
                     self.namespace.clone(),
                     self.root.clone(),
-                    path,
+                    "",
                     op,
                     start.elapsed(),
                 );
                 v
             })
-            .map_err(move |err| {
+            .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.scheme,
                     self.namespace.clone(),
                     self.root.clone(),
-                    path,
+                    "",
                     op,
                     err.kind(),
                 );
                 err
-            })
+            })?;
+
+        Ok((
+            rp,
+            MetricsWrapper::new(
+                writer,
+                self.interceptor.clone(),
+                self.scheme,
+                self.namespace.clone(),
+                self.root.clone(),
+                "".to_string(),
+            ),
+        ))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -1142,6 +1139,130 @@ impl<R: oio::BlockingList, I: MetricsIntercept> oio::BlockingList for MetricsWra
         let start = Instant::now();
 
         let res = match self.inner.next() {
+            Ok(entry) => Ok(entry),
+            Err(err) => {
+                self.interceptor.observe_operation_errors_total(
+                    self.scheme,
+                    self.namespace.clone(),
+                    self.root.clone(),
+                    &self.path,
+                    op,
+                    err.kind(),
+                );
+                Err(err)
+            }
+        };
+        self.interceptor.observe_operation_duration_seconds(
+            self.scheme,
+            self.namespace.clone(),
+            self.root.clone(),
+            &self.path,
+            op,
+            start.elapsed(),
+        );
+        res
+    }
+}
+
+impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let op = Operation::DeleterDelete;
+
+        let start = Instant::now();
+
+        let res = match self.inner.delete(path, args) {
+            Ok(entry) => Ok(entry),
+            Err(err) => {
+                self.interceptor.observe_operation_errors_total(
+                    self.scheme,
+                    self.namespace.clone(),
+                    self.root.clone(),
+                    &self.path,
+                    op,
+                    err.kind(),
+                );
+                Err(err)
+            }
+        };
+        self.interceptor.observe_operation_duration_seconds(
+            self.scheme,
+            self.namespace.clone(),
+            self.root.clone(),
+            &self.path,
+            op,
+            start.elapsed(),
+        );
+        res
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        let op = Operation::DeleterFlush;
+
+        let start = Instant::now();
+
+        let res = match self.inner.flush().await {
+            Ok(entry) => Ok(entry),
+            Err(err) => {
+                self.interceptor.observe_operation_errors_total(
+                    self.scheme,
+                    self.namespace.clone(),
+                    self.root.clone(),
+                    &self.path,
+                    op,
+                    err.kind(),
+                );
+                Err(err)
+            }
+        };
+        self.interceptor.observe_operation_duration_seconds(
+            self.scheme,
+            self.namespace.clone(),
+            self.root.clone(),
+            &self.path,
+            op,
+            start.elapsed(),
+        );
+        res
+    }
+}
+
+impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for MetricsWrapper<R, I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let op = Operation::BlockingDeleterDelete;
+
+        let start = Instant::now();
+
+        let res = match self.inner.delete(path, args) {
+            Ok(entry) => Ok(entry),
+            Err(err) => {
+                self.interceptor.observe_operation_errors_total(
+                    self.scheme,
+                    self.namespace.clone(),
+                    self.root.clone(),
+                    &self.path,
+                    op,
+                    err.kind(),
+                );
+                Err(err)
+            }
+        };
+        self.interceptor.observe_operation_duration_seconds(
+            self.scheme,
+            self.namespace.clone(),
+            self.root.clone(),
+            &self.path,
+            op,
+            start.elapsed(),
+        );
+        res
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        let op = Operation::BlockingDeleterFlush;
+
+        let start = Instant::now();
+
+        let res = match self.inner.flush() {
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(

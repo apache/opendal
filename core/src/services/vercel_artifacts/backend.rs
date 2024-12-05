@@ -47,9 +47,11 @@ impl Access for VercelArtifactsBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();

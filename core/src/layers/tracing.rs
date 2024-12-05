@@ -154,11 +154,13 @@ pub struct TracingAccessor<A> {
 impl<A: Access> LayeredAccess for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;
-    type BlockingReader = TracingWrapper<A::BlockingReader>;
     type Writer = TracingWrapper<A::Writer>;
-    type BlockingWriter = TracingWrapper<A::BlockingWriter>;
     type Lister = TracingWrapper<A::Lister>;
+    type Deleter = TracingWrapper<A::Deleter>;
+    type BlockingReader = TracingWrapper<A::BlockingReader>;
+    type BlockingWriter = TracingWrapper<A::BlockingWriter>;
     type BlockingLister = TracingWrapper<A::BlockingLister>;
+    type BlockingDeleter = TracingWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -206,8 +208,11 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -221,11 +226,6 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     #[tracing::instrument(level = "debug", skip(self))]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -263,8 +263,10 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.blocking_delete(path, args)
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner
+            .blocking_delete()
+            .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -361,5 +363,29 @@ impl<R: oio::BlockingList> oio::BlockingList for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for TracingWrapper<R> {
+    #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner.flush().await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for TracingWrapper<R> {
+    #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }

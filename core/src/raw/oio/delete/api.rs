@@ -90,7 +90,7 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
 
 impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        DeleteDyn::delete_dyn(self, path, args)
+        self.deref_mut().delete_dyn(path, args)
     }
 
     async fn flush(&mut self) -> Result<usize> {

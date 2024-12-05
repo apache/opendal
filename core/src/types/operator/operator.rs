@@ -1430,15 +1430,18 @@ impl Operator {
     /// # use opendal::Operator;
     /// use bytes::Bytes;
     /// # async fn test(op: Operator) -> Result<()> {
-    ///     let _ = op
-    ///         .write_with("path/to/file", bs)
-    ///         .content_encoding("br")
-    ///         .await?;
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_encoding("br")
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
     ///
     /// ## `if_none_match`
+    ///
+    /// Sets an `if none match` condition with specified ETag for this write request.
     ///
     /// ### Capability
     ///

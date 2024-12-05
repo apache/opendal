@@ -218,7 +218,7 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
     let target_content_encoding = "gzip";
     op.write_with(&path, content)

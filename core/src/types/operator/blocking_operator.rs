@@ -791,7 +791,7 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// Delete an fallible iterator of paths.
+    /// Delete a fallible iterator of paths.
     ///
     /// Also see:
     ///

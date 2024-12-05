@@ -1632,7 +1632,7 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete an infallible iterator of paths.
+    /// Delete a fallible iterator of paths.
     ///
     /// Also see:
     ///
@@ -1668,7 +1668,7 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete an infallible stream of paths.
+    /// Delete an fallible stream of paths.
     ///
     /// Also see:
     ///

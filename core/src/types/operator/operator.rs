@@ -1609,7 +1609,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `Operator::delete_iter` instead", since = "0.52")]
+    #[deprecated(note = "use `Operator::delete_iter` instead", since = "0.52.0")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter.delete_iter(paths).await?;
@@ -1642,7 +1642,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `Operator::delete_stream` instead", since = "0.52")]
+    #[deprecated(note = "use `Operator::delete_stream` instead", since = "0.52.0")]
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         let mut deleter = self.deleter().await?;
         deleter

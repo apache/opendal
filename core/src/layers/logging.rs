@@ -1316,7 +1316,6 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let version = args
             .version()
-            .clone()
             .map(|v| v.to_string())
             .unwrap_or_else(|| "<latest>".to_string());
 
@@ -1337,7 +1336,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                     &self.info,
                     Operation::DeleterDelete,
                     &[
-                        ("path", &path),
+                        ("path", path),
                         ("version", &version),
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
@@ -1351,7 +1350,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                     &self.info,
                     Operation::DeleterDelete,
                     &[
-                        ("path", &path),
+                        ("path", path),
                         ("version", &version),
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
@@ -1416,7 +1415,6 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let version = args
             .version()
-            .clone()
             .map(|v| v.to_string())
             .unwrap_or_else(|| "<latest>".to_string());
 
@@ -1437,7 +1435,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
                     &self.info,
                     Operation::BlockingDeleterDelete,
                     &[
-                        ("path", &path),
+                        ("path", path),
                         ("version", &version),
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
@@ -1451,7 +1449,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
                     &self.info,
                     Operation::BlockingDeleterDelete,
                     &[
-                        ("path", &path),
+                        ("path", path),
                         ("version", &version),
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),

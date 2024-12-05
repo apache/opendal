@@ -68,14 +68,8 @@ impl BlockingDeleter {
         I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
     {
-        let mut iter = iter.into_iter();
-        loop {
-            match iter.next() {
-                Some(entry) => {
-                    self.delete(entry)?;
-                }
-                None => break,
-            }
+        for entry in iter {
+            self.delete(entry)?;
         }
 
         Ok(())
@@ -91,14 +85,8 @@ impl BlockingDeleter {
         I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
     {
-        let mut iter = try_iter.into_iter();
-        loop {
-            match iter.next() {
-                Some(entry) => {
-                    self.delete(entry?)?;
-                }
-                None => break,
-            }
+        for entry in try_iter {
+            self.delete(entry?)?;
         }
 
         Ok(())

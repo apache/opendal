@@ -126,7 +126,6 @@ impl Deleter {
         I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
     {
-        let iter = iter.into_iter();
         for entry in iter {
             self.delete(entry).await?;
         }
@@ -145,14 +144,8 @@ impl Deleter {
         I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
     {
-        let mut iter = try_iter.into_iter();
-        loop {
-            match iter.next() {
-                Some(entry) => {
-                    self.delete(entry?).await?;
-                }
-                None => break,
-            }
+        for entry in try_iter {
+            self.delete(entry?).await?;
         }
 
         Ok(())
@@ -171,13 +164,8 @@ impl Deleter {
         D: IntoDeleteInput,
     {
         let mut stream = pin!(stream);
-        loop {
-            match stream.next().await {
-                Some(entry) => {
-                    self.delete(entry).await?;
-                }
-                None => break,
-            }
+        while let Some(entry) = stream.next().await {
+            self.delete(entry).await?;
         }
 
         Ok(())
@@ -196,13 +184,8 @@ impl Deleter {
         D: IntoDeleteInput,
     {
         let mut stream = pin!(try_stream);
-        loop {
-            match stream.next().await.transpose()? {
-                Some(entry) => {
-                    self.delete(entry).await?;
-                }
-                None => break,
-            }
+        while let Some(entry) = stream.next().await.transpose()? {
+            self.delete(entry).await?;
         }
 
         Ok(())

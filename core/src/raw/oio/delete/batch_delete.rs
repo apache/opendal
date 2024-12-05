@@ -37,8 +37,7 @@ pub trait BatchDelete: Send + Sync + Unpin + 'static {
 
     /// delete_batch delete multiple paths at once.
     ///
-    /// - Implementations should make sure that the length of `batch` equals to the
-    /// return result's length.
+    /// - Implementations should make sure that the length of `batch` equals to the return result's length.
     /// - Implementations should return error no path is deleted.
     fn delete_batch(
         &self,

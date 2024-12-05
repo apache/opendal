@@ -1232,7 +1232,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
 
         let start = Instant::now();
 
-        let res = match self.inner.delete(&path, args) {
+        let res = match self.inner.delete(path, args) {
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(

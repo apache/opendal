@@ -46,25 +46,23 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink {
     type Error = Error;
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            return match &mut self.state {
-                State::Idle(_) => Poll::Ready(Ok(())),
-                State::Delete(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    Poll::Ready(res.map(|_| ()))
-                }
-                State::Flush(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    Poll::Ready(res.map(|_| ()))
-                }
-                State::Close(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    Poll::Ready(res.map(|_| ()))
-                }
-            };
+        match &mut self.state {
+            State::Idle(_) => Poll::Ready(Ok(())),
+            State::Delete(fut) => {
+                let (deleter, res) = ready!(fut.as_mut().poll(cx));
+                self.state = State::Idle(Some(deleter));
+                Poll::Ready(res.map(|_| ()))
+            }
+            State::Flush(fut) => {
+                let (deleter, res) = ready!(fut.as_mut().poll(cx));
+                self.state = State::Idle(Some(deleter));
+                Poll::Ready(res.map(|_| ()))
+            }
+            State::Close(fut) => {
+                let (deleter, res) = ready!(fut.as_mut().poll(cx));
+                self.state = State::Idle(Some(deleter));
+                Poll::Ready(res.map(|_| ()))
+            }
         }
     }
 

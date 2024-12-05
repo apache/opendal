@@ -836,7 +836,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52")]
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52.0")]
     pub fn remove_via(&self, input: impl Iterator<Item = String>) -> Result<()> {
         for path in input {
             self.delete(&path)?;
@@ -859,9 +859,9 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52")]
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52.0")]
     pub fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.delete_iter(paths.into_iter())
+        self.delete_iter(paths)
     }
 
     /// Remove the path and all nested dirs and files recursively.

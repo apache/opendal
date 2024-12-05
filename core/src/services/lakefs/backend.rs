@@ -214,6 +214,7 @@ impl Access for LakefsBackend {
                 write: true,
                 delete: true,
                 copy: true,
+                shared: true,
                 ..Default::default()
             });
         am.into()

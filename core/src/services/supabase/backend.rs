@@ -167,6 +167,8 @@ impl Access for SupabaseBackend {
 
                 write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

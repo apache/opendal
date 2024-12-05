@@ -251,6 +251,8 @@ impl Access for GhacBackend {
                 write_can_multi: true,
                 delete: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         am.into()

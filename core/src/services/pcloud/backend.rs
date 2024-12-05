@@ -216,6 +216,8 @@ impl Access for PcloudBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

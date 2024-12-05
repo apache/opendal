@@ -181,6 +181,8 @@ impl Access for IpfsBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

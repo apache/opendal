@@ -134,6 +134,8 @@ impl Access for CompfsBackend {
                 copy: true,
                 rename: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

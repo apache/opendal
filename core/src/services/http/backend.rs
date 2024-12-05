@@ -220,6 +220,8 @@ impl Access for HttpBackend {
                 presign_read: !self.has_authorization(),
                 presign_stat: !self.has_authorization(),
 
+                shared: true,
+
                 ..Default::default()
             });
 

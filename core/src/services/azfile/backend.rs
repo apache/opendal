@@ -256,6 +256,8 @@ impl Access for AzfileBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

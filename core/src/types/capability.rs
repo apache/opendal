@@ -128,6 +128,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
+    /// Indicates if conditional write operations using If-Match are supported.
+    pub write_with_if_match: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
@@ -207,6 +209,9 @@ pub struct Capability {
     /// Maximum number of operations supported in a single batch.
     pub batch_max_operations: Option<usize>,
 
+    /// Indicate if the operator supports shared access.
+    pub shared: bool,
+
     /// Indicates if blocking operations are supported.
     pub blocking: bool,
 }
@@ -225,6 +230,9 @@ impl Debug for Capability {
         }
         if self.presign {
             f.write_str("| Presign")?;
+        }
+        if self.shared {
+            f.write_str("| Shared")?;
         }
         if self.blocking {
             f.write_str("| Blocking")?;

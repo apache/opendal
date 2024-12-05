@@ -176,6 +176,8 @@ impl Access for YandexDiskBackend {
                 list: true,
                 list_with_limit: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

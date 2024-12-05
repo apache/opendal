@@ -197,6 +197,8 @@ impl Access for GithubBackend {
                 list: true,
                 list_with_recursive: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

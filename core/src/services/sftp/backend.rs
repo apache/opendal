@@ -347,6 +347,8 @@ impl Access for SftpBackend {
                 copy: self.copyable,
                 rename: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

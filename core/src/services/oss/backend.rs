@@ -446,6 +446,9 @@ impl Access for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_disposition: true,
+                // TODO: set this to false while version has been enabled.
+                write_with_if_not_exists: true,
+
                 // The min multipart size of OSS is 100 KiB.
                 //
                 // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
@@ -476,6 +479,8 @@ impl Access for OssBackend {
 
                 batch: true,
                 batch_max_operations: Some(self.core.batch_max_operations),
+
+                shared: true,
 
                 ..Default::default()
             });

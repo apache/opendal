@@ -67,6 +67,8 @@ impl Access for DropboxBackend {
 
                 rename: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         ma.into()

@@ -199,6 +199,8 @@ impl Access for SwiftBackend {
                 list: true,
                 list_with_recursive: true,
 
+                shared: true,
+
                 ..Default::default()
             });
         am.into()

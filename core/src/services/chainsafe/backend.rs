@@ -190,6 +190,8 @@ impl Access for ChainsafeBackend {
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

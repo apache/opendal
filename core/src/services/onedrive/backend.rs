@@ -83,6 +83,7 @@ impl Access for OnedriveBackend {
                 delete: true,
                 create_dir: true,
                 list: true,
+                shared: true,
                 ..Default::default()
             });
 

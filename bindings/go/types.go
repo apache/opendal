@@ -163,6 +163,7 @@ var (
 			&ffi.TypeUint8,   // batch
 			&ffi.TypeUint8,   // batch_delete
 			&ffi.TypePointer, // batch_max_operations
+			&ffi.TypeUint8,   // shared
 			&ffi.TypeUint8,   // blocking
 			nil,
 		}[0],
@@ -204,6 +205,7 @@ type opendalCapability struct {
 	batch                              uint8
 	batchDelete                        uint8
 	batchMaxOperations                 uint
+	shared                             uint8
 	blocking                           uint8
 }
 

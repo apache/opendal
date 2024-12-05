@@ -246,6 +246,24 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `stat` request.
+    ///
+    /// This feature can be used to retrieve the metadata of a specific version of the given path
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ## Get metadata while `ETag` matches
@@ -548,6 +566,24 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `read` request.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut bs = op.read_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// Read the whole path into a bytes.
@@ -663,6 +699,24 @@ impl Operator {
     ///     .reader_with("path/to/file")
     ///     .chunk(4 * 1024 * 1024)
     ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `reader`.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut bs = op.reader_with("path/to/file").version(version).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1420,6 +1474,36 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// ## `if_match`
+    ///
+    /// Sets an `if match` condition with specified ETag for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If the target file's ETag matches the specified one, proceeds with the write operation
+    /// - If the target file's ETag does not match the specified one, returns [`ErrorKind::ConditionNotMatch`]
+    ///
+    /// This operation will succeed when the target's ETag matches the specified one,
+    /// providing a way for conditional writes.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, incorrect_etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let res = op.write_with("path/to/file", bs).if_match(incorrect_etag).await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn write_with(
         &self,
         path: &str,
@@ -1481,6 +1565,26 @@ impl Operator {
     /// # Notes
     ///
     /// - Deleting a file that does not exist won't return errors.
+    ///
+    /// # Options
+    ///
+    /// ## `version`
+    ///
+    /// Set `version` for this `delete` request.
+    ///
+    /// remove a specific version of the given path.
+    ///
+    /// If the version doesn't exist, OpenDAL will not return errors.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    ///```
     ///
     /// # Examples
     ///
@@ -1825,6 +1929,22 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `version`
+    ///
+    /// Specify whether to list files along with all their versions
+    ///
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list_with("path/to/dir/").version(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Examples
     ///
     /// ## List all entries recursively
@@ -1971,6 +2091,22 @@ impl Operator {
     /// use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `version`
+    ///
+    /// Specify whether to list files along with all their versions
+    ///
+    /// if `version` is enabled, all file versions will be returned; otherwise,
+    /// only the current files will be returned.
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.lister_with("path/to/dir/").version(true).await?;
     /// # Ok(())
     /// # }
     /// ```

@@ -513,6 +513,8 @@ impl Access for AzblobBackend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_if_not_exists: true,
+                write_with_if_none_match: true,
                 write_with_user_metadata: true,
 
                 delete: true,
@@ -527,6 +529,8 @@ impl Access for AzblobBackend {
                 presign_stat: self.has_sas_token,
                 presign_read: self.has_sas_token,
                 presign_write: self.has_sas_token,
+
+                shared: true,
 
                 ..Default::default()
             });

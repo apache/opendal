@@ -89,6 +89,10 @@ impl<S: Adapter> Access for Backend<S> {
             cap.list_with_recursive = true;
         }
 
+        if kv_cap.shared {
+            cap.shared = true;
+        }
+
         cap.blocking = true;
 
         am.set_native_capability(cap);

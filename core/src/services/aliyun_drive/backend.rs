@@ -233,7 +233,7 @@ impl Access for AliyunDriveBackend {
                 rename: true,
                 list: true,
                 list_with_limit: true,
-
+                shared: true,
                 ..Default::default()
             });
         am.into()

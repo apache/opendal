@@ -235,6 +235,7 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
+                shared: true,
                 ..Default::default()
             },
         )

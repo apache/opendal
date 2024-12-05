@@ -41,12 +41,15 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::raw::*;
+use crate::services::oss::core::constants::X_OSS_FORBID_OVERWRITE;
 use crate::*;
 
 pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
 
     pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
+
+    pub const X_OSS_FORBID_OVERWRITE: &str = "x-oss-forbid-overwrite";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
@@ -179,6 +182,20 @@ impl OssCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control);
+        }
+
+        // TODO: disable if not exists while version has been enabled.
+        //
+        // Specifies whether the object that is uploaded by calling the PutObject operation
+        // overwrites the existing object that has the same name. When versioning is enabled
+        // or suspended for the bucket to which you want to upload the object, the
+        // x-oss-forbid-overwrite header does not take effect. In this case, the object that
+        // is uploaded by calling the PutObject operation overwrites the existing object that
+        // has the same name.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/putobject?spm=a2c63.p38356.0.0.39ef75e93o0Xtz
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
         }
 
         if let Some(user_metadata) = args.user_metadata() {

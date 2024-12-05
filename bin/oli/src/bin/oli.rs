@@ -74,6 +74,10 @@ async fn main() -> Result<()> {
             let cmd: oli::commands::stat::StatCmd = clap::Parser::parse();
             cmd.run().await?;
         }
+        Some("omv") => {
+            let cmd: oli::commands::mv::MoveCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
         Some(v) => {
             println!("{v} is not supported")
         }

@@ -34,6 +34,7 @@ crate-type = ["staticlib"]
 anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
+cxx-async = { version = "0.1.2", optional = true }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
@@ -56,3 +57,6 @@ opendal = { version = ">=0", path = "../../core", features = [
 
 [build-dependencies]
 cxx-build = "1.0"
+
+[features]
+async = ["cxx-async", "cxx/c++20"]

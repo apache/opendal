@@ -59,7 +59,7 @@ use crate::*;
 /// ## In async context with blocking functions
 ///
 /// If `BlockingLayer` is called in blocking function, please fetch a [`tokio::runtime::EnterGuard`]
-/// first. You can use [`Handle::try_current`] first to get the handle and than call [`Handle::enter`].
+/// first. You can use [`Handle::try_current`] first to get the handle and then call [`Handle::enter`].
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run

@@ -369,6 +369,8 @@ impl Access for GcsBackend {
                 write_can_multi: true,
                 write_with_content_type: true,
                 write_with_user_metadata: true,
+                write_with_if_not_exists: true,
+
                 // The min multipart size of Gcs is 5 MiB.
                 //
                 // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
@@ -396,6 +398,8 @@ impl Access for GcsBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+
+                shared: true,
 
                 ..Default::default()
             });

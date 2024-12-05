@@ -98,11 +98,6 @@ use crate::*;
 /// - If support `list_with_recursive`, return directly.
 /// - if not, wrap with [`FlatLister`].
 ///
-/// ## Capability Check
-///
-/// Before performing any operations, `CompleteLayer` will first check
-/// the operation against capability of the underlying service. If the
-/// operation is not supported, an error will be returned directly.
 pub struct CompleteLayer;
 
 impl<A: Access> Layer<A> for CompleteLayer {
@@ -129,28 +124,19 @@ impl<A: Access> Debug for CompleteAccessor<A> {
 }
 
 impl<A: Access> CompleteAccessor<A> {
-    fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
-        let scheme = self.info.scheme();
-        let op = op.into();
-        Error::new(
-            ErrorKind::Unsupported,
-            format!("service {scheme} doesn't support operation {op}"),
-        )
-        .with_operation(op)
-    }
-
     async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let capability = self.info.full_capability();
         if capability.create_dir {
             return self.inner().create_dir(path, args).await;
         }
+
         if capability.write_can_empty && capability.list {
             let (_, mut w) = self.inner.write(path, OpWrite::default()).await?;
             oio::Write::close(&mut w).await?;
             return Ok(RpCreateDir::default());
         }
 
-        Err(self.new_unsupported_error(Operation::CreateDir))
+        self.inner.create_dir(path, args).await
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -158,20 +144,18 @@ impl<A: Access> CompleteAccessor<A> {
         if capability.create_dir && capability.blocking {
             return self.inner().blocking_create_dir(path, args);
         }
+
         if capability.write_can_empty && capability.list && capability.blocking {
             let (_, mut w) = self.inner.blocking_write(path, OpWrite::default())?;
             oio::BlockingWrite::close(&mut w)?;
             return Ok(RpCreateDir::default());
         }
 
-        Err(self.new_unsupported_error(Operation::BlockingCreateDir))
+        self.inner.blocking_create_dir(path, args)
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let capability = self.info.full_capability();
-        if !capability.stat {
-            return Err(self.new_unsupported_error(Operation::Stat));
-        }
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -188,7 +172,7 @@ impl<A: Access> CompleteAccessor<A> {
                 ));
             }
 
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(meta));
         }
 
         // Otherwise, we can simulate stat dir via `list`.
@@ -214,9 +198,6 @@ impl<A: Access> CompleteAccessor<A> {
 
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let capability = self.info.full_capability();
-        if !capability.stat {
-            return Err(self.new_unsupported_error(Operation::Stat));
-        }
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -262,9 +243,6 @@ impl<A: Access> CompleteAccessor<A> {
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
         let cap = self.info.full_capability();
-        if !cap.list {
-            return Err(self.new_unsupported_error(Operation::List));
-        }
 
         let recursive = args.recursive();
 
@@ -310,9 +288,6 @@ impl<A: Access> CompleteAccessor<A> {
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
         let cap = self.info.full_capability();
-        if !cap.list {
-            return Err(self.new_unsupported_error(Operation::BlockingList));
-        }
 
         let recursive = args.recursive();
 
@@ -383,11 +358,6 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let capability = self.info.full_capability();
-        if !capability.read {
-            return Err(self.new_unsupported_error(Operation::Read));
-        }
-
         let size = args.range().size();
         self.inner
             .read(path, args)
@@ -396,41 +366,9 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.info.full_capability();
-        if !capability.write {
-            return Err(self.new_unsupported_error(Operation::Write));
-        }
-        if args.append() && !capability.write_can_append {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                format!(
-                    "service {} doesn't support operation write with append",
-                    self.info.scheme()
-                ),
-            ));
-        }
-
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w);
         Ok((rp, w))
-    }
-
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.info.full_capability();
-        if !capability.copy {
-            return Err(self.new_unsupported_error(Operation::Copy));
-        }
-
-        self.inner().copy(from, to, args).await
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.info.full_capability();
-        if !capability.rename {
-            return Err(self.new_unsupported_error(Operation::Rename));
-        }
-
-        self.inner().rename(from, to, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -438,20 +376,10 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let capability = self.info.full_capability();
-        if !capability.delete {
-            return Err(self.new_unsupported_error(Operation::Delete));
-        }
-
         self.inner().delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let capability = self.info.full_capability();
-        if !capability.list {
-            return Err(self.new_unsupported_error(Operation::List));
-        }
-
         self.complete_list(path, args).await
     }
 
@@ -469,11 +397,6 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let capability = self.info.full_capability();
-        if !capability.read || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::Read));
-        }
-
         let size = args.range().size();
         self.inner
             .blocking_read(path, args)
@@ -481,42 +404,9 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.info.full_capability();
-        if !capability.write || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingWrite));
-        }
-
-        if args.append() && !capability.write_can_append {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                format!(
-                    "service {} doesn't support operation write with append",
-                    self.info.scheme()
-                ),
-            ));
-        }
-
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| (rp, CompleteWriter::new(w)))
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.info.full_capability();
-        if !capability.copy || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingCopy));
-        }
-
-        self.inner().blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.info.full_capability();
-        if !capability.rename || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingRename));
-        }
-
-        self.inner().blocking_rename(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -524,20 +414,10 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        let capability = self.info.full_capability();
-        if !capability.delete || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingDelete));
-        }
-
         self.inner().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let capability = self.info.full_capability();
-        if !capability.list || !capability.blocking {
-            return Err(self.new_unsupported_error(Operation::BlockingList));
-        }
-
         self.complete_blocking_list(path, args)
     }
 }

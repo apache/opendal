@@ -60,7 +60,7 @@ pub fn blocking_stat(
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (bool, string) Result.t ")]
 pub fn blocking_is_exist(operator: &mut Operator, path: String) -> Result<bool, String> {
-    map_res_error(operator.0.is_exist(path.as_str()))
+    map_res_error(operator.0.exists(path.as_str()))
 }
 
 #[ocaml::func]

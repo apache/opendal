@@ -98,6 +98,7 @@ pub struct S3Core {
     pub client: HttpClient,
     pub batch_max_operations: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Core {
@@ -455,6 +456,14 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -474,10 +483,6 @@ impl S3Core {
         if let Some(checksum) = self.calculate_checksum(&body) {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
-        }
-
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
         }
 
         // Set body
@@ -764,7 +769,10 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn s3_delete_objects(
+        &self,
+        paths: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -772,8 +780,9 @@ impl S3Core {
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
                 .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
+                .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),
+                    version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -904,6 +913,8 @@ pub struct DeleteObjectsRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -1088,9 +1099,11 @@ mod tests {
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "sample2.txt".to_string(),
+                    version_id: Some("11111".to_owned()),
                 },
             ],
         };
@@ -1105,6 +1118,7 @@ mod tests {
              </Object>
              <Object>
                <Key>sample2.txt</Key>
+               <VersionId>11111</VersionId>
              </Object>
              </Delete>"#
                 // Cleanup space and new line

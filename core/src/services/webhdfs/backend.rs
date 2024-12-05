@@ -172,10 +172,7 @@ impl Builder for WebhdfsBuilder {
 
         let atomic_write_dir = self.config.atomic_write_dir;
 
-        let auth = self
-            .config
-            .delegation
-            .map(|dt| format!("delegation_token={dt}"));
+        let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let client = HttpClient::new()?;
 
@@ -541,6 +538,8 @@ impl Access for WebhdfsBackend {
                 delete: true,
 
                 list: true,
+
+                shared: true,
 
                 ..Default::default()
             });

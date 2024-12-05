@@ -186,6 +186,11 @@ public class Capability {
     public final long batchMaxOperations;
 
     /**
+     * If operator supports shared.
+     */
+    public final boolean shared;
+
+    /**
      * If operator supports blocking.
      */
     public final boolean blocking;
@@ -223,7 +228,8 @@ public class Capability {
             boolean batch,
             boolean batchDelete,
             long batchMaxOperations,
-            boolean blocking) {
+            boolean blocking,
+            boolean shared) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
@@ -257,5 +263,6 @@ public class Capability {
         this.batchDelete = batchDelete;
         this.batchMaxOperations = batchMaxOperations;
         this.blocking = blocking;
+        this.shared = shared;
     }
 }

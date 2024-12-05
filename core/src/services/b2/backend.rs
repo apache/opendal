@@ -262,6 +262,8 @@ impl Access for B2Backend {
                 presign_write: true,
                 presign_stat: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 

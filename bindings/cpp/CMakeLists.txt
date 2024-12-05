@@ -16,14 +16,19 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.22)
+
+# CMP0135: set the timestamps of all extracted contents 
+# to the time of the extraction in FetchContent
+if (POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(opendal-cpp LANGUAGES CXX)
 
 include(FetchContent)
 set(OPENDAL_GOOGLETEST_VERSION 1.15.2 CACHE STRING "version of GoogleTest, 'external' to fallback to find_package()")
 set(OPENDAL_BOOST_VERSION 1.86.0 CACHE STRING "version of Boost, 'external' to fallback to find_package()")
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(OPENDAL_CPPCORO_VERSION a4ef65281814b18fdd1ac5457d3e219347ec6cb8 CACHE STRING "version of cppcoro")
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -34,6 +39,18 @@ option(OPENDAL_ENABLE_DOCUMENTATION "Enable generating document for opendal" OFF
 option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
+option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
+
+if(OPENDAL_ENABLE_ASYNC)
+    set(CMAKE_CXX_STANDARD 20)
+
+    if (NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
+        message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
+    endif()
+else()
+    set(CMAKE_CXX_STANDARD 17)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (OPENDAL_DEV)
     set(OPENDAL_ENABLE_ADDRESS_SANITIZER ON)
@@ -69,42 +86,48 @@ execute_process(COMMAND cargo locate-project --workspace --message-format plain
 string(REGEX REPLACE "/Cargo.toml\n$" "/target" CARGO_TARGET_DIR "${CARGO_TARGET_DIR}")
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)
 set(RUST_SOURCE_FILE ${PROJECT_SOURCE_DIR}/src/lib.rs)
-set(RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
-set(RUST_HEADER_FILE ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.h)
+list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
+list(APPEND RUST_HEADER_FILE ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.h)
+if (OPENDAL_ENABLE_ASYNC)
+    list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/async.rs.cc)
+    list(APPEND RUST_HEADER_FILE ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/async.rs.h)
+endif()
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(RUST_LIB ${CARGO_TARGET_DIR}/debug/${CMAKE_STATIC_LIBRARY_PREFIX}opendal_cpp${CMAKE_STATIC_LIBRARY_SUFFIX})
 else()
     set(RUST_LIB ${CARGO_TARGET_DIR}/release/${CMAKE_STATIC_LIBRARY_PREFIX}opendal_cpp${CMAKE_STATIC_LIBRARY_SUFFIX})
 endif()
 set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
-file(GLOB_RECURSE CPP_SOURCE_FILE src/*.cpp)
-file(GLOB_RECURSE CPP_HEADER_FILE include/*.hpp)
-
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_custom_command(
-            OUTPUT ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
-            COMMAND cargo build --manifest-path ${CARGO_MANIFEST}
-            DEPENDS ${RUST_SOURCE_FILE}
-            USES_TERMINAL
-            COMMENT "Running cargo..."
-    )
-else()
-    add_custom_command(
-            OUTPUT ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
-            COMMAND cargo build --manifest-path ${CARGO_MANIFEST} --release
-            DEPENDS ${RUST_SOURCE_FILE}
-            USES_TERMINAL
-            COMMENT "Running cargo..."
-    )
+list(APPEND CPP_SOURCE_FILE src/opendal.cpp)
+list(APPEND CPP_HEADER_FILE include/opendal.hpp)
+if (OPENDAL_ENABLE_ASYNC)
+    list(APPEND CPP_SOURCE_FILE src/opendal_async.cpp)
+    list(APPEND CPP_HEADER_FILE include/opendal_async.hpp)
 endif()
+
+if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND CARGO_BUILD_FLAGS "--release")
+endif()
+
+if (OPENDAL_ENABLE_ASYNC)
+    list(APPEND CARGO_BUILD_FLAGS "--features" "async")
+endif()
+
+add_custom_target(cargo_build
+        COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
+        BYPRODUCTS ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
+        DEPENDS ${RUST_SOURCE_FILE}
+        USES_TERMINAL
+        COMMENT "Running cargo..."
+)
 
 if(OPENDAL_BOOST_VERSION STREQUAL "external")
     find_package(Boost REQUIRED COMPONENTS date_time iostreams)
 else()
     # fetch Boost
     FetchContent_Declare(
-    Boost
-    URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
+        Boost
+        URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
     )
 
     set(BOOST_INCLUDE_LIBRARIES date_time iostreams system)
@@ -115,12 +138,17 @@ endif()
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_sources(opendal_cpp PUBLIC ${CPP_HEADER_FILE})
 target_sources(opendal_cpp PRIVATE ${RUST_HEADER_FILE})
-target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR} ${Boost_INCLUDE_DIRS})
-target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
-target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS} Boost::date_time)
+target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
+if (OPENDAL_ENABLE_ASYNC)
+    target_include_directories(opendal_cpp PUBLIC ${CARGO_TARGET_DIR}/cxxbridge)
+    target_compile_options(opendal_cpp PUBLIC -include ${PROJECT_SOURCE_DIR}/include/async_defs.hpp)
+endif()
+target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB} Boost::date_time Boost::iostreams)
+target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )
+add_dependencies(opendal_cpp cargo_build)
 
 if (OPENDAL_ENABLE_ADDRESS_SANITIZER)
     target_compile_options(opendal_cpp PRIVATE -fsanitize=leak,address,undefined -fno-omit-frame-pointer -fno-common -O1)
@@ -156,11 +184,25 @@ if (OPENDAL_ENABLE_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
-    file(GLOB_RECURSE TEST_SOURCE_FILE tests/*.cpp)
+    if (OPENDAL_ENABLE_ASYNC)
+        FetchContent_Declare(
+            cppcoro
+            URL https://github.com/andreasbuhr/cppcoro/archive/${OPENDAL_CPPCORO_VERSION}.zip
+        )
+        FetchContent_MakeAvailable(cppcoro)
+    endif()
+
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
+    if (OPENDAL_ENABLE_ASYNC)
+        list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
+    endif()
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
     target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
     target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
+    if (OPENDAL_ENABLE_ASYNC)
+        target_link_libraries(opendal_cpp_test cppcoro)
+    endif()
 
     # enable address sanitizers
     if (OPENDAL_ENABLE_ADDRESS_SANITIZER)

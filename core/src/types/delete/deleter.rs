@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::Delete;
+use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
 use crate::*;
 use futures::{Stream, StreamExt};
@@ -99,7 +99,7 @@ impl Deleter {
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         if self.cur_size >= self.max_size {
-            let deleted = self.deleter.flush().await?;
+            let deleted = self.deleter.flush_dyn().await?;
             self.cur_size -= deleted;
         }
 
@@ -109,7 +109,7 @@ impl Deleter {
             op = op.with_version(version);
         }
 
-        self.deleter.delete(&input.path, op)?;
+        self.deleter.delete_dyn(&input.path, op)?;
         self.cur_size += 1;
         Ok(())
     }
@@ -193,7 +193,7 @@ impl Deleter {
 
     /// Flush the deleter, returns the number of deleted paths.
     pub async fn flush(&mut self) -> Result<usize> {
-        let deleted = self.deleter.flush().await?;
+        let deleted = self.deleter.flush_dyn().await?;
         self.cur_size -= deleted;
         Ok(deleted)
     }
@@ -201,7 +201,7 @@ impl Deleter {
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub async fn close(&mut self) -> Result<()> {
         loop {
-            self.deleter.flush().await?;
+            self.flush().await?;
             if self.cur_size == 0 {
                 break;
             }

@@ -18,6 +18,7 @@
 use crate::raw::{BoxedFuture, MaybeSend, OpDelete};
 use crate::*;
 use std::future::Future;
+use std::ops::DerefMut;
 
 /// Deleter is a type erased [`Delete`]
 pub type Deleter = Box<dyn DeleteDyn>;
@@ -68,14 +69,17 @@ impl Delete for () {
     }
 }
 
+/// The dyn version of [`Delete`]
 pub trait DeleteDyn: Unpin + Send + Sync {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
+    /// The dyn version of [`Delete::delete`]
+    fn delete_dyn(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
+    /// The dyn version of [`Delete::flush`]
     fn flush_dyn(&mut self) -> BoxedFuture<Result<usize>>;
 }
 
 impl<T: Delete + ?Sized> DeleteDyn for T {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    fn delete_dyn(&mut self, path: &str, args: OpDelete) -> Result<()> {
         Delete::delete(self, path, args)
     }
 
@@ -86,11 +90,11 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
 
 impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        DeleteDyn::delete(self, path, args)
+        DeleteDyn::delete_dyn(self, path, args)
     }
 
     async fn flush(&mut self) -> Result<usize> {
-        self.flush_dyn().await
+        self.deref_mut().flush_dyn().await
     }
 }
 

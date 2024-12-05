@@ -102,7 +102,7 @@ impl BlockingDeleter {
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub fn close(&mut self) -> Result<()> {
         loop {
-            self.deleter.flush()?;
+            self.flush()?;
             if self.cur_size == 0 {
                 break;
             }

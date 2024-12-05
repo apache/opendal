@@ -17,7 +17,6 @@
 
 use crate::raw::*;
 use crate::Result;
-use std::future::Future;
 
 /// A layer that can automatically set `Content-Type` based on the file extension in the path.
 ///

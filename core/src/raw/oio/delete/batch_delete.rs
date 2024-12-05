@@ -94,7 +94,7 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
         }
 
         let batch = self.buffer.iter().cloned().collect();
-        let mut result = self.inner.delete_batch(batch).await?;
+        let result = self.inner.delete_batch(batch).await?;
         debug_assert!(
             !result.succeeded.is_empty(),
             "the number of succeeded operations must be greater than 0"

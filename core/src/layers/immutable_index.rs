@@ -17,7 +17,6 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::future::Future;
 use std::sync::Arc;
 use std::vec::IntoIter;
 

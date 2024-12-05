@@ -775,15 +775,34 @@ impl BlockingOperator {
         ))
     }
 
-    /// Delete an iterator of paths.
-    pub fn delete_iter<I, D, E>(&self, iter: I) -> Result<()>
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingOperator::delete_try_iter`]: delete an fallible iterator of paths.
+    pub fn delete_iter<I, D>(&self, iter: I) -> Result<()>
     where
-        I: IntoIterator<Item = Result<D, E>>,
+        I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
-        E: Into<Error>,
     {
         let mut deleter = self.deleter()?;
         deleter.delete_iter(iter)?;
+        deleter.close()?;
+        Ok(())
+    }
+
+    /// Delete an fallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingOperator::delete_iter`]: delete an infallible iterator of paths.
+    pub fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter()?;
+        deleter.delete_try_iter(try_iter)?;
         deleter.close()?;
         Ok(())
     }
@@ -842,9 +861,7 @@ impl BlockingOperator {
     /// ```
     #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52")]
     pub fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.remove_via(paths.into_iter())?;
-
-        Ok(())
+        self.delete_iter(paths.into_iter())
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -881,7 +898,7 @@ impl BlockingOperator {
         };
 
         let lister = self.lister_with(path).recursive(true).call()?;
-        self.delete_iter(lister)?;
+        self.delete_try_iter(lister)?;
 
         Ok(())
     }

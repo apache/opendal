@@ -15,14 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use std::time::Duration;
 
-use backon::ExponentialBuilder;
 use bytes::Buf;
 use bytes::Bytes;
 use chrono::DateTime;
@@ -33,7 +30,6 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -520,7 +516,6 @@ pub struct DropboxDeleteBatchResponseEntry {
     #[serde(rename(deserialize = ".tag"))]
     pub tag: String,
     pub metadata: Option<DropboxMetadataResponse>,
-    pub failure: Option<DropboxDeleteBatchFailureResponse>,
 }
 
 #[derive(Default, Debug, Deserialize)]

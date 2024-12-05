@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::sync::Arc;
 
 use crate::raw::*;

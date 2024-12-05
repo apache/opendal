@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use bytes::Buf;
 use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
@@ -44,7 +43,6 @@ use reqwest::Url;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::error::parse_s3_error_code;
 use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;

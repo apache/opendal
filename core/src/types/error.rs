@@ -36,7 +36,6 @@
 
 use std::backtrace::Backtrace;
 use std::backtrace::BacktraceStatus;
-use std::convert::Infallible;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -400,13 +399,6 @@ impl Error {
     /// Check if this error is temporary.
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
-    }
-}
-
-/// Impl From<Infallible> for Error so that users can use `Into<Error>` even when there is no error.
-impl From<Infallible> for Error {
-    fn from(value: Infallible) -> Self {
-        unreachable!("this error should never be created: {}", value)
     }
 }
 

@@ -19,7 +19,6 @@ use crate::raw::*;
 use crate::*;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///

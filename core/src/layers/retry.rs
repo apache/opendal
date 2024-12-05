@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -799,7 +798,7 @@ mod tests {
     use std::sync::Mutex;
 
     use bytes::Bytes;
-    use futures::{stream, StreamExt, TryStreamExt};
+    use futures::{stream, TryStreamExt};
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;

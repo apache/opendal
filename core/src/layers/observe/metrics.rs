@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;

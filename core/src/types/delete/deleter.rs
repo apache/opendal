@@ -19,7 +19,6 @@ use crate::raw::oio::Delete;
 use crate::raw::*;
 use crate::*;
 use futures::{Stream, StreamExt};
-use std::future::IntoFuture;
 use std::pin::pin;
 
 /// Deleter is designed to continuously remove content from storage.
@@ -115,34 +114,93 @@ impl Deleter {
         Ok(())
     }
 
-    /// Delete an iterator of paths.
-    pub async fn delete_iter<I, D, E>(&mut self, mut iter: I) -> Result<()>
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Deleter::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Deleter::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Deleter::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_iter<I, D>(&mut self, iter: I) -> Result<()>
     where
-        I: IntoIterator,
+        I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
-        I::Item: Into<Result<D, Error>>,
     {
         let iter = iter.into_iter();
         for entry in iter {
-            self.delete(entry?).await?;
+            self.delete(entry).await?;
         }
         Ok(())
     }
 
-    /// Delete a stream of paths.
-    pub async fn delete_stream<S, D, E>(&mut self, mut stream: S) -> Result<()>
+    /// Delete an fallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Deleter::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Deleter::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_try_iter<I, D>(&mut self, try_iter: I) -> Result<()>
     where
-        S: Stream,
+        I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
-        S::Item: Into<Result<D, Error>>,
+    {
+        let mut iter = try_iter.into_iter();
+        loop {
+            match iter.next() {
+                Some(entry) => {
+                    self.delete(entry?).await?;
+                }
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Delete an infallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Deleter::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Deleter::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_stream<S, D>(&mut self, mut stream: S) -> Result<()>
+    where
+        S: Stream<Item = D>,
+        D: IntoDeleteInput,
     {
         let mut stream = pin!(stream);
         loop {
-            match stream.next().await.into() {
-                Some(Ok(entry)) => {
+            match stream.next().await {
+                Some(entry) => {
                     self.delete(entry).await?;
                 }
-                Some(Err(err)) => return Err(err.into()),
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Delete an fallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Deleter::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Deleter::delete_stream`]: delete an infallible stream of paths.
+    pub async fn delete_try_stream<S, D>(&mut self, mut try_stream: S) -> Result<()>
+    where
+        S: Stream<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut stream = pin!(try_stream);
+        loop {
+            match stream.next().await.transpose()? {
+                Some(entry) => {
+                    self.delete(entry).await?;
+                }
                 None => break,
             }
         }

@@ -112,6 +112,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink {
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(deleter));
+                    res?;
                     continue;
                 }
                 State::Flush(fut) => {

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use backon::Retryable;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;

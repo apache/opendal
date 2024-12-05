@@ -17,7 +17,6 @@
 
 use crate::raw::*;
 use crate::*;
-use std::future::Future;
 
 /// Add Efficient, logical 'stack' traces of async functions for the underlying services.
 ///

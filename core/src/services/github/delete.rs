@@ -16,10 +16,8 @@
 // under the License.
 
 use super::core::*;
-use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-use http::StatusCode;
 use std::sync::Arc;
 
 pub struct GithubDeleter {

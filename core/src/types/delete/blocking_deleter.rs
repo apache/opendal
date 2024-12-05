@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::Delete;
 use crate::raw::*;
 use crate::*;
 
@@ -59,20 +58,45 @@ impl BlockingDeleter {
         Ok(())
     }
 
-    /// Delete a stream of paths.
-    pub fn delete_iter<I, D, E>(&mut self, mut iter: I) -> Result<()>
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingDeleter::delete_try_iter`]: delete an fallible iterator of paths.
+    pub fn delete_iter<I, D>(&mut self, iter: I) -> Result<()>
     where
-        I: IntoIterator,
+        I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
-        I::Item: Into<Result<D, Error>>,
     {
         let mut iter = iter.into_iter();
         loop {
-            match iter.next().into() {
-                Some(Ok(entry)) => {
+            match iter.next() {
+                Some(entry) => {
                     self.delete(entry)?;
                 }
-                Some(Err(err)) => return Err(err),
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Delete an fallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingDeleter::delete_iter`]: delete an infallible iterator of paths.
+    pub fn delete_try_iter<I, D>(&mut self, try_iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut iter = try_iter.into_iter();
+        loop {
+            match iter.next() {
+                Some(entry) => {
+                    self.delete(entry?)?;
+                }
                 None => break,
             }
         }

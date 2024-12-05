@@ -82,7 +82,7 @@ impl IntoDeleteInput for (String, OpDelete) {
 /// Implement `IntoDeleteInput` for `Entry` so we can use `Lister` as a DeleteInput stream.
 impl IntoDeleteInput for Entry {
     fn into_delete_input(self) -> DeleteInput {
-        let (path, mut meta) = self.into_parts();
+        let (path, meta) = self.into_parts();
 
         let mut input = DeleteInput {
             path,

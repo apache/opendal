@@ -22,9 +22,7 @@ use crate::raw::*;
 use crate::*;
 use bytes::Buf;
 use http::StatusCode;
-use prost::encoding::key_len;
 use std::collections::HashSet;
-use std::future::Future;
 use std::sync::Arc;
 
 pub struct OssDeleter {

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::thread;

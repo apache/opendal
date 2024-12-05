@@ -16,10 +16,8 @@
 // under the License.
 
 use std::future::Future;
-use std::pin::pin;
 use std::time::Duration;
 
-use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
@@ -1512,12 +1510,17 @@ impl Operator {
         )
     }
 
-    /// Delete an iterator of paths.
-    pub async fn delete_iter<I, D, E>(&mut self, iter: I) -> Result<()>
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_iter<I, D>(&self, iter: I) -> Result<()>
     where
-        I: IntoIterator<Item = Result<D, E>>,
+        I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
-        E: Into<Error>,
     {
         let mut deleter = self.deleter().await?;
         deleter.delete_iter(iter).await?;
@@ -1525,15 +1528,56 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete a stream of paths.
-    pub async fn delete_stream<S, D, E>(&self, stream: S) -> Result<()>
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
     where
-        S: Stream<Item = Result<D, E>>,
+        I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
-        E: Into<Error>,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_try_iter(try_iter).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete an infallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_stream<S, D>(&self, stream: S) -> Result<()>
+    where
+        S: Stream<Item = D>,
+        D: IntoDeleteInput,
     {
         let mut deleter = self.deleter().await?;
         deleter.delete_stream(stream).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete an infallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    pub async fn delete_try_stream<S, D>(&self, try_stream: S) -> Result<()>
+    where
+        S: Stream<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_try_stream(try_stream).await?;
         deleter.close().await?;
         Ok(())
     }
@@ -1568,9 +1612,7 @@ impl Operator {
     #[deprecated(note = "use `Operator::delete_iter` instead", since = "0.52")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
         let mut deleter = self.deleter().await?;
-        deleter
-            .delete_stream(&mut stream::iter(paths).map(|v| Ok(normalize_path(&v))))
-            .await?;
+        deleter.delete_iter(paths).await?;
         deleter.close().await?;
         Ok(())
     }
@@ -1649,9 +1691,8 @@ impl Operator {
             Err(e) => return Err(e),
         };
 
-        let mut lister = self.lister_with(path).recursive(true).await?;
-        self.delete_stream(lister).await?;
-
+        let lister = self.lister_with(path).recursive(true).await?;
+        self.delete_try_stream(lister).await?;
         Ok(())
     }
 

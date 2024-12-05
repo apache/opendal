@@ -22,8 +22,6 @@ use std::sync::Arc;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use bytes::Buf;
-use http::header::CONTENT_TYPE;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -434,11 +432,6 @@ impl Builder for AzblobBuilder {
 
         let signer = AzureStorageSigner::new();
 
-        let batch_max_operations = self
-            .config
-            .batch_max_operations
-            .unwrap_or(AZBLOB_BATCH_LIMIT);
-
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
                 root,
@@ -451,7 +444,6 @@ impl Builder for AzblobBuilder {
                 client,
                 loader: cred_loader,
                 signer,
-                batch_max_operations,
             }),
             has_sas_token: self.config.sas_token.is_some(),
         })

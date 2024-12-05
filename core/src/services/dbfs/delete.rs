@@ -39,7 +39,7 @@ impl oio::OneShotDelete for DbfsDeleter {
         let status = resp.status();
 
         match status {
-            /// NOTE: Server will return 200 even if the path doesn't exist.
+            // NOTE: Server will return 200 even if the path doesn't exist.
             StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp)),
         }

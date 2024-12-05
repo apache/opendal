@@ -76,7 +76,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// This function is required to be implemented.
     ///
     /// By returning AccessorInfo, underlying services can declare
-    /// some useful information about it self.
+    /// some useful information about itself.
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.

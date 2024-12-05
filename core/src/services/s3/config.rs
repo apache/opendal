@@ -167,7 +167,7 @@ pub struct S3Config {
         note = "Please use `delete_max_size` instead of `batch_max_operations`"
     )]
     pub batch_max_operations: Option<usize>,
-    /// Set hte maximum delete size of this backend.
+    /// Set the maximum delete size of this backend.
     ///
     /// Some compatible services have a limit on the number of operations in a batch request.
     /// For example, R2 could return `Internal Error` while batch delete 1000 files.

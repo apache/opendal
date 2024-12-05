@@ -133,12 +133,13 @@ fn convert_path(path: &Path) -> storage::Result<&str> {
     })
 }
 
-fn convert_dir_path(path: &Path) -> storage::Result<&str> {
-    let mut path_str = convert_path(path)?.to_string();
-    if !path_str.ends_with('/') {
-        path_str.push('/');
+fn convert_dir_path(path: &Path) -> storage::Result<String> {
+    let path_str = convert_path(path)?;
+    if path_str.ends_with('/') {
+        Ok(path_str.to_string())
+    } else {
+        Ok(format!("{}/", path_str))
     }
-    convert_path(&Path::new(&path_str))
 }
 
 #[async_trait::async_trait]
@@ -168,7 +169,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     {
         let ret = self
             .op
-            .list(convert_dir_path(path.as_ref())?)
+            .list(&convert_dir_path(path.as_ref())?)
             .await
             .map_err(convert_err)?
             .into_iter()
@@ -231,7 +232,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
     async fn mkd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .create_dir(convert_dir_path(path.as_ref())?)
+            .create_dir(&convert_dir_path(path.as_ref())?)
             .await
             .map_err(convert_err)
     }
@@ -248,7 +249,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
     async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .remove_all(convert_dir_path(path.as_ref())?)
+            .remove_all(&convert_dir_path(path.as_ref())?)
             .await
             .map_err(convert_err)
     }
@@ -256,7 +257,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         use opendal::ErrorKind::*;
 
-        match self.op.stat(convert_dir_path(path.as_ref())?).await {
+        match self.op.stat(&convert_dir_path(path.as_ref())?).await {
             Ok(_) => Ok(()),
             Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(storage::Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-chainsafe")]
 mod core;
 #[cfg(feature = "services-chainsafe")]
+mod delete;
+#[cfg(feature = "services-chainsafe")]
 mod error;
 #[cfg(feature = "services-chainsafe")]
 mod lister;

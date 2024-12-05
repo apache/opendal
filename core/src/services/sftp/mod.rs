@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-sftp")]
+mod delete;
+#[cfg(feature = "services-sftp")]
 mod error;
 #[cfg(feature = "services-sftp")]
 mod lister;

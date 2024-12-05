@@ -148,40 +148,6 @@ impl VercelBlobCore {
         Ok(req)
     }
 
-    pub async fn delete(&self, path: &str) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.list(&p, Some(1)).await?;
-
-        let url = resolve_blob(resp.blobs, p);
-
-        if url.is_empty() {
-            return Ok(());
-        }
-
-        let req = Request::post("https://blob.vercel-storage.com/delete");
-
-        let req = self.sign(req);
-
-        let req_body = &json!({
-            "urls": vec![url]
-        });
-
-        let req = req
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(Bytes::from(req_body.to_string())))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
-
     pub async fn head(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 

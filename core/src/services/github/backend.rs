@@ -26,6 +26,7 @@ use log::debug;
 
 use super::core::Entry;
 use super::core::GithubCore;
+use super::delete::GithubDeleter;
 use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
@@ -169,16 +170,13 @@ pub struct GithubBackend {
 
 impl Access for GithubBackend {
     type Reader = HttpBody;
-
     type Writer = GithubWriters;
-
     type Lister = oio::PageLister<GithubLister>;
-
+    type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -273,11 +271,11 @@ impl Access for GithubBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        match self.core.delete(path).await {
-            Ok(_) => Ok(RpDelete::default()),
-            Err(err) => Err(err),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GithubDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

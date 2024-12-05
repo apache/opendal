@@ -27,6 +27,7 @@ use log::debug;
 use super::core::parse_info;
 use super::core::ChainsafeCore;
 use super::core::ObjectInfoResponse;
+use super::delete::ChainsafeDeleter;
 use super::error::parse_error;
 use super::lister::ChainsafeLister;
 use super::writer::ChainsafeWriter;
@@ -166,9 +167,11 @@ impl Access for ChainsafeBackend {
     type Reader = HttpBody;
     type Writer = ChainsafeWriters;
     type Lister = oio::PageLister<ChainsafeLister>;
+    type Deleter = oio::OneShotDeleter<ChainsafeDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -247,17 +250,11 @@ impl Access for ChainsafeBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(ChainsafeDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

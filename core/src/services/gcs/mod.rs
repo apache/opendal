@@ -18,6 +18,8 @@
 #[cfg(feature = "services-gcs")]
 mod core;
 #[cfg(feature = "services-gcs")]
+mod delete;
+#[cfg(feature = "services-gcs")]
 mod error;
 #[cfg(feature = "services-gcs")]
 mod lister;
@@ -32,6 +34,4 @@ mod backend;
 pub use backend::GcsBuilder as Gcs;
 
 mod config;
-mod delete;
-
 pub use config::GcsConfig;

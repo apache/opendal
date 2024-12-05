@@ -18,6 +18,8 @@
 #[cfg(feature = "services-dbfs")]
 mod core;
 #[cfg(feature = "services-dbfs")]
+mod delete;
+#[cfg(feature = "services-dbfs")]
 mod error;
 #[cfg(feature = "services-dbfs")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::DbfsBuilder as Dbfs;
 
 mod config;
-mod delete;
-
 pub use config::DbfsConfig;

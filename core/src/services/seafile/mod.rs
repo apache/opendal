@@ -18,6 +18,8 @@
 #[cfg(feature = "services-seafile")]
 mod core;
 #[cfg(feature = "services-seafile")]
+mod delete;
+#[cfg(feature = "services-seafile")]
 mod error;
 #[cfg(feature = "services-seafile")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::SeafileBuilder as Seafile;
 
 mod config;
-mod delete;
-
 pub use config::SeafileConfig;

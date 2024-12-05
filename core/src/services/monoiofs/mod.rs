@@ -18,6 +18,8 @@
 #[cfg(feature = "services-monoiofs")]
 mod core;
 #[cfg(feature = "services-monoiofs")]
+mod delete;
+#[cfg(feature = "services-monoiofs")]
 mod reader;
 #[cfg(feature = "services-monoiofs")]
 mod writer;
@@ -28,6 +30,4 @@ mod backend;
 pub use backend::MonoiofsBuilder as Monoiofs;
 
 mod config;
-mod delete;
-
 pub use config::MonoiofsConfig;

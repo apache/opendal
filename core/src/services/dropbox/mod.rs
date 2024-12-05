@@ -20,6 +20,8 @@ mod backend;
 #[cfg(feature = "services-dropbox")]
 mod core;
 #[cfg(feature = "services-dropbox")]
+mod delete;
+#[cfg(feature = "services-dropbox")]
 mod error;
 #[cfg(feature = "services-dropbox")]
 mod lister;
@@ -32,6 +34,4 @@ mod builder;
 pub use builder::DropboxBuilder as Dropbox;
 
 mod config;
-mod delete;
-
 pub use config::DropboxConfig;

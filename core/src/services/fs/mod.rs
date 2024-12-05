@@ -18,6 +18,8 @@
 #[cfg(feature = "services-fs")]
 mod core;
 #[cfg(feature = "services-fs")]
+mod delete;
+#[cfg(feature = "services-fs")]
 mod lister;
 #[cfg(feature = "services-fs")]
 mod reader;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::FsBuilder as Fs;
 
 mod config;
-mod delete;
-
 pub use config::FsConfig;

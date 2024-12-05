@@ -18,6 +18,8 @@
 #[cfg(feature = "services-chainsafe")]
 mod core;
 #[cfg(feature = "services-chainsafe")]
+mod delete;
+#[cfg(feature = "services-chainsafe")]
 mod error;
 #[cfg(feature = "services-chainsafe")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::ChainsafeBuilder as Chainsafe;
 
 mod config;
-mod delete;
-
 pub use config::ChainsafeConfig;

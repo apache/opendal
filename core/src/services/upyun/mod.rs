@@ -18,6 +18,8 @@
 #[cfg(feature = "services-upyun")]
 mod core;
 #[cfg(feature = "services-upyun")]
+mod delete;
+#[cfg(feature = "services-upyun")]
 mod error;
 #[cfg(feature = "services-upyun")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::UpyunBuilder as Upyun;
 
 mod config;
-mod delete;
-
 pub use config::UpyunConfig;

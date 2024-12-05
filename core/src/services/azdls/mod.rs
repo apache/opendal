@@ -18,6 +18,8 @@
 #[cfg(feature = "services-azdls")]
 mod core;
 #[cfg(feature = "services-azdls")]
+mod delete;
+#[cfg(feature = "services-azdls")]
 mod error;
 #[cfg(feature = "services-azdls")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::AzdlsBuilder as Azdls;
 
 mod config;
-mod delete;
-
 pub use config::AzdlsConfig;

@@ -20,6 +20,8 @@ mod backend;
 #[cfg(feature = "services-gdrive")]
 mod core;
 #[cfg(feature = "services-gdrive")]
+mod delete;
+#[cfg(feature = "services-gdrive")]
 mod error;
 #[cfg(feature = "services-gdrive")]
 mod lister;
@@ -32,6 +34,4 @@ mod builder;
 pub use builder::GdriveBuilder as Gdrive;
 
 mod config;
-mod delete;
-
 pub use config::GdriveConfig;

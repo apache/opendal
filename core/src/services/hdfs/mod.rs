@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-hdfs")]
+mod delete;
+#[cfg(feature = "services-hdfs")]
 mod lister;
 #[cfg(feature = "services-hdfs")]
 mod reader;
@@ -28,6 +30,4 @@ mod backend;
 pub use backend::HdfsBuilder as Hdfs;
 
 mod config;
-mod delete;
-
 pub use config::HdfsConfig;

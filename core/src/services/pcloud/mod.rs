@@ -18,6 +18,8 @@
 #[cfg(feature = "services-pcloud")]
 mod core;
 #[cfg(feature = "services-pcloud")]
+mod delete;
+#[cfg(feature = "services-pcloud")]
 mod error;
 #[cfg(feature = "services-pcloud")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::PcloudBuilder as Pcloud;
 
 mod config;
-mod delete;
-
 pub use config::PcloudConfig;

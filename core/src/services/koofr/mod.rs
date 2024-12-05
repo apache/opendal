@@ -18,6 +18,8 @@
 #[cfg(feature = "services-koofr")]
 mod core;
 #[cfg(feature = "services-koofr")]
+mod delete;
+#[cfg(feature = "services-koofr")]
 mod error;
 #[cfg(feature = "services-koofr")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::KoofrBuilder as Koofr;
 
 mod config;
-mod delete;
-
 pub use config::KoofrConfig;

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-onedrive")]
 mod backend;
 #[cfg(feature = "services-onedrive")]
+mod delete;
+#[cfg(feature = "services-onedrive")]
 mod error;
 #[cfg(feature = "services-onedrive")]
 mod graph_model;
@@ -32,6 +34,4 @@ mod builder;
 pub use builder::OnedriveBuilder as Onedrive;
 
 mod config;
-mod delete;
-
 pub use config::OnedriveConfig;

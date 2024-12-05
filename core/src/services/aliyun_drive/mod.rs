@@ -21,6 +21,8 @@ mod core;
 #[cfg(feature = "services-aliyun-drive")]
 mod backend;
 #[cfg(feature = "services-aliyun-drive")]
+mod delete;
+#[cfg(feature = "services-aliyun-drive")]
 mod error;
 #[cfg(feature = "services-aliyun-drive")]
 mod lister;
@@ -30,6 +32,5 @@ mod writer;
 pub use backend::AliyunDriveBuilder as AliyunDrive;
 
 mod config;
-mod delete;
 
 pub use config::AliyunDriveConfig;

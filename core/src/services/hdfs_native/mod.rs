@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-hdfs-native")]
+mod delete;
+#[cfg(feature = "services-hdfs-native")]
 mod error;
 #[cfg(feature = "services-hdfs-native")]
 mod lister;
@@ -30,6 +32,5 @@ mod backend;
 pub use backend::HdfsNativeBuilder as HdfsNative;
 
 mod config;
-mod delete;
 
 pub use config::HdfsNativeConfig;

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-webdav")]
 mod core;
 #[cfg(feature = "services-webdav")]
+mod delete;
+#[cfg(feature = "services-webdav")]
 mod error;
 #[cfg(feature = "services-webdav")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::WebdavBuilder as Webdav;
 
 mod config;
-mod delete;
-
 pub use config::WebdavConfig;

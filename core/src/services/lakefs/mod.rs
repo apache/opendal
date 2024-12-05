@@ -18,11 +18,11 @@
 #[cfg(feature = "services-lakefs")]
 mod core;
 #[cfg(feature = "services-lakefs")]
+mod delete;
+#[cfg(feature = "services-lakefs")]
 mod error;
-
 #[cfg(feature = "services-lakefs")]
 mod lister;
-
 #[cfg(feature = "services-lakefs")]
 mod writer;
 
@@ -32,6 +32,4 @@ mod backend;
 pub use backend::LakefsBuilder as Lakefs;
 
 mod config;
-mod delete;
-
 pub use config::LakefsConfig;

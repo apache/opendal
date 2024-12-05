@@ -18,6 +18,8 @@
 #[cfg(feature = "services-github")]
 mod core;
 #[cfg(feature = "services-github")]
+mod delete;
+#[cfg(feature = "services-github")]
 mod error;
 #[cfg(feature = "services-github")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::GithubBuilder as Github;
 
 mod config;
-mod delete;
-
 pub use config::GithubConfig;

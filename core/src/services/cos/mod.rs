@@ -18,6 +18,8 @@
 #[cfg(feature = "services-cos")]
 mod core;
 #[cfg(feature = "services-cos")]
+mod delete;
+#[cfg(feature = "services-cos")]
 mod error;
 #[cfg(feature = "services-cos")]
 mod lister;
@@ -30,6 +32,5 @@ mod backend;
 pub use backend::CosBuilder as Cos;
 
 mod config;
-mod delete;
 
 pub use config::CosConfig;

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-swift")]
 mod core;
 #[cfg(feature = "services-swift")]
+mod delete;
+#[cfg(feature = "services-swift")]
 mod error;
 #[cfg(feature = "services-swift")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::SwiftBuilder as Swift;
 
 mod config;
-mod delete;
-
 pub use config::SwiftConfig;

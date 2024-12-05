@@ -18,6 +18,8 @@
 #[cfg(feature = "services-yandex-disk")]
 mod core;
 #[cfg(feature = "services-yandex-disk")]
+mod delete;
+#[cfg(feature = "services-yandex-disk")]
 mod error;
 #[cfg(feature = "services-yandex-disk")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::YandexDiskBuilder as YandexDisk;
 
 mod config;
-mod delete;
-
 pub use config::YandexDiskConfig;

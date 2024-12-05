@@ -18,6 +18,8 @@
 #[cfg(feature = "services-azfile")]
 mod core;
 #[cfg(feature = "services-azfile")]
+mod delete;
+#[cfg(feature = "services-azfile")]
 mod error;
 #[cfg(feature = "services-azfile")]
 mod lister;
@@ -30,6 +32,5 @@ mod backend;
 pub use backend::AzfileBuilder as Azfile;
 
 mod config;
-mod delete;
 
 pub use config::AzfileConfig;

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-oss")]
 mod core;
 #[cfg(feature = "services-oss")]
+mod delete;
+#[cfg(feature = "services-oss")]
 mod error;
 #[cfg(feature = "services-oss")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::OssBuilder as Oss;
 
 mod config;
-mod delete;
-
 pub use config::OssConfig;

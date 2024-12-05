@@ -18,6 +18,8 @@
 #[cfg(feature = "services-compfs")]
 mod core;
 #[cfg(feature = "services-compfs")]
+mod delete;
+#[cfg(feature = "services-compfs")]
 mod lister;
 #[cfg(feature = "services-compfs")]
 mod reader;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::CompfsBuilder as Compfs;
 
 mod config;
-mod delete;
-
 pub use config::CompfsConfig;

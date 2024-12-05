@@ -18,6 +18,8 @@
 #[cfg(feature = "services-azblob")]
 mod core;
 #[cfg(feature = "services-azblob")]
+mod delete;
+#[cfg(feature = "services-azblob")]
 mod error;
 #[cfg(feature = "services-azblob")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::AzblobBuilder as Azblob;
 
 mod config;
-mod delete;
-
 pub use config::AzblobConfig;

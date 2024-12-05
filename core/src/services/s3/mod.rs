@@ -18,6 +18,8 @@
 #[cfg(feature = "services-s3")]
 mod core;
 #[cfg(feature = "services-s3")]
+mod delete;
+#[cfg(feature = "services-s3")]
 mod error;
 #[cfg(feature = "services-s3")]
 mod lister;
@@ -30,6 +32,4 @@ mod backend;
 pub use backend::S3Builder as S3;
 
 mod config;
-mod delete;
-
 pub use config::S3Config;

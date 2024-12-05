@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-ghac")]
+mod delete;
+#[cfg(feature = "services-ghac")]
 mod error;
 #[cfg(feature = "services-ghac")]
 mod writer;
@@ -26,6 +28,4 @@ mod backend;
 pub use backend::GhacBuilder as Ghac;
 
 mod config;
-mod delete;
-
 pub use config::GhacConfig;

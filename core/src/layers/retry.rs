@@ -794,6 +794,7 @@ impl<P: oio::BlockingDelete, I: RetryInterceptor> oio::BlockingDelete for RetryW
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -829,7 +830,7 @@ mod tests {
         type Reader = MockReader;
         type Writer = MockWriter;
         type Lister = MockLister;
-        type Deleter = ();
+        type Deleter = MockDeleter;
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
@@ -841,10 +842,11 @@ mod tests {
                 read: true,
                 write: true,
                 write_can_multi: true,
+                delete: true,
+                delete_max_size: Some(10),
                 stat: true,
                 list: true,
                 list_with_recursive: true,
-                batch: true,
                 ..Default::default()
             });
 
@@ -863,6 +865,16 @@ mod tests {
                 MockReader {
                     buf: Bytes::from("Hello, World!").into(),
                     range: args.range(),
+                    attempt: self.attempt.clone(),
+                },
+            ))
+        }
+
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+            Ok((
+                RpDelete::default(),
+                MockDeleter {
+                    size: 0,
                     attempt: self.attempt.clone(),
                 },
             ))
@@ -967,6 +979,48 @@ mod tests {
                 _ => {
                     unreachable!()
                 }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockDeleter {
+        size: usize,
+        attempt: Arc<Mutex<usize>>,
+    }
+
+    impl oio::Delete for MockDeleter {
+        fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            self.size += 1;
+            Ok(())
+        }
+
+        async fn flush(&mut self) -> Result<usize> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                        .set_temporary(),
+                ),
+                2 => {
+                    self.size -= 1;
+                    Ok(1)
+                }
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                        .set_temporary(),
+                ),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                        .set_temporary(),
+                ),
+                5 => {
+                    let s = mem::take(&mut self.size);
+                    Ok(s)
+                }
+                _ => unreachable!(),
             }
         }
     }

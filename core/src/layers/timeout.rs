@@ -274,7 +274,7 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.io_timeout(Operation::Write, self.inner.delete())
+        self.timeout(Operation::Delete, self.inner.delete())
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }

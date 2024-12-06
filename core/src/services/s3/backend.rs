@@ -530,8 +530,19 @@ impl S3Builder {
     }
 
     /// Set maximum batch operations of this backend.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+        self.config.delete_max_size = Some(batch_max_operations);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -858,9 +869,9 @@ impl Builder for S3Builder {
 
         let signer = AwsV4Signer::new("s3", &region);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(S3Backend {
@@ -881,8 +892,8 @@ impl Builder for S3Builder {
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 client,
-                batch_max_operations,
                 checksum_algorithm,
+                delete_max_size,
                 disable_write_with_if_match: self.config.disable_write_with_if_match,
             }),
         })
@@ -950,6 +961,7 @@ impl Access for S3Backend {
                 },
 
                 delete: true,
+                delete_max_size: Some(self.core.delete_max_size),
                 delete_with_version: self.core.enable_versioning,
 
                 copy: true,
@@ -964,9 +976,6 @@ impl Access for S3Backend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
-
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
 
                 shared: true,
 

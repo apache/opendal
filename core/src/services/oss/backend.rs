@@ -228,8 +228,19 @@ impl OssBuilder {
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
+    pub fn batch_max_operations(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -384,9 +395,9 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(OssBackend {
@@ -402,7 +413,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                batch_max_operations,
+                delete_max_size,
             }),
         })
     }
@@ -464,7 +475,8 @@ impl Access for OssBackend {
                 write_with_user_metadata: true,
 
                 delete: true,
-                delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
+                delete_max_size: Some(self.core.delete_max_size),
+
                 copy: true,
 
                 list: true,
@@ -476,9 +488,6 @@ impl Access for OssBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
-
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
 
                 shared: true,
 

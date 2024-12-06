@@ -572,20 +572,6 @@ typedef struct opendal_capability {
    */
   bool presign_write;
   /**
-   * If operator supports batch.
-   */
-  bool batch;
-  /**
-   * If operator supports batch delete.
-   */
-  bool batch_delete;
-  /**
-   * The max operations that operator supports in batch.
-   *
-   * If it is not set, this will be zero
-   */
-  uintptr_t batch_max_operations;
-  /**
    * If operator supports shared.
    */
   bool shared;

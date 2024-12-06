@@ -75,8 +75,6 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct BlockingOperator {
     accessor: Accessor,
-
-    limit: usize,
 }
 
 impl BlockingOperator {
@@ -89,26 +87,21 @@ impl BlockingOperator {
     /// # Note
     /// default batch limit is 1000.
     pub(crate) fn from_inner(accessor: Accessor) -> Self {
-        let limit = accessor
-            .info()
-            .full_capability()
-            .batch_max_operations
-            .unwrap_or(1000);
-        Self { accessor, limit }
+        Self { accessor }
     }
 
     /// Get current operator's limit
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
     pub fn limit(&self) -> usize {
-        self.limit
+        0
     }
 
     /// Specify the batch limit.
     ///
     /// Default: 1000
-    pub fn with_limit(&self, limit: usize) -> Self {
-        let mut op = self.clone();
-        op.limit = limit;
-        op
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
+    pub fn with_limit(&self, _: usize) -> Self {
+        self.clone()
     }
 
     /// Get information of underlying accessor.
@@ -1121,6 +1114,6 @@ impl BlockingOperator {
 
 impl From<BlockingOperator> for Operator {
     fn from(v: BlockingOperator) -> Self {
-        Operator::from_inner(v.accessor).with_limit(v.limit)
+        Operator::from_inner(v.accessor)
     }
 }

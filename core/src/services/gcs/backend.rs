@@ -385,6 +385,7 @@ impl Access for GcsBackend {
                 },
 
                 delete: true,
+                delete_max_size: Some(100),
                 copy: true,
 
                 list: true,
@@ -392,8 +393,6 @@ impl Access for GcsBackend {
                 list_with_start_after: true,
                 list_with_recursive: true,
 
-                batch: true,
-                batch_max_operations: Some(100),
                 presign: true,
                 presign_stat: true,
                 presign_read: true,

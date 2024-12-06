@@ -202,13 +202,6 @@ pub struct Capability {
     /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
 
-    /// Indicates if batch operations are supported.
-    pub batch: bool,
-    /// Indicates if batch delete operations are supported.
-    pub batch_delete: bool,
-    /// Maximum number of operations supported in a single batch.
-    pub batch_max_operations: Option<usize>,
-
     /// Indicate if the operator supports shared access.
     pub shared: bool,
 

@@ -162,7 +162,18 @@ pub struct S3Config {
     /// For example, R2 could return `Internal Error` while batch delete 1000 files.
     ///
     /// Please tune this value based on services' document.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub batch_max_operations: Option<usize>,
+    /// Set the maximum delete size of this backend.
+    ///
+    /// Some compatible services have a limit on the number of operations in a batch request.
+    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
+    ///
+    /// Please tune this value based on services' document.
+    pub delete_max_size: Option<usize>,
     /// Disable stat with override so that opendal will not send stat request with override queries.
     ///
     /// For example, R2 doesn't support stat with `response_content_type` query.

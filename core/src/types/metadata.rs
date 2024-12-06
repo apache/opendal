@@ -205,15 +205,11 @@ impl Metadata {
     }
 
     /// Content Encoding of this entry.
-    ///
-    /// Content Encoding is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-encoding).
     pub fn content_encoding(&self) -> Option<&str> {
         self.content_encoding.as_deref()
     }
 
     /// Set Content Encoding of this entry.
-    ///
-    /// Content Encoding is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-encoding).
     pub fn set_content_encoding(&mut self, v: &str) -> &mut Self {
         self.content_encoding = Some(v.to_string());
         self

@@ -923,6 +923,7 @@ impl Access for S3Backend {
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_encoding: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,

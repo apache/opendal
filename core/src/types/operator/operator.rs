@@ -1407,6 +1407,38 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `content_encoding`
+    ///
+    /// Sets Content-Encoding header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_encoding`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Encoding as system metadata on the target file
+    /// - The value should follow HTTP Content-Encoding header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the content encoding for the written content.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_encoding("br")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// ## `if_none_match`
     ///
     /// Sets an `if none match` condition with specified ETag for this write request.

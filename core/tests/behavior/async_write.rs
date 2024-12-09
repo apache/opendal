@@ -44,6 +44,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_cache_control,
             test_write_with_content_type,
             test_write_with_content_disposition,
+            test_write_with_content_encoding,
             test_write_with_if_none_match,
             test_write_with_if_not_exists,
             test_write_with_if_match,
@@ -208,6 +209,28 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
     );
     assert_eq!(meta.content_length(), size as u64);
 
+    Ok(())
+}
+
+/// Write a single file with content encoding should succeed.
+pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_content_encoding {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let target_content_encoding = "gzip";
+    op.write_with(&path, content)
+        .content_encoding(target_content_encoding)
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(
+        meta.content_encoding()
+            .expect("content encoding must exist"),
+        target_content_encoding
+    );
     Ok(())
 }
 

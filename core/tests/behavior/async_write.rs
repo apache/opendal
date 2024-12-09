@@ -225,8 +225,12 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
         .content_encoding(target_content_encoding)
         .await?;
 
-    // TODO: check the content encoding in the stat op response?
-
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(
+        meta.content_encoding()
+            .expect("content encoding must exist"),
+        target_content_encoding
+    );
     Ok(())
 }
 

@@ -141,15 +141,14 @@ impl Filesystem {
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
         let in_header: InHeader = r.read_obj()?;
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
-            // The message is too long here.
             return Filesystem::reply_error(
                 in_header.unique,
                 w,
                 new_unexpected_error("message is too long", None),
             );
         }
-        if let Ok(opcode) = Opcode::try_from(in_header.opcode) {
-            match opcode {
+        match Opcode::try_from(in_header.opcode) {
+            Ok(opcode) => match opcode {
                 Opcode::Init => self.init(in_header, r, w),
                 Opcode::Destroy => self.destroy(in_header, r, w),
                 Opcode::Lookup => self.lookup(in_header, r, w),
@@ -163,13 +162,8 @@ impl Filesystem {
                 Opcode::Open => self.open(in_header, r, w),
                 Opcode::Read => self.read(in_header, r, w),
                 Opcode::Write => self.write(in_header, r, w),
-            }
-        } else {
-            Filesystem::reply_error(
-                in_header.unique,
-                w,
-                new_unexpected_error("unsupported operation", None),
-            )
+            },
+            Err(err) => Filesystem::reply_error(in_header.unique, w, err),
         }
     }
 }
@@ -190,47 +184,69 @@ impl Filesystem {
         }
         let header = OutHeader {
             unique,
-            error: 0, // Return no error.
+            error: 0,
             len: len as u32,
         };
         w.write_all(header.as_slice()).map_err(|e| {
-            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while replying to frontend",
+                Some(e.into()),
+            )
         })?;
         if let Some(out) = out {
             w.write_all(out.as_slice()).map_err(|e| {
-                new_unexpected_error("failed to encode protocol messages", Some(e.into()))
+                new_unexpected_error(
+                    "unexpected error occured while replying to frontend",
+                    Some(e.into()),
+                )
             })?;
         }
         if let Some(data) = data {
             w.write_all(data).map_err(|e| {
-                new_unexpected_error("failed to encode protocol messages", Some(e.into()))
+                new_unexpected_error(
+                    "unexpected error occured while replying to frontend",
+                    Some(e.into()),
+                )
             })?;
         }
         Ok(w.bytes_written())
     }
 
     fn reply_error(unique: u64, mut w: Writer, err: Error) -> Result<usize> {
-        warn!("[virtiofs] reply_error: unique={} error={}", unique, err);
+        // Errors that meet expectations are consumed here.
+        warn!(
+            "[virtiofs] reply error to frontend: unique={} error={}",
+            unique, err
+        );
         let header = OutHeader {
             unique,
             error: err.into(),
             len: size_of::<OutHeader>() as u32,
         };
         w.write_all(header.as_slice()).map_err(|e| {
-            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while replying to frontend",
+                Some(e.into()),
+            )
         })?;
         Ok(w.bytes_written())
     }
 
     fn bytes_to_str(buf: &[u8]) -> Result<&str> {
-        Filesystem::bytes_to_cstr(buf)?
-            .to_str()
-            .map_err(|e| new_unexpected_error("failed to decode protocol messages", Some(e.into())))
-    }
-
-    fn bytes_to_cstr(buf: &[u8]) -> Result<&CStr> {
         CStr::from_bytes_with_nul(buf)
-            .map_err(|e| new_unexpected_error("failed to decode protocol messages", Some(e.into())))
+            .map_err(|e| {
+                new_unexpected_error(
+                    "unexpected error occured while decoding protocol messages",
+                    Some(e.into()),
+                )
+            })?
+            .to_str()
+            .map_err(|e| {
+                new_unexpected_error(
+                    "unexpected error occured while decoding protocol messages",
+                    Some(e.into()),
+                )
+            })
     }
 
     fn check_flags(&self, flags: u32) -> Result<(bool, bool)> {
@@ -260,7 +276,7 @@ impl Filesystem {
             return Filesystem::reply_error(
                 in_header.unique,
                 w,
-                new_unexpected_error("unsupported version", None),
+                new_unexpected_error("unsupported virtiofs version", None),
             );
         }
 
@@ -268,12 +284,8 @@ impl Filesystem {
         attr.metadata.ino = 1;
         // We need to allocate the inode 1 for the root directory. The double insertion
         // here makes 1 the first inode and avoids extra alignment and processing elsewhere.
-        self.opened_files
-            .insert(attr.clone())
-            .expect("failed to allocate inode");
-        self.opened_files
-            .insert(attr.clone())
-            .expect("failed to allocate inode");
+        self.opened_files.insert(attr.clone());
+        self.opened_files.insert(attr.clone());
         let mut opened_files_map = self.opened_files_map.lock().unwrap();
         opened_files_map.insert("/".to_string(), 1);
 
@@ -305,7 +317,10 @@ impl Filesystem {
         let name_len = in_header.len as usize - size_of::<InHeader>();
         let mut buf = vec![0; name_len];
         r.read_exact(&mut buf).map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while decoding protocol messages",
+                Some(e.into()),
+            )
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
@@ -380,7 +395,10 @@ impl Filesystem {
         let name_len = in_header.len as usize - size_of::<InHeader>() - size_of::<CreateIn>();
         let mut buf = vec![0; name_len];
         r.read_exact(&mut buf).map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while decoding protocol messages",
+                Some(e.into()),
+            )
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
@@ -437,7 +455,10 @@ impl Filesystem {
         let name_len = in_header.len as usize - size_of::<InHeader>();
         let mut buf = vec![0; name_len];
         r.read_exact(&mut buf).map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while decoding protocol messages",
+                Some(e.into()),
+            )
         })?;
         let name = match Filesystem::bytes_to_str(buf.as_ref()) {
             Ok(name) => name,
@@ -543,7 +564,10 @@ impl Filesystem {
             unique: in_header.unique,
         };
         w.write_all(out.as_slice()).map_err(|e| {
-            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
+            new_unexpected_error(
+                "unexpected error occured while replying to frontend",
+                Some(e.into()),
+            )
         })?;
         Ok(out.len as usize)
     }

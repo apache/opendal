@@ -31,6 +31,7 @@ use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -450,6 +451,10 @@ impl S3Core {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
         }
 
         if let Some(cache_control) = args.cache_control() {

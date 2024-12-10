@@ -318,6 +318,11 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
         self.map(|(args, options, bs)| (args.with_content_disposition(v), options, bs))
     }
 
+    /// Set the content encoding of option
+    pub fn content_encoding(self, v: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_content_encoding(v), options, bs))
+    }
+
     /// Set the executor for this operation.
     pub fn executor(self, executor: Executor) -> Self {
         self.map(|(args, options, bs)| (args.with_executor(executor), options, bs))

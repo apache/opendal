@@ -37,6 +37,10 @@ use serde::Serialize;
 use crate::raw::*;
 use crate::*;
 
+pub mod constants {
+    pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";
+}
+
 pub struct ObsCore {
     pub bucket: String,
     pub root: String,
@@ -165,6 +169,13 @@ impl ObsCore {
 
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{}{}", constants::X_OBS_META_PREFIX, key), value)
+            }
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;

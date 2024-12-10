@@ -139,9 +139,7 @@ impl Filesystem {
     }
 
     pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
-        let in_header: InHeader = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let in_header: InHeader = r.read_obj()?;
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
             // The message is too long here.
             return Filesystem::reply_error(
@@ -256,9 +254,7 @@ impl Filesystem {
 
 impl Filesystem {
     fn init(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
-        let InitIn { major, minor, .. } = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let InitIn { major, minor, .. } = r.read_obj()?;
 
         if major != KERNEL_VERSION || minor < MIN_KERNEL_MINOR_VERSION {
             return Filesystem::reply_error(
@@ -379,9 +375,7 @@ impl Filesystem {
     }
 
     fn create(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
-        let CreateIn { flags, .. } = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let CreateIn { flags, .. } = r.read_obj()?;
 
         let name_len = in_header.len as usize - size_of::<InHeader>() - size_of::<CreateIn>();
         let mut buf = vec![0; name_len];
@@ -494,9 +488,7 @@ impl Filesystem {
     fn open(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         debug!("open: inode={}", in_header.nodeid);
 
-        let OpenIn { flags, .. } = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let OpenIn { flags, .. } = r.read_obj()?;
 
         let path = match self
             .opened_files
@@ -528,9 +520,7 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
-        let ReadIn { offset, size, .. } = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let ReadIn { offset, size, .. } = r.read_obj()?;
 
         debug!(
             "read: inode={} offset={} size={}",
@@ -544,10 +534,8 @@ impl Filesystem {
         let len = data.len();
         let buffer = BufferWrapper::new(data);
 
-        let mut data_writer = w.split_at(size_of::<OutHeader>()).unwrap();
-        data_writer.write_from_at(&buffer, len).map_err(|e| {
-            new_unexpected_error("failed to encode protocol messages", Some(e.into()))
-        })?;
+        let mut data_writer = w.split_at(size_of::<OutHeader>());
+        data_writer.write_from_at(&buffer, len);
 
         let out = OutHeader {
             len: (size_of::<OutHeader>() + len) as u32,
@@ -572,14 +560,10 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w, Error::from(libc::ENOENT)),
         };
 
-        let WriteIn { offset, size, .. } = r.read_obj().map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        let WriteIn { offset, size, .. } = r.read_obj()?;
 
         let buffer = BufferWrapper::new(Buffer::new());
-        r.read_to_at(&buffer, size as usize).map_err(|e| {
-            new_unexpected_error("failed to decode protocol messages", Some(e.into()))
-        })?;
+        r.read_to_at(&buffer, size as usize);
         let buffer = buffer.get_buffer();
 
         match self.rt.block_on(self.do_write(&path, offset, buffer)) {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::ObsCore;
+use super::core::{constants, ObsCore};
 use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
@@ -314,7 +315,7 @@ impl Access for ObsBackend {
         // The response is very similar to azblob.
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, headers);
+                let mut meta = parse_into_metadata(path, headers)?;
                 let user_meta = headers
                     .iter()
                     .filter_map(|(name, _)| {

@@ -923,6 +923,7 @@ impl Access for S3Backend {
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_encoding: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
@@ -943,6 +944,7 @@ impl Access for S3Backend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_content_encoding: true,
                 write_with_if_match: !self.core.disable_write_with_if_match,
                 write_with_if_not_exists: true,
                 write_with_user_metadata: true,

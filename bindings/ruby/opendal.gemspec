@@ -17,11 +17,20 @@
 
 # frozen_string_literal: true
 
-require_relative "lib/opendal_ruby/version"
+require "json"
 
 Gem::Specification.new do |spec|
   spec.name = "opendal"
-  spec.version = OpenDAL::VERSION
+  # RubyGems integrates and expects `cargo`.
+  # Read more about [Gem::Ext::CargoBuilder](https://github.com/rubygems/rubygems/blob/v3.5.23/lib/rubygems/ext/cargo_builder.rb)
+  #
+  # OpenDAL relies on "version" in `Cargo.toml` for the release process. You can read this gem spec with:
+  # `bundle exec ruby -e 'puts Gem::Specification.load("opendal.gemspec")'`
+  #
+  # keep in sync the key "opendal-ruby" with `Rakefile`.
+  #
+  # uses `cargo` to extract the version.
+  spec.version = JSON.parse(`cargo metadata --format-version 1`.strip)["packages"].find { |p| p["name"] == "opendal-ruby" }["version"]
   spec.authors = ["OpenDAL Contributors"]
   spec.email = ["dev@opendal.apache.org"]
 

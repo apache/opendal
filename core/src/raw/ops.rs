@@ -541,6 +541,7 @@ pub struct OpWrite {
     concurrent: usize,
     content_type: Option<String>,
     content_disposition: Option<String>,
+    content_encoding: Option<String>,
     cache_control: Option<String>,
     executor: Option<Executor>,
     if_match: Option<String>,
@@ -595,6 +596,17 @@ impl OpWrite {
     /// Set the content disposition of option
     pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
         self.content_disposition = Some(content_disposition.to_string());
+        self
+    }
+
+    /// Get the content encoding from option
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set the content encoding of option
+    pub fn with_content_encoding(mut self, content_encoding: &str) -> Self {
+        self.content_encoding = Some(content_encoding.to_string());
         self
     }
 

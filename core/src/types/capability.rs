@@ -90,6 +90,8 @@ pub struct Capability {
     pub stat_has_content_range: bool,
     /// Indicates whether content type information is available in stat response
     pub stat_has_content_type: bool,
+    /// Indicates whether content encoding information is available in stat response
+    pub stat_has_content_encoding: bool,
     /// Indicates whether entity tag is available in stat response
     pub stat_has_etag: bool,
     /// Indicates whether last modified timestamp is available in stat response
@@ -126,6 +128,8 @@ pub struct Capability {
     pub write_with_content_type: bool,
     /// Indicates if Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
+    /// Indicates if Content-Encoding can be specified during write operations.
+    pub write_with_content_encoding: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.

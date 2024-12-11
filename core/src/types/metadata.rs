@@ -39,6 +39,7 @@ pub struct Metadata {
     content_md5: Option<String>,
     content_range: Option<BytesContentRange>,
     content_type: Option<String>,
+    content_encoding: Option<String>,
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
@@ -56,6 +57,7 @@ impl Metadata {
             content_length: None,
             content_md5: None,
             content_type: None,
+            content_encoding: None,
             content_range: None,
             last_modified: None,
             etag: None,
@@ -199,6 +201,17 @@ impl Metadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: String) -> Self {
         self.content_type = Some(v);
+        self
+    }
+
+    /// Content Encoding of this entry.
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set Content Encoding of this entry.
+    pub fn set_content_encoding(&mut self, v: &str) -> &mut Self {
+        self.content_encoding = Some(v.to_string());
         self
     }
 

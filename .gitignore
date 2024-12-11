@@ -1,7 +1,7 @@
 # IDE and editor
-.vscode
 .idea
-
+.vscode
+!.vscode/settings.json
 **/target
 **/vendor
 dist/

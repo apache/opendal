@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::ObsCore;
+use super::core::{constants, ObsCore};
 use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
@@ -284,6 +285,7 @@ impl Access for ObsBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -306,12 +308,33 @@ impl Access for ObsBackend {
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.obs_head_object(path, &args).await?;
+        let headers = resp.headers();
 
         let status = resp.status();
 
         // The response is very similar to azblob.
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let mut meta = parse_into_metadata(path, headers)?;
+                let user_meta = headers
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        name.as_str()
+                            .strip_prefix(constants::X_OBS_META_PREFIX)
+                            .and_then(|stripped_key| {
+                                parse_header_to_str(headers, name)
+                                    .unwrap_or(None)
+                                    .map(|val| (stripped_key.to_string(), val.to_string()))
+                            })
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }

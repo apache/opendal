@@ -195,6 +195,7 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 blocking: false,
+                shared: true,
                 ..Default::default()
             },
         )

@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
@@ -30,11 +28,12 @@ use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
 use super::core::*;
+use super::delete::OssDeleter;
 use super::error::parse_error;
 use super::lister::OssLister;
 use super::writer::OssWriter;
+use super::writer::OssWriters;
 use crate::raw::*;
-use crate::services::oss::writer::OssWriters;
 use crate::services::OssConfig;
 use crate::*;
 
@@ -229,8 +228,19 @@ impl OssBuilder {
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
+    pub fn batch_max_operations(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -385,9 +395,9 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(OssBackend {
@@ -403,7 +413,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                batch_max_operations,
+                delete_max_size,
             }),
         })
     }
@@ -419,9 +429,11 @@ impl Access for OssBackend {
     type Reader = HttpBody;
     type Writer = OssWriters;
     type Lister = oio::PageLister<OssLister>;
+    type Deleter = oio::BatchDeleter<OssDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -445,6 +457,9 @@ impl Access for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_disposition: true,
+                // TODO: set this to false while version has been enabled.
+                write_with_if_not_exists: true,
+
                 // The min multipart size of OSS is 100 KiB.
                 //
                 // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
@@ -460,6 +475,8 @@ impl Access for OssBackend {
                 write_with_user_metadata: true,
 
                 delete: true,
+                delete_max_size: Some(self.core.delete_max_size),
+
                 copy: true,
 
                 list: true,
@@ -472,8 +489,7 @@ impl Access for OssBackend {
                 presign_read: true,
                 presign_write: true,
 
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
+                shared: true,
 
                 ..Default::default()
             });
@@ -534,13 +550,11 @@ impl Access for OssBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.oss_delete_object(path, &args).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(OssDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -585,61 +599,5 @@ impl Access for OssBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        // Sadly, OSS will not return failed keys, so we will build
-        // a set to calculate the failed keys.
-        let mut keys = HashSet::new();
-
-        let ops_len = ops.len();
-        if ops_len > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "oss services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops_len.to_string()));
-        }
-
-        let paths = ops
-            .into_iter()
-            .map(|(p, _)| {
-                keys.insert(p.clone());
-                p
-            })
-            .collect();
-
-        let resp = self.core.oss_delete_objects(paths).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(ops_len);
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                keys.remove(&path);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            // TODO: we should handle those errors with code.
-            for i in keys {
-                batched_result.push((
-                    i,
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "oss delete this key failed for reason we don't know",
-                    )),
-                ));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            Err(parse_error(resp))
-        }
     }
 }

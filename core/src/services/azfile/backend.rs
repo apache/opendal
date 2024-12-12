@@ -27,11 +27,12 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzfileCore;
+use super::delete::AzfileDeleter;
 use super::error::parse_error;
+use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
-use crate::services::azfile::lister::AzfileLister;
 use crate::services::AzfileConfig;
 use crate::*;
 
@@ -233,9 +234,11 @@ impl Access for AzfileBackend {
     type Reader = HttpBody;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
+    type Deleter = oio::OneShotDeleter<AzfileDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -252,6 +255,8 @@ impl Access for AzfileBackend {
                 rename: true,
 
                 list: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -329,18 +334,11 @@ impl Access for AzfileBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
-            self.core.azfile_delete_dir(path).await?
-        } else {
-            self.core.azfile_delete_file(path).await?
-        };
-
-        let status = resp.status();
-        match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AzfileDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -25,13 +25,13 @@ use log::debug;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
+use super::core::GdriveCore;
+use super::core::GdrivePathQuery;
+use super::core::GdriveSigner;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
-use crate::services::gdrive::core::GdriveCore;
-use crate::services::gdrive::core::GdrivePathQuery;
-use crate::services::gdrive::core::GdriveSigner;
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;

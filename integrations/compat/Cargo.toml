@@ -36,7 +36,7 @@ v0_50_to_v0_49 = ["dep:opendal_v0_49", "dep:opendal_v0_50"]
 [dependencies]
 async-trait = "0.1"
 opendal_v0_49 = { package = "opendal", version = "0.49", optional = true }
-opendal_v0_50 = { package = "opendal", version = "0.50", optional = true, path = "../../core" }
+opendal_v0_50 = { package = "opendal", version = "0.50", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.41", features = ["full"] }

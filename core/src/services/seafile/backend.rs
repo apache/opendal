@@ -28,6 +28,7 @@ use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::core::SeafileCore;
 use super::core::SeafileSigner;
+use super::delete::SeafileDeleter;
 use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
@@ -212,9 +213,11 @@ impl Access for SeafileBackend {
     type Reader = HttpBody;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
+    type Deleter = oio::OneShotDeleter<SeafileDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -231,6 +234,8 @@ impl Access for SeafileBackend {
                 delete: true,
 
                 list: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -279,10 +284,11 @@ impl Access for SeafileBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
-        self.core.delete(path).await?;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(SeafileDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

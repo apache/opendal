@@ -33,8 +33,8 @@ use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::azfile::error::parse_error;
 use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";

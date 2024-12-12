@@ -196,9 +196,11 @@ impl Access for HttpBackend {
     type Reader = HttpBody;
     type Writer = ();
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -217,6 +219,8 @@ impl Access for HttpBackend {
                 presign: !self.has_authorization(),
                 presign_read: !self.has_authorization(),
                 presign_stat: !self.has_authorization(),
+
+                shared: true,
 
                 ..Default::default()
             });

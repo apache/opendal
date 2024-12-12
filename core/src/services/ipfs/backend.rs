@@ -164,9 +164,11 @@ impl Access for IpfsBackend {
     type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -178,6 +180,8 @@ impl Access for IpfsBackend {
                 read: true,
 
                 list: true,
+
+                shared: true,
 
                 ..Default::default()
             });

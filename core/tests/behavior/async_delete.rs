@@ -16,7 +16,6 @@
 // under the License.
 
 use anyhow::Result;
-use futures::StreamExt;
 use futures::TryStreamExt;
 use log::warn;
 
@@ -118,7 +117,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    op.remove(vec![path.clone()]).await?;
+    op.delete_iter(vec![path.clone()]).await?;
 
     // Stat it again to check.
     assert!(!op.exists(&path).await?);
@@ -127,7 +126,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    op.remove(vec![path.clone()]).await?;
+    op.delete_iter(vec![path.clone()]).await?;
 
     // Stat it again to check.
     assert!(!op.exists(&path).await?);
@@ -156,9 +155,11 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
         op.write(&format!("{dir}/{path}"), "delete_stream").await?;
     }
 
-    op.with_limit(30)
-        .remove_via(futures::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
+    let mut deleter = op.deleter().await?;
+    deleter
+        .delete_iter(expected.iter().map(|v| format!("{dir}/{v}")))
         .await?;
+    deleter.close().await?;
 
     // Stat it again to check.
     for path in expected.iter() {

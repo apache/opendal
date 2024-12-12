@@ -18,6 +18,8 @@
 #[cfg(feature = "services-swift")]
 mod core;
 #[cfg(feature = "services-swift")]
+mod delete;
+#[cfg(feature = "services-swift")]
 mod error;
 #[cfg(feature = "services-swift")]
 mod lister;

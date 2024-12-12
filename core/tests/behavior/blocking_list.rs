@@ -29,8 +29,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(blocking_trials!(
             op,
             test_blocking_list_dir,
-            test_blocking_list_dir_with_metakey,
-            test_blocking_list_dir_with_metakey_complete,
             test_blocking_list_non_exist_dir,
             test_blocking_list_dir_with_recursive,
             test_blocking_list_dir_with_recursive_no_trailing_slash,
@@ -58,95 +56,6 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
             assert_eq!(meta.mode(), EntryMode::FILE);
 
             assert_eq!(meta.content_length(), size as u64);
-
-            found = true
-        }
-    }
-    assert!(found, "file should be found in list");
-
-    op.delete(&path).expect("delete must succeed");
-    Ok(())
-}
-
-/// List dir with metakey
-pub fn test_blocking_list_dir_with_metakey(op: BlockingOperator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
-
-    op.write(&path, content).expect("write must succeed");
-
-    let mut obs = op
-        .lister_with(&format!("{parent}/"))
-        .metakey(
-            Metakey::Mode
-                | Metakey::CacheControl
-                | Metakey::ContentDisposition
-                | Metakey::ContentLength
-                | Metakey::ContentMd5
-                | Metakey::ContentRange
-                | Metakey::ContentType
-                | Metakey::Etag
-                | Metakey::LastModified
-                | Metakey::Version,
-        )
-        .call()?;
-    let mut found = false;
-    while let Some(de) = obs.next().transpose()? {
-        let meta = de.metadata();
-        if de.path() == path {
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
-
-            // We don't care about the value, we just to check there is no panic.
-            let _ = meta.cache_control();
-            let _ = meta.content_disposition();
-            let _ = meta.content_md5();
-            let _ = meta.content_range();
-            let _ = meta.content_type();
-            let _ = meta.etag();
-            let _ = meta.last_modified();
-            let _ = meta.version();
-
-            found = true
-        }
-    }
-    assert!(found, "file should be found in list");
-
-    op.delete(&path).expect("delete must succeed");
-    Ok(())
-}
-
-/// List dir with metakey complete
-pub fn test_blocking_list_dir_with_metakey_complete(op: BlockingOperator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
-
-    op.write(&path, content).expect("write must succeed");
-
-    let mut obs = op
-        .lister_with(&format!("{parent}/"))
-        .metakey(Metakey::Complete)
-        .call()?;
-    let mut found = false;
-    while let Some(de) = obs.next().transpose()? {
-        let meta = de.metadata();
-        if de.path() == path {
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
-
-            // We don't care about the value, we just to check there is no panic.
-            let _ = meta.cache_control();
-            let _ = meta.content_disposition();
-            let _ = meta.content_md5();
-            let _ = meta.content_range();
-            let _ = meta.content_type();
-            let _ = meta.etag();
-            let _ = meta.last_modified();
-            let _ = meta.version();
 
             found = true
         }

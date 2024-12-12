@@ -412,7 +412,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
-    Ok(m.with_metakey(Metakey::Complete))
+    Ok(m)
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]

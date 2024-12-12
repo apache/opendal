@@ -34,6 +34,7 @@ use log::debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::delete::GhacDeleter;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
@@ -220,7 +221,7 @@ pub struct GhacBackend {
     version: String,
 
     api_url: String,
-    api_token: String,
+    pub api_token: String,
     repo: String,
 
     pub client: HttpClient,
@@ -230,9 +231,11 @@ impl Access for GhacBackend {
     type Reader = HttpBody;
     type Writer = GhacWriter;
     type Lister = ();
+    type Deleter = oio::OneShotDeleter<GhacDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -247,6 +250,8 @@ impl Access for GhacBackend {
                 write: true,
                 write_can_multi: true,
                 delete: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -343,22 +348,11 @@ impl Access for GhacBackend {
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        if self.api_token.is_empty() {
-            return Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "github token is not configured, delete is permission denied",
-            ));
-        }
-
-        let resp = self.ghac_delete(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            Err(parse_error(resp))
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GhacDeleter::new(self.clone())),
+        ))
     }
 }
 
@@ -461,7 +455,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ghac_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

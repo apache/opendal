@@ -128,7 +128,7 @@ And the `delete` API will be changed to return a `oio::Delete` instead:
 
 ```diff
 trait Accessor {
--  async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete>;
+-  async fn delete(&self) -> Result<(RpDelete, Self::Deleter)>;
 +  async fn delete(&self, args: OpDelete) -> Result<(RpDelete, Self::Deleter)>;
 }
 ```

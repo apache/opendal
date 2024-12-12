@@ -15,8 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# frozen_string_literal: true
+import pytest
+import pickle
+from random import randint
+from uuid import uuid4
+import os
 
-module OpenDAL
-  VERSION = "0.1.9"
-end
+
+@pytest.mark.need_capability("read", "write", "delete", "shared")
+def test_operator_pickle(service_name, operator, async_operator):
+    """
+    Test Operator's pickle serialization and deserialization.
+    """
+
+    size = randint(1, 1024)
+    filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    operator.write(filename, content)
+
+    serialized = pickle.dumps(operator)
+
+    deserialized = pickle.loads(serialized)
+    assert deserialized.read(filename) == content
+
+    operator.delete(filename)

@@ -31,8 +31,7 @@ use crate::*;
 ///
 /// # Usage
 ///
-/// [`Reader`] provides multiple ways to read data from given reader. Please note that it's
-/// undefined behavior to use `Reader` in different ways.
+/// [`Reader`] provides multiple ways to read data from given reader.
 ///
 /// `Reader` implements `Clone` so you can clone it and store in place where ever you want.
 ///

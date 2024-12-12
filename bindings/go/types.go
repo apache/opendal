@@ -147,7 +147,6 @@ var (
 			&ffi.TypeUint8,   // write_with_cache_control
 			&ffi.TypePointer, // write_multi_max_size
 			&ffi.TypePointer, // write_multi_min_size
-			&ffi.TypePointer, // write_multi_align_size
 			&ffi.TypePointer, // write_total_max_size
 			&ffi.TypeUint8,   // create_dir
 			&ffi.TypeUint8,   // delete
@@ -161,9 +160,7 @@ var (
 			&ffi.TypeUint8,   // presign_read
 			&ffi.TypeUint8,   // presign_stat
 			&ffi.TypeUint8,   // presign_write
-			&ffi.TypeUint8,   // batch
-			&ffi.TypeUint8,   // batch_delete
-			&ffi.TypePointer, // batch_max_operations
+			&ffi.TypeUint8,   // shared
 			&ffi.TypeUint8,   // blocking
 			nil,
 		}[0],
@@ -189,7 +186,6 @@ type opendalCapability struct {
 	writeWithCacheControl              uint8
 	writeMultiMaxSize                  uint
 	writeMultiMinSize                  uint
-	writeMultiAlignSize                uint
 	writeTotalMaxSize                  uint
 	createDir                          uint8
 	delete                             uint8
@@ -203,9 +199,7 @@ type opendalCapability struct {
 	presignRead                        uint8
 	presignStat                        uint8
 	presignWrite                       uint8
-	batch                              uint8
-	batchDelete                        uint8
-	batchMaxOperations                 uint
+	shared                             uint8
 	blocking                           uint8
 }
 

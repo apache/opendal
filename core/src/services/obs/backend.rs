@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -27,12 +28,13 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::ObsCore;
+use super::core::{constants, ObsCore};
+use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
+use super::writer::ObsWriters;
 use crate::raw::*;
-use crate::services::obs::writer::ObsWriters;
 use crate::services::ObsConfig;
 use crate::*;
 
@@ -172,7 +174,9 @@ impl Builder for ObsBuilder {
 
         let (endpoint, is_obs_default) = {
             let host = uri.host().unwrap_or_default().to_string();
-            if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
+            if host.starts_with("obs.")
+                && (host.ends_with(".myhuaweicloud.com") || host.ends_with(".huawei.com"))
+            {
                 (format!("{bucket}.{host}"), true)
             } else {
                 (host, false)
@@ -242,9 +246,11 @@ impl Access for ObsBackend {
     type Reader = HttpBody;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
+    type Deleter = oio::OneShotDeleter<ObsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -279,6 +285,7 @@ impl Access for ObsBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -291,6 +298,8 @@ impl Access for ObsBackend {
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
@@ -299,12 +308,33 @@ impl Access for ObsBackend {
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let resp = self.core.obs_head_object(path, &args).await?;
+        let headers = resp.headers();
 
         let status = resp.status();
 
         // The response is very similar to azblob.
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let mut meta = parse_into_metadata(path, headers)?;
+                let user_meta = headers
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        name.as_str()
+                            .strip_prefix(constants::X_OBS_META_PREFIX)
+                            .and_then(|stripped_key| {
+                                parse_header_to_str(headers, name)
+                                    .unwrap_or(None)
+                                    .map(|val| (stripped_key.to_string(), val.to_string()))
+                            })
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
@@ -345,17 +375,11 @@ impl Access for ObsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.obs_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(ObsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

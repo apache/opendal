@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use bytes::Buf;
 use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
@@ -42,8 +41,8 @@ use reqsign::AwsV4Signer;
 use reqwest::Url;
 
 use super::core::*;
+use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::error::parse_s3_error_code;
 use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
@@ -531,8 +530,19 @@ impl S3Builder {
     }
 
     /// Set maximum batch operations of this backend.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+        self.config.delete_max_size = Some(batch_max_operations);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -545,6 +555,12 @@ impl S3Builder {
     pub fn checksum_algorithm(mut self, checksum_algorithm: &str) -> Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 
+        self
+    }
+
+    /// Disable write with if match so that opendal will not send write request with if match headers.
+    pub fn disable_write_with_if_match(mut self) -> Self {
+        self.config.disable_write_with_if_match = true;
         self
     }
 
@@ -853,9 +869,9 @@ impl Builder for S3Builder {
 
         let signer = AwsV4Signer::new("s3", &region);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(S3Backend {
@@ -876,8 +892,9 @@ impl Builder for S3Builder {
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 client,
-                batch_max_operations,
                 checksum_algorithm,
+                delete_max_size,
+                disable_write_with_if_match: self.config.disable_write_with_if_match,
             }),
         })
     }
@@ -893,9 +910,11 @@ impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = S3Listers;
+    type Deleter = oio::BatchDeleter<S3Deleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -904,6 +923,7 @@ impl Access for S3Backend {
             .set_name(&self.core.bucket)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_encoding: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
@@ -924,7 +944,9 @@ impl Access for S3Backend {
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-                write_with_if_none_match: true,
+                write_with_content_encoding: true,
+                write_with_if_match: !self.core.disable_write_with_if_match,
+                write_with_if_not_exists: true,
                 write_with_user_metadata: true,
 
                 // The min multipart size of S3 is 5 MiB.
@@ -941,6 +963,7 @@ impl Access for S3Backend {
                 },
 
                 delete: true,
+                delete_max_size: Some(self.core.delete_max_size),
                 delete_with_version: self.core.enable_versioning,
 
                 copy: true,
@@ -956,8 +979,7 @@ impl Access for S3Backend {
                 presign_read: true,
                 presign_write: true,
 
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
+                shared: true,
 
                 ..Default::default()
             });
@@ -1016,24 +1038,11 @@ impl Access for S3Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        // This would delete the bucket, do not perform
-        if self.core.root == "/" && path == "/" {
-            return Ok(RpDelete::default());
-        }
-
-        let resp = self.core.s3_delete_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
-            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(S3Deleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -1095,53 +1104,6 @@ impl Access for S3Backend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect();
-
-        let resp = self.core.s3_delete_objects(paths).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            for i in result.error {
-                let path = build_rel_path(&self.core.root, &i.key);
-
-                // set the error kind and mark temporary if retryable
-                let (kind, retryable) =
-                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, format!("{i:?}"));
-                if retryable {
-                    err = err.set_temporary();
-                }
-
-                batched_result.push((path, Err(err)));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            Err(parse_error(resp))
-        }
     }
 }
 

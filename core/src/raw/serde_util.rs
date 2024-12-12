@@ -95,7 +95,7 @@ impl Iterator for Pairs {
 /// Pair is used to hold both key and value of a config for better error output.
 struct Pair(String, String);
 
-impl<'de> IntoDeserializer<'de, de::value::Error> for Pair {
+impl IntoDeserializer<'_, de::value::Error> for Pair {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

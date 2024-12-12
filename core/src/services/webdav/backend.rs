@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
@@ -205,9 +206,11 @@ impl Access for WebdavBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
+    type Deleter = oio::OneShotDeleter<WebdavDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -231,6 +234,8 @@ impl Access for WebdavBackend {
                 list: true,
                 // We already support recursive list but some details still need to polish.
                 // list_with_recursive: true,
+                shared: true,
+
                 ..Default::default()
             });
 
@@ -274,14 +279,11 @@ impl Access for WebdavBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.webdav_delete(path).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(WebdavDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

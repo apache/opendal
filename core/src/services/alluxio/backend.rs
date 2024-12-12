@@ -23,6 +23,7 @@ use http::Response;
 use log::debug;
 
 use super::core::AlluxioCore;
+use super::delete::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
@@ -144,9 +145,11 @@ impl Access for AlluxioBackend {
     type Reader = HttpBody;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
+    type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -168,6 +171,8 @@ impl Access for AlluxioBackend {
                 delete: true,
 
                 list: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -204,10 +209,11 @@ impl Access for AlluxioBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.delete(path).await?;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AlluxioDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -149,6 +149,8 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
+# we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
+abi3 = ["pyo3/abi3-py311"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -161,10 +163,8 @@ futures = "0.3.28"
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.22.5", features = ["abi3", "abi3-py311"] }
-pyo3-async-runtimes = { version = "0.22.0", features = [
-  "tokio-runtime",
-] }
+pyo3 = { version = "0.23.3", features = ["generate-import-lib"] }
+pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

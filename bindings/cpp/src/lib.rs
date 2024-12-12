@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "async")]
+mod r#async;
 mod lister;
 mod reader;
 mod types;

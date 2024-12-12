@@ -32,6 +32,7 @@ use openssh_sftp_client::SftpOptions;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
+use super::delete::SftpDeleter;
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
@@ -203,12 +204,12 @@ impl Builder for SftpBuilder {
 pub struct SftpBackend {
     copyable: bool,
     endpoint: String,
-    root: String,
+    pub root: String,
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
 
-    client: OnceCell<bb8::Pool<Manager>>,
+    pub client: OnceCell<bb8::Pool<Manager>>,
 }
 
 pub struct Manager {
@@ -319,9 +320,11 @@ impl Access for SftpBackend {
     type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
+    type Deleter = oio::OneShotDeleter<SftpDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -343,6 +346,8 @@ impl Access for SftpBackend {
 
                 copy: self.copyable,
                 rename: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -432,23 +437,11 @@ impl Access for SftpBackend {
         Ok((RpWrite::new(), SftpWriter::new(file)))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let client = self.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.root);
-
-        let res = if path.ends_with('/') {
-            fs.remove_dir(path).await
-        } else {
-            fs.remove_file(path).await
-        };
-
-        match res {
-            Ok(()) => Ok(RpDelete::default()),
-            Err(e) if is_not_found(&e) => Ok(RpDelete::default()),
-            Err(e) => Err(parse_sftp_error(e)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(SftpDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

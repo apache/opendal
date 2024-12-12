@@ -182,7 +182,6 @@ class Capability:
     write_with_cache_control: bool
     write_multi_max_size: Optional[int]
     write_multi_min_size: Optional[int]
-    write_multi_align_size: Optional[int]
     write_total_max_size: Optional[int]
 
     create_dir: bool
@@ -201,8 +200,5 @@ class Capability:
     presign_stat: bool
     presign_write: bool
 
-    batch: bool
-    batch_delete: bool
-    batch_max_operations: Optional[int]
-
+    shared: bool
     blocking: bool

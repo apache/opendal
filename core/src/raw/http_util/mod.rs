@@ -49,6 +49,7 @@ pub use header::parse_header_to_str;
 pub use header::parse_into_metadata;
 pub use header::parse_last_modified;
 pub use header::parse_location;
+pub use header::parse_multipart_boundary;
 pub use header::parse_prefixed_headers;
 
 mod uri;

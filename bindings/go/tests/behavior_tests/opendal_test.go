@@ -31,7 +31,6 @@ import (
 	"testing"
 
 	"github.com/apache/opendal-go-services/fs"
-	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,6 @@ import (
 
 // Add more schemes for behavior tests here.
 var schemes = []opendal.Scheme{
-	memory.Scheme,
 	fs.Scheme,
 }
 

@@ -65,7 +65,6 @@ pub struct AppendWriter<W: AppendWrite> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-
 impl<W: AppendWrite> AppendWriter<W> {
     /// Create a new AppendWriter.
     pub fn new(inner: W) -> Self {

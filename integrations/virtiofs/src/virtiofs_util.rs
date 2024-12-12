@@ -181,7 +181,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Reader<'a, B> {
     }
 }
 
-impl<'a, B: BitmapSlice> io::Read for Reader<'a, B> {
+impl<B: BitmapSlice> io::Read for Reader<'_, B> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let total = self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;
@@ -258,7 +258,7 @@ impl<'a, B: Bitmap + BitmapSlice + 'static> Writer<'a, B> {
     }
 }
 
-impl<'a, B: BitmapSlice> Write for Writer<'a, B> {
+impl<B: BitmapSlice> Write for Writer<'_, B> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let total = self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;

@@ -27,6 +27,7 @@ use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
 use super::core::*;
+use super::delete::CosDeleter;
 use super::error::parse_error;
 use super::lister::CosLister;
 use super::writer::CosWriter;
@@ -232,9 +233,11 @@ impl Access for CosBackend {
     type Reader = HttpBody;
     type Writer = CosWriters;
     type Lister = oio::PageLister<CosLister>;
+    type Deleter = oio::OneShotDeleter<CosDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -258,6 +261,8 @@ impl Access for CosBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
+                // TODO: set this to false while version has been enabled.
+                write_with_if_not_exists: true,
                 // The min multipart size of COS is 1 MiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -281,6 +286,8 @@ impl Access for CosBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -332,17 +339,11 @@ impl Access for CosBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.cos_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(CosDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

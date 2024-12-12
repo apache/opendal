@@ -130,6 +130,8 @@ pub struct Capability {
     pub delete: bool,
     /// If typed_kv operator supports scan natively.
     pub scan: bool,
+    /// If typed_kv operator supports shared access.
+    pub shared: bool,
 }
 
 impl Debug for Capability {
@@ -147,6 +149,9 @@ impl Debug for Capability {
         }
         if self.scan {
             s.push("Scan");
+        }
+        if self.shared {
+            s.push("Shared");
         }
 
         write!(f, "{{ {} }}", s.join(" | "))

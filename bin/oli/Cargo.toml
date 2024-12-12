@@ -58,6 +58,7 @@ anyhow = "1"
 clap = { version = "4", features = ["cargo", "string", "derive", "deprecated"] }
 dirs = "5.0.1"
 futures = "0.3"
+indicatif = "0.17.9"
 opendal = { version = "0.50.0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",

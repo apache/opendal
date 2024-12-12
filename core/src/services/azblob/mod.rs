@@ -18,6 +18,8 @@
 #[cfg(feature = "services-azblob")]
 mod core;
 #[cfg(feature = "services-azblob")]
+mod delete;
+#[cfg(feature = "services-azblob")]
 mod error;
 #[cfg(feature = "services-azblob")]
 mod lister;

@@ -24,6 +24,7 @@ use chrono::DateTime;
 use log::debug;
 
 use super::core::*;
+use super::delete::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
@@ -165,9 +166,11 @@ impl Access for FsBackend {
     type Reader = FsReader<tokio::fs::File>;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type Deleter = oio::OneShotDeleter<FsDeleter>;
     type BlockingReader = FsReader<std::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
+    type BlockingDeleter = oio::OneShotDeleter<FsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -190,6 +193,8 @@ impl Access for FsBackend {
                 copy: true,
                 rename: true,
                 blocking: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -322,27 +327,14 @@ impl Access for FsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = tokio::fs::metadata(&p).await;
-
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
-                } else {
-                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
-                }
-
-                Ok(RpDelete::default())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
+        ))
     }
 
-    async fn list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -356,7 +348,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 
@@ -491,27 +483,14 @@ impl Access for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = std::fs::metadata(&p);
-
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    std::fs::remove_dir(&p).map_err(new_std_io_error)?;
-                } else {
-                    std::fs::remove_file(&p).map_err(new_std_io_error)?;
-                }
-
-                Ok(RpDelete::default())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
+        ))
     }
 
-    fn blocking_list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -525,7 +504,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 

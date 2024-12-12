@@ -147,15 +147,6 @@ impl Capability {
     pub fn write_multi_min_size(&self) -> Option<usize> {
         self.0.write_multi_min_size
     }
-
-    /// write_multi_align_size is the align size that services required in write_multi.
-    ///
-    /// For example, Google GCS requires align size to 256KiB in write_multi.
-    #[napi(getter)]
-    pub fn write_multi_align_size(&self) -> Option<usize> {
-        self.0.write_multi_align_size
-    }
-
     /// write_total_max_size is the max size that services support in write_total.
     ///
     /// For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -236,22 +227,10 @@ impl Capability {
         self.0.presign_write
     }
 
-    /// If operator supports batch.
+    /// If operator supports shared.
     #[napi(getter)]
-    pub fn batch(&self) -> bool {
-        self.0.batch
-    }
-
-    /// If operator supports batch delete.
-    #[napi(getter)]
-    pub fn batch_delete(&self) -> bool {
-        self.0.batch_delete
-    }
-
-    /// The max operations that operator supports in batch.
-    #[napi(getter)]
-    pub fn batch_max_operations(&self) -> Option<usize> {
-        self.0.batch_max_operations
+    pub fn shared(&self) -> bool {
+        self.0.shared
     }
 
     /// If operator supports blocking.

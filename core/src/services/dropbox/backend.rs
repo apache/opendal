@@ -18,12 +18,12 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use backon::Retryable;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 
 use super::core::*;
+use super::delete::DropboxDeleter;
 use super::error::*;
 use super::lister::DropboxLister;
 use super::writer::DropboxWriter;
@@ -39,9 +39,11 @@ impl Access for DropboxBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
+    type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -65,8 +67,7 @@ impl Access for DropboxBackend {
 
                 rename: true,
 
-                batch: true,
-                batch_delete: true,
+                shared: true,
 
                 ..Default::default()
             });
@@ -91,16 +92,7 @@ impl Access for DropboxBackend {
             }
         }
 
-        // Dropbox has very, very, very strong limitation on the create_folder requests.
-        //
-        // Let's try our best to make sure it won't failed for rate limited issues.
-        let res = { || self.core.dropbox_create_folder(path) }
-            .retry(*BACKOFF)
-            .when(|e| e.is_temporary())
-            .await
-            // Set this error to permanent to avoid retrying.
-            .map_err(|e| e.set_permanent())?;
-
+        let res = self.core.dropbox_create_folder(path).await?;
         Ok(res)
     }
 
@@ -169,21 +161,11 @@ impl Access for DropboxBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dropbox_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -229,54 +211,6 @@ impl Access for DropboxBackend {
                     _ => Err(err),
                 }
             }
-        }
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "dropbox services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-
-        let resp = self.core.dropbox_delete_batch(paths).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let bs = resp.into_body();
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        match decoded_response.tag.as_str() {
-            "complete" => {
-                let entries = decoded_response.entries.unwrap_or_default();
-                let results = self.core.handle_batch_delete_complete_result(entries);
-                Ok(RpBatch::new(results))
-            }
-            "async_job_id" => {
-                let job_id = decoded_response
-                    .async_job_id
-                    .expect("async_job_id should be present");
-                let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
-                    .retry(*BACKOFF)
-                    .when(|e| e.is_temporary())
-                    .await?;
-
-                Ok(res)
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                format!(
-                    "delete batch failed with unexpected tag {}",
-                    decoded_response.tag
-                ),
-            )),
         }
     }
 }

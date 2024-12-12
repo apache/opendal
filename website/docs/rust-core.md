@@ -1,6 +1,6 @@
 ---
 title: Rust Core
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 Read the nightly version of Rust API docs at [here](pathname:///docs/rust/opendal/).

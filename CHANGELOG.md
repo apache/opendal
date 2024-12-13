@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.51.0] - 2024-12-14
+
+### Added
+* feat(adapter/kv): support async iterating on scan results by @PragmaTwice in https://github.com/apache/opendal/pull/5208
+* feat(bindings/ruby): Add simple operators to Ruby binding by @erickguan in https://github.com/apache/opendal/pull/5246
+* feat(core/services-gcs): support user defined metadata by @jorgehermo9 in https://github.com/apache/opendal/pull/5276
+* feat(core): add `if_not_exist` in `OpWrite` by @kemingy in https://github.com/apache/opendal/pull/5305
+* feat: Add {stat,list}_has_* to carry the metadata that backend returns by @Xuanwo in https://github.com/apache/opendal/pull/5318
+* feat(core): Implement write if not exists for azblob,azdls,gcs,oss,cos by @Xuanwo in https://github.com/apache/opendal/pull/5321
+* feat(core): add new cap shared by @TennyZhuang in https://github.com/apache/opendal/pull/5328
+* feat(bindings/python): support pickle [de]serialization for Operator by @TennyZhuang in https://github.com/apache/opendal/pull/5324
+* feat(bindings/cpp): init the async support of C++ binding by @PragmaTwice in https://github.com/apache/opendal/pull/5195
+* feat(bindings/go): support darwin by @yuchanns in https://github.com/apache/opendal/pull/5334
+* feat(services/gdrive): List shows modified timestamp gdrive by @erickguan in https://github.com/apache/opendal/pull/5226
+* feat(service/s3): support delete with version by @Frank-III in https://github.com/apache/opendal/pull/5349
+* feat: upgrade pyo3 to 0.23 by @XmchxUp in https://github.com/apache/opendal/pull/5368
+* feat:  publish python3.13t free-threaded wheel by @XmchxUp in https://github.com/apache/opendal/pull/5387
+* feat: add progress bar for oli cp command by @waynexia in https://github.com/apache/opendal/pull/5369
+* feat(types/buffer): skip copying in `to_bytes` when `NonContiguous` contains a single `Bytes` by @ever0de in https://github.com/apache/opendal/pull/5388
+* feat(bin/oli): support command mv by @meteorgan in https://github.com/apache/opendal/pull/5370
+* feat(core): add if-match to `OpWrite` by @Frank-III in https://github.com/apache/opendal/pull/5360
+* feat(core/layers): add correctness_check and capability_check layer to verify whether the operation and arguments is supported by @meteorgan in https://github.com/apache/opendal/pull/5352
+* feat(bindings/ruby): Add I/O class for Ruby by @erickguan in https://github.com/apache/opendal/pull/5354
+* feat(core): Add `content_encoding` to `MetaData` by @Frank-III in https://github.com/apache/opendal/pull/5400
+* feat:(core): add `content encoding` to `Opwrite` by @Frank-III in https://github.com/apache/opendal/pull/5390
+* feat(services/obs): support user defined metadata by @Frank-III in https://github.com/apache/opendal/pull/5405
+### Changed
+* refactor (bindings/zig): Improvements by @kassane in https://github.com/apache/opendal/pull/5247
+* refactor: Remove metakey concept by @Xuanwo in https://github.com/apache/opendal/pull/5319
+* refactor(core)!: Remove not used cap write_multi_align_size by @Xuanwo in https://github.com/apache/opendal/pull/5322
+* refactor(core)!: Remove the range writer that has never been used by @Xuanwo in https://github.com/apache/opendal/pull/5323
+* refactor(core): MaybeSend does not need to be unsafe by @drmingdrmer in https://github.com/apache/opendal/pull/5338
+* refactor: Implement RFC-3911 Deleter API  by @Xuanwo in https://github.com/apache/opendal/pull/5392
+* refactor: Remove batch concept from opendal by @Xuanwo in https://github.com/apache/opendal/pull/5393
+### Fixed
+* fix(services/webdav): Fix lister failing when root contains spaces by @skrimix in https://github.com/apache/opendal/pull/5298
+* fix(bindings/c): Bump min CMake version to support CMP0135 by @palash25 in https://github.com/apache/opendal/pull/5308
+* fix(services/webhdfs): rename auth value by @notauserx in https://github.com/apache/opendal/pull/5342
+* fix(bindings/cpp): remove the warning of CMP0135 by @PragmaTwice in https://github.com/apache/opendal/pull/5346
+* build(python): fix pyproject meta file by @trim21 in https://github.com/apache/opendal/pull/5348
+* fix(services/unftp): add `/` when not presented by @Frank-III in https://github.com/apache/opendal/pull/5382
+* fix: update document against target format check and add hints by @waynexia in https://github.com/apache/opendal/pull/5361
+* fix: oli clippy and CI file by @waynexia in https://github.com/apache/opendal/pull/5389
+* fix(services/obs): support huawei.com by @FayeSpica in https://github.com/apache/opendal/pull/5399
+### Docs
+* docs: Enable force_orphan to reduce clone size by @Xuanwo in https://github.com/apache/opendal/pull/5289
+* docs: Establish VISION for "One Layer, All Storage" by @Xuanwo in https://github.com/apache/opendal/pull/5309
+* docs: Polish docs for write with if not exists by @Xuanwo in https://github.com/apache/opendal/pull/5320
+* docs(core): add the description of version parameter for operator by @meteorgan in https://github.com/apache/opendal/pull/5144
+* docs(core): Add upgrade to v0.51 by @Xuanwo in https://github.com/apache/opendal/pull/5406
+### CI
+* ci: Remove the token of codspeed by @Xuanwo in https://github.com/apache/opendal/pull/5283
+* ci: Allow force push for `gh-pages` by @Xuanwo in https://github.com/apache/opendal/pull/5290
+* build(bindings/java): fix lombok process by @tisonkun in https://github.com/apache/opendal/pull/5297
+* build(bindings/python): add python 3.10 back and remove pypy by @trim21 in https://github.com/apache/opendal/pull/5347
+### Chore
+* chore(core/layers): align `info` method of `trait Access` and `trait LayeredAccess` by @koushiro in https://github.com/apache/opendal/pull/5258
+* chore(core/raw): align `info` method of `kv::Adapter` and `typed_kv::Adapter` by @koushiro in https://github.com/apache/opendal/pull/5259
+* chore(layers/oteltrace): adjust tracer span name of info method by @koushiro in https://github.com/apache/opendal/pull/5285
+* chore(services/s3): remove versioning check for s3 by @meteorgan in https://github.com/apache/opendal/pull/5300
+* chore: Polish the debug output of capability by @Xuanwo in https://github.com/apache/opendal/pull/5315
+* chore: Update maturity.md by @tisonkun in https://github.com/apache/opendal/pull/5340
+* chore: remove flagset in cargo.lock by @meteorgan in https://github.com/apache/opendal/pull/5355
+* chore: add setup action for hadoop to avoid build failures by @meteorgan in https://github.com/apache/opendal/pull/5353
+* chore: fix cargo clippy by @meteorgan in https://github.com/apache/opendal/pull/5379
+* chore: fix cargo clippy by @meteorgan in https://github.com/apache/opendal/pull/5384
+* chore: fix Bindings OCaml CI  by @meteorgan in https://github.com/apache/opendal/pull/5386
+* chore: Add default vscode config for more friendly developer experience by @Zheaoli in https://github.com/apache/opendal/pull/5331
+* chore(website): remove outdated description by @meteorgan in https://github.com/apache/opendal/pull/5411
+* chore(deps): bump clap from 4.5.20 to 4.5.21 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/5372
+* chore(deps): bump anyhow from 1.0.90 to 1.0.93 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5375
+* chore(deps): bump serde from 1.0.210 to 1.0.215 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5376
+* chore(deps): bump openssh-sftp-client from 0.15.1 to 0.15.2 in /core by @dependabot in https://github.com/apache/opendal/pull/5377
+
 ## [v0.50.2] - 2024-11-04
 
 ### Added

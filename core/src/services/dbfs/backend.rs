@@ -25,6 +25,7 @@ use log::debug;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
+use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
@@ -145,9 +146,11 @@ impl Access for DbfsBackend {
     type Reader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;
+    type Deleter = oio::OneShotDeleter<DbfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -223,16 +226,11 @@ impl Access for DbfsBackend {
         ))
     }
 
-    /// NOTE: Server will return 200 even if the path doesn't exist.
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dbfs_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DbfsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

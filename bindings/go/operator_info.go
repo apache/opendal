@@ -228,18 +228,6 @@ func (c *Capability) PresignWrite() bool {
 	return c.inner.presignWrite == 1
 }
 
-func (c *Capability) Batch() bool {
-	return c.inner.batch == 1
-}
-
-func (c *Capability) BatchDelete() bool {
-	return c.inner.batchDelete == 1
-}
-
-func (c *Capability) BatchMaxOperations() uint {
-	return c.inner.batchMaxOperations
-}
-
 func (c *Capability) Shared() bool {
 	return c.inner.shared == 1
 }

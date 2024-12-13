@@ -41,7 +41,7 @@ impl OpCreateDir {
 /// Args for `delete` operation.
 ///
 /// The path must be normalized.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
 }
@@ -63,6 +63,19 @@ impl OpDelete {
     /// Get the version of this delete operation.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+}
+
+/// Args for `delete` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpDeleter {}
+
+impl OpDeleter {
+    /// Create a new `OpDelete`.
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -244,53 +257,6 @@ impl From<OpRead> for PresignOperation {
 impl From<OpWrite> for PresignOperation {
     fn from(v: OpWrite) -> Self {
         Self::Write(v)
-    }
-}
-
-/// Args for `batch` operation.
-#[derive(Debug, Clone)]
-pub struct OpBatch {
-    ops: Vec<(String, BatchOperation)>,
-}
-
-impl OpBatch {
-    /// Create a new batch options.
-    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
-        Self { ops }
-    }
-
-    /// Get operation from op.
-    pub fn operation(&self) -> &[(String, BatchOperation)] {
-        &self.ops
-    }
-
-    /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
-        self.ops
-    }
-}
-
-/// Batch operation used for batch.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum BatchOperation {
-    /// Batch delete operation.
-    Delete(OpDelete),
-}
-
-impl From<OpDelete> for BatchOperation {
-    fn from(op: OpDelete) -> Self {
-        Self::Delete(op)
-    }
-}
-
-impl BatchOperation {
-    /// Return the operation of this batch.
-    pub fn operation(&self) -> Operation {
-        use BatchOperation::*;
-        match self {
-            Delete(_) => Operation::Delete,
-        }
     }
 }
 
@@ -575,8 +541,10 @@ pub struct OpWrite {
     concurrent: usize,
     content_type: Option<String>,
     content_disposition: Option<String>,
+    content_encoding: Option<String>,
     cache_control: Option<String>,
     executor: Option<Executor>,
+    if_match: Option<String>,
     if_none_match: Option<String>,
     if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
@@ -631,6 +599,17 @@ impl OpWrite {
         self
     }
 
+    /// Get the content encoding from option
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set the content encoding of option
+    pub fn with_content_encoding(mut self, content_encoding: &str) -> Self {
+        self.content_encoding = Some(content_encoding.to_string());
+        self
+    }
+
     /// Get the cache control from option
     pub fn cache_control(&self) -> Option<&str> {
         self.cache_control.as_deref()
@@ -662,6 +641,17 @@ impl OpWrite {
     pub fn with_executor(mut self, executor: Executor) -> Self {
         self.executor = Some(executor);
         self
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, s: &str) -> Self {
+        self.if_match = Some(s.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 
     /// Set the If-None-Match of the option

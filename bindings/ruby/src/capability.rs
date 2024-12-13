@@ -94,9 +94,6 @@ define_accessors!(Capability, {
     presign_read: bool,
     presign_stat: bool,
     presign_write: bool,
-    batch: bool,
-    batch_delete: bool,
-    batch_max_operations: Option<usize>,
     shared: bool,
     blocking: bool,
 });
@@ -145,9 +142,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
         presign_read,
         presign_stat,
         presign_write,
-        batch,
-        batch_delete,
-        batch_max_operations,
         blocking
     });
 

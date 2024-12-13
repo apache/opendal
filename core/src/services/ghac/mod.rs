@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-ghac")]
+mod delete;
+#[cfg(feature = "services-ghac")]
 mod error;
 #[cfg(feature = "services-ghac")]
 mod writer;

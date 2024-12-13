@@ -32,10 +32,12 @@ use serde::Deserialize;
 use serde_json;
 
 use super::core::*;
+use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
 use crate::*;
@@ -341,9 +343,11 @@ impl Access for GcsBackend {
     type Reader = HttpBody;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
+    type Deleter = oio::BatchDeleter<GcsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -381,6 +385,7 @@ impl Access for GcsBackend {
                 },
 
                 delete: true,
+                delete_max_size: Some(100),
                 copy: true,
 
                 list: true,
@@ -388,8 +393,6 @@ impl Access for GcsBackend {
                 list_with_start_after: true,
                 list_with_recursive: true,
 
-                batch: true,
-                batch_max_operations: Some(100),
                 presign: true,
                 presign_stat: true,
                 presign_read: true,
@@ -463,15 +466,11 @@ impl Access for GcsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gcs_delete_object(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            Err(parse_error(resp))
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -517,65 +516,6 @@ impl Access for GcsBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 100 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "gcs services only allow delete less than 100 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
-        let resp = self.core.gcs_delete_objects(paths.clone()).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let content_type = parse_content_type(resp.headers())?.ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "gcs batch delete response content type is empty",
-                )
-            })?;
-            let boundary = content_type
-                .strip_prefix("multipart/mixed; boundary=")
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "gcs batch delete response content type is not multipart/mixed",
-                    )
-                })?
-                .trim_matches('"');
-            let multipart: Multipart<MixedPart> = Multipart::new()
-                .with_boundary(boundary)
-                .parse(resp.into_body().to_bytes())?;
-            let parts = multipart.into_parts();
-
-            let mut batched_result = Vec::with_capacity(parts.len());
-
-            for (i, part) in parts.into_iter().enumerate() {
-                let resp = part.into_response();
-                // TODO: maybe we can take it directly?
-                let path = paths[i].clone();
-
-                // deleting not existing objects is ok
-                if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                    batched_result.push((path, Ok(RpDelete::default().into())));
-                } else {
-                    batched_result.push((path, Err(parse_error(resp))));
-                }
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
-            // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            Err(parse_error(resp))
-        }
     }
 }
 

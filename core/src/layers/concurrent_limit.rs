@@ -84,6 +84,8 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     type BlockingWriter = ConcurrentLimitWrapper<A::BlockingWriter>;
     type Lister = ConcurrentLimitWrapper<A::Lister>;
     type BlockingLister = ConcurrentLimitWrapper<A::BlockingLister>;
+    type Deleter = ConcurrentLimitWrapper<A::Deleter>;
+    type BlockingDeleter = ConcurrentLimitWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -137,14 +139,18 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let _permit = self
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let permit = self
             .semaphore
-            .acquire()
+            .clone()
+            .acquire_owned()
             .await
             .expect("semaphore must be valid");
 
-        self.inner.delete(path, args).await
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -159,16 +165,6 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
             .list(path, args)
             .await
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.batch(args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -213,13 +209,16 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
         self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let _permit = self
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        let permit = self
             .semaphore
-            .try_acquire()
+            .clone()
+            .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner.blocking_delete(path, args)
+        self.inner
+            .blocking_delete()
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -296,5 +295,25 @@ impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for ConcurrentLimitWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for ConcurrentLimitWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner.flush().await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for ConcurrentLimitWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }

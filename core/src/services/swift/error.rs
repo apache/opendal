@@ -61,10 +61,10 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 }
 
 fn parse_error_response(resp: &Bytes) -> String {
-    return match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
+    match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
         Ok(swift_err) => swift_err.p,
         Err(_) => String::from_utf8_lossy(resp).into_owned(),
-    };
+    }
 }
 
 #[cfg(test)]

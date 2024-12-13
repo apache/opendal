@@ -16,6 +16,7 @@
 // under the License.
 
 use super::operator_functions::*;
+use crate::raw::oio::BlockingDelete;
 use crate::raw::*;
 use crate::*;
 
@@ -74,8 +75,6 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct BlockingOperator {
     accessor: Accessor,
-
-    limit: usize,
 }
 
 impl BlockingOperator {
@@ -88,26 +87,21 @@ impl BlockingOperator {
     /// # Note
     /// default batch limit is 1000.
     pub(crate) fn from_inner(accessor: Accessor) -> Self {
-        let limit = accessor
-            .info()
-            .full_capability()
-            .batch_max_operations
-            .unwrap_or(1000);
-        Self { accessor, limit }
+        Self { accessor }
     }
 
     /// Get current operator's limit
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
     pub fn limit(&self) -> usize {
-        self.limit
+        0
     }
 
     /// Specify the batch limit.
     ///
     /// Default: 1000
-    pub fn with_limit(&self, limit: usize) -> Self {
-        let mut op = self.clone();
-        op.limit = limit;
-        op
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
+    pub fn with_limit(&self, _: usize) -> Self {
+        self.clone()
     }
 
     /// Get information of underlying accessor.
@@ -765,11 +759,54 @@ impl BlockingOperator {
             path,
             OpDelete::new(),
             |inner, path, args| {
-                let _ = inner.blocking_delete(&path, args)?;
+                let (_, mut deleter) = inner.blocking_delete()?;
+                deleter.delete(&path, args)?;
+                deleter.flush()?;
 
                 Ok(())
             },
         ))
+    }
+
+    /// Delete an infallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingOperator::delete_try_iter`]: delete an fallible iterator of paths.
+    pub fn delete_iter<I, D>(&self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter()?;
+        deleter.delete_iter(iter)?;
+        deleter.close()?;
+        Ok(())
+    }
+
+    /// Delete a fallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`BlockingOperator::delete_iter`]: delete an infallible iterator of paths.
+    pub fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter()?;
+        deleter.delete_try_iter(try_iter)?;
+        deleter.close()?;
+        Ok(())
+    }
+
+    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    ///
+    /// It leverages batch deletion capabilities provided by storage services for efficient removal.
+    ///
+    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    pub fn deleter(&self) -> Result<BlockingDeleter> {
+        BlockingDeleter::create(self.inner().clone())
     }
 
     /// remove will remove files via the given paths.
@@ -792,6 +829,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52.0")]
     pub fn remove_via(&self, input: impl Iterator<Item = String>) -> Result<()> {
         for path in input {
             self.delete(&path)?;
@@ -814,10 +852,9 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `BlockingOperator::delete_iter` instead", since = "0.52.0")]
     pub fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.remove_via(paths.into_iter())?;
-
-        Ok(())
+        self.delete_iter(paths)
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -853,17 +890,8 @@ impl BlockingOperator {
             Err(e) => return Err(e),
         };
 
-        let obs = self.lister_with(path).recursive(true).call()?;
-
-        for v in obs {
-            match v {
-                Ok(entry) => {
-                    self.inner()
-                        .blocking_delete(entry.path(), OpDelete::new())?;
-                }
-                Err(e) => return Err(e),
-            }
-        }
+        let lister = self.lister_with(path).recursive(true).call()?;
+        self.delete_try_iter(lister)?;
 
         Ok(())
     }
@@ -1086,6 +1114,6 @@ impl BlockingOperator {
 
 impl From<BlockingOperator> for Operator {
     fn from(v: BlockingOperator) -> Self {
-        Operator::from_inner(v.accessor).with_limit(v.limit)
+        Operator::from_inner(v.accessor)
     }
 }

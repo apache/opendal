@@ -25,6 +25,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 
+use super::delete::OnedriveDeleter;
 use super::error::parse_error;
 use super::graph_model::CreateDirPayload;
 use super::graph_model::ItemType;
@@ -65,9 +66,11 @@ impl Access for OnedriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OnedriveLister>;
+    type Deleter = oio::OneShotDeleter<OnedriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -176,17 +179,11 @@ impl Access for OnedriveBackend {
         ))
     }
 
-    /// Delete operation
-    /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.onedrive_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(OnedriveDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Lister)> {

@@ -19,8 +19,10 @@
 //! output.
 //!
 //! Those types should only be used internally and we don't want users to
-//! depend on them. So we should also implement trait like `AsyncRead` for
-//! our `output` traits.
+//! depend on them.
+
+mod delete;
+pub use delete::*;
 
 mod read;
 pub use read::*;

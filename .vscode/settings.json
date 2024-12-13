@@ -1,0 +1,11 @@
+{
+  "rust-analyzer.cargo.allTargets": true,
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.linkedProjects": [
+    "${workspaceFolder}/core/Cargo.toml",
+    "${workspaceFolder}/bindings/python/Cargo.toml",
+    "${workspaceFolder}/bindings/java/Cargo.toml",
+    "${workspaceFolder}/bindings/nodejs/Cargo.toml",
+  ],
+  "java.compile.nullAnalysis.mode": "automatic"
+}

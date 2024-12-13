@@ -33,9 +33,9 @@ use tokio::sync::RwLock;
 
 use self::constants::X_BZ_CONTENT_SHA1;
 use self::constants::X_BZ_FILE_NAME;
+use super::core::constants::X_BZ_PART_NUMBER;
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::b2::core::constants::X_BZ_PART_NUMBER;
-use crate::services::b2::error::parse_error;
 use crate::*;
 
 pub(super) mod constants {

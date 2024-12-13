@@ -43,6 +43,9 @@ mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
 
+mod delete;
+pub use delete::*;
+
 mod execute;
 pub use execute::*;
 

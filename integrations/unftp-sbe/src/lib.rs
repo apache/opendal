@@ -222,10 +222,11 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     }
 
     async fn mkd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
-        self.op
-            .create_dir(convert_path(path.as_ref())?)
-            .await
-            .map_err(convert_err)
+        let mut path_str = convert_path(path.as_ref())?.to_string();
+        if !path_str.ends_with('/') {
+            path_str.push('/');
+        }
+        self.op.create_dir(&path_str).await.map_err(convert_err)
     }
 
     async fn rename<P: AsRef<Path> + Send + Debug>(

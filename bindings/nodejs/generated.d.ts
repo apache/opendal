@@ -186,12 +186,6 @@ export class Capability {
   get presignStat(): boolean
   /** If operator supports presign write. */
   get presignWrite(): boolean
-  /** If operator supports batch. */
-  get batch(): boolean
-  /** If operator supports batch delete. */
-  get batchDelete(): boolean
-  /** The max operations that operator supports in batch. */
-  get batchMaxOperations(): bigint | null
   /** If operator supports shared. */
   get shared(): boolean
   /** If operator supports blocking. */

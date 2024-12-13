@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::PcloudDeleter;
 use super::error::parse_error;
 use super::error::PcloudError;
 use super::lister::PcloudLister;
@@ -190,9 +191,11 @@ impl Access for PcloudBackend {
     type Reader = HttpBody;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
+    type Deleter = oio::OneShotDeleter<PcloudDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -282,31 +285,11 @@ impl Access for PcloudBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
-            self.core.delete_folder(path).await?
-        } else {
-            self.core.delete_file(path).await?
-        };
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-
-                // pCloud returns 2005 or 2009 if the file or folder is not found
-                if result != 0 && result != 2005 && result != 2009 {
-                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
-                }
-
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(PcloudDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

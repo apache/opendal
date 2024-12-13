@@ -25,6 +25,7 @@ use crate::params::config::ConfigParams;
 pub struct RmCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
     #[arg()]
     pub target: String,
     /// Remove objects recursively.

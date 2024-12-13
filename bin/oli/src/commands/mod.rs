@@ -20,6 +20,7 @@
 pub mod cat;
 pub mod cp;
 pub mod ls;
+pub mod mv;
 pub mod rm;
 pub mod stat;
 
@@ -30,6 +31,7 @@ pub enum OliSubcommand {
     Ls(ls::LsCmd),
     Rm(rm::RmCmd),
     Stat(stat::StatCmd),
+    Mv(mv::MoveCmd),
 }
 
 impl OliSubcommand {
@@ -40,6 +42,7 @@ impl OliSubcommand {
             Self::Ls(cmd) => cmd.run().await,
             Self::Rm(cmd) => cmd.run().await,
             Self::Stat(cmd) => cmd.run().await,
+            Self::Mv(cmd) => cmd.run().await,
         }
     }
 }

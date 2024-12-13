@@ -37,7 +37,7 @@ pub struct Config {
     profiles: HashMap<String, HashMap<String, String>>,
 }
 
-/// resolve_relative_path turns a relative path to a absolute path.
+/// resolve_relative_path turns a relative path to an absolute path.
 ///
 /// The reason why we don't use `fs::canonicalize` here is `fs::canonicalize`
 /// will return an error if the path does not exist, which is unwanted.
@@ -147,7 +147,7 @@ impl Config {
 
         let location = Url::parse(s)?;
         if location.has_host() {
-            Err(anyhow!("Host part in a location is not supported."))?;
+            Err(anyhow!("Host part in a location is not supported. Hint: are you typing `://` instead of `:/`?"))?;
         }
 
         let profile_name = location.scheme();
@@ -338,7 +338,7 @@ enable_virtual_host_style = "on"
         let uri = "mys3://foo/1.txt";
         let expected_msg = "Host part in a location is not supported.";
         match cfg.parse_location(uri) {
-            Err(e) if e.to_string() == expected_msg => Ok(()),
+            Err(e) if e.to_string().contains(expected_msg) => Ok(()),
             _ => Err(anyhow!(
                 "Getting an message \"{}\" is expected when parsing {}.",
                 expected_msg,

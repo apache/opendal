@@ -31,6 +31,7 @@ use constants::X_AMZ_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -96,8 +97,9 @@ pub struct S3Core {
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub client: HttpClient,
-    pub batch_max_operations: usize,
+    pub delete_max_size: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Core {
@@ -451,8 +453,16 @@ impl S3Core {
             req = req.header(CONTENT_DISPOSITION, pos)
         }
 
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
         }
 
         if args.if_not_exists() {

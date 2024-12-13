@@ -176,7 +176,7 @@ struct OperationLabels<'a> {
     error: Option<ErrorKind>,
 }
 
-impl<'a> OperationLabels<'a> {
+impl OperationLabels<'_> {
     /// labels:
     ///
     /// 1. `["scheme", "namespace", "root", "operation"]`

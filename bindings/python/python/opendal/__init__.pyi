@@ -200,9 +200,5 @@ class Capability:
     presign_stat: bool
     presign_write: bool
 
-    batch: bool
-    batch_delete: bool
-    batch_max_operations: Optional[int]
-
     shared: bool
     blocking: bool

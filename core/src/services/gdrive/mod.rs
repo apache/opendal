@@ -20,6 +20,8 @@ mod backend;
 #[cfg(feature = "services-gdrive")]
 mod core;
 #[cfg(feature = "services-gdrive")]
+mod delete;
+#[cfg(feature = "services-gdrive")]
 mod error;
 #[cfg(feature = "services-gdrive")]
 mod lister;

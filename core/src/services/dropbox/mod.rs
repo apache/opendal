@@ -20,6 +20,8 @@ mod backend;
 #[cfg(feature = "services-dropbox")]
 mod core;
 #[cfg(feature = "services-dropbox")]
+mod delete;
+#[cfg(feature = "services-dropbox")]
 mod error;
 #[cfg(feature = "services-dropbox")]
 mod lister;

@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-webhdfs")]
+mod delete;
+#[cfg(feature = "services-webhdfs")]
 mod error;
 #[cfg(feature = "services-webhdfs")]
 mod lister;

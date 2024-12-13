@@ -18,6 +18,8 @@
 #[cfg(feature = "services-monoiofs")]
 mod core;
 #[cfg(feature = "services-monoiofs")]
+mod delete;
+#[cfg(feature = "services-monoiofs")]
 mod reader;
 #[cfg(feature = "services-monoiofs")]
 mod writer;

@@ -171,21 +171,6 @@ public class Capability {
     public final boolean presignWrite;
 
     /**
-     * If operator supports batch.
-     */
-    public final boolean batch;
-
-    /**
-     * If operator supports batch delete.
-     */
-    public final boolean batchDelete;
-
-    /**
-     * The max operations that operator supports in batch.
-     */
-    public final long batchMaxOperations;
-
-    /**
      * If operator supports shared.
      */
     public final boolean shared;
@@ -225,9 +210,6 @@ public class Capability {
             boolean presignRead,
             boolean presignStat,
             boolean presignWrite,
-            boolean batch,
-            boolean batchDelete,
-            long batchMaxOperations,
             boolean blocking,
             boolean shared) {
         this.stat = stat;
@@ -259,9 +241,6 @@ public class Capability {
         this.presignRead = presignRead;
         this.presignStat = presignStat;
         this.presignWrite = presignWrite;
-        this.batch = batch;
-        this.batchDelete = batchDelete;
-        this.batchMaxOperations = batchMaxOperations;
         this.blocking = blocking;
         this.shared = shared;
     }

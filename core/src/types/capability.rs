@@ -90,6 +90,8 @@ pub struct Capability {
     pub stat_has_content_range: bool,
     /// Indicates whether content type information is available in stat response
     pub stat_has_content_type: bool,
+    /// Indicates whether content encoding information is available in stat response
+    pub stat_has_content_encoding: bool,
     /// Indicates whether entity tag is available in stat response
     pub stat_has_etag: bool,
     /// Indicates whether last modified timestamp is available in stat response
@@ -126,8 +128,12 @@ pub struct Capability {
     pub write_with_content_type: bool,
     /// Indicates if Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
+    /// Indicates if Content-Encoding can be specified during write operations.
+    pub write_with_content_encoding: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
+    /// Indicates if conditional write operations using If-Match are supported.
+    pub write_with_if_match: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
@@ -151,6 +157,8 @@ pub struct Capability {
     pub delete: bool,
     /// Indicates if versioned delete operations are supported.
     pub delete_with_version: bool,
+    /// Maximum size supported for single delete operations.
+    pub delete_max_size: Option<usize>,
 
     /// Indicates if copy operations are supported.
     pub copy: bool,
@@ -197,13 +205,6 @@ pub struct Capability {
     pub presign_stat: bool,
     /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
-
-    /// Indicates if batch operations are supported.
-    pub batch: bool,
-    /// Indicates if batch delete operations are supported.
-    pub batch_delete: bool,
-    /// Maximum number of operations supported in a single batch.
-    pub batch_max_operations: Option<usize>,
 
     /// Indicate if the operator supports shared access.
     pub shared: bool,

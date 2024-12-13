@@ -32,7 +32,7 @@ cargo install oli --all-features
 - `~/Library/Application Support/oli/config.toml` on macOS
 - `C:\Users\<UserName>\AppData\Roaming\oli\config.toml` on Windows
 
-The content of `config.toml` should be follow these pattern:
+The content of `config.toml` should follow these pattern:
 
 ```toml
 [profiles.<profile_name>]
@@ -72,8 +72,8 @@ For different services, you could find the configuration keys in the correspondi
 ### Example: use `oli` to upload file to AWS S3
 
 ```text
-$ oli cp ./update-ecs-loadbalancer.json s3://update-ecs-loadbalancer.json
-$ oli ls s3://                                                           
+$ oli cp ./update-ecs-loadbalancer.json s3:/update-ecs-loadbalancer.json
+$ oli ls s3:/
 fleet.png
 update-ecs-loadbalancer.json
 ```
@@ -81,8 +81,8 @@ update-ecs-loadbalancer.json
 ### Example: use `oli` copy file from S3 to R2
 
 ```text
-$ oli cp s3://fleet.png r2://fleet.png
-$ oli ls r2://
+$ oli cp s3:/fleet.png r2:/fleet.png
+$ oli ls r2:/
 fleet.png
 ```
 

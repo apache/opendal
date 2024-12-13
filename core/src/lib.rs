@@ -144,16 +144,15 @@ mod tests {
     use std::mem::size_of;
 
     use super::*;
-
     /// This is not a real test case.
     ///
     /// We assert our public structs here to make sure we don't introduce
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(40, size_of::<Operator>());
-        assert_eq!(296, size_of::<Entry>());
-        assert_eq!(272, size_of::<Metadata>());
+        assert_eq!(32, size_of::<Operator>());
+        assert_eq!(320, size_of::<Entry>());
+        assert_eq!(296, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }

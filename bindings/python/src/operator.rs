@@ -23,6 +23,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
+use pyo3::IntoPyObjectExt;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -228,10 +229,10 @@ impl Operator {
     }
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
-        let args = vec![self.__scheme.to_string().to_object(py)];
-        let args = PyTuple::new_bound(py, args);
-        let kwargs = self.__map.clone().into_py(py);
-        Ok(PyTuple::new_bound(py, [args.to_object(py), kwargs.to_object(py)]).to_object(py))
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
+        let kwargs = self.__map.clone().into_py_any(py)?;
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
     }
 }
 
@@ -434,7 +435,8 @@ impl AsyncOperator {
         let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
+
             Ok(pylister)
         })
     }
@@ -448,7 +450,8 @@ impl AsyncOperator {
                 .recursive(true)
                 .await
                 .map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            let pylister: PyObject =
+                Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
             Ok(pylister)
         })
     }
@@ -543,10 +546,10 @@ impl AsyncOperator {
     }
 
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
-        let args = vec![self.__scheme.to_string().to_object(py)];
-        let args = PyTuple::new_bound(py, args);
-        let kwargs = self.__map.clone().into_py(py);
-        Ok(PyTuple::new_bound(py, [args.to_object(py), kwargs.to_object(py)]).to_object(py))
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
+        let kwargs = self.__map.clone().into_py_any(py)?;
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
     }
 }
 

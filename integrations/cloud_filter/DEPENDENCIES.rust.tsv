@@ -18,7 +18,7 @@ cc@1.1.34		X							X
 cfg-if@1.0.0		X							X					
 chrono@0.4.38		X							X					
 cloud-filter@0.0.5									X					
-cloud_filter_opendal@0.0.3		X												
+cloud_filter_opendal@0.0.4		X												
 const-oid@0.9.6		X							X					
 const-random@0.1.18		X							X					
 const-random-macro@0.1.16		X							X					
@@ -79,7 +79,7 @@ num-conv@0.1.0		X							X
 num-traits@0.2.19		X							X					
 object@0.36.5		X							X					
 once_cell@1.20.2		X							X					
-opendal@0.50.2		X												
+opendal@0.51.0		X												
 ordered-multimap@0.7.3									X					
 percent-encoding@2.3.1		X							X					
 pin-project-lite@0.2.15		X							X					

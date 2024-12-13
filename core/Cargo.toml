@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.50.2"
+version = "0.51.0"
 
 [lints.clippy]
 unused_async = "warn"

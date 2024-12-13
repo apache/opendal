@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::DbfsCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::dbfs::core::DbfsCore;
 use crate::*;
 
 pub struct DbfsWriter {

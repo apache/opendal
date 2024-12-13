@@ -126,15 +126,6 @@ pub struct opendal_capability {
     /// If operator supports presign write.
     pub presign_write: bool,
 
-    /// If operator supports batch.
-    pub batch: bool,
-    /// If operator supports batch delete.
-    pub batch_delete: bool,
-    /// The max operations that operator supports in batch.
-    ///
-    /// If it is not set, this will be zero
-    pub batch_max_operations: usize,
-
     /// If operator supports shared.
     pub shared: bool,
 
@@ -263,9 +254,6 @@ impl From<core::Capability> for opendal_capability {
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,
             presign_write: value.presign_write,
-            batch: value.batch,
-            batch_delete: value.batch_delete,
-            batch_max_operations: value.batch_max_operations.unwrap_or(0),
             shared: value.shared,
             blocking: value.blocking,
         }

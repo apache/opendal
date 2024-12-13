@@ -29,6 +29,7 @@ use log::debug;
 use tokio::sync::Mutex;
 
 use super::core::*;
+use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
@@ -203,9 +204,11 @@ impl Access for AliyunDriveBackend {
     type Reader = HttpBody;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
+    type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -376,18 +379,11 @@ impl Access for AliyunDriveBackend {
         }
     }
 
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
-        let res = match self.core.get_by_path(path).await {
-            Ok(output) => Some(output),
-            Err(err) if err.kind() == ErrorKind::NotFound => None,
-            Err(err) => return Err(err),
-        };
-        if let Some(res) = res {
-            let file: AliyunDriveFile =
-                serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-            self.core.delete_path(&file.file_id).await?;
-        }
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AliyunDriveDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

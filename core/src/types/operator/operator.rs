@@ -18,14 +18,15 @@
 use std::future::Future;
 use std::time::Duration;
 
-use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
+use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
+use crate::types::delete::Deleter;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
@@ -61,8 +62,6 @@ pub struct Operator {
     // accessor is what Operator delegates for
     accessor: Accessor,
 
-    // limit is usually the maximum size of data that operator will handle in one operation
-    limit: usize,
     /// The default executor that used to run futures in background.
     default_executor: Option<Executor>,
 }
@@ -76,14 +75,8 @@ impl Operator {
 
     /// Convert inner accessor into operator.
     pub fn from_inner(accessor: Accessor) -> Self {
-        let limit = accessor
-            .info()
-            .full_capability()
-            .batch_max_operations
-            .unwrap_or(1000);
         Self {
             accessor,
-            limit,
             default_executor: None,
         }
     }
@@ -95,17 +88,17 @@ impl Operator {
 
     /// Get current operator's limit.
     /// Limit is usually the maximum size of data that operator will handle in one operation.
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
     pub fn limit(&self) -> usize {
-        self.limit
+        0
     }
 
     /// Specify the batch limit.
     ///
     /// Default: 1000
-    pub fn with_limit(&self, limit: usize) -> Self {
-        let mut op = self.clone();
-        op.limit = limit;
-        op
+    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
+    pub fn with_limit(&self, _: usize) -> Self {
+        self.clone()
     }
 
     /// Get the default executor.
@@ -142,7 +135,7 @@ impl Operator {
     ///
     /// This operation is nearly no cost.
     pub fn blocking(&self) -> BlockingOperator {
-        BlockingOperator::from_inner(self.accessor.clone()).with_limit(self.limit)
+        BlockingOperator::from_inner(self.accessor.clone())
     }
 }
 
@@ -1414,6 +1407,38 @@ impl Operator {
     /// # }
     /// ```
     ///
+    /// ## `content_encoding`
+    ///
+    /// Sets Content-Encoding header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_encoding`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Encoding as system metadata on the target file
+    /// - The value should follow HTTP Content-Encoding header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the content encoding for the written content.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_encoding("br")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// ## `if_none_match`
     ///
     /// Sets an `if none match` condition with specified ETag for this write request.
@@ -1468,6 +1493,36 @@ impl Operator {
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let res = op.write_with("path/to/file", bs).if_not_exists(true).await;
+    /// assert!(res.is_err());
+    /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_match`
+    ///
+    /// Sets an `if match` condition with specified ETag for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If the target file's ETag matches the specified one, proceeds with the write operation
+    /// - If the target file's ETag does not match the specified one, returns [`ErrorKind::ConditionNotMatch`]
+    ///
+    /// This operation will succeed when the target's ETag matches the specified one,
+    /// providing a way for conditional writes.
+    ///
+    /// ### Example
+    ///
+    /// ```no_run
+    /// # use opendal::{ErrorKind, Result};
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, incorrect_etag: &str) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let res = op.write_with("path/to/file", bs).if_match(incorrect_etag).await;
     /// assert!(res.is_err());
     /// assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
     /// # Ok(())
@@ -1575,13 +1630,95 @@ impl Operator {
             path,
             OpDelete::default(),
             |inner, path, args| async move {
-                let _ = inner.delete(&path, args).await?;
+                let (_, mut deleter) = inner.delete_dyn().await?;
+                deleter.delete_dyn(&path, args)?;
+                deleter.flush_dyn().await?;
                 Ok(())
             },
         )
     }
 
+    /// Delete an infallible iterator of paths.
     ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_iter<I, D>(&self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_iter(iter).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete a fallible iterator of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_try_iter(try_iter).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete an infallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    pub async fn delete_stream<S, D>(&self, stream: S) -> Result<()>
+    where
+        S: Stream<Item = D>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_stream(stream).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Delete an fallible stream of paths.
+    ///
+    /// Also see:
+    ///
+    /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
+    pub async fn delete_try_stream<S, D>(&self, try_stream: S) -> Result<()>
+    where
+        S: Stream<Item = Result<D>>,
+        D: IntoDeleteInput,
+    {
+        let mut deleter = self.deleter().await?;
+        deleter.delete_try_stream(try_stream).await?;
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// Create a [`Deleter`] to continuously remove content from storage.
+    ///
+    /// It leverages batch deletion capabilities provided by storage services for efficient removal.
+    ///
+    /// Users can have more control over the deletion process by using [`Deleter`] directly.
+    pub async fn deleter(&self) -> Result<Deleter> {
+        Deleter::create(self.inner().clone()).await
+    }
+
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1600,8 +1737,12 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `Operator::delete_iter` instead", since = "0.52.0")]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.remove_via(stream::iter(paths)).await
+        let mut deleter = self.deleter().await?;
+        deleter.delete_iter(paths).await?;
+        deleter.close().await?;
+        Ok(())
     }
 
     /// remove will remove files via the given paths.
@@ -1629,35 +1770,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(note = "use `Operator::delete_stream` instead", since = "0.52.0")]
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
-        let input = input.map(|v| normalize_path(&v));
-
-        if self.info().full_capability().batch {
-            let mut input = input
-                .map(|v| (v, OpDelete::default().into()))
-                .chunks(self.limit());
-
-            while let Some(batches) = input.next().await {
-                let results = self
-                    .inner()
-                    .batch(OpBatch::new(batches))
-                    .await?
-                    .into_results();
-
-                // TODO: return error here directly seems not a good idea?
-                for (_, result) in results {
-                    let _ = result?;
-                }
-            }
-        } else {
-            input
-                .map(Ok)
-                .try_for_each_concurrent(self.limit, |path| async move {
-                    let _ = self.inner().delete(&path, OpDelete::default()).await?;
-                    Ok::<(), Error>(())
-                })
-                .await?;
-        }
+        let mut deleter = self.deleter().await?;
+        deleter
+            .delete_stream(input.map(|v| normalize_path(&v)))
+            .await?;
+        deleter.close().await?;
 
         Ok(())
     }
@@ -1700,34 +1819,8 @@ impl Operator {
             Err(e) => return Err(e),
         };
 
-        let obs = self.lister_with(path).recursive(true).await?;
-
-        if self.info().full_capability().batch {
-            let mut obs = obs.try_chunks(self.limit());
-
-            while let Some(batches) = obs.next().await {
-                let batches = batches
-                    .map_err(|err| err.1)?
-                    .into_iter()
-                    .map(|v| (v.path().to_string(), OpDelete::default().into()))
-                    .collect();
-
-                let results = self
-                    .inner()
-                    .batch(OpBatch::new(batches))
-                    .await?
-                    .into_results();
-
-                // TODO: return error here directly seems not a good idea?
-                for (_, result) in results {
-                    let _ = result?;
-                }
-            }
-        } else {
-            obs.try_for_each(|v| async move { self.delete(v.path()).await })
-                .await?;
-        }
-
+        let lister = self.lister_with(path).recursive(true).await?;
+        self.delete_try_stream(lister).await?;
         Ok(())
     }
 

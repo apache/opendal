@@ -287,10 +287,19 @@ impl Buffer {
     pub fn to_bytes(&self) -> Bytes {
         match &self.0 {
             Inner::Contiguous(bytes) => bytes.clone(),
-            Inner::NonContiguous { .. } => {
-                let mut ret = BytesMut::with_capacity(self.len());
-                ret.put(self.clone());
-                ret.freeze()
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx: _,
+                offset,
+            } => {
+                if parts.len() == 1 {
+                    parts[0].slice(*offset..(*offset + *size))
+                } else {
+                    let mut ret = BytesMut::with_capacity(self.len());
+                    ret.put(self.clone());
+                    ret.freeze()
+                }
             }
         }
     }

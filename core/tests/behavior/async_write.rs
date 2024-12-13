@@ -44,8 +44,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_cache_control,
             test_write_with_content_type,
             test_write_with_content_disposition,
+            test_write_with_content_encoding,
             test_write_with_if_none_match,
             test_write_with_if_not_exists,
+            test_write_with_if_match,
             test_write_with_user_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
@@ -207,6 +209,28 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
     );
     assert_eq!(meta.content_length(), size as u64);
 
+    Ok(())
+}
+
+/// Write a single file with content encoding should succeed.
+pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_content_encoding {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let target_content_encoding = "gzip";
+    op.write_with(&path, content)
+        .content_encoding(target_content_encoding)
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(
+        meta.content_encoding()
+            .expect("content encoding must exist"),
+        target_content_encoding
+    );
     Ok(())
 }
 
@@ -668,6 +692,44 @@ pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
     let res = op
         .write_with(&path, content.clone())
         .if_not_exists(true)
+        .await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an file with if_match will get a ConditionNotMatch error if file's etag does not match.
+pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_if_match {
+        return Ok(());
+    }
+
+    // Create two different files with different content
+    let (path_a, content_a, _) = TEST_FIXTURE.new_file(op.clone());
+    let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
+
+    // Write initial content to both files
+    op.write(&path_a, content_a.clone()).await?;
+    op.write(&path_b, content_b.clone()).await?;
+
+    // Get etags for both files
+    let meta_a = op.stat(&path_a).await?;
+    let etag_a = meta_a.etag().expect("etag must exist");
+    let meta_b = op.stat(&path_b).await?;
+    let etag_b = meta_b.etag().expect("etag must exist");
+
+    // Should succeed: Writing to path_a with its own etag
+    let res = op
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_a)
+        .await;
+    assert!(res.is_ok());
+
+    // Should fail: Writing to path_a with path_b's etag
+    let res = op
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_b)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

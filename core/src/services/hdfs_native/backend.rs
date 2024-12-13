@@ -22,6 +22,7 @@ use std::sync::Arc;
 use hdfs_native::WriteOptions;
 use log::debug;
 
+use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
@@ -32,7 +33,6 @@ use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
-
 impl Configurator for HdfsNativeConfig {
     type Builder = HdfsNativeBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -133,8 +133,8 @@ impl Builder for HdfsNativeBuilder {
 /// Backend for hdfs-native services.
 #[derive(Debug, Clone)]
 pub struct HdfsNativeBackend {
-    root: String,
-    client: Arc<hdfs_native::Client>,
+    pub root: String,
+    pub client: Arc<hdfs_native::Client>,
     _enable_append: bool,
 }
 
@@ -144,11 +144,13 @@ unsafe impl Sync for HdfsNativeBackend {}
 
 impl Access for HdfsNativeBackend {
     type Reader = HdfsNativeReader;
-    type BlockingReader = ();
     type Writer = HdfsNativeWriter;
-    type BlockingWriter = ();
     type Lister = Option<HdfsNativeLister>;
+    type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -159,7 +161,6 @@ impl Access for HdfsNativeBackend {
 
                 delete: true,
                 rename: true,
-                blocking: true,
 
                 shared: true,
 
@@ -177,42 +178,6 @@ impl Access for HdfsNativeBackend {
             .await
             .map_err(parse_hdfs_error)?;
         Ok(RpCreateDir::default())
-    }
-
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
-
-        let r = HdfsNativeReader::new(f);
-
-        Ok((RpRead::new(), r))
-    }
-
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = self
-            .client
-            .create(&p, WriteOptions::default())
-            .await
-            .map_err(parse_hdfs_error)?;
-
-        let w = HdfsNativeWriter::new(f);
-
-        Ok((RpWrite::new(), w))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path = build_rooted_abs_path(&self.root, to);
-
-        self.client
-            .rename(&from_path, &to_path, false)
-            .await
-            .map_err(parse_hdfs_error)?;
-
-        Ok(RpRename::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -240,20 +205,52 @@ impl Access for HdfsNativeBackend {
         Ok(RpStat::new(metadata))
     }
 
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        self.client
-            .delete(&p, true)
+        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
+
+        let r = HdfsNativeReader::new(f);
+
+        Ok((RpRead::new(), r))
+    }
+
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self
+            .client
+            .create(&p, WriteOptions::default())
             .await
             .map_err(parse_hdfs_error)?;
 
-        Ok(RpDelete::default())
+        let w = HdfsNativeWriter::new(f);
+
+        Ok((RpWrite::new(), w))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(HdfsNativeDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
         let l = HdfsNativeLister::new(p, self.client.clone());
         Ok((RpList::default(), Some(l)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from_path = build_rooted_abs_path(&self.root, from);
+        let to_path = build_rooted_abs_path(&self.root, to);
+
+        self.client
+            .rename(&from_path, &to_path, false)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(RpRename::default())
     }
 }

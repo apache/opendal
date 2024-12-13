@@ -25,6 +25,7 @@ use magnus::Ruby;
 pub use ::opendal as ocore;
 
 mod capability;
+mod io;
 mod metadata;
 mod operator;
 
@@ -39,6 +40,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let _ = operator::include(&gem_module);
     let _ = metadata::include(&gem_module);
     let _ = capability::include(&gem_module);
+    let _ = io::include(&gem_module);
 
     Ok(())
 }

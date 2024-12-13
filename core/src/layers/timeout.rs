@@ -107,9 +107,9 @@ use crate::*;
 /// This might introduce a bit overhead for IO operations, but it's the only way to implement
 /// timeout correctly. We used to implement timeout layer in zero cost way that only stores
 /// a [`std::time::Instant`] and check the timeout by comparing the instant with current time.
-/// However, it doesn't works for all cases.
+/// However, it doesn't work for all cases.
 ///
-/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emit. The runtime
+/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emitted. The runtime
 /// will never poll our future again. From the application side, this future is hanging forever
 /// until this TCP connection is closed for reaching the linux [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html) times.
 #[derive(Clone)]
@@ -220,6 +220,8 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = TimeoutWrapper<A::Lister>;
     type BlockingLister = A::BlockingLister;
+    type Deleter = TimeoutWrapper<A::Deleter>;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -271,19 +273,16 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.timeout(Operation::Delete, self.inner.delete(path, args))
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.timeout(Operation::Delete, self.inner.delete())
             .await
+            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.io_timeout(Operation::List, self.inner.list(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.timeout(Operation::Batch, self.inner.batch(args)).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -301,6 +300,10 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 
@@ -382,6 +385,17 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     }
 }
 
+impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        let fut = self.inner.flush();
+        Self::io_timeout(self.timeout, Operation::DeleterFlush.into_static(), fut).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::pending;
@@ -408,6 +422,8 @@ mod tests {
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
+        type Deleter = ();
+        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
@@ -426,10 +442,10 @@ mod tests {
         }
 
         /// This function will never return.
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             sleep(Duration::from_secs(u64::MAX)).await;
 
-            Ok(RpDelete::default())
+            Ok((RpDelete::default(), ()))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

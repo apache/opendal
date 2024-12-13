@@ -98,13 +98,6 @@ pub struct Capability {
     /// If operator supports presign write.
     pub presign_write: bool,
 
-    /// If operator supports batch.
-    pub batch: bool,
-    /// If operator supports batch delete.
-    pub batch_delete: bool,
-    /// The max operations that operator supports in batch.
-    pub batch_max_operations: Option<usize>,
-
     /// If operator supports shared.
     pub shared: bool,
 
@@ -147,9 +140,6 @@ impl Capability {
             presign_read: capability.presign_read,
             presign_stat: capability.presign_stat,
             presign_write: capability.presign_write,
-            batch: capability.batch,
-            batch_delete: capability.batch_delete,
-            batch_max_operations: capability.batch_max_operations,
             shared: capability.shared,
             blocking: capability.blocking,
         }

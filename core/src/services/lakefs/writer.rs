@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::LakefsCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::lakefs::core::LakefsCore;
 use crate::*;
 
 pub struct LakefsWriter {

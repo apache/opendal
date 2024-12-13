@@ -141,7 +141,6 @@ pub struct MultipartWriter<W: MultipartWrite> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-
 impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
     pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {

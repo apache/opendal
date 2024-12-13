@@ -227,24 +227,6 @@ impl Capability {
         self.0.presign_write
     }
 
-    /// If operator supports batch.
-    #[napi(getter)]
-    pub fn batch(&self) -> bool {
-        self.0.batch
-    }
-
-    /// If operator supports batch delete.
-    #[napi(getter)]
-    pub fn batch_delete(&self) -> bool {
-        self.0.batch_delete
-    }
-
-    /// The max operations that operator supports in batch.
-    #[napi(getter)]
-    pub fn batch_max_operations(&self) -> Option<usize> {
-        self.0.batch_max_operations
-    }
-
     /// If operator supports shared.
     #[napi(getter)]
     pub fn shared(&self) -> bool {

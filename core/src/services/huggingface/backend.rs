@@ -194,9 +194,11 @@ impl Access for HuggingfaceBackend {
     type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();

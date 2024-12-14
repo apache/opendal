@@ -22,7 +22,6 @@ core-foundation-sys@0.8.7		X					X
 crypto-common@0.1.6		X					X					
 digest@0.10.7		X					X					
 fastrand@2.1.1		X					X					
-flagset@0.4.6		X										
 fnv@1.0.7		X					X					
 form_urlencoded@1.2.1		X					X					
 futures@0.3.31		X					X					
@@ -63,7 +62,7 @@ mio@1.0.2							X
 num-traits@0.2.19		X					X					
 object@0.36.5		X					X					
 once_cell@1.20.2		X					X					
-opendal@0.50.2		X										
+opendal@0.51.0		X										
 percent-encoding@2.3.1		X					X					
 pin-project-lite@0.2.15		X					X					
 pin-utils@0.1.0		X					X					

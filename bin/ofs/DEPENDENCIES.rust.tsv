@@ -26,12 +26,12 @@ cc@1.1.31		X							X
 cfg-if@1.0.0		X							X					
 cfg_aliases@0.2.1									X					
 chrono@0.4.38		X							X					
-clap@4.5.20		X							X					
-clap_builder@4.5.20		X							X					
+clap@4.5.21		X							X					
+clap_builder@4.5.21		X							X					
 clap_derive@4.5.18		X							X					
 clap_lex@0.7.2		X							X					
 cloud-filter@0.0.5									X					
-cloud_filter_opendal@0.0.3		X												
+cloud_filter_opendal@0.0.4		X												
 colorchoice@1.0.2		X							X					
 concurrent-queue@2.5.0		X							X					
 const-oid@0.9.6		X							X					
@@ -57,7 +57,7 @@ flagset@0.4.6		X
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.1		X							X					
 fuse3@0.8.1									X					
-fuse3_opendal@0.0.9		X												
+fuse3_opendal@0.0.10		X												
 futures@0.3.31		X							X					
 futures-channel@0.3.31		X							X					
 futures-core@0.3.31		X							X					
@@ -107,9 +107,9 @@ nt-time@0.8.1		X							X
 num-conv@0.1.0		X							X					
 num-traits@0.2.19		X							X					
 object@0.36.5		X							X					
-ofs@0.0.14		X												
+ofs@0.0.15		X												
 once_cell@1.20.2		X							X					
-opendal@0.50.2		X												
+opendal@0.51.0		X												
 ordered-multimap@0.7.3									X					
 parking@2.2.1		X							X					
 percent-encoding@2.3.1		X							X					

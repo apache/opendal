@@ -45,7 +45,6 @@ digest@0.10.7		X							X
 dlv-list@0.5.2		X							X					
 errno@0.3.9		X							X					
 fastrand@2.1.1		X							X					
-flagset@0.4.6		X												
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.1		X							X					
 futures@0.3.30		X							X					
@@ -102,12 +101,12 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.3		X							X					
 once_cell@1.19.0		X							X					
-opendal@0.50.2		X												
-opendal-java@0.47.5		X												
+opendal@0.51.0		X												
+opendal-java@0.48.0		X												
 openssh@0.11.2		X							X					
-openssh-sftp-client@0.15.1									X					
-openssh-sftp-client-lowlevel@0.7.0									X					
-openssh-sftp-error@0.5.0									X					
+openssh-sftp-client@0.15.2									X					
+openssh-sftp-client-lowlevel@0.7.1									X					
+openssh-sftp-error@0.5.1									X					
 openssh-sftp-protocol@0.24.0									X					
 openssh-sftp-protocol-error@0.1.0									X					
 ordered-multimap@0.7.3									X					
@@ -173,12 +172,14 @@ ssh_format_error@0.1.0									X
 stable_deref_trait@1.2.0		X							X					
 subtle@2.6.1					X									
 syn@1.0.109		X							X					
-syn@2.0.76		X							X					
+syn@2.0.87		X							X					
 sync_wrapper@1.0.1		X												
 tempfile@3.12.0		X							X					
 thin-vec@0.2.13		X							X					
 thiserror@1.0.63		X							X					
+thiserror@2.0.6		X							X					
 thiserror-impl@1.0.63		X							X					
+thiserror-impl@2.0.6		X							X					
 time@0.3.36		X							X					
 time-core@0.1.2		X							X					
 time-macros@0.2.18		X							X					

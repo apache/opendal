@@ -20,13 +20,13 @@ name: Behavior Test Integration Cloud Filter
 on:
   push:
     paths:
-      - "integrations/cloudfilter/**.rs"
-      - "integrations/cloudfilter/Cargo.toml"
+      - "integrations/cloud_filter/**.rs"
+      - "integrations/cloud_filter/Cargo.toml"
       - ".github/workflows/test_behavior_integration_cloud_filter.yml"
   pull_request:
     paths:
-      - "integrations/cloudfilter/**.rs"
-      - "integrations/cloudfilter/Cargo.toml"
+      - "integrations/cloud_filter/**.rs"
+      - "integrations/cloud_filter/Cargo.toml"
       - ".github/workflows/test_behavior_integration_cloud_filter.yml"
 
 jobs:

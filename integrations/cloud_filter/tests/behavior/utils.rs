@@ -35,8 +35,7 @@ pub fn file_content(path: impl Display) -> anyhow::Result<String> {
     let content = powershell_script::run(&format!("Get-Content \"{path}\""))
         .context("run powershell")?
         .stdout()
-        .unwrap_or_default()
-        .replace("\r\n", "\n"); // powershell returns CRLF, but the fixtures use LF
+        .unwrap_or_default();
     Ok(content)
 }
 

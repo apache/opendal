@@ -43,8 +43,8 @@ pub fn test_fetch_data() -> Result<(), Failed> {
 
         assert_eq!(
             expected_content,
-            file_content(&path).expect("file hash"),
-            "file hash",
+            file_content(&path).expect("file content"),
+            "file content",
         )
     }
     Ok(())

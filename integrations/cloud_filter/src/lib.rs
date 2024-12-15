@@ -216,7 +216,7 @@ impl Filter for CloudFilter {
             })?
             .filter_map(|e| async {
                 let entry = e.ok()?;
-                let metadata = entry.metadata();
+                let metadata = self.op.stat(entry.path()).await.ok()?;
                 let entry_remote_path = PathBuf::from(entry.path());
                 let relative_path = entry_remote_path
                     .strip_prefix(&remote_path)

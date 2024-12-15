@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: update document against target format check and add hints by @waynexia in https://github.com/apache/opendal/pull/5361
 * fix: oli clippy and CI file by @waynexia in https://github.com/apache/opendal/pull/5389
 * fix(services/obs): support huawei.com by @FayeSpica in https://github.com/apache/opendal/pull/5399
+* fix(integrations/cloud_filter): use explicit `stat` instead of `Entry::metadata` in `fetch_placeholders` by @ho-229 in https://github.com/apache/opendal/pull/5416
 ### Docs
 * docs: Enable force_orphan to reduce clone size by @Xuanwo in https://github.com/apache/opendal/pull/5289
 * docs: Establish VISION for "One Layer, All Storage" by @Xuanwo in https://github.com/apache/opendal/pull/5309
@@ -80,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump anyhow from 1.0.90 to 1.0.93 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5375
 * chore(deps): bump serde from 1.0.210 to 1.0.215 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5376
 * chore(deps): bump openssh-sftp-client from 0.15.1 to 0.15.2 in /core by @dependabot in https://github.com/apache/opendal/pull/5377
+* chore(ci): fix invalid Behavior Test Integration Cloud Filter trigger by @Zheaoli in https://github.com/apache/opendal/pull/5414
 
 ## [v0.50.2] - 2024-11-04
 

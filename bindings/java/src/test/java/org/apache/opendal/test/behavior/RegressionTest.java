@@ -36,7 +36,7 @@ public class RegressionTest extends BehaviorTestBase {
         final int size = 16384 * 10; // 10 x OperatorOutputStream.DEFAULT_MAX_BYTES (10 flushes per write)
         final byte[] content = generateBytes(size);
 
-        try (OperatorOutputStream operatorOutputStream = op().createOutputStream(path)) {
+        try (OperatorOutputStream operatorOutputStream = op().createOutputStream(path, size)) {
             for (int i = 0; i < 20000; i++) {
                 // More iterations in case BlockCountExceedsLimit doesn't pop up exactly after 100K blocks.
                 operatorOutputStream.write(content);

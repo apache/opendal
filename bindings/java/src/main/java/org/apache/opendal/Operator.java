@@ -72,6 +72,10 @@ public class Operator extends NativeObject {
         return new OperatorOutputStream(this, path);
     }
 
+    public OperatorOutputStream createOutputStream(String path, int maxBytes) {
+        return new OperatorOutputStream(this, path, maxBytes);
+    }
+
     public byte[] read(String path) {
         return read(nativeHandle, path);
     }

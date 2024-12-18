@@ -35,31 +35,38 @@ public class OperatorOutputStream extends OutputStream {
         }
     }
 
-    private static final int MAX_BYTES = 16384;
+    private static final int DEFAULT_MAX_BYTES = 16384;
 
     private final Writer writer;
-    private final byte[] bytes = new byte[MAX_BYTES];
+    private final byte[] bytes;
+    private final int maxBytes;
 
     private int offset = 0;
 
     public OperatorOutputStream(Operator operator, String path) {
+        this(operator, path, DEFAULT_MAX_BYTES);
+    }
+
+    public OperatorOutputStream(Operator operator, String path, int maxBytes) {
         final long op = operator.nativeHandle;
         this.writer = new Writer(constructWriter(op, path));
+        this.maxBytes = maxBytes;
+        this.bytes = new byte[maxBytes];
     }
 
     @Override
     public void write(int b) throws IOException {
         bytes[offset++] = (byte) b;
-        if (offset >= MAX_BYTES) {
+        if (offset >= maxBytes) {
             flush();
         }
     }
 
     @Override
     public void flush() throws IOException {
-        if (offset > MAX_BYTES) {
-            throw new IOException("INTERNAL ERROR: " + offset + " > " + MAX_BYTES);
-        } else if (offset < MAX_BYTES) {
+        if (offset > maxBytes) {
+            throw new IOException("INTERNAL ERROR: " + offset + " > " + maxBytes);
+        } else if (offset < maxBytes) {
             final byte[] bytes = Arrays.copyOf(this.bytes, offset);
             writeBytes(writer.nativeHandle, bytes);
         } else {

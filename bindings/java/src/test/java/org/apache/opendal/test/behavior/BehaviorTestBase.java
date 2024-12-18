@@ -46,12 +46,26 @@ public abstract class BehaviorTestBase {
         return behaviorExtension.operator;
     }
 
+    protected String scheme() {
+        return behaviorExtension.scheme;
+    }
+
     /**
      * Generates a byte array of random content.
      */
     public static byte[] generateBytes() {
         final Random random = new Random();
         final int size = random.nextInt(4 * 1024 * 1024) + 1;
+        final byte[] content = new byte[size];
+        random.nextBytes(content);
+        return content;
+    }
+
+    /**
+     * Generates a byte array of random content with a specific size.
+     */
+    public static byte[] generateBytes(int size) {
+        final Random random = new Random();
         final byte[] content = new byte[size];
         random.nextBytes(content);
         return content;

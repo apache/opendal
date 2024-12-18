@@ -230,7 +230,7 @@ async-tls = { version = "0.13.0", optional = true }
 
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
-async-trait = "0.1.68"
+async-trait = "0.1.83"
 backon = { version = "1.2", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"

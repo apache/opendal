@@ -40,6 +40,7 @@ import org.junit.jupiter.api.extension.TestWatcher;
 public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, TestWatcher {
     private String testName;
 
+    public String scheme;
     public AsyncOperator asyncOperator;
     public Operator operator;
 
@@ -67,6 +68,7 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
             this.asyncOperator = op.layer(RetryLayer.builder().build());
             this.operator = this.asyncOperator.blocking();
 
+            this.scheme = scheme;
             this.testName = String.format("%s(%s)", context.getDisplayName(), scheme);
             log.info(
                     "\n================================================================================"
@@ -94,6 +96,7 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
             operator = null;
         }
 
+        this.scheme = null;
         this.testName = null;
     }
 

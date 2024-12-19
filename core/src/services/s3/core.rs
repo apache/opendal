@@ -666,6 +666,13 @@ impl S3Core {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
+            }
+        }
+
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 

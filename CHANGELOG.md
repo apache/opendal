@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(core): Add `content_encoding` to `MetaData` by @Frank-III in https://github.com/apache/opendal/pull/5400
 * feat:(core): add `content encoding` to `Opwrite` by @Frank-III in https://github.com/apache/opendal/pull/5390
 * feat(services/obs): support user defined metadata by @Frank-III in https://github.com/apache/opendal/pull/5405
+* feat: impl configurable OperatorOutputStream maxBytes by @tisonkun in https://github.com/apache/opendal/pull/5422
 ### Changed
 * refactor (bindings/zig): Improvements by @kassane in https://github.com/apache/opendal/pull/5247
 * refactor: Remove metakey concept by @Xuanwo in https://github.com/apache/opendal/pull/5319
@@ -51,12 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: update document against target format check and add hints by @waynexia in https://github.com/apache/opendal/pull/5361
 * fix: oli clippy and CI file by @waynexia in https://github.com/apache/opendal/pull/5389
 * fix(services/obs): support huawei.com by @FayeSpica in https://github.com/apache/opendal/pull/5399
+* fix(integrations/cloud_filter): use explicit `stat` instead of `Entry::metadata` in `fetch_placeholders` by @ho-229 in https://github.com/apache/opendal/pull/5416
+* fix(core): S3 multipart uploads does not set file metadata by @catcatmu in https://github.com/apache/opendal/pull/5430
+* fix: always contains path label if configured by @waynexia in https://github.com/apache/opendal/pull/5433
 ### Docs
 * docs: Enable force_orphan to reduce clone size by @Xuanwo in https://github.com/apache/opendal/pull/5289
 * docs: Establish VISION for "One Layer, All Storage" by @Xuanwo in https://github.com/apache/opendal/pull/5309
 * docs: Polish docs for write with if not exists by @Xuanwo in https://github.com/apache/opendal/pull/5320
 * docs(core): add the description of version parameter for operator by @meteorgan in https://github.com/apache/opendal/pull/5144
 * docs(core): Add upgrade to v0.51 by @Xuanwo in https://github.com/apache/opendal/pull/5406
+* docs: Update release.md by @tisonkun in https://github.com/apache/opendal/pull/5431
 ### CI
 * ci: Remove the token of codspeed by @Xuanwo in https://github.com/apache/opendal/pull/5283
 * ci: Allow force push for `gh-pages` by @Xuanwo in https://github.com/apache/opendal/pull/5290
@@ -80,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(deps): bump anyhow from 1.0.90 to 1.0.93 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5375
 * chore(deps): bump serde from 1.0.210 to 1.0.215 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5376
 * chore(deps): bump openssh-sftp-client from 0.15.1 to 0.15.2 in /core by @dependabot in https://github.com/apache/opendal/pull/5377
+* chore(ci): fix invalid Behavior Test Integration Cloud Filter trigger by @Zheaoli in https://github.com/apache/opendal/pull/5414
 
 ## [v0.50.2] - 2024-11-04
 

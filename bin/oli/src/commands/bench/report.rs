@@ -201,7 +201,7 @@ impl SampleSet {
     /// The percentile value must between 0.0 and 100.0 (both inclusive).
     fn percentile(&self, percentile: f64) -> Option<f64> {
         assert!(
-            percentile >= 0.0 && percentile <= 100.0,
+            (0.0..=100.0).contains(&percentile),
             "percentile must be between 0.0 and 100.0"
         );
 

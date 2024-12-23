@@ -44,7 +44,6 @@ opendal = { version = "0.51.0", path = "../../core", features = [
   "services-ghac",
   "services-http",
   "services-ipmfs",
-  "services-memory",
   "services-obs",
   "services-oss",
   "services-s3",

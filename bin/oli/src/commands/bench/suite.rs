@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 struct BenchSuiteConfig {
     /// Workload to run.
     workload: Workload,
@@ -20,10 +20,10 @@ struct BenchSuiteConfig {
 
     /// Maximum time to run the bench suite.
     #[serde(with = "humantime_serde")]
-    timout: Duration,
+    timeout: Duration,
 }
 
-#[derive(Deserialize, Debug, Copy, Clone)]
+#[derive(Deserialize, Debug)]
 enum Workload {
     #[serde(rename = "upload")]
     Upload,
@@ -43,13 +43,15 @@ impl BenchSuite {
             config.file_size >= 4096,
             "file_size must be greater or equal to 4096"
         );
+        println!("Create bench suite with config: {config:?}");
         Ok(BenchSuite { config })
     }
 
-    pub async fn run(self, op: Operator) -> Result<Report> {
+    pub fn run(self, op: Operator) -> Result<()> {
+        println!("Start running bench suite ...");
         let start = Instant::now();
 
-        let timeout = self.config.timout;
+        let timeout = self.config.timeout;
         let parallelism = self.config.parallelism.unwrap_or(1);
         let file_size = self.config.file_size;
         let workload = match self.config.workload {
@@ -62,13 +64,9 @@ impl BenchSuite {
             .enable_all()
             .build()?;
 
-        let task = {
-            let config = self.config.clone();
-            let op = op.clone();
-            rt.spawn(async move { Task::prepare(config, op).await })
-                .await
-                .context("failed to prepare bench task")??
-        };
+        let task = rt
+            .block_on(Task::prepare(&self.config, &op))
+            .context("failed to prepare task")?;
 
         let mut results = vec![];
         for _ in 0..parallelism {
@@ -86,7 +84,7 @@ impl BenchSuite {
                     }
 
                     let iter_start = Instant::now();
-                    let iter_bytes = task.run(&op).await?;
+                    let iter_bytes = task.run(&op).await.context("failed to execute task")?;
                     let iter_latency = iter_start.elapsed();
                     count += 1;
                     latency.add(iter_latency.as_micros() as f64);
@@ -101,19 +99,16 @@ impl BenchSuite {
         let mut iops = SampleSet::default();
 
         for result in results {
-            let (iter_bandwidth, iter_latency, iter_iops) = result.await??;
+            let (iter_bandwidth, iter_latency, iter_iops) = pollster::block_on(result)??;
             bandwidth.merge(iter_bandwidth);
             latency.merge(iter_latency);
             iops.merge(iter_iops);
         }
-        Ok(Report::new(
-            parallelism,
-            file_size,
-            workload,
-            bandwidth,
-            latency,
-            iops,
-        ))
+
+        let report = Report::new(parallelism, file_size, workload, bandwidth, latency, iops);
+        println!("Bench suite completed in {:?}; result:\n", start.elapsed());
+        println!("{report}");
+        Ok(())
     }
 }
 
@@ -126,18 +121,20 @@ enum Task {
 const BATCH_SIZE: u32 = 4096;
 
 impl Task {
-    async fn prepare(config: BenchSuiteConfig, op: Operator) -> Result<Task> {
-        let BenchSuiteConfig {
-            workload,
-            file_size,
-            ..
-        } = config;
-        let path = format!("obench-test-{}", uuid::Uuid::new_v4());
-        match workload {
+    async fn prepare(config: &BenchSuiteConfig, op: &Operator) -> Result<Task> {
+        let now = jiff::Timestamp::now();
+        let path = format!(
+            "obench-test-{}-{}",
+            now.as_millisecond(),
+            uuid::Uuid::new_v4()
+        );
+        println!("Prepare task with path: {path}");
+        let file_size = config.file_size;
+        match config.workload {
             Workload::Upload => Ok(Task::Upload { path, file_size }),
             Workload::Download => {
                 let mut writer = op.writer(&path).await?;
-                let batch_cnt = config.file_size / (BATCH_SIZE);
+                let batch_cnt = file_size / (BATCH_SIZE);
                 for _ in 0..batch_cnt {
                     writer.write(vec![139u8; BATCH_SIZE as usize]).await?
                 }
@@ -152,7 +149,7 @@ impl Task {
             Task::Upload { path, file_size } => {
                 let mut writer = op.writer(path).await?;
                 for _ in 0..(*file_size / BATCH_SIZE) {
-                    writer.write(vec![254u8; *file_size as usize]).await?;
+                    writer.write(vec![254u8; BATCH_SIZE as usize]).await?;
                 }
                 writer.close().await?;
                 Ok((*file_size / BATCH_SIZE) * BATCH_SIZE)

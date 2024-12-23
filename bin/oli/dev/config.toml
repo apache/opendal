@@ -1,0 +1,9 @@
+[profiles.demo]
+type = "s3"
+root = "/benchmarks"
+bucket = "test-bucket"
+region = "us-east-1"
+endpoint = "http://127.0.0.1:9000"
+access_key_id = "minioadmin"
+secret_access_key = "minioadmin"
+virtual_host_style = "false"

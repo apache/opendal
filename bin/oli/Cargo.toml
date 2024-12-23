@@ -37,6 +37,7 @@ futures = { version = "0.3" }
 humansize = { version = "2.1" }
 humantime = { version = "2.1" }
 humantime-serde = { version = "1.1" }
+jiff = { version = "0.1.15" }
 indicatif = { version = "0.17" }
 opendal = { version = "0.51.0", path = "../../core", features = [
   "services-azblob",
@@ -54,6 +55,7 @@ opendal = { version = "0.51.0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
+pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }

@@ -28,12 +28,13 @@ pub struct BenchCmd {
 impl BenchCmd {
     pub async fn run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
+        let op = cfg.operator(&self.profile)?;
         let suite = suite::BenchSuite::load(&self.bench)?;
 
-        let op = cfg.operator(&self.profile)?;
-        let report = suite.run(op).await?;
-        println!("{report}");
-
+        tokio::task::spawn_blocking(move || {
+            suite.run(op).expect("failed to run bench suite");
+        })
+        .await?;
         Ok(())
     }
 }

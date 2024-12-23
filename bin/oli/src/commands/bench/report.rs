@@ -51,9 +51,9 @@ impl Display for Report {
         writeln!(f, "Bandwidth:")?;
         writeln!(
             f,
-            "{}/s",
+            "{}",
             self.bandwidth.format(2, |x| {
-                format!("{}", humansize::format_size_i(x, humansize::BINARY))
+                format!("{}/s", humansize::format_size_i(x, humansize::BINARY))
             })
         )?;
 
@@ -78,7 +78,7 @@ impl Display for Report {
 
 #[derive(Debug)]
 pub(crate) struct Metric {
-    count: u32,
+    num_samples: u32,
     min: f64,
     max: f64,
     avg: f64,
@@ -91,7 +91,7 @@ pub(crate) struct Metric {
 impl Metric {
     fn format(&self, indent: usize, formatter: fn(f64) -> String) -> String {
         format!(
-            "{:indent$}count: {}\n\
+            "{:indent$}num_samples: {}\n\
              {:indent$}min: {}\n\
              {:indent$}max: {}\n\
              {:indent$}avg: {}\n\
@@ -100,7 +100,7 @@ impl Metric {
              {:indent$}p95: {}\n\
              {:indent$}p50: {}",
             "",
-            self.count,
+            self.num_samples,
             "",
             formatter(self.min),
             "",
@@ -127,8 +127,7 @@ pub(crate) struct SampleSet {
 impl SampleSet {
     /// Add a new sample value.
     pub fn add(&mut self, sample: f64) {
-        assert!(!sample.is_finite(), "sample value must not be finite");
-        assert!(!sample.is_nan(), "sample value must not be NaN");
+        assert!(sample.is_finite(), "sample value must be finite");
         self.values.push(sample);
     }
 
@@ -203,7 +202,7 @@ impl SampleSet {
     /// Create a metric from the sample set.
     fn to_metric(&self) -> Metric {
         Metric {
-            count: self.count() as u32,
+            num_samples: self.count() as u32,
             min: self.min().unwrap_or(f64::NAN),
             max: self.max().unwrap_or(f64::NAN),
             avg: self.avg().unwrap_or(f64::NAN),

@@ -1,0 +1,4 @@
+workload = "upload"
+parallelism = 4
+file_size = 67108864 # 64MiB
+timeout = "60s"

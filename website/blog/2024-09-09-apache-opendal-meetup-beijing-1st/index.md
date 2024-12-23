@@ -2,15 +2,14 @@
 title: "Apache OpenDAL™ Beijing Meetup 1st"
 date: 2024-09-09
 tags: [announcement]
-authors:
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: xuanwo
 ---
 
 Hello, everyone!
 
 On behalf of the OpenDAL community, I'm pleased to announce that the first Apache OpenDAL™ Beijing Meetup will be held on September 14th.
+
+<!--truncate-->
 
 You are welcome to register for this event at: https://docs.qq.com/form/page/DYnpJWFFsSWVFeGRj
 

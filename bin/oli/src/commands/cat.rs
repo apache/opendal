@@ -36,7 +36,7 @@ pub struct CatCmd {
 }
 
 impl CatCmd {
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (op, path) = cfg.parse_location(&self.target)?;

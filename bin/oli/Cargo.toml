@@ -34,6 +34,9 @@ anyhow = { version = "1.0" }
 clap = { version = "4.5", features = ["cargo", "string", "derive"] }
 dirs = { version = "5.0" }
 futures = { version = "0.3" }
+humansize = { version = "2.1" }
+humantime = { version = "2.1" }
+humantime-serde = { version = "1.1" }
 indicatif = { version = "0.17" }
 opendal = { version = "0.51.0", path = "../../core", features = [
   "services-azblob",
@@ -55,6 +58,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
+uuid = { version = "1.11" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }

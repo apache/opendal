@@ -59,7 +59,7 @@ pub struct CopyCmd {
 }
 
 impl CopyCmd {
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (src_op, src_path) = cfg.parse_location(&self.source)?;

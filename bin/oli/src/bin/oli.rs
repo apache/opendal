@@ -54,6 +54,10 @@ async fn main() -> Result<()> {
             let cmd: Oli = clap::Parser::parse();
             cmd.subcommand.run().await?;
         }
+        Some("obench") => {
+            let cmd: oli::commands::bench::BenchCmd = clap::Parser::parse();
+            cmd.run().await?;
+        }
         Some("ocat") => {
             let cmd: oli::commands::cat::CatCmd = clap::Parser::parse();
             cmd.run().await?;

@@ -17,6 +17,7 @@
 
 //! Provides the implementation of each command.
 
+pub mod bench;
 pub mod cat;
 pub mod cp;
 pub mod ls;
@@ -26,6 +27,7 @@ pub mod stat;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum OliSubcommand {
+    Bench(bench::BenchCmd),
     Cat(cat::CatCmd),
     Cp(cp::CopyCmd),
     Ls(ls::LsCmd),
@@ -35,8 +37,9 @@ pub enum OliSubcommand {
 }
 
 impl OliSubcommand {
-    pub async fn run(&self) -> anyhow::Result<()> {
+    pub async fn run(self) -> anyhow::Result<()> {
         match self {
+            Self::Bench(cmd) => cmd.run().await,
             Self::Cat(cmd) => cmd.run().await,
             Self::Cp(cmd) => cmd.run().await,
             Self::Ls(cmd) => cmd.run().await,

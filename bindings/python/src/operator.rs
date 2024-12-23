@@ -398,6 +398,13 @@ impl AsyncOperator {
         })
     }
 
+    pub fn exists<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+        let this = self.core.clone();
+        future_into_py(
+            py,
+            async move { this.exists(&path).await.map_err(format_pyerr) },
+        )
+    }
     /// Create a dir at given path.
     ///
     /// # Notes

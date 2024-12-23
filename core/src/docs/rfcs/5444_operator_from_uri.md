@@ -1,7 +1,7 @@
 - Proposal Name: `operator_from_uri`
 - Start Date: 2024-12-23
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5444](https://github.com/apache/opendal/pull/5444)
+- Tracking Issue: [apache/opendal#5445](https://github.com/apache/opendal/issues/5445)
 
 # Summary
 

@@ -19,6 +19,7 @@ use anyhow::Result;
 use futures::TryStreamExt;
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 
 #[derive(Debug, clap::Parser)]
@@ -35,7 +36,10 @@ pub struct LsCmd {
 }
 
 impl LsCmd {
-    pub async fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+    async fn do_run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (op, path) = cfg.parse_location(&self.target)?;

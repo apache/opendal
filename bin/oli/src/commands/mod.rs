@@ -37,15 +37,15 @@ pub enum OliSubcommand {
 }
 
 impl OliSubcommand {
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub fn run(self) -> anyhow::Result<()> {
         match self {
-            Self::Bench(cmd) => cmd.run().await,
-            Self::Cat(cmd) => cmd.run().await,
-            Self::Cp(cmd) => cmd.run().await,
-            Self::Ls(cmd) => cmd.run().await,
-            Self::Rm(cmd) => cmd.run().await,
-            Self::Stat(cmd) => cmd.run().await,
-            Self::Mv(cmd) => cmd.run().await,
+            Self::Bench(cmd) => cmd.run(),
+            Self::Cat(cmd) => cmd.run(),
+            Self::Cp(cmd) => cmd.run(),
+            Self::Ls(cmd) => cmd.run(),
+            Self::Rm(cmd) => cmd.run(),
+            Self::Stat(cmd) => cmd.run(),
+            Self::Mv(cmd) => cmd.run(),
         }
     }
 }

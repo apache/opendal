@@ -21,6 +21,7 @@ use anyhow::{Error, Result};
 use futures::{AsyncWriteExt, TryStreamExt};
 use opendal::Operator;
 use std::path::Path;
+use crate::make_tokio_runtime;
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "mv", about = "Move object", disable_version_flag = true)]
@@ -37,7 +38,11 @@ pub struct MoveCmd {
 }
 
 impl MoveCmd {
-    pub async fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+
+    async fn do_run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (src_op, src_path) = cfg.parse_location(&self.source)?;

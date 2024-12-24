@@ -25,13 +25,16 @@ The new API allows creating operators directly from URIs:
 ```rust
 // Create an operator using URI
 let op = Operator::from_uri("s3://my-bucket/path", vec![
-    ("access_key_id".to_string(), "xxx".to_string()),
-    ("secret_key_key".to_string(), "yyy".to_string()),
+    ("endpoint".to_string(), "http://localhost:8080"to_string()),
 ])?;
 
 // Create a file system operator
 let op = Operator::from_uri("fs:///tmp/test", vec![])?;
+```
 
+OpenDAL will, by default, register services enabled by features in a global `OperatorRegistry`. Users can also create custom operator registries to support their own schemes or additional options.
+
+```
 // Using with custom registry
 let registry = OperatorRegistry::new();
 registry.register("custom", my_factory);
@@ -42,14 +45,14 @@ let op = registry.parse("custom://endpoint", options)?;
 
 The implementation consists of three main components:
 
-1. The `OperatorRegistry`:
+1. The `OperatorFactory` and `OperatorRegistry`:
+
+`OperatorFactory` is a function type that takes a URI and a map of options and returns an `Operator`. `OperatorRegistry` manages operator factories for different schemes.
 
 ```rust
 type OperatorFactory = fn(http::Uri, HashMap<String, String>) -> Result<Operator>;
 
-pub struct OperatorRegistry {
-    register: Arc<Mutex<HashMap<String, OperatorFactory>>>,
-}
+pub struct OperatorRegistry { ... }
 
 impl OperatorRegistry {
     fn register(&self, scheme: &str, factory: OperatorFactory) {
@@ -64,6 +67,10 @@ impl OperatorRegistry {
 
 2. The `Configurator` trait extension:
 
+`Configurator` will add a new API to create a configuration from a URI and options. OpenDAL will provides default implementations for common configurations. But services can override this method to support their own special needs.
+
+For example, S3 might need to extract the `bucket` and `region` from the URI when possible.
+
 ```rust
 impl Configurator for S3Config {
     fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
@@ -72,7 +79,9 @@ impl Configurator for S3Config {
 }
 ```
 
-3. The `Operator` factory method:
+3. The `Operator` `from_uri` method:
+
+The `Operator` trait will add a new `from_uri` method to create an operator from a URI and options. This method will use the global `OperatorRegistry` to find the appropriate factory for the scheme.
 
 ```rust
 impl Operator {
@@ -80,16 +89,7 @@ impl Operator {
         uri: &str,
         options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self> {
-        static REGISTRY: Lazy<OperatorRegistry> = Lazy::new(|| {
-            let registry = OperatorRegistry::new();
-            // Register built-in operators
-            registry.register("s3", s3_factory);
-            registry.register("fs", fs_factory);
-            // ...
-            registry
-        });
-      
-        REGISTRY.parse(uri, options)
+        ...
     }
 }
 ```
@@ -122,23 +122,14 @@ URI-based configuration was chosen because:
 
 Similar patterns exist in:
 
-- Rust's `url` crate
 - Database connection strings (PostgreSQL, MongoDB)
-- AWS SDK endpoint configuration
-- Python's `urllib`
+- [`object_store::parse_url`](https://docs.rs/object_store/latest/object_store/fn.parse_url.html)
 
 # Unresolved questions
 
-- Should we support custom URI parsing per operator?
-- How to handle scheme conflicts?
-- Should we support URI validation?
-- How to handle complex configurations that don't map well to URIs?
+None
 
 # Future possibilities
 
-- Support for connection string format
-- URI templates for batch operations
-- Custom scheme handlers
-- Configuration presets
-- URI validation middleware
-- Dynamic operator loading based on URI schemes
+- Support for connection string format.
+- Configuration presets like `r2` and `s3` with directory bucket enabled.

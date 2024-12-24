@@ -85,6 +85,9 @@ jobs:
           sccache: true
           manylinux: auto
       - name: Build free-threaded wheels
+        # windows free-threading building doesn't work on windows
+        # https://github.com/apache/opendal/pull/5449#issuecomment-2560469190
+        if: ${{ runner.os != 'Windows' }}
         uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"

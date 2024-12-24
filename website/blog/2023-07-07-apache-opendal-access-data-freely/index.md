@@ -4,13 +4,7 @@ date: 2023-07-07
 slug: opendal-access-data-freely
 tags: [announcement]
 description: "If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL™ will be your perfect partner."
-authors:
-  - name: PsiACE
-    url: https://github.com/PsiACE
-    image_url: https://github.com/PsiACE.png
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: [psiace, xuanwo]
 ---
 
 If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL™ will be your perfect partner.

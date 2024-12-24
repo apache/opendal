@@ -67,7 +67,7 @@ impl OperatorRegistry {
 
 2. The `Configurator` trait extension:
 
-`Configurator` will add a new API to create a configuration from a URI and options. OpenDAL will provides default implementations for common configurations. But services can override this method to support their own special needs.
+`Configurator` will add a new API to create a configuration from a URI and options. OpenDAL will provide default implementations for common configurations. But services can override this method to support their own special needs.
 
 For example, S3 might need to extract the `bucket` and `region` from the URI when possible.
 

@@ -18,7 +18,7 @@
 use crate::commands::bench::report::{Report, SampleSet};
 use anyhow::{ensure, Context, Result};
 use opendal::Operator;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -32,12 +32,21 @@ struct BenchSuiteConfig {
     /// Default to 1.
     parallelism: Option<u32>,
 
-    /// Size of file in bytes.
-    file_size: u32,
+    /// Size of file.
+    #[serde(deserialize_with = "deserialize_file_size")]
+    file_size: u64,
 
     /// Maximum time to run the bench suite.
     #[serde(with = "humantime_serde")]
     timeout: Duration,
+}
+
+fn deserialize_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    parse_size::parse_size(&s).map_err(serde::de::Error::custom)
 }
 
 #[derive(Deserialize, Debug)]
@@ -131,11 +140,11 @@ impl BenchSuite {
 
 #[derive(Clone, Debug)]
 enum Task {
-    Upload { path: String, file_size: u32 },
+    Upload { path: String, file_size: u64 },
     Download { path: String },
 }
 
-const BATCH_SIZE: u32 = 4096;
+const BATCH_SIZE: u64 = 4096;
 
 impl Task {
     async fn prepare(config: &BenchSuiteConfig, op: &Operator) -> Result<Task> {
@@ -161,7 +170,7 @@ impl Task {
         }
     }
 
-    async fn run(&self, op: &Operator) -> Result<u32> {
+    async fn run(&self, op: &Operator) -> Result<u64> {
         match self {
             Task::Upload { path, file_size } => {
                 let mut writer = op.writer(path).await?;
@@ -173,7 +182,7 @@ impl Task {
             }
             Task::Download { path } => {
                 let bytes = op.read_with(path).await?;
-                Ok(bytes.len() as u32)
+                Ok(bytes.len() as u64)
             }
         }
     }

@@ -22,7 +22,7 @@ use std::time::Duration;
 pub(crate) struct Report {
     // bench suite infos
     parallelism: u32,
-    file_size: u32,
+    file_size: u64,
     workload: String,
 
     // bench result metrics
@@ -37,7 +37,7 @@ pub(crate) struct Report {
 impl Report {
     pub fn new(
         parallelism: u32,
-        file_size: u32,
+        file_size: u64,
         workload: String,
         bandwidth: SampleSet,
         latency: SampleSet,

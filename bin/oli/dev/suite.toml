@@ -17,5 +17,5 @@
 
 workload = "upload"
 parallelism = 4
-file_size = 67108864 # 64MiB
+file_size = "64MiB"
 timeout = "60s"

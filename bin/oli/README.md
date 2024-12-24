@@ -19,7 +19,7 @@
 `oli` could be installed by `cargo`:
 
 ```bash
-cargo install oli --all-features
+cargo install oli
 ```
 
 > `cargo` is the Rust package manager. `cargo` could be installed by following the [Installation](https://www.rust-lang.org/tools/install) from Rust official website.
@@ -67,23 +67,23 @@ access_key_id = "<access_key_id>"
 secret_access_key = "<secret_access_key>"
 ```
 
-For different services, you could find the configuration keys in the corresponding [service document](https://opendal.apache.org/docs/services/).
+For different services, you could find the configuration keys in the corresponding [service document](https://docs.rs/opendal/0.50.2/opendal/services/index.html).
 
 ### Example: use `oli` to upload file to AWS S3
 
-```text
-$ oli cp ./update-ecs-loadbalancer.json s3:/update-ecs-loadbalancer.json
-$ oli ls s3:/
-fleet.png
-update-ecs-loadbalancer.json
+```shell
+oli cp ./update-ecs-loadbalancer.json s3:/update-ecs-loadbalancer.json
+oli ls s3:/
+# fleet.png
+# update-ecs-loadbalancer.json
 ```
 
 ### Example: use `oli` copy file from S3 to R2
 
-```text
-$ oli cp s3:/fleet.png r2:/fleet.png
-$ oli ls r2:/
-fleet.png
+```shell
+oli cp s3:/fleet.png r2:/fleet.png
+oli ls r2:/
+# fleet.png
 ```
 
 ## Contribute to `oli`

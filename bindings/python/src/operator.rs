@@ -153,6 +153,10 @@ impl Operator {
         self.core.rename(source, target).map_err(format_pyerr)
     }
 
+    pub fn exists(&self, path: &str) -> PyResult<bool> {
+        self.core.exists(path).map_err(format_pyerr)
+    }
+
     /// Remove all file
     pub fn remove_all(&self, path: &str) -> PyResult<()> {
         self.core.remove_all(path).map_err(format_pyerr)

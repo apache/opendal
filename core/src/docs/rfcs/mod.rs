@@ -240,3 +240,7 @@ pub mod rfc_4638_executor {}
 /// Remove metakey
 #[doc = include_str!("5314_remove_metakey.md")]
 pub mod rfc_5314_remove_metakey {}
+
+/// Operator from uri
+#[doc = include_str!("5444_operator_from_uri.md")]
+pub mod rfc_5444_operator_from_uri {}

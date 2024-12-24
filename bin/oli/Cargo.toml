@@ -37,7 +37,6 @@ futures = { version = "0.3" }
 humansize = { version = "2.1" }
 humantime = { version = "2.1" }
 humantime-serde = { version = "1.1" }
-jiff = { version = "0.1.15" }
 indicatif = { version = "0.17" }
 opendal = { version = "0.51.0", path = "../../core", features = [
   "services-azblob",
@@ -61,7 +60,7 @@ tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
 uuid = { version = "1.11" }
-parse-size = "1.0.0"
+parse-size = { version = "1.1" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }

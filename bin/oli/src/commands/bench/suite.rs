@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::commands::bench::report::{Report, SampleSet};
+use crate::make_tokio_runtime;
 use anyhow::{ensure, Context, Result};
 use opendal::Operator;
 use serde::{Deserialize, Deserializer};
@@ -39,6 +40,13 @@ struct BenchSuiteConfig {
     /// Maximum time to run the bench suite.
     #[serde(with = "humantime_serde")]
     timeout: Duration,
+
+    /// Whether retain the object on success.
+    ///
+    /// Default to false, which means the object used in the suite will be deleted
+    /// after the suite successfully returned.
+    #[serde(default)]
+    retain_on_success: bool,
 }
 
 fn deserialize_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -78,20 +86,20 @@ impl BenchSuite {
         let start = Instant::now();
 
         let timeout = self.config.timeout;
-        let parallelism = self.config.parallelism.unwrap_or(1);
+        let parallelism = self.config.parallelism.unwrap_or(1) as usize;
         let file_size = self.config.file_size;
         let workload = match self.config.workload {
             Workload::Upload => "upload".to_string(),
             Workload::Download => "download".to_string(),
         };
+        let retain_on_success = self.config.retain_on_success;
 
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(parallelism as usize)
-            .enable_all()
-            .build()?;
+        let rt = make_tokio_runtime(parallelism);
 
+        let path = format!("obench-test-{}", uuid::Uuid::new_v4());
+        println!("Prepare task with path: {path}");
         let task = rt
-            .block_on(Task::prepare(&self.config, &op))
+            .block_on(Task::prepare(&self.config, &path, &op))
             .context("failed to prepare task")?;
 
         let mut results = vec![];
@@ -131,6 +139,15 @@ impl BenchSuite {
             iops.merge(iter_iops);
         }
 
+        if !retain_on_success {
+            rt.block_on(async {
+                println!("Deleting object at path: {path}");
+                if let Err(err) = op.delete(&path).await {
+                    eprintln!("failed to delete object: {}", err);
+                }
+            });
+        }
+
         let report = Report::new(parallelism, file_size, workload, bandwidth, latency, iops);
         println!("Bench suite completed in {:?}; result:\n", start.elapsed());
         println!("{report}");
@@ -147,14 +164,8 @@ enum Task {
 const BATCH_SIZE: u64 = 4096;
 
 impl Task {
-    async fn prepare(config: &BenchSuiteConfig, op: &Operator) -> Result<Task> {
-        let now = jiff::Timestamp::now();
-        let path = format!(
-            "obench-test-{}-{}",
-            now.as_millisecond(),
-            uuid::Uuid::new_v4()
-        );
-        println!("Prepare task with path: {path}");
+    async fn prepare(config: &BenchSuiteConfig, path: &str, op: &Operator) -> Result<Task> {
+        let path = path.to_string();
         let file_size = config.file_size;
         match config.workload {
             Workload::Upload => Ok(Task::Upload { path, file_size }),

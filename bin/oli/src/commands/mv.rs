@@ -16,12 +16,12 @@
 // under the License.
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 use anyhow::{Error, Result};
 use futures::{AsyncWriteExt, TryStreamExt};
 use opendal::Operator;
 use std::path::Path;
-use crate::make_tokio_runtime;
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "mv", about = "Move object", disable_version_flag = true)]

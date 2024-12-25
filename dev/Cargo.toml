@@ -35,7 +35,7 @@ env_logger = "0.11.6"
 itertools = "0.13.0"
 log = "0.4.22"
 proc-macro2 = { version = "1.0.91", features = ["span-locations"] }
-syn = { version = "2.0.91", features = ['parsing', 'full', 'derive', 'visit', 'extra-traits'] }
+syn = { version = "2.0.91", features = ["visit", "full", "extra-traits",'printing', 'parsing'] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

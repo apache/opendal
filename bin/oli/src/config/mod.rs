@@ -150,19 +150,21 @@ impl Config {
             Err(anyhow!("Host part in a location is not supported. Hint: are you typing `://` instead of `:/`?"))?;
         }
 
-        let profile_name = location.scheme();
+        let op = self.operator(location.scheme())?;
         let path = location.path().to_string();
+        Ok((op, path))
+    }
+
+    pub fn operator(&self, profile_name: &str) -> Result<Operator> {
         let profile = self
             .profiles
             .get(profile_name)
             .ok_or_else(|| anyhow!("unknown profile: {}", profile_name))?;
-
         let svc = profile
             .get("type")
             .ok_or_else(|| anyhow!("missing 'type' in profile"))?;
         let scheme = Scheme::from_str(svc)?;
-        let op = Operator::via_iter(scheme, profile.clone())?;
-        Ok((op, path))
+        Ok(Operator::via_iter(scheme, profile.clone())?)
     }
 }
 

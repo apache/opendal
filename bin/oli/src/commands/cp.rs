@@ -26,6 +26,7 @@ use futures::AsyncWriteExt;
 use futures::TryStreamExt;
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 
 /// Template for the progress bar display.
@@ -59,7 +60,10 @@ pub struct CopyCmd {
 }
 
 impl CopyCmd {
-    pub async fn run(&self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+    async fn do_run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (src_op, src_path) = cfg.parse_location(&self.source)?;

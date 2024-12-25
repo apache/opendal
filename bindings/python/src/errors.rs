@@ -20,12 +20,32 @@ use pyo3::exceptions::PyException;
 
 use crate::*;
 
-create_exception!(opendal.exceptions, Error, PyException, "OpenDAL Base Exception");
+create_exception!(
+    opendal.exceptions,
+    Error,
+    PyException,
+    "OpenDAL Base Exception"
+);
 create_exception!(opendal.exceptions, Unexpected, Error, "Unexpected errors");
-create_exception!(opendal.exceptions, Unsupported, Error, "Unsupported operation");
-create_exception!(opendal.exceptions, ConfigInvalid, Error, "Config is invalid");
+create_exception!(
+    opendal.exceptions,
+    Unsupported,
+    Error,
+    "Unsupported operation"
+);
+create_exception!(
+    opendal.exceptions,
+    ConfigInvalid,
+    Error,
+    "Config is invalid"
+);
 create_exception!(opendal.exceptions, NotFound, Error, "Not found");
-create_exception!(opendal.exceptions, PermissionDenied, Error, "Permission denied");
+create_exception!(
+    opendal.exceptions,
+    PermissionDenied,
+    Error,
+    "Permission denied"
+);
 create_exception!(opendal.exceptions, IsADirectory, Error, "Is a directory");
 create_exception!(opendal.exceptions, NotADirectory, Error, "Not a directory");
 create_exception!(opendal.exceptions, AlreadyExists, Error, "Already exists");

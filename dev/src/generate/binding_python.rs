@@ -17,10 +17,86 @@
 
 use crate::generate::parser::Services;
 use anyhow::Result;
+use itertools::Itertools;
+use std::fs;
 use std::path::PathBuf;
 
-pub fn generate(_project_root: PathBuf, services: &Services) -> Result<()> {
-    println!("{:?}", services);
+use super::parser::ConfigType;
+
+fn enabled_service(srv: &str) -> bool {
+    match srv {
+        // not enabled in bindings/python/Cargo.toml
+        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
+        _ => true,
+    }
+}
+
+pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
+    let mut s = fs::read_to_string(project_root.join("dev/templates/python"))
+        .expect("failed to read python template file");
+
+    for (srv, config) in services.clone().into_iter() {
+        if !enabled_service(srv.as_str()) {
+            continue;
+        }
+
+        s.push_str("\n    @overload\n");
+        s.push_str("    def __init__(self,\n");
+        s.push_str(format!("scheme: Literal[\"{}\"],", srv).as_str());
+        s.push_str("\n*,\n");
+
+        for (_, f) in config
+            .config
+            .into_iter()
+            .enumerate()
+            .sorted_by_key(|(i, x)| (x.optional, *i))
+        {
+            if let Some(deprecated) = f.deprecated {
+                s.push_str("# deprecated: ");
+                s.push_str(deprecated.as_str());
+                s.push('\n');
+            }
+
+            s.push_str(&f.name);
+            s.push_str(": ");
+            match f.value {
+                ConfigType::Bool => {
+                    s.push_str("_bool");
+                }
+                ConfigType::Duration => {
+                    s.push_str("_duration");
+                }
+                ConfigType::I64
+                | ConfigType::Usize
+                | ConfigType::U64
+                | ConfigType::U32
+                | ConfigType::U16 => {
+                    s.push_str("_int");
+                }
+                ConfigType::Vec => {
+                    s.push_str("_strings");
+                }
+                ConfigType::String => {
+                    s.push_str("str");
+                }
+            }
+            if f.optional {
+                s.push_str(" = ...,\n");
+            } else {
+                s.push_str(",\n");
+            }
+        }
+
+        s.push_str(")->None:...\n");
+    }
+
+    s.push_str("    @overload\n    def __init__(self, scheme:str, **kwargs: str) -> None: ...\n");
+
+    fs::write(
+        project_root.join("bindings/python/python/opendal/__base.pyi"),
+        s,
+    )
+    .expect("failed to write result to file");
 
     Ok(())
 }

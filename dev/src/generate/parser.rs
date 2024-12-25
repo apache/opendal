@@ -236,8 +236,6 @@ impl ServiceParser {
             v => return Err(anyhow!("unsupported config type {v:?}")),
         };
 
-        deprecated = deprecated.map(|s| s[1..s.len() - 1].into());
-
         Ok(Config {
             name: name.to_string(),
             value: cfg_type,

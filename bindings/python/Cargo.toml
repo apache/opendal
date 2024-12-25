@@ -45,6 +45,9 @@ default = [
   "services-webhdfs",
 ]
 
+# NOTE: this is the feature we used to build pypi wheels.
+# When enable or disable some features,
+# also need to update dev/src/generate/binding_python.rs `enabled_service` to match it.
 services-all = [
   "default",
   "services-aliyun-drive",
@@ -161,9 +164,7 @@ bytes = "1.5.0"
 dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
-opendal = { version = ">=0", path = "../../core", features = [
-  "layers-blocking",
-] }
+opendal = { version = ">=0", path = "../../core", features = ["layers-blocking"] }
 pyo3 = { version = "0.23.3", features = ["generate-import-lib"] }
 pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
 tokio = "1"

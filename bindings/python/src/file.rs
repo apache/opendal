@@ -63,7 +63,11 @@ impl File {
 impl File {
     /// Read and return at most size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None,))]
-    pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<PyAny>> {
+    pub fn read<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        size: Option<usize>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -107,7 +111,7 @@ impl File {
         &'p mut self,
         py: Python<'p>,
         size: Option<usize>,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -352,7 +356,7 @@ impl AsyncFile {
 impl AsyncFile {
     /// Read and return at most size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None))]
-    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -397,7 +401,7 @@ impl AsyncFile {
     }
 
     /// Write bytes into the file.
-    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<PyAny>> {
+    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         // FIXME: can we avoid this clone?
@@ -438,7 +442,12 @@ impl AsyncFile {
     ///
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
-    pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<Bound<PyAny>> {
+    pub fn seek<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        pos: i64,
+        whence: u8,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         let whence = match whence {
@@ -474,7 +483,7 @@ impl AsyncFile {
     }
 
     /// Return the current stream position.
-    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -502,7 +511,7 @@ impl AsyncFile {
         .and_then(|pos| pos.into_bound_py_any(py))
     }
 
-    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
@@ -532,7 +541,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream may be read from.
-    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -541,7 +550,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream may be written to.
-    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -550,7 +559,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream reader may be re-located.
-    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         if true {
             self.readable(py)
         } else {
@@ -560,7 +569,7 @@ impl AsyncFile {
 
     /// Check if the stream is closed.
     #[getter]
-    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<PyAny>> {
+    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;

@@ -17,12 +17,12 @@
 
 use anyhow::{anyhow, Context};
 use anyhow::{Ok, Result};
+use itertools::Itertools;
 use log::debug;
-use std::collections::hash_map;
 use std::collections::HashMap;
-use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
+use std::{fs, vec};
 use syn::{Field, GenericArgument, Item, PathArguments, Type, TypePath};
 
 #[derive(Debug, Clone)]
@@ -30,10 +30,10 @@ pub struct Services(HashMap<String, Service>);
 
 impl IntoIterator for Services {
     type Item = (String, Service);
-    type IntoIter = hash_map::IntoIter<String, Service>;
+    type IntoIter = vec::IntoIter<(String, Service)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.0.into_iter().sorted_by_key(|x| x.0.clone())
     }
 }
 
@@ -257,6 +257,7 @@ impl ServiceParser {
                 };
 
                 let typ = type_name.as_str().parse()?;
+                let optional = optional || typ == ConfigType::Bool;
 
                 (typ, optional)
             }
@@ -550,7 +551,7 @@ impl Debug for S3Config {
             Config {
                 name: "disable_write_with_if_match".to_string(),
                 value: ConfigType::Bool,
-                optional: false,
+                optional: true,
                 deprecated: None,
                 comments: "".to_string(),
             },

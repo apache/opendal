@@ -31,34 +31,7 @@ from types import TracebackType
 from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.layers import Layer
-
-# `true`/`false`` in any case, for example, `true`/`True`/`TRUE` `false`/`False`/`FALSE`
-_bool: TypeAlias = str
-
-class _Base:
-    @overload
-    def __init__(
-        self,
-        scheme: Literal["s3"],
-        *,
-        bucket: str,
-        region: str,
-        endpoint: str = ...,
-        root: str = ...,
-        access_key_id: str = ...,
-        secret_access_key: str = ...,
-        default_storage_class: str = ...,
-        server_side_encryption: str = ...,
-        server_side_encryption_aws_kms_key_id: str = ...,
-        server_side_encryption_customer_algorithm: str = ...,
-        server_side_encryption_customer_key: str = ...,
-        server_side_encryption_customer_key_md5: str = ...,
-        disable_config_load: _bool = ...,
-        enable_virtual_host_style: _bool = ...,
-        disable_write_with_if_match: _bool = ...,
-    ) -> None: ...
-    @overload
-    def __init__(self, scheme: str, **kwargs: str) -> None: ...
+from opendal.__base import _Base
 
 @final
 class Operator(_Base):

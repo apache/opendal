@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "gen-pyi"
+version = "0.1.0"
+
+[dependencies]
+syn = { version = "2.0.91", features = ['parsing', 'full', 'derive', 'printing', 'visit', 'visit-mut', 'extra-traits', 'proc-macro'] }
+proc-macro2 = { version = "1.0.91", features = ["span-locations"] }
+[[bin]]
+name = "gen-pyi"
+path = "main.rs"

@@ -15,37 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod generate;
+mod parser;
+
+mod binding_python;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
+pub fn run(language: &str) -> Result<()> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let services_path = manifest_dir.join("../core/src/services").canonicalize()?;
+    let services = parser::parse(&services_path.to_string_lossy())?;
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Generate all services configs for opendal.
-    Generate {
-        #[arg(short, long)]
-        language: String,
-    },
-}
-
-fn main() -> Result<()> {
-    env_logger::init();
-
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Generate { language } => {
-            generate::run(&language)?;
-        }
+    match language {
+        "python" | "py" => binding_python::generate(&services),
+        _ => Err(anyhow::anyhow!("Unsupported language: {}", language)),
     }
-
-    Ok(())
 }

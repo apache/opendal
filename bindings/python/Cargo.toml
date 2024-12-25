@@ -158,6 +158,7 @@ doc = false
 
 [dependencies]
 bytes = "1.5.0"
+dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [

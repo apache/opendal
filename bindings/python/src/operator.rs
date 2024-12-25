@@ -118,7 +118,10 @@ impl Operator {
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let kwargs = kwargs.unwrap_or_default();
-        let mut write = self.core.write_with(path, bs).append(kwargs.append);
+        let mut write = self
+            .core
+            .write_with(path, bs)
+            .append(kwargs.append.unwrap_or(false));
         if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
         }
@@ -333,7 +336,9 @@ impl AsyncOperator {
         let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs).append(kwargs.append);
+            let mut write = this
+                .write_with(&path, bs)
+                .append(kwargs.append.unwrap_or(false));
             if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }

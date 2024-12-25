@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::Result;
 use anyhow::{anyhow, Context};
+use anyhow::{Ok, Result};
 use log::debug;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
-use syn::{Field, GenericArgument, Item, ItemStruct, PathArguments, Type, TypePath};
+use syn::{Field, GenericArgument, Item, PathArguments, Type, TypePath};
 
 #[derive(Debug, Clone)]
 pub struct Services(HashMap<String, Service>);
@@ -53,6 +53,8 @@ pub struct Config {
     pub value: ConfigType,
     /// If given config is optional or not.
     pub optional: bool,
+    /// if this field is deprecated, a deprecated message will be provided.
+    pub deprecated: Option<String>,
     /// The comments for this config.
     ///
     /// All white spaces and extra new lines will be trimmed.
@@ -196,6 +198,35 @@ impl ServiceParser {
             .clone()
             .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
 
+        let mut deprecated = None::<String>;
+
+        for attr in &field.attrs {
+            if !attr.path().is_ident("deprecated") {
+                continue;
+            }
+
+            match &attr.meta {
+                syn::Meta::List(meta_list) => {
+                    let tokens = Vec::from_iter(meta_list.tokens.clone().into_iter());
+                    for (index, token) in tokens.iter().enumerate() {
+                        match token {
+                            proc_macro2::TokenTree::Ident(i) => {
+                                if i == "note" {
+                                    deprecated =
+                                        tokens.get(index + 2).unwrap().span().source_text();
+                                    break;
+                                }
+                            }
+                            _ => {
+                                continue;
+                            }
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
                 let segment = path
@@ -232,10 +263,13 @@ impl ServiceParser {
             v => return Err(anyhow!("unsupported config type {v:?}")),
         };
 
+        deprecated = deprecated.map(|s| s[1..s.len() - 1].into());
+
         Ok(Config {
             name: name.to_string(),
             value: cfg_type,
             optional,
+            deprecated,
             comments: "".to_string(),
         })
     }
@@ -244,8 +278,10 @@ impl ServiceParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
+    use syn::ItemStruct;
 
     #[test]
     fn test_parse_field() {
@@ -256,6 +292,7 @@ mod tests {
                     name: "root".to_string(),
                     value: ConfigType::String,
                     optional: true,
+                    deprecated: None,
                     comments: "".to_string(),
                 },
             ),
@@ -265,6 +302,7 @@ mod tests {
                     name: "root".to_string(),
                     value: ConfigType::String,
                     optional: false,
+                    deprecated: None,
                     comments: "".to_string(),
                 },
             ),
@@ -496,11 +534,24 @@ impl Debug for S3Config {
         let service = parser.parse().unwrap();
         assert_eq!(service.config.len(), 26);
         assert_eq!(
+            service.config[21],
+            Config {
+                name: "batch_max_operations".to_string(),
+                value: ConfigType::Usize,
+                optional: true,
+                deprecated: Some(
+                    "Please use `delete_max_size` instead of `batch_max_operations`".into()
+                ),
+                comments: "".to_string(),
+            },
+        );
+        assert_eq!(
             service.config[25],
             Config {
                 name: "disable_write_with_if_match".to_string(),
                 value: ConfigType::Bool,
                 optional: false,
+                deprecated: None,
                 comments: "".to_string(),
             },
         );

@@ -81,7 +81,7 @@ pub enum ConfigType {
 
     /// Mapping to rust's `Vec`
     ///
-    /// Please note, all vec in config are `,` seperated string.
+    /// Please note, all vec in config are `,` separated string.
     Vec,
 }
 

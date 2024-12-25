@@ -15,37 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod generate;
-
+use crate::generate::parser::Services;
 use anyhow::Result;
-use clap::{Parser, Subcommand};
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Generate all services configs for opendal.
-    Generate {
-        #[arg(short, long)]
-        language: String,
-    },
-}
-
-fn main() -> Result<()> {
-    env_logger::init();
-
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Generate { language } => {
-            generate::run(&language)?;
-        }
-    }
+pub fn generate(services: &Services) -> Result<()> {
+    println!("{:?}", services);
 
     Ok(())
 }

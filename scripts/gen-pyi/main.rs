@@ -1,7 +1,5 @@
 use std::fs;
 
-use syn::Ident;
-
 fn main() {
     let services = vec![("s3", "S3Config", "../../core/src/services/s3/config.rs")];
     let mut s = fs::read_to_string("python.tmpl").expect("failed to open python template file");
@@ -64,15 +62,15 @@ fn main() {
 
 fn py_type(t: syn::Type) -> String {
     let p = match t {
+        syn::Type::Path(p) => p,
         _ => {
             return "str".into();
         }
-        syn::Type::Path(p) => p,
     };
 
     match p.path.get_ident() {
         Some(idnt) => {
-            if idnt.span().unwrap().source_text().unwrap() == "bool" {
+            if idnt.span().source_text().unwrap() == "bool" {
                 return "_bool".into();
             }
 

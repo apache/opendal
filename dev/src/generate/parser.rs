@@ -261,9 +261,7 @@ impl ServiceParser {
             for (index, token) in tokens.iter().enumerate() {
                 let ident = match token {
                     proc_macro2::TokenTree::Ident(ident) => ident,
-                    _ => {
-                        continue;
-                    }
+                    _ => continue,
                 };
 
                 if ident == "note" {
@@ -277,7 +275,7 @@ impl ServiceParser {
             }
         }
 
-        return None;
+        None
     }
 }
 
@@ -285,8 +283,8 @@ impl ServiceParser {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use syn::ItemStruct;
     use std::path::PathBuf;
+    use syn::ItemStruct;
 
     #[test]
     fn test_parse_field() {

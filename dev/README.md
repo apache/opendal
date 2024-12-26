@@ -4,16 +4,18 @@ This project is designed to provide dev tools for the entire opendal project.
 
 ## Usage
 
+List all available recipes:
+
 ```bash
-cargo o help
+just --list
 ```
 
-## Features
+## Recipes
 
 ### Generate
 
 Generate code for OpenDAL services.
 
 ```bash
-cargo o generate -l python
+just generate python
 ```

@@ -15,5 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[alias]
-o = "run --manifest-path ./dev/Cargo.toml --"
+# Generate code for language
+#
+# Available languages: python
+generate language:
+    cargo run --quiet --manifest-path=dev/Cargo.toml -- generate -l {{language}}

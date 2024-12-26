@@ -20,6 +20,7 @@ use anyhow::Result;
 use itertools::Itertools;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use super::parser::ConfigType;
 
@@ -93,11 +94,18 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
 
     s.push_str("    @overload\n    def __init__(self, scheme:str, **kwargs: str) -> None: ...\n");
 
-    fs::write(
-        project_root.join("bindings/python/python/opendal/__base.pyi"),
-        s,
-    )
-    .expect("failed to write result to file");
+    let output_file: String = project_root
+        .join("bindings/python/python/opendal/__base.pyi")
+        .to_str()
+        .expect("should build output file path")
+        .into();
+
+    fs::write(output_file.clone(), s).expect("failed to write result to file");
+
+    Command::new("ruff")
+        .arg("format")
+        .arg(output_file)
+        .output()?;
 
     Ok(())
 }

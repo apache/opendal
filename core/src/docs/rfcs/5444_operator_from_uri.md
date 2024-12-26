@@ -28,6 +28,12 @@ let op = Operator::from_uri("s3://my-bucket/path", vec![
     ("endpoint".to_string(), "http://localhost:8080"to_string()),
 ])?;
 
+// Users can pass options through the URI along with additional key-value pairs
+// The extra options will override identical options specified in the URI
+let op = Operator::from_uri("s3://my-bucket/path?region=us-east-1", vec![
+    ("endpoint".to_string(), "http://localhost:8080"to_string()),
+])?;
+
 // Create a file system operator
 let op = Operator::from_uri("fs:///tmp/test", vec![])?;
 ```

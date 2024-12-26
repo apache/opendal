@@ -109,7 +109,7 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<'p, PyAny>> {
         let buffer = self.core.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
@@ -287,7 +287,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         mode: String,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
 
         future_into_py(py, async move {
@@ -312,7 +312,7 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
@@ -328,7 +328,7 @@ impl AsyncOperator {
         path: String,
         bs: &Bound<PyBytes>,
         kwargs: Option<WriteOptions>,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let kwargs = kwargs.unwrap_or_default();
         let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
@@ -351,7 +351,7 @@ impl AsyncOperator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let res: Metadata = this
@@ -370,7 +370,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
@@ -383,7 +383,7 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
@@ -391,7 +391,7 @@ impl AsyncOperator {
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             this.remove_all(&path).await.map_err(format_pyerr)
@@ -410,7 +410,7 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
@@ -422,7 +422,7 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(
             py,
@@ -431,7 +431,7 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
@@ -442,7 +442,7 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<PyAny>> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this
@@ -462,7 +462,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let res = this
@@ -481,7 +481,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let res = this
@@ -500,7 +500,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<Bound<PyAny>> {
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
             let res = this

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use anyhow::Result;
 use anyhow::{anyhow, Context};
 use itertools::Itertools;
 use log::debug;
@@ -283,7 +284,6 @@ impl ServiceParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
     use syn::ItemStruct;

@@ -23,6 +23,7 @@ use std::path::PathBuf;
 
 use super::parser::ConfigType;
 
+/// TODO: add a common utils to parse enabled features from cargo.toml
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml

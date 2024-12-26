@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pyo3::{pyclass, FromPyObject};
+use dict_derive::FromPyObject;
+use pyo3::pyclass;
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
 pub struct WriteOptions {
-    pub append: bool,
+    pub append: Option<bool>,
     pub chunk: Option<usize>,
     pub content_type: Option<String>,
     pub content_disposition: Option<String>,

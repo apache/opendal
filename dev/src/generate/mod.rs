@@ -25,10 +25,11 @@ use std::path::PathBuf;
 pub fn run(language: &str) -> Result<()> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let services_path = manifest_dir.join("../core/src/services").canonicalize()?;
+    let project_root = manifest_dir.join("..").canonicalize()?;
     let services = parser::parse(&services_path.to_string_lossy())?;
 
     match language {
-        "python" | "py" => binding_python::generate(&services),
+        "python" | "py" => binding_python::generate(project_root, &services),
         _ => Err(anyhow::anyhow!("Unsupported language: {}", language)),
     }
 }

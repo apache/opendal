@@ -17,8 +17,9 @@
 
 use crate::generate::parser::Services;
 use anyhow::Result;
+use std::path::PathBuf;
 
-pub fn generate(services: &Services) -> Result<()> {
+pub fn generate(_project_root: PathBuf, services: &Services) -> Result<()> {
     println!("{:?}", services);
 
     Ok(())

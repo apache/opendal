@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Generate code for langauge
+# Generate code for language
 #
-# Avaiable languages: python
+# Available languages: python
 generate language:
     cargo run --quiet --manifest-path=dev/Cargo.toml -- generate -l {{language}}

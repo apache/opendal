@@ -49,6 +49,7 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
             .filter(|x| enabled_service(x.0.as_str())),
     );
 
+    // move required options at beginning.
     for srv in &mut v {
         srv.1.config = srv
             .1
@@ -85,25 +86,15 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
 impl ConfigType {
     pub fn python_type(&self) -> String {
         match self {
-            ConfigType::Bool => {
-                "_bool".into()
-            }
-            ConfigType::Duration => {
-                "_duration".into()
-            }
+            ConfigType::Bool => "_bool".into(),
+            ConfigType::Duration => "_duration".into(),
             ConfigType::I64
             | ConfigType::Usize
             | ConfigType::U64
             | ConfigType::U32
-            | ConfigType::U16 => {
-                "_int".into()
-            }
-            ConfigType::Vec => {
-                "_strings".into()
-            }
-            ConfigType::String => {
-                "str".into()
-            }
+            | ConfigType::U16 => "_int".into(),
+            ConfigType::Vec => "_strings".into(),
+            ConfigType::String => "str".into(),
         }
     }
 }

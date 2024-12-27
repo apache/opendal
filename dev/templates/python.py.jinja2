@@ -53,7 +53,7 @@ class _Base:
         {% if field.deprecated.is_some() %}
         # deprecated: {{ field.deprecated.unwrap() }}
         {% endif %}
-        {{field.name}}: {{field.value.python_type()}} {% if (field.optional) %} = ... {% endif %},
+        {{field.name}}: {{field.value.python_type()}} {% if field.optional %} = ... {% endif %},
     {% endfor %}
 
      ) -> None: ...

@@ -70,11 +70,11 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
 
     fs::write(output_file.clone(), t).expect("failed to write result to file");
 
-    Command::new("ruff")
-        .arg("format")
-        .arg(output_file)
-        .output()
-        .expect("failed to run ruff");
+    let ruff = Command::new("ruff").arg("format").arg(output_file).output();
+
+    if let Err(err) = ruff {
+        println!("failed to format generate code with ruff: {}", err);
+    }
 
     Ok(())
 }

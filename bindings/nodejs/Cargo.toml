@@ -45,6 +45,10 @@ default = [
   "services-webhdfs",
 ]
 
+
+# NOTE: this is the feature we used to build pypi wheels.
+# When enable or disable some features,
+# also need to update dev/src/generate/binding_nodejs.rs `enabled_service` to match it.
 services-all = [
   "default",
   "services-aliyun-drive",

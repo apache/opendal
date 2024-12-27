@@ -39,6 +39,7 @@
     "webhdfs"
   ],
   "files": [
+    "types.generated.d.ts",
     "index.d.ts",
     "index.js",
     "generated.d.ts",

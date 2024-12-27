@@ -137,6 +137,10 @@ Writer.prototype.createWriteStream = function (options) {
   return new WriteStream(this, options)
 }
 
+module.exports.create_operator = function (scheme, options) {
+  return new Operator(scheme, options)
+}
+
 module.exports.Operator = Operator
 module.exports.layers = {
   RetryLayer,

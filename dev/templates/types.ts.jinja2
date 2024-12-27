@@ -17,28 +17,25 @@
  * under the License.
  */
 
-import { Readable, ReadableOptions, Writable, WritableOptions } from 'node:stream'
 
-declare module './generated' {
-  interface BlockingReader {
-    /** Create a readable stream from the underlying reader. */
-    createReadStream(options?: ReadableOptions): Readable
-  }
-  interface Reader {
-    /** Create a readable stream from the underlying reader. */
-    createReadStream(options?: ReadableOptions): Readable
-  }
+import { Operator } from "./generated"
 
-  interface BlockingWriter {
-    /** Create a writable stream from the underlying writer. */
-    createWriteStream(options?: WritableOptions): Writable
-  }
+{% for srv in services %}
+export interface {{ srv.0|capitalize }}_Config {{'{'}}
+  {% for field in srv.1.config.clone().into_iter() -%}
+  {% if field.deprecated.is_some() %}
+  /**
+   * @deprecated: {{ field.deprecated.unwrap().note }}
+   */
+  {% endif -%}
+  {{field.name}}  {% if field.optional %}? {% endif %}: string;
+  {% endfor -%}
+{{'}'}}
+{% endfor %}
 
-  interface Writer {
-    /** Create a writable stream from the underlying writer. */
-    createWriteStream(options?: WritableOptions): Writable
-  }
-}
 
-export * from './generated'
-export { create_operator } from './types.generated'
+{% for srv in services -%}
+export function create_operator(scheme: "{{srv.0}}", options?: {{ srv.0|capitalize }}_Config | undefined | null) : Operator;
+{% endfor %}
+
+export function create_operator(scheme: string, options?: Record<string, string> | undefined | null): Operator;

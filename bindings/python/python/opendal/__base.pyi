@@ -46,6 +46,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["aliyun_drive"],
+        /,
         *,
         drive_type: str,
         root: str = ...,
@@ -58,6 +59,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["alluxio"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -66,6 +68,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["atomicserver"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -77,6 +80,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["azblob"],
+        /,
         *,
         container: str,
         root: str = ...,
@@ -93,6 +97,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["azdls"],
+        /,
         *,
         filesystem: str,
         root: str = ...,
@@ -104,6 +109,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["azfile"],
+        /,
         *,
         share_name: str,
         root: str = ...,
@@ -116,6 +122,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["b2"],
+        /,
         *,
         bucket: str,
         bucket_id: str,
@@ -127,6 +134,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["cacache"],
+        /,
         *,
         datadir: str = ...,
     ) -> None: ...
@@ -134,6 +142,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["chainsafe"],
+        /,
         *,
         bucket_id: str,
         root: str = ...,
@@ -143,6 +152,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["cloudflare_kv"],
+        /,
         *,
         token: str = ...,
         account_id: str = ...,
@@ -153,6 +163,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["compfs"],
+        /,
         *,
         root: str = ...,
     ) -> None: ...
@@ -160,6 +171,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["cos"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -172,6 +184,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["d1"],
+        /,
         *,
         token: str = ...,
         account_id: str = ...,
@@ -185,6 +198,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["dashmap"],
+        /,
         *,
         root: str = ...,
     ) -> None: ...
@@ -192,6 +206,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["dbfs"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -201,6 +216,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["dropbox"],
+        /,
         *,
         root: str = ...,
         access_token: str = ...,
@@ -212,6 +228,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["fs"],
+        /,
         *,
         root: str = ...,
         atomic_write_dir: str = ...,
@@ -220,6 +237,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["gcs"],
+        /,
         *,
         bucket: str,
         root: str = ...,
@@ -239,6 +257,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["gdrive"],
+        /,
         *,
         root: str = ...,
         access_token: str = ...,
@@ -250,6 +269,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["ghac"],
+        /,
         *,
         root: str = ...,
         version: str = ...,
@@ -260,6 +280,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["github"],
+        /,
         *,
         owner: str,
         repo: str,
@@ -270,6 +291,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["gridfs"],
+        /,
         *,
         connection_string: str = ...,
         database: str = ...,
@@ -281,6 +303,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["hdfs_native"],
+        /,
         *,
         root: str = ...,
         url: str = ...,
@@ -290,6 +313,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["http"],
+        /,
         *,
         endpoint: str = ...,
         username: str = ...,
@@ -301,6 +325,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["huggingface"],
+        /,
         *,
         repo_type: str = ...,
         repo_id: str = ...,
@@ -312,6 +337,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["icloud"],
+        /,
         *,
         root: str = ...,
         apple_id: str = ...,
@@ -324,6 +350,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["ipfs"],
+        /,
         *,
         endpoint: str = ...,
         root: str = ...,
@@ -332,6 +359,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["ipmfs"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -340,6 +368,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["koofr"],
+        /,
         *,
         endpoint: str,
         email: str,
@@ -350,6 +379,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["lakefs"],
+        /,
         *,
         endpoint: str = ...,
         username: str = ...,
@@ -362,6 +392,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["libsql"],
+        /,
         *,
         connection_string: str = ...,
         auth_token: str = ...,
@@ -374,6 +405,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["memcached"],
+        /,
         *,
         endpoint: str = ...,
         root: str = ...,
@@ -385,6 +417,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["memory"],
+        /,
         *,
         root: str = ...,
     ) -> None: ...
@@ -392,6 +425,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["mini_moka"],
+        /,
         *,
         max_capacity: _int = ...,
         time_to_live: _duration = ...,
@@ -402,6 +436,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["moka"],
+        /,
         *,
         name: str = ...,
         max_capacity: _int = ...,
@@ -414,6 +449,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["mongodb"],
+        /,
         *,
         connection_string: str = ...,
         database: str = ...,
@@ -426,6 +462,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["monoiofs"],
+        /,
         *,
         root: str = ...,
     ) -> None: ...
@@ -433,6 +470,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["mysql"],
+        /,
         *,
         connection_string: str = ...,
         table: str = ...,
@@ -444,6 +482,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["nebula_graph"],
+        /,
         *,
         host: str = ...,
         port: _int = ...,
@@ -459,6 +498,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["obs"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -470,6 +510,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["onedrive"],
+        /,
         *,
         access_token: str = ...,
         root: str = ...,
@@ -478,6 +519,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["oss"],
+        /,
         *,
         bucket: str,
         root: str = ...,
@@ -501,6 +543,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["pcloud"],
+        /,
         *,
         endpoint: str,
         root: str = ...,
@@ -511,6 +554,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["persy"],
+        /,
         *,
         datafile: str = ...,
         segment: str = ...,
@@ -520,6 +564,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["postgresql"],
+        /,
         *,
         root: str = ...,
         connection_string: str = ...,
@@ -531,6 +576,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["redb"],
+        /,
         *,
         datadir: str = ...,
         root: str = ...,
@@ -540,6 +586,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["redis"],
+        /,
         *,
         db: _int,
         endpoint: str = ...,
@@ -553,6 +600,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["s3"],
+        /,
         *,
         bucket: str,
         root: str = ...,
@@ -586,6 +634,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["seafile"],
+        /,
         *,
         repo_name: str,
         root: str = ...,
@@ -597,6 +646,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["sftp"],
+        /,
         *,
         endpoint: str = ...,
         root: str = ...,
@@ -609,6 +659,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["sled"],
+        /,
         *,
         datadir: str = ...,
         root: str = ...,
@@ -618,6 +669,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["sqlite"],
+        /,
         *,
         connection_string: str = ...,
         table: str = ...,
@@ -629,6 +681,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["supabase"],
+        /,
         *,
         bucket: str,
         root: str = ...,
@@ -639,6 +692,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["surrealdb"],
+        /,
         *,
         connection_string: str = ...,
         username: str = ...,
@@ -654,6 +708,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["swift"],
+        /,
         *,
         endpoint: str = ...,
         container: str = ...,
@@ -664,6 +719,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["upyun"],
+        /,
         *,
         bucket: str,
         root: str = ...,
@@ -674,6 +730,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["vercel_artifacts"],
+        /,
         *,
         access_token: str = ...,
     ) -> None: ...
@@ -681,6 +738,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["vercel_blob"],
+        /,
         *,
         root: str = ...,
         token: str = ...,
@@ -689,6 +747,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["webdav"],
+        /,
         *,
         endpoint: str = ...,
         username: str = ...,
@@ -701,6 +760,7 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["webhdfs"],
+        /,
         *,
         root: str = ...,
         endpoint: str = ...,
@@ -712,9 +772,10 @@ class _Base:
     def __init__(
         self,
         scheme: Literal["yandex_disk"],
+        /,
         *,
         access_token: str,
         root: str = ...,
     ) -> None: ...
     @overload
-    def __init__(self, scheme: str, **kwargs: str) -> None: ...
+    def __init__(self, scheme: str, /, **kwargs: str) -> None: ...

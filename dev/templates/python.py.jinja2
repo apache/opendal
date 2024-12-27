@@ -51,7 +51,7 @@ class _Base:
         *,
     {% for field in srv.1.config.clone().into_iter() %}
         {% if field.deprecated.is_some() %}
-        # deprecated: {{ field.deprecated.unwrap() }}
+        # deprecated: {{ field.deprecated.unwrap().note }}
         {% endif %}
         {{field.name}}: {{field.value.python_type()}} {% if field.optional %} = ... {% endif %},
     {% endfor %}

@@ -18,7 +18,6 @@
 use crate::generate::parser::Services;
 use anyhow::Result;
 use rinja::Template;
-use itertools::Itertools;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -52,15 +51,11 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
 
     // move required options at beginning.
     for srv in &mut v {
-        srv.1.config = srv
-            .1
-            .config
-            .clone()
-            .into_iter()
-            .enumerate()
-            .sorted_by_key(|(i, x)| (x.optional, *i))
-            .map(|(_, e)| e)
-            .collect();
+        let mut v = Vec::from_iter(srv.1.config.clone().into_iter().enumerate());
+
+        v.sort_by_key(|a| (a.1.optional, a.0));
+
+        srv.1.config = v.iter().map(|f| f.1.clone()).collect();
     }
 
     let tmpl = PythonTemplate { services: v };

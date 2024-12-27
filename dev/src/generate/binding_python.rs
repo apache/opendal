@@ -20,7 +20,6 @@ use anyhow::Result;
 use rinja::Template;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 use super::parser::{ConfigType, Service};
 
@@ -68,17 +67,7 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
         .expect("should build output file path")
         .into();
 
-    fs::write(output_file.clone(), t).expect("failed to write result to file");
-
-    let ruff = Command::new("ruff")
-        .arg("format")
-        .arg("--no-cache")
-        .arg(output_file)
-        .output();
-
-    if let Err(err) = ruff {
-        println!("failed to format generate code with ruff: {}", err);
-    }
+    fs::write(output_file, t).expect("failed to write result to file");
 
     Ok(())
 }

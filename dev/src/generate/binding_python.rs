@@ -17,7 +17,7 @@
 
 use crate::generate::parser::Services;
 use anyhow::Result;
-use askama::Template;
+use rinja::Template;
 use itertools::Itertools;
 use std::fs;
 use std::path::PathBuf;

@@ -17,7 +17,7 @@ The first article will discuss OpenDAL's most commonly used data reading functio
 
 Before starting to introduce the specific OpenDAL interface, let's first get familiar with the OpenDAL project.
 
-[OpenDAL](https://github.com/apache/opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/docs/vision) is "free access to data":
+[OpenDAL](https://github.com/apache/opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/vision) is "free access to data":
 
 - Free from services: Any service can be accessed freely through native interfaces
 - Free from implementations: No matter how the underlying implementation is, it can be called in a unified way

@@ -93,7 +93,7 @@ impl<T: ScanDyn + ?Sized> Scan for Box<T> {
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// TODO: use default associate type `= ()` after stablized
+    /// TODO: use default associate type `= ()` after stabilized
     type Scanner: Scan;
 
     /// Return the info of this key value accessor.

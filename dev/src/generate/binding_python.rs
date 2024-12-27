@@ -25,9 +25,10 @@ use std::process::Command;
 
 use super::parser::{ConfigType, Service};
 
-#[derive(Template)] // this will generate the code...
-#[template(path = "python.py.jinja2")] // using the template in this path, relative
-                                       // to the `templates` dir in the crate root
+// Using the template in this path, relative
+// to the `templates` dir in the crate root
+#[derive(Template)]
+#[template(path = "python.py.jinja2", escape = "none")]
 struct PythonTemplate {
     services: Vec<(String, Service)>,
 }

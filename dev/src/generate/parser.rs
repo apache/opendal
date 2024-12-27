@@ -17,13 +17,12 @@
 
 use anyhow::Result;
 use anyhow::{anyhow, Context};
-use itertools::Itertools;
 use log::debug;
 use std::collections::HashMap;
 use std::fs::read_dir;
 use std::str::FromStr;
 use std::{fs, vec};
-use syn::{Field, GenericArgument, Item, PathArguments, Type, TypePath};
+use syn::{Field, GenericArgument, Item, LitStr, PathArguments, Type, TypePath};
 
 #[derive(Debug, Clone)]
 pub struct Services(HashMap<String, Service>);
@@ -33,19 +32,21 @@ impl IntoIterator for Services {
     type IntoIter = vec::IntoIter<(String, Service)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter().sorted_by_key(|x| x.0.clone())
+        let mut v = Vec::from_iter(self.0);
+        v.sort();
+        v.into_iter()
     }
 }
 
 /// Service represents a service supported by opendal core, like `s3` and `fs`
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Service {
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
 
 /// Config represents a configuration item for a service.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Config {
     /// The name of this config, for example, `access_key_id` and `secret_access_key`
     pub name: String,
@@ -54,14 +55,14 @@ pub struct Config {
     /// If given config is optional or not.
     pub optional: bool,
     /// if this field is deprecated, a deprecated message will be provided.
-    pub deprecated: Option<String>,
+    pub deprecated: Option<AttrDeprecated>,
     /// The comments for this config.
     ///
     /// All white spaces and extra new lines will be trimmed.
     pub comments: String,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ConfigType {
     /// Mapping to rust's `bool`
     Bool,
@@ -108,6 +109,36 @@ impl FromStr for ConfigType {
 
         Ok(ct)
     }
+}
+
+/// The deprecated attribute for a field.
+///
+/// For given field:
+///
+/// ```text
+/// #[deprecated(
+///     since = "0.52.0",
+///     note = "Please use `delete_max_size` instead of `batch_max_operations`"
+/// )]
+/// pub batch_max_operations: Option<usize>,
+/// ```
+///
+/// We will have:
+///
+/// ```text
+/// AttrDeprecated {
+///    since: "0.52.0",
+///    note: "Please use `delete_max_size` instead of `batch_max_operations`"
+/// }
+/// ```
+///
+/// - since = "0.52.0"
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct AttrDeprecated {
+    /// The since of this deprecated field.
+    pub since: String,
+    /// The note for this deprecated field.
+    pub note: String,
 }
 
 /// List and parse given path to a `Services` struct.
@@ -198,7 +229,7 @@ impl ServiceParser {
             .clone()
             .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
 
-        let deprecated = Self::deprecated_note(&field);
+        let deprecated = Self::parse_attr_deprecated(&field)?;
 
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
@@ -246,36 +277,55 @@ impl ServiceParser {
         })
     }
 
-    fn deprecated_note(field: &Field) -> Option<String> {
-        for attr in &field.attrs {
-            if !attr.path().is_ident("deprecated") {
-                continue;
-            }
+    /// Parse the deprecated attr from the field.
+    ///
+    /// ```text
+    /// #[deprecated(
+    ///     since = "0.52.0",
+    ///     note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    /// )]
+    /// pub batch_max_operations: Option<usize>,
+    /// ```
+    fn parse_attr_deprecated(field: &Field) -> Result<Option<AttrDeprecated>> {
+        let deprecated: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("deprecated"))
+            .collect();
 
-            let meta_list = match &attr.meta {
-                syn::Meta::List(meta_list) => meta_list,
-                _ => continue,
-            };
-
-            let tokens = Vec::from_iter(meta_list.tokens.clone().into_iter());
-            for (index, token) in tokens.iter().enumerate() {
-                let ident = match token {
-                    proc_macro2::TokenTree::Ident(ident) => ident,
-                    _ => continue,
-                };
-
-                if ident == "note" {
-                    return tokens
-                        .get(index + 2)
-                        .expect("deprecated attribute missing note")
-                        .span()
-                        .source_text()
-                        .map(|s| enquote::unquote(s.as_str()).expect("should unquote string"));
-                }
-            }
+        if deprecated.len() > 1 {
+            return Err(anyhow!("only one deprecated attribute is allowed"));
         }
 
-        None
+        let Some(attr) = deprecated.first() else {
+            return Ok(None);
+        };
+
+        let mut result = AttrDeprecated::default();
+
+        attr.parse_nested_meta(|meta| {
+            // this parses the `since`
+            if meta.path.is_ident("since") {
+                // this parses the `=`
+                let value = meta.value()?;
+                // this parses the value
+                let s: LitStr = value.parse()?;
+                result.since = s.value();
+            }
+
+            // this parses the `note`
+            if meta.path.is_ident("note") {
+                // this parses the `=`
+                let value = meta.value()?;
+                // this parses the value
+                let s: LitStr = value.parse()?;
+                result.note = s.value();
+            }
+
+            Ok(())
+        })?;
+
+        Ok(Some(result))
     }
 }
 
@@ -542,9 +592,10 @@ impl Debug for S3Config {
                 name: "batch_max_operations".to_string(),
                 value: ConfigType::Usize,
                 optional: true,
-                deprecated: Some(
-                    "Please use `delete_max_size` instead of `batch_max_operations`".into()
-                ),
+                deprecated: Some(AttrDeprecated {
+                    since: "0.52.0".to_string(),
+                    note: "Please use `delete_max_size` instead of `batch_max_operations`".into(),
+                }),
                 comments: "".to_string(),
             },
         );

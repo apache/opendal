@@ -22,7 +22,9 @@ use std::collections::HashMap;
 use std::fs::read_dir;
 use std::str::FromStr;
 use std::{fs, vec};
-use syn::{Field, GenericArgument, Item, LitStr, PathArguments, Type, TypePath};
+use syn::{
+    Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
+};
 
 #[derive(Debug, Clone)]
 pub struct Services(HashMap<String, Service>);
@@ -230,6 +232,7 @@ impl ServiceParser {
             .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
 
         let deprecated = Self::parse_attr_deprecated(&field)?;
+        let comments = Self::parse_attr_comments(&field)?;
 
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
@@ -273,8 +276,32 @@ impl ServiceParser {
             value: cfg_type,
             optional,
             deprecated,
-            comments: "".to_string(),
+            comments,
         })
+    }
+
+    /// Parse the comments attr from the field.
+    ///
+    /// This comment may have multiple lines.
+    fn parse_attr_comments(field: &Field) -> Result<String> {
+        Ok(field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("doc"))
+            .filter_map(|attr| {
+                if let Meta::NameValue(meta) = &attr.meta {
+                    if let Expr::Lit(ExprLit {
+                        lit: Lit::Str(s), ..
+                    }) = &meta.value
+                    {
+                        return Some(s.value().trim().to_string());
+                    }
+                }
+
+                None
+            })
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 
     /// Parse the deprecated attr from the field.
@@ -366,6 +393,35 @@ mod tests {
             let x: ItemStruct = syn::parse_str(&input).unwrap();
             let actual =
                 ServiceParser::parse_field(x.fields.iter().next().unwrap().clone()).unwrap();
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_field_comments() {
+        let cases = vec![(
+            r"
+                /// root of this backend.
+                ///
+                /// All operations will happen under this root.
+                ///
+                /// default to `/` if not set.
+                pub root: Option<String>
+                ",
+            r"root of this backend.
+
+All operations will happen under this root.
+
+default to `/` if not set.",
+        )];
+
+        for (input, expected) in cases {
+            let input = format!("struct Test {{ {input} }}");
+            let x: ItemStruct = syn::parse_str(&input).unwrap();
+
+            let actual =
+                ServiceParser::parse_attr_comments(&x.fields.iter().next().unwrap().clone())
+                    .unwrap();
             assert_eq!(actual, expected);
         }
     }
@@ -596,7 +652,13 @@ impl Debug for S3Config {
                     since: "0.52.0".to_string(),
                     note: "Please use `delete_max_size` instead of `batch_max_operations`".into(),
                 }),
-                comments: "".to_string(),
+                comments: r"Set maximum batch operations of this backend.
+
+Some compatible services have a limit on the number of operations in a batch request.
+For example, R2 could return `Internal Error` while batch delete 1000 files.
+
+Please tune this value based on services' document."
+                    .to_string(),
             },
         );
         assert_eq!(
@@ -606,7 +668,9 @@ impl Debug for S3Config {
                 value: ConfigType::Bool,
                 optional: true,
                 deprecated: None,
-                comments: "".to_string(),
+                comments: r"Disable write with if match so that opendal will not send write request with if match headers.
+
+For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
             },
         );
     }

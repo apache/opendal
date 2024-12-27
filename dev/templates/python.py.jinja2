@@ -42,3 +42,22 @@ class _Base:
 
     The services list here is support by opendal pypi wheel.
     """
+
+{% for srv in services %}
+    @overload
+    def __init__(self,
+        scheme: Literal["{{srv.0}}"],
+        *,
+
+    {% for field in srv.1.config.clone().into_iter() %}
+        {% if field.deprecated.is_some() %}
+        # deprecated: {{ field.deprecated.unwrap() }}
+        {% endif %}
+        {{field.name}}: {{field.value.python_type()}} {% if (field.optional) %} = ... {% endif %},
+    {% endfor %}
+
+     ) -> None: ...
+{% endfor %}
+
+    @overload
+    def __init__(self, scheme:str, **kwargs: str) -> None: ...

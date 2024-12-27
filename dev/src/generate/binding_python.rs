@@ -17,12 +17,20 @@
 
 use crate::generate::parser::Services;
 use anyhow::Result;
+use askama::Template;
 use itertools::Itertools;
-use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::{fs, iter}; // bring trait in scope
 
-use super::parser::ConfigType;
+use super::parser::{ConfigType, Service};
+
+#[derive(Template)] // this will generate the code...
+#[template(path = "python.py.jinja2")] // using the template in this path, relative
+                                       // to the `templates` dir in the crate root
+struct PythonTemplate {
+    services: Vec<(String, Service)>,
+}
 
 /// TODO: add a common utils to parse enabled features from cargo.toml
 fn enabled_service(srv: &str) -> bool {
@@ -34,65 +42,34 @@ fn enabled_service(srv: &str) -> bool {
 }
 
 pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
-    let mut s = fs::read_to_string(project_root.join("dev/templates/python"))
-        .expect("failed to read python template file");
+    let mut v = Vec::from_iter(
+        services
+            .clone()
+            .into_iter()
+            .filter(|x| enabled_service(x.0.as_str())),
+    );
 
-    for (srv, config) in services.clone().into_iter() {
-        if !enabled_service(srv.as_str()) {
-            continue;
-        }
-
-        s.push_str("\n    @overload\n");
-        s.push_str("    def __init__(self,\n");
-        s.push_str(format!("scheme: Literal[\"{}\"],", srv).as_str());
-        s.push_str("\n*,\n");
-
-        for (_, f) in config
+    for mut srv in &mut v {
+        srv.1.config = srv
+            .1
             .config
+            .clone()
             .into_iter()
             .enumerate()
             .sorted_by_key(|(i, x)| (x.optional, *i))
-        {
-            if let Some(deprecated) = f.deprecated {
-                s.push_str("# deprecated: ");
-                s.push_str(deprecated.as_str());
-                s.push('\n');
-            }
-
-            s.push_str(&f.name);
-            s.push_str(": ");
-            match f.value {
-                ConfigType::Bool => {
-                    s.push_str("_bool");
-                }
-                ConfigType::Duration => {
-                    s.push_str("_duration");
-                }
-                ConfigType::I64
-                | ConfigType::Usize
-                | ConfigType::U64
-                | ConfigType::U32
-                | ConfigType::U16 => {
-                    s.push_str("_int");
-                }
-                ConfigType::Vec => {
-                    s.push_str("_strings");
-                }
-                ConfigType::String => {
-                    s.push_str("str");
-                }
-            }
-            if f.optional {
-                s.push_str(" = ...,\n");
-            } else {
-                s.push_str(",\n");
-            }
-        }
-
-        s.push_str(")->None:...\n");
+            .map(|(_, e)| e)
+            .collect();
     }
 
-    s.push_str("    @overload\n    def __init__(self, scheme:str, **kwargs: str) -> None: ...\n");
+    let tmpl = PythonTemplate { services: v };
+
+    // for (srv, config) in services.clone().into_iter() {
+        // for f in  config.config {
+// f.deprecated.is_some()
+        // }
+    // }
+
+    let t = tmpl.render().expect("should render template");
 
     let output_file: String = project_root
         .join("bindings/python/python/opendal/__base.pyi")
@@ -100,7 +77,7 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
         .expect("should build output file path")
         .into();
 
-    fs::write(output_file.clone(), s).expect("failed to write result to file");
+    fs::write(output_file.clone(), t).expect("failed to write result to file");
 
     Command::new("ruff")
         .arg("format")
@@ -108,4 +85,30 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
         .output()?;
 
     Ok(())
+}
+
+impl ConfigType {
+    pub fn python_type(&self) -> String {
+        match self {
+            ConfigType::Bool => {
+                return "_bool".into();
+            }
+            ConfigType::Duration => {
+                return "_duration".into();
+            }
+            ConfigType::I64
+            | ConfigType::Usize
+            | ConfigType::U64
+            | ConfigType::U32
+            | ConfigType::U16 => {
+                return "_int".into();
+            }
+            ConfigType::Vec => {
+                return "_strings".into();
+            }
+            ConfigType::String => {
+                return "str".into();
+            }
+        }
+    }
 }

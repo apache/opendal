@@ -18,34 +18,35 @@
 use anyhow::Result;
 use anyhow::{anyhow, Context};
 use log::debug;
-use std::collections::hash_map;
 use std::collections::HashMap;
-use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
-use syn::{Field, GenericArgument, Item, ItemStruct, PathArguments, Type, TypePath};
+use std::{fs, vec};
+use syn::{Field, GenericArgument, Item, LitStr, PathArguments, Type, TypePath};
 
 #[derive(Debug, Clone)]
 pub struct Services(HashMap<String, Service>);
 
 impl IntoIterator for Services {
     type Item = (String, Service);
-    type IntoIter = hash_map::IntoIter<String, Service>;
+    type IntoIter = vec::IntoIter<(String, Service)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        let mut v = Vec::from_iter(self.0);
+        v.sort();
+        v.into_iter()
     }
 }
 
 /// Service represents a service supported by opendal core, like `s3` and `fs`
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Service {
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
 
 /// Config represents a configuration item for a service.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Config {
     /// The name of this config, for example, `access_key_id` and `secret_access_key`
     pub name: String,
@@ -53,13 +54,15 @@ pub struct Config {
     pub value: ConfigType,
     /// If given config is optional or not.
     pub optional: bool,
+    /// if this field is deprecated, a deprecated message will be provided.
+    pub deprecated: Option<AttrDeprecated>,
     /// The comments for this config.
     ///
     /// All white spaces and extra new lines will be trimmed.
     pub comments: String,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ConfigType {
     /// Mapping to rust's `bool`
     Bool,
@@ -106,6 +109,36 @@ impl FromStr for ConfigType {
 
         Ok(ct)
     }
+}
+
+/// The deprecated attribute for a field.
+///
+/// For given field:
+///
+/// ```text
+/// #[deprecated(
+///     since = "0.52.0",
+///     note = "Please use `delete_max_size` instead of `batch_max_operations`"
+/// )]
+/// pub batch_max_operations: Option<usize>,
+/// ```
+///
+/// We will have:
+///
+/// ```text
+/// AttrDeprecated {
+///    since: "0.52.0",
+///    note: "Please use `delete_max_size` instead of `batch_max_operations`"
+/// }
+/// ```
+///
+/// - since = "0.52.0"
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct AttrDeprecated {
+    /// The since of this deprecated field.
+    pub since: String,
+    /// The note for this deprecated field.
+    pub note: String,
 }
 
 /// List and parse given path to a `Services` struct.
@@ -196,6 +229,8 @@ impl ServiceParser {
             .clone()
             .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
 
+        let deprecated = Self::parse_attr_deprecated(&field)?;
+
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
                 let segment = path
@@ -226,6 +261,7 @@ impl ServiceParser {
                 };
 
                 let typ = type_name.as_str().parse()?;
+                let optional = optional || typ == ConfigType::Bool;
 
                 (typ, optional)
             }
@@ -236,8 +272,60 @@ impl ServiceParser {
             name: name.to_string(),
             value: cfg_type,
             optional,
+            deprecated,
             comments: "".to_string(),
         })
+    }
+
+    /// Parse the deprecated attr from the field.
+    ///
+    /// ```text
+    /// #[deprecated(
+    ///     since = "0.52.0",
+    ///     note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    /// )]
+    /// pub batch_max_operations: Option<usize>,
+    /// ```
+    fn parse_attr_deprecated(field: &Field) -> Result<Option<AttrDeprecated>> {
+        let deprecated: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("deprecated"))
+            .collect();
+
+        if deprecated.len() > 1 {
+            return Err(anyhow!("only one deprecated attribute is allowed"));
+        }
+
+        let Some(attr) = deprecated.first() else {
+            return Ok(None);
+        };
+
+        let mut result = AttrDeprecated::default();
+
+        attr.parse_nested_meta(|meta| {
+            // this parses the `since`
+            if meta.path.is_ident("since") {
+                // this parses the `=`
+                let value = meta.value()?;
+                // this parses the value
+                let s: LitStr = value.parse()?;
+                result.since = s.value();
+            }
+
+            // this parses the `note`
+            if meta.path.is_ident("note") {
+                // this parses the `=`
+                let value = meta.value()?;
+                // this parses the value
+                let s: LitStr = value.parse()?;
+                result.note = s.value();
+            }
+
+            Ok(())
+        })?;
+
+        Ok(Some(result))
     }
 }
 
@@ -246,6 +334,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
+    use syn::ItemStruct;
 
     #[test]
     fn test_parse_field() {
@@ -256,6 +345,7 @@ mod tests {
                     name: "root".to_string(),
                     value: ConfigType::String,
                     optional: true,
+                    deprecated: None,
                     comments: "".to_string(),
                 },
             ),
@@ -265,6 +355,7 @@ mod tests {
                     name: "root".to_string(),
                     value: ConfigType::String,
                     optional: false,
+                    deprecated: None,
                     comments: "".to_string(),
                 },
             ),
@@ -496,11 +587,25 @@ impl Debug for S3Config {
         let service = parser.parse().unwrap();
         assert_eq!(service.config.len(), 26);
         assert_eq!(
+            service.config[21],
+            Config {
+                name: "batch_max_operations".to_string(),
+                value: ConfigType::Usize,
+                optional: true,
+                deprecated: Some(AttrDeprecated {
+                    since: "0.52.0".to_string(),
+                    note: "Please use `delete_max_size` instead of `batch_max_operations`".into(),
+                }),
+                comments: "".to_string(),
+            },
+        );
+        assert_eq!(
             service.config[25],
             Config {
                 name: "disable_write_with_if_match".to_string(),
                 value: ConfigType::Bool,
-                optional: false,
+                optional: true,
+                deprecated: None,
                 comments: "".to_string(),
             },
         );

@@ -17,8 +17,8 @@
 
 mod parser;
 
-mod binding_python;
 mod binding_nodejs;
+mod binding_python;
 
 use anyhow::Result;
 use std::path::PathBuf;
@@ -31,9 +31,7 @@ pub fn run(language: &str) -> Result<()> {
 
     match language {
         "python" | "py" => binding_python::generate(project_root, &services),
-        "nodejs" | "typescript" | "js" | "ts" => {
-            binding_nodejs::generate(project_root, &services)
-        }
+        "nodejs" | "js" => binding_nodejs::generate(project_root, &services),
         _ => Err(anyhow::anyhow!("Unsupported language: {}", language)),
     }
 }

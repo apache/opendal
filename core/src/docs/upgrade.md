@@ -6,7 +6,7 @@
 
 OpenDAL has refined its vision to **One Layer, All Storage**, driven by the following core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**.
 
-Explore the detailed vision at [OpenDAL Vision](https://opendal.apache.org/docs/vision).
+Explore the detailed vision at [OpenDAL Vision](https://opendal.apache.org/vision).
 
 ### RFC-5313: Remove Metakey
 

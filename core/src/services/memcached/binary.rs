@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::*;
+use crate::*;
+
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::io::{self};
 use tokio::net::TcpStream;
-
-use crate::raw::*;
-use crate::*;
+use tokio_rustls::client::TlsStream;
 
 pub(super) mod constants {
     pub const OK_STATUS: u16 = 0x0;
@@ -61,7 +62,10 @@ pub struct PacketHeader {
 }
 
 impl PacketHeader {
-    pub async fn write(self, writer: &mut TcpStream) -> io::Result<()> {
+    pub async fn write<T: AsyncWriteExt + std::marker::Unpin>(
+        self,
+        writer: &mut T,
+    ) -> io::Result<()> {
         writer.write_u8(self.magic).await?;
         writer.write_u8(self.opcode).await?;
         writer.write_u16(self.key_length).await?;
@@ -74,7 +78,9 @@ impl PacketHeader {
         Ok(())
     }
 
-    pub async fn read(reader: &mut TcpStream) -> Result<PacketHeader, io::Error> {
+    pub async fn read<T: AsyncReadExt + std::marker::Unpin>(
+        reader: &mut T,
+    ) -> Result<PacketHeader, io::Error> {
         let header = PacketHeader {
             magic: reader.read_u8().await?,
             opcode: reader.read_u8().await?,
@@ -90,6 +96,39 @@ impl PacketHeader {
     }
 }
 
+pub enum Connection {
+    Tls(TlsConnection),
+    Tcp(TcpConnection),
+}
+
+impl Connection {
+    pub async fn version(&mut self) -> Result<String> {
+        match self {
+            Self::Tls(conn) => conn.version().await,
+            Self::Tcp(conn) => conn.version().await,
+        }
+    }
+    pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
+        match self {
+            Self::Tls(conn) => conn.get(key).await,
+            Self::Tcp(conn) => conn.get(key).await,
+        }
+    }
+
+    pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
+        match self {
+            Self::Tls(conn) => conn.set(key, val, expiration).await,
+            Self::Tcp(conn) => conn.set(key, val, expiration).await,
+        }
+    }
+    pub async fn delete(&mut self, key: &str) -> Result<()> {
+        match self {
+            Self::Tls(conn) => conn.delete(key).await,
+            Self::Tcp(conn) => conn.delete(key).await,
+        }
+    }
+}
+
 pub struct Response {
     header: PacketHeader,
     _key: Vec<u8>,
@@ -97,11 +136,160 @@ pub struct Response {
     value: Vec<u8>,
 }
 
-pub struct Connection {
+pub struct TlsConnection {
+    io: BufReader<TlsStream<TcpStream>>,
+}
+
+impl TlsConnection {
+    pub fn new(io: TlsStream<TcpStream>) -> Self {
+        Self {
+            io: BufReader::new(io),
+        }
+    }
+
+    pub async fn auth(&mut self, username: &str, password: &str) -> Result<()> {
+        let writer = self.io.get_mut();
+        let key = "PLAIN";
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::StartAuth as u8,
+            key_length: key.len() as u16,
+            total_body_length: (key.len() + username.len() + password.len() + 2) as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(format!("\x00{}\x00{}", username, password).as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        parse_response(writer).await?;
+        Ok(())
+    }
+
+    pub async fn version(&mut self) -> Result<String> {
+        let writer = self.io.get_mut();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Version as u8,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        let response = parse_response(writer).await?;
+        let version = String::from_utf8(response.value);
+        match version {
+            Ok(version) => Ok(version),
+            Err(e) => {
+                Err(Error::new(ErrorKind::Unexpected, "unexpected data received").set_source(e))
+            }
+        }
+    }
+
+    pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
+        let writer = self.io.get_mut();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Get as u8,
+            key_length: key.len() as u16,
+            total_body_length: key.len() as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        match parse_response(writer).await {
+            Ok(response) => {
+                if response.header.vbucket_id_or_status == 0x1 {
+                    return Ok(None);
+                }
+                Ok(Some(response.value))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
+        let writer = self.io.get_mut();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Set as u8,
+            key_length: key.len() as u16,
+            extras_length: 8,
+            total_body_length: (8 + key.len() + val.len()) as u32,
+            ..Default::default()
+        };
+        let extras = StoreExtras {
+            flags: 0,
+            expiration,
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_u32(extras.flags)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_u32(extras.expiration)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.write_all(val).await.map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+
+        parse_response(writer).await?;
+        Ok(())
+    }
+
+    pub async fn delete(&mut self, key: &str) -> Result<()> {
+        let writer = self.io.get_mut();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Delete as u8,
+            key_length: key.len() as u16,
+            total_body_length: key.len() as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        parse_response(writer).await?;
+        Ok(())
+    }
+}
+
+pub struct TcpConnection {
     io: BufReader<TcpStream>,
 }
 
-impl Connection {
+impl TcpConnection {
     pub fn new(io: TcpStream) -> Self {
         Self {
             io: BufReader::new(io),
@@ -246,8 +434,12 @@ impl Connection {
     }
 }
 
-pub async fn parse_response(reader: &mut TcpStream) -> Result<Response> {
-    let header = PacketHeader::read(reader).await.map_err(new_std_io_error)?;
+pub async fn parse_response<T: AsyncWriteExt + std::marker::Unpin + tokio::io::AsyncRead>(
+    reader: &mut T,
+) -> Result<Response> {
+    let header = PacketHeader::read::<T>(reader)
+        .await
+        .map_err(new_std_io_error)?;
 
     if header.vbucket_id_or_status != constants::OK_STATUS
         && header.vbucket_id_or_status != constants::KEY_NOT_FOUND

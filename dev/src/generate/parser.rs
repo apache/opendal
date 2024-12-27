@@ -183,7 +183,7 @@ impl ServiceParser {
 
         let mut config = Vec::with_capacity(config_struct.fields.len());
         for field in config_struct.fields {
-            let field = self.parse_field(field)?;
+            let field = Self::parse_field(field)?;
             config.push(field);
         }
 
@@ -192,13 +192,13 @@ impl ServiceParser {
     }
 
     /// TODO: Add comment parse support.
-    fn parse_field(&self, field: Field) -> Result<Config> {
+    fn parse_field(field: Field) -> Result<Config> {
         let name = field
             .ident
             .clone()
             .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
 
-        let deprecated = self.deprecated_note(&field);
+        let deprecated = Self::deprecated_note(&field);
 
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
@@ -246,7 +246,7 @@ impl ServiceParser {
         })
     }
 
-    fn deprecated_note(&self, field: &Field) -> Option<String> {
+    fn deprecated_note(field: &Field) -> Option<String> {
         for attr in &field.attrs {
             if !attr.path().is_ident("deprecated") {
                 continue;
@@ -261,9 +261,7 @@ impl ServiceParser {
             for (index, token) in tokens.iter().enumerate() {
                 let ident = match token {
                     proc_macro2::TokenTree::Ident(ident) => ident,
-                    _ => {
-                        continue;
-                    }
+                    _ => continue,
                 };
 
                 if ident == "note" {
@@ -277,7 +275,7 @@ impl ServiceParser {
             }
         }
 
-        return None;
+        None
     }
 }
 

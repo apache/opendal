@@ -19,9 +19,9 @@ use crate::generate::parser::Services;
 use anyhow::Result;
 use askama::Template;
 use itertools::Itertools;
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::{fs, iter}; // bring trait in scope
 
 use super::parser::{ConfigType, Service};
 
@@ -49,7 +49,7 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
             .filter(|x| enabled_service(x.0.as_str())),
     );
 
-    for mut srv in &mut v {
+    for srv in &mut v {
         srv.1.config = srv
             .1
             .config
@@ -62,12 +62,6 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
     }
 
     let tmpl = PythonTemplate { services: v };
-
-    // for (srv, config) in services.clone().into_iter() {
-        // for f in  config.config {
-// f.deprecated.is_some()
-        // }
-    // }
 
     let t = tmpl.render().expect("should render template");
 
@@ -82,7 +76,8 @@ pub fn generate(project_root: PathBuf, services: &Services) -> Result<()> {
     Command::new("ruff")
         .arg("format")
         .arg(output_file)
-        .output()?;
+        .output()
+        .expect("failed to run ruff");
 
     Ok(())
 }
@@ -91,23 +86,23 @@ impl ConfigType {
     pub fn python_type(&self) -> String {
         match self {
             ConfigType::Bool => {
-                return "_bool".into();
+                "_bool".into()
             }
             ConfigType::Duration => {
-                return "_duration".into();
+                "_duration".into()
             }
             ConfigType::I64
             | ConfigType::Usize
             | ConfigType::U64
             | ConfigType::U32
             | ConfigType::U16 => {
-                return "_int".into();
+                "_int".into()
             }
             ConfigType::Vec => {
-                return "_strings".into();
+                "_strings".into()
             }
             ConfigType::String => {
-                return "str".into();
+                "str".into()
             }
         }
     }

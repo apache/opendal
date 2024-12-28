@@ -500,6 +500,15 @@ impl Access for AzblobBackend {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
@@ -524,6 +533,11 @@ impl Access for AzblobBackend {
 
                 list: true,
                 list_with_recursive: true,
+                list_has_etag: true,
+                list_has_content_length: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
+                list_has_last_modified: true,
 
                 presign: self.has_sas_token,
                 presign_stat: self.has_sas_token,

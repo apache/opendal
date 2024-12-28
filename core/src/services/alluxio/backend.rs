@@ -173,6 +173,10 @@ impl Access for AlluxioBackend {
                 list: true,
 
                 shared: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
 
                 ..Default::default()
             });

@@ -64,6 +64,8 @@ impl Access for GdriveBackend {
 
                 list: true,
                 list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_etag: true,
 
                 write: true,
 

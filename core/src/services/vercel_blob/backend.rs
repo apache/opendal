@@ -159,6 +159,10 @@ impl Access for VercelBlobBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_type: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
@@ -171,6 +175,10 @@ impl Access for VercelBlobBackend {
 
                 list: true,
                 list_with_limit: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+                list_has_content_disposition: true,
 
                 shared: true,
 

@@ -225,6 +225,8 @@ impl Access for SeafileBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
@@ -234,6 +236,8 @@ impl Access for SeafileBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
 
                 shared: true,
 

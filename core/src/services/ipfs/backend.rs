@@ -176,6 +176,10 @@ impl Access for IpfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_etag: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 

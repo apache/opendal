@@ -119,7 +119,7 @@ impl Access for MonoiofsBackend {
                 stat: true,
                 stat_has_content_length: true,
                 stat_has_last_modified: true,
-                
+
                 read: true,
                 write: true,
                 write_can_append: true,

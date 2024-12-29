@@ -933,7 +933,6 @@ impl Access for S3Backend {
                 stat_has_cache_control: true,
                 stat_has_content_length: true,
                 stat_has_content_type: true,
-                stat_has_content_encoding: true,
                 stat_has_content_range: true,
                 stat_has_etag: true,
                 stat_has_content_md5: true,

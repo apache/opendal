@@ -1060,7 +1060,7 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if args.version() {
+        let l = if args.versioned() {
             TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,

@@ -190,7 +190,13 @@ impl OpList {
     }
 
     /// Get the version of this list operation
+    #[deprecated = "use versioned instead"]
     pub fn version(&self) -> bool {
+        self.version
+    }
+
+    /// Get the version of this list operation
+    pub fn versioned(&self) -> bool {
         self.version
     }
 }

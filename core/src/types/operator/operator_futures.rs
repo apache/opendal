@@ -486,7 +486,19 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
     ///   by the underlying service
     ///
     /// Default to `false`
+    #[deprecated = "use versioned instead"]
     pub fn version(self, v: bool) -> Self {
+        self.map(|args| args.with_version(v))
+    }
+
+    /// The version is used to control whether the object versions should be returned.
+    ///
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    pub fn versioned(self, v: bool) -> Self {
         self.map(|args| args.with_version(v))
     }
 }

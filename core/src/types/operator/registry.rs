@@ -5,6 +5,7 @@ use crate::services::*;
 use crate::*;
 
 // TODO: thread local or use LazyLock instead? this way the access is lock-free
+// TODO: should we expose the `GLOBAL_OPERATOR_REGISTRY` as public API at `crate::types::operator::GLOBAL_OPERATOR_REGISTRY`?
 thread_local! {
     pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(|| OperatorRegistry::with_enabled_services());
 }

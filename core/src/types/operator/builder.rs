@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::layers::*;
 use crate::raw::*;
 use crate::*;
-
+// TODO: is this impor path idiomatic to the project?
 use super::registry::GLOBAL_OPERATOR_REGISTRY;
 
 /// # Operator build API

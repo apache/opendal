@@ -102,7 +102,6 @@ impl OperatorRegistry {
         // ```
         // and the apply_for_all_services macro would gate every statement behind the corresponding feature gate
         // This seems to not be the place where we should have a "list of enabled services".
-        // Ther is something similar with `Scheme::enabled()`
         #[cfg(feature = "services-aliyun-drive")]
         registry.register_builder::<AliyunDrive>();
         #[cfg(feature = "services-atomicserver")]

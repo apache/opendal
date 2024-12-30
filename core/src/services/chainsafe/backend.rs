@@ -179,6 +179,8 @@ impl Access for ChainsafeBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
 
                 read: true,
 
@@ -189,6 +191,8 @@ impl Access for ChainsafeBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_content_type: true,
 
                 shared: true,
 

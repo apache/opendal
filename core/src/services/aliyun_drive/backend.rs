@@ -234,6 +234,11 @@ impl Access for AliyunDriveBackend {
                 list: true,
                 list_with_limit: true,
                 shared: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                list_has_last_modified: true,
+                list_has_content_length: true,
+                list_has_content_type: true,
                 ..Default::default()
             });
         am.into()

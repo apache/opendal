@@ -332,6 +332,8 @@ impl Access for SftpBackend {
             .set_scheme(Scheme::Sftp)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
@@ -343,6 +345,8 @@ impl Access for SftpBackend {
 
                 list: true,
                 list_with_limit: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
 
                 copy: self.copyable,
                 rename: true,

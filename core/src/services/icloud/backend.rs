@@ -240,7 +240,11 @@ impl Access for IcloudBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+
                 read: true,
+
                 shared: true,
                 ..Default::default()
             });

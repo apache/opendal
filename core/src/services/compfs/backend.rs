@@ -120,6 +120,7 @@ impl Access for CompfsBackend {
             .set_root(&self.core.root.to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
 
                 read: true,
 

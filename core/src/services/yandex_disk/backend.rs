@@ -161,6 +161,10 @@ impl Access for YandexDiskBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
+                stat_has_content_md5: true,
+                stat_has_content_type: true,
+                stat_has_content_length: true,
 
                 create_dir: true,
 
@@ -175,6 +179,10 @@ impl Access for YandexDiskBackend {
 
                 list: true,
                 list_with_limit: true,
+                list_has_last_modified: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
 
                 shared: true,
 

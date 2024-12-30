@@ -158,6 +158,8 @@ impl Access for HdfsNativeBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
+                stat_has_content_length: true,
 
                 delete: true,
                 rename: true,

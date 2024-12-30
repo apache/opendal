@@ -184,6 +184,8 @@ impl Access for GithubBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_etag: true,
 
                 read: true,
 
@@ -196,6 +198,8 @@ impl Access for GithubBackend {
 
                 list: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_etag: true,
 
                 shared: true,
 

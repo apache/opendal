@@ -218,6 +218,10 @@ impl Access for WebdavBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_etag: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
@@ -232,6 +236,11 @@ impl Access for WebdavBackend {
                 rename: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_content_type: true,
+                list_has_etag: true,
+                list_has_last_modified: true,
+
                 // We already support recursive list but some details still need to polish.
                 // list_with_recursive: true,
                 shared: true,

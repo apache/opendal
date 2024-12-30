@@ -77,6 +77,7 @@ impl Access for IpmfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
 
                 read: true,
 
@@ -84,6 +85,7 @@ impl Access for IpmfsBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
 
                 shared: true,
 

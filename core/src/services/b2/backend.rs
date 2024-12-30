@@ -229,6 +229,9 @@ impl Access for B2Backend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_md5: true,
+                stat_has_content_type: true,
 
                 read: true,
 
@@ -256,6 +259,9 @@ impl Access for B2Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
 
                 presign: true,
                 presign_read: true,

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -42,7 +41,11 @@ pub struct MemcachedConfig {
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
     /// default is false
-    pub tls: Option<bool>,
+    pub enable_tls: bool,
     /// Path to the CA certificate for TLS verification.
-    pub cafile: Option<PathBuf>,
+    pub cafile: Option<String>,
+    /// Path to the CA certificate for TLS key.
+    pub tls_key: Option<String>,
+    /// Path to the CA certificate for TLS cert.
+    pub tls_cert: Option<String>,
 }

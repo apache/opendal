@@ -47,7 +47,7 @@ rust-version = "1.75"
 version = "0.50.1"
 
 [features]
-default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
+default = ["reqwest/rustls-tls", "executors-tokio", "services-memory" ,"services-memcached"]
 
 # Build test utils or not.
 #
@@ -162,8 +162,8 @@ services-libsql = ["dep:hrana-client-proto"]
 services-memcached = [
     "dep:bb8",
     "dep:tokio-rustls",
-    "dep:webpki-roots",
     "dep:rustls",
+    "dep:rustls-native-certs",
 ]
 services-memory = []
 services-mini-moka = ["dep:mini-moka"]
@@ -368,8 +368,9 @@ monoio = { version = "0.2.4", optional = true, features = [
 rustls = { version = "0.23.15", default-features = false, features = [
     "std",
 ],  optional = true }
+rustls-native-certs = {version = "0.8.1", optional = true}
 tokio-rustls = { version = "0.26.1", optional = true }
-webpki-roots = { version = "0.26.7", optional = true }
+
 
 # Layers
 # for layers-async-backtrace

@@ -18,7 +18,9 @@
 use crate::raw::*;
 use crate::*;
 
+use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::io::{self};
@@ -62,10 +64,7 @@ pub struct PacketHeader {
 }
 
 impl PacketHeader {
-    pub async fn write<T: AsyncWriteExt + std::marker::Unpin>(
-        self,
-        writer: &mut T,
-    ) -> io::Result<()> {
+    pub async fn write<T: AsyncWrite + std::marker::Unpin>(self, writer: &mut T) -> io::Result<()> {
         writer.write_u8(self.magic).await?;
         writer.write_u8(self.opcode).await?;
         writer.write_u16(self.key_length).await?;
@@ -78,7 +77,7 @@ impl PacketHeader {
         Ok(())
     }
 
-    pub async fn read<T: AsyncReadExt + std::marker::Unpin>(
+    pub async fn read<T: AsyncRead + std::marker::Unpin>(
         reader: &mut T,
     ) -> Result<PacketHeader, io::Error> {
         let header = PacketHeader {
@@ -146,145 +145,14 @@ impl TlsConnection {
             io: BufReader::new(io),
         }
     }
-
-    pub async fn auth(&mut self, username: &str, password: &str) -> Result<()> {
-        let writer = self.io.get_mut();
-        let key = "PLAIN";
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::StartAuth as u8,
-            key_length: key.len() as u16,
-            total_body_length: (key.len() + username.len() + password.len() + 2) as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(format!("\x00{}\x00{}", username, password).as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        parse_response(writer).await?;
-        Ok(())
-    }
-
-    pub async fn version(&mut self) -> Result<String> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Version as u8,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        let response = parse_response(writer).await?;
-        let version = String::from_utf8(response.value);
-        match version {
-            Ok(version) => Ok(version),
-            Err(e) => {
-                Err(Error::new(ErrorKind::Unexpected, "unexpected data received").set_source(e))
-            }
-        }
-    }
-
-    pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Get as u8,
-            key_length: key.len() as u16,
-            total_body_length: key.len() as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        match parse_response(writer).await {
-            Ok(response) => {
-                if response.header.vbucket_id_or_status == 0x1 {
-                    return Ok(None);
-                }
-                Ok(Some(response.value))
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Set as u8,
-            key_length: key.len() as u16,
-            extras_length: 8,
-            total_body_length: (8 + key.len() + val.len()) as u32,
-            ..Default::default()
-        };
-        let extras = StoreExtras {
-            flags: 0,
-            expiration,
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_u32(extras.flags)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_u32(extras.expiration)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.write_all(val).await.map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-
-        parse_response(writer).await?;
-        Ok(())
-    }
-
-    pub async fn delete(&mut self, key: &str) -> Result<()> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Delete as u8,
-            key_length: key.len() as u16,
-            total_body_length: key.len() as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        parse_response(writer).await?;
-        Ok(())
-    }
 }
 
+impl Conn for TlsConnection {
+    type T = TlsStream<TcpStream>;
+    fn get_conn(&mut self) -> &mut Self::T {
+        self.io.get_mut()
+    }
+}
 pub struct TcpConnection {
     io: BufReader<TcpStream>,
 }
@@ -295,142 +163,12 @@ impl TcpConnection {
             io: BufReader::new(io),
         }
     }
+}
 
-    pub async fn auth(&mut self, username: &str, password: &str) -> Result<()> {
-        let writer = self.io.get_mut();
-        let key = "PLAIN";
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::StartAuth as u8,
-            key_length: key.len() as u16,
-            total_body_length: (key.len() + username.len() + password.len() + 2) as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(format!("\x00{}\x00{}", username, password).as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        parse_response(writer).await?;
-        Ok(())
-    }
-
-    pub async fn version(&mut self) -> Result<String> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Version as u8,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        let response = parse_response(writer).await?;
-        let version = String::from_utf8(response.value);
-        match version {
-            Ok(version) => Ok(version),
-            Err(e) => {
-                Err(Error::new(ErrorKind::Unexpected, "unexpected data received").set_source(e))
-            }
-        }
-    }
-
-    pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Get as u8,
-            key_length: key.len() as u16,
-            total_body_length: key.len() as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        match parse_response(writer).await {
-            Ok(response) => {
-                if response.header.vbucket_id_or_status == 0x1 {
-                    return Ok(None);
-                }
-                Ok(Some(response.value))
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Set as u8,
-            key_length: key.len() as u16,
-            extras_length: 8,
-            total_body_length: (8 + key.len() + val.len()) as u32,
-            ..Default::default()
-        };
-        let extras = StoreExtras {
-            flags: 0,
-            expiration,
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_u32(extras.flags)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_u32(extras.expiration)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.write_all(val).await.map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-
-        parse_response(writer).await?;
-        Ok(())
-    }
-
-    pub async fn delete(&mut self, key: &str) -> Result<()> {
-        let writer = self.io.get_mut();
-        let request_header = PacketHeader {
-            magic: Magic::Request as u8,
-            opcode: Opcode::Delete as u8,
-            key_length: key.len() as u16,
-            total_body_length: key.len() as u32,
-            ..Default::default()
-        };
-        request_header
-            .write(writer)
-            .await
-            .map_err(new_std_io_error)?;
-        writer
-            .write_all(key.as_bytes())
-            .await
-            .map_err(new_std_io_error)?;
-        writer.flush().await.map_err(new_std_io_error)?;
-        parse_response(writer).await?;
-        Ok(())
+impl Conn for TcpConnection {
+    type T = TcpStream;
+    fn get_conn(&mut self) -> &mut Self::T {
+        self.io.get_mut()
     }
 }
 
@@ -478,4 +216,146 @@ pub async fn parse_response<T: AsyncWriteExt + std::marker::Unpin + tokio::io::A
         _extras: extras,
         value,
     })
+}
+#[async_trait::async_trait]
+pub trait Conn {
+    type T: AsyncWrite + std::marker::Unpin + tokio::io::AsyncRead + std::marker::Send;
+
+    fn get_conn(&mut self) -> &mut Self::T;
+    async fn auth(&mut self, username: &str, password: &str) -> Result<()> {
+        let writer = self.get_conn();
+        let key = "PLAIN";
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::StartAuth as u8,
+            key_length: key.len() as u16,
+            total_body_length: (key.len() + username.len() + password.len() + 2) as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(format!("\x00{}\x00{}", username, password).as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        parse_response(writer).await?;
+        Ok(())
+    }
+
+    async fn version(&mut self) -> Result<String> {
+        let writer = self.get_conn();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Version as u8,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        let response = parse_response(writer).await?;
+        let version = String::from_utf8(response.value);
+        match version {
+            Ok(version) => Ok(version),
+            Err(e) => {
+                Err(Error::new(ErrorKind::Unexpected, "unexpected data received").set_source(e))
+            }
+        }
+    }
+
+    async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
+        let writer = self.get_conn();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Get as u8,
+            key_length: key.len() as u16,
+            total_body_length: key.len() as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        match parse_response(writer).await {
+            Ok(response) => {
+                if response.header.vbucket_id_or_status == 0x1 {
+                    return Ok(None);
+                }
+                Ok(Some(response.value))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
+        let writer = self.get_conn();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Set as u8,
+            key_length: key.len() as u16,
+            extras_length: 8,
+            total_body_length: (8 + key.len() + val.len()) as u32,
+            ..Default::default()
+        };
+        let extras = StoreExtras {
+            flags: 0,
+            expiration,
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_u32(extras.flags)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_u32(extras.expiration)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.write_all(val).await.map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+
+        parse_response(writer).await?;
+        Ok(())
+    }
+
+    async fn delete(&mut self, key: &str) -> Result<()> {
+        let writer = self.get_conn();
+        let request_header = PacketHeader {
+            magic: Magic::Request as u8,
+            opcode: Opcode::Delete as u8,
+            key_length: key.len() as u16,
+            total_body_length: key.len() as u32,
+            ..Default::default()
+        };
+        request_header
+            .write(writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer
+            .write_all(key.as_bytes())
+            .await
+            .map_err(new_std_io_error)?;
+        writer.flush().await.map_err(new_std_io_error)?;
+        parse_response(writer).await?;
+        Ok(())
+    }
 }

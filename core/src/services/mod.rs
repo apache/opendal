@@ -19,18 +19,13 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-use crate::Builder;
-use std::collections::HashSet;
-
 mod aliyun_drive;
-
 pub use aliyun_drive::*;
 
 mod alluxio;
 pub use alluxio::*;
 
 mod atomicserver;
-
 pub use self::atomicserver::*;
 
 mod azblob;

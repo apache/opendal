@@ -22,6 +22,8 @@ use crate::layers::*;
 use crate::raw::*;
 use crate::*;
 
+use super::registry::GLOBAL_OPERATOR_REGISTRY;
+
 /// # Operator build API
 ///
 /// Operator should be built via [`OperatorBuilder`]. We recommend to use [`Operator::new`] to get started:
@@ -93,6 +95,14 @@ impl Operator {
         let builder = cfg.into_builder();
         let acc = builder.build()?;
         Ok(OperatorBuilder::new(acc))
+    }
+
+    /// TODO: document this.
+    pub fn from_uri(
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Self> {
+        GLOBAL_OPERATOR_REGISTRY.with(|registry| registry.parse(uri, options))
     }
 
     /// Create a new operator from given iterator in static dispatch.

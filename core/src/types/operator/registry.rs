@@ -4,10 +4,9 @@ use std::collections::HashMap;
 use crate::services::*;
 use crate::*;
 
-// TODO: thread local or use LazyLock instead?
+// TODO: thread local or use LazyLock instead? this way the access is lock-free
 thread_local! {
-pub static GLOBAL_REGISTRY: LazyCell<OperatorRegistry> =
-    LazyCell::new(|| OperatorRegistry::with_enabled_services());
+    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(|| OperatorRegistry::with_enabled_services());
 }
 
 // In order to reduce boilerplate, we should return in this function a `Builder` instead of operator?.
@@ -58,6 +57,7 @@ impl OperatorRegistry {
         })?;
 
         // TODO: `OperatorFactory` should receive `IntoIterator<Item = (String, String)>` instead of `HashMap<String, String>`?
+        // however, impl Traits in type aliases is unstable and also are not allowed in fn pointers
         let options = options.into_iter().collect();
 
         // TODO: `OperatorFactory` should use `&str` instead of `String`? we are cloning it anyway
@@ -68,7 +68,20 @@ impl OperatorRegistry {
         let mut registry = Self::new();
         // TODO: is this correct? have a `Builder::enabled()` method that returns the set of enabled services builders?
         // Similar to `Scheme::Enabled()`
-        // or have an `Scheme::associated_builder` that given a scheme returns the associated builder?
+        // or have an `Scheme::associated_builder` that given a scheme returns the associated builder? The problem with this
+        // is that `Scheme` variants are not gate behind a feature gate and the associated builder is. As a workaround
+
+        // TODO: it seems too error-prone to have this list manually updated, we should have a macro that generates this list?
+        // it could be something like:
+        //
+        // ```rust
+        // apply_for_all_services!{
+        //    registry.register_builder::<$service>();
+        // }
+        // ```
+        // and the apply_for_all_services macro would gate every statement behind the corresponding feature gate
+        // This seems to not be the place where we should have a "list of enabled services".
+        // Ther is something similar with `Scheme::enabled()`
         #[cfg(feature = "services-aliyun-drive")]
         registry.register_builder::<AliyunDrive>();
         #[cfg(feature = "services-atomicserver")]

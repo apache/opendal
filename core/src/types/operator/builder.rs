@@ -98,6 +98,14 @@ impl Operator {
     }
 
     /// TODO: document this.
+    ///
+    /// TODO: improve those examples
+    /// # Examples
+    /// ```
+    /// let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?
+    ///
+    /// Ok(())
+    /// ```
     pub fn from_uri(
         uri: &str,
         options: impl IntoIterator<Item = (String, String)>,

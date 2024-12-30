@@ -174,7 +174,7 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         // TODO: we are not interpreting the host or path params
         // the `let op = Operator::from_uri("fs:///tmp/test", vec![])?;` statement from the RFC wont work.
         // instead we should use `let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?;` as done
-        // in `ofs`
+        // in `ofs`. The `fs` service should override this default implementation if it wants to use the host or path params?
 
         // TODO: should we merge it this way?
         let merged_options = url_options.into_iter().chain(options);

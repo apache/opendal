@@ -38,15 +38,18 @@ impl OperatorRegistry {
         uri: &str,
         options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Operator> {
-        let parsed_uri = http::Uri::try_from(uri).map_err(|err| {
+        // TODO: we use the `url::Url` struct instead of `http:Uri`, because
+        // we needed it in `Configurator::from_uri` method.
+        let parsed_url = url::Url::parse(uri).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
                 .with_context("uri", uri)
                 .set_source(err)
         })?;
 
-        let scheme = parsed_uri.scheme_str().ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
-        })?;
+        // TODO: with the `url::Url` struct, we always have the scheme (it is not an Option<str>)
+        // but with the `http::Uri` crate, it can be missing https://docs.rs/http/latest/http/uri/struct.Uri.html#method.scheme
+        // which one should we use?
+        let scheme = parsed_url.scheme();
 
         let factory = self.registry.get(scheme).ok_or_else(|| {
             Error::new(

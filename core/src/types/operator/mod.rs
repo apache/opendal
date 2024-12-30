@@ -32,3 +32,10 @@ pub use metadata::OperatorInfo;
 
 pub mod operator_functions;
 pub mod operator_futures;
+
+// TODO: should we make the registry module public or export the OperatorFactory and OperatorRegistry
+// types directly?
+
+mod registry;
+pub use registry::OperatorFactory;
+pub use registry::OperatorRegistry;

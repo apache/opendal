@@ -137,6 +137,11 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         })
     }
 
+    // TODO: document this.
+    fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
+        todo!()
+    }
+
     /// Convert this configuration into a service builder.
     fn into_builder(self) -> Self::Builder;
 }

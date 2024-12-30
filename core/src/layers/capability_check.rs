@@ -30,7 +30,7 @@ use std::sync::Arc;
 ///
 /// There are two main differences between this checker with the `CorrectnessChecker`:
 /// 1. This checker provides additional checks for capabilities like write_with_content_type and
-///     list_with_version, among others. These capabilities do not affect data integrity, even if
+///     list_with_versioned, among others. These capabilities do not affect data integrity, even if
 ///     the underlying storage services do not support them.
 ///
 /// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to

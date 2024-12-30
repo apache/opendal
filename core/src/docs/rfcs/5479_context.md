@@ -1,7 +1,7 @@
 - Proposal Name: `context`
 - Start Date: 2024-12-30
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5480](https://github.com/apache/opendal/pull/5480)
+- Tracking Issue: [apache/opendal#5479](https://github.com/apache/opendal/issues/5479)
 
 # Summary
 

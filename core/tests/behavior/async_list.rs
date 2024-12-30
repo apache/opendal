@@ -586,7 +586,7 @@ pub async fn test_list_files_with_versioned(op: Operator) -> Result<()> {
     op.write(file_path.as_str(), "1").await?;
     op.write(file_path.as_str(), "2").await?;
 
-    let mut ds = op.list_with(parent.as_str()).version(true).await?;
+    let mut ds = op.list_with(parent.as_str()).versioned(true).await?;
     ds.retain(|de| de.path() != parent.as_str());
 
     assert_eq!(ds.len(), 2);

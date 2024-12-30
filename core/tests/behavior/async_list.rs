@@ -47,9 +47,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_file_with_recursive,
             test_list_root_with_recursive,
             test_remove_all,
-            test_list_files_with_version,
-            test_list_with_version_and_limit,
-            test_list_with_version_and_start_after
+            test_list_files_with_versioned,
+            test_list_with_versioned_and_limit,
+            test_list_with_versioned_and_start_after
         ))
     }
 
@@ -575,8 +575,8 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_list_files_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_version {
+pub async fn test_list_files_with_versioned(op: Operator) -> Result<()> {
+    if !op.info().full_capability().list_with_versioned {
         return Ok(());
     }
 
@@ -608,13 +608,13 @@ pub async fn test_list_files_with_version(op: Operator) -> Result<()> {
 }
 
 // listing a directory with version, which contains more object versions than a page can take
-pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
+pub async fn test_list_with_versioned_and_limit(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {
         return Ok(());
     }
-    if !op.info().full_capability().list_with_version {
+    if !op.info().full_capability().list_with_versioned {
         return Ok(());
     }
 
@@ -648,8 +648,8 @@ pub async fn test_list_with_version_and_limit(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_list_with_version_and_start_after(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_version {
+pub async fn test_list_with_versioned_and_start_after(op: Operator) -> Result<()> {
+    if !op.info().full_capability().list_with_versioned {
         return Ok(());
     }
 

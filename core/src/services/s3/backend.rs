@@ -982,7 +982,7 @@ impl Access for S3Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
-                list_with_version: self.core.enable_versioning,
+                list_with_versioned: self.core.enable_versioning,
                 list_has_etag: true,
                 list_has_content_md5: true,
                 list_has_content_length: true,

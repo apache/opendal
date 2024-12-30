@@ -131,7 +131,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
         let capability = self.info.full_capability();
-        if !capability.list_with_version && args.versioned() {
+        if !capability.list_with_versioned && args.versioned() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::List,
@@ -191,7 +191,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         args: OpList,
     ) -> crate::Result<(RpList, Self::BlockingLister)> {
         let capability = self.info.full_capability();
-        if !capability.list_with_version && args.versioned() {
+        if !capability.list_with_versioned && args.versioned() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::BlockingList,
@@ -295,7 +295,7 @@ mod tests {
 
         let op = new_test_operator(Capability {
             list: true,
-            list_with_version: true,
+            list_with_versioned: true,
             ..Default::default()
         });
         let res = op.lister_with("path/").version(true).await;

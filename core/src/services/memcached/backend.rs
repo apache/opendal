@@ -190,7 +190,6 @@ impl Builder for MemcachedBuilder {
             cafile: self.config.cafile.clone(),
             tls_key: self.config.tls_key.clone(),
             tls_cert: self.config.tls_cert.clone(),
-            host,
             conn,
             default_ttl: self.config.default_ttl,
         })
@@ -211,7 +210,6 @@ pub struct Adapter {
     cafile: Option<String>,
     tls_key: Option<String>,
     tls_cert: Option<String>,
-    host: String,
     conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
 }
 
@@ -228,7 +226,6 @@ impl Adapter {
                     self.cafile.clone(),
                     self.tls_key.clone(),
                     self.tls_cert.clone(),
-                    &self.host,
                 );
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
@@ -301,7 +298,6 @@ struct MemcacheConnectionManager {
     cafile: Option<String>,
     tls_key: Option<String>,
     tls_cert: Option<String>,
-    host: String,
 }
 
 impl MemcacheConnectionManager {
@@ -313,7 +309,6 @@ impl MemcacheConnectionManager {
         cafile: Option<String>,
         tls_key: Option<String>,
         tls_cert: Option<String>,
-        host: &str,
     ) -> Self {
         Self {
             address: address.to_string(),
@@ -323,7 +318,6 @@ impl MemcacheConnectionManager {
             cafile,
             tls_key,
             tls_cert,
-            host: host.to_string(),
         }
     }
 }
@@ -340,7 +334,7 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
 
             let native_certs = rustls_native_certs::load_native_certs();
             if native_certs.errors.is_empty() {
-                for cert in rustls_native_certs::load_native_certs().expect("unreachable") {
+                for cert in rustls_native_certs::load_native_certs().expect("unreachable!") {
                     root_cert_store.add(cert).map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
                     })?;
@@ -385,11 +379,15 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
                     .with_root_certificates(root_cert_store)
                     .with_no_client_auth()
             };
+
             let connector = TlsConnector::from(Arc::new(config));
             let conn = TcpStream::connect(&self.address)
                 .await
                 .map_err(new_std_io_error)?;
-            let domain = ServerName::try_from(self.host.as_str())
+
+            let uri = http::Uri::try_from(&self.address).expect("unreachable!");
+            let host = uri.host().expect("unreachable!");
+            let domain = ServerName::try_from(host)
                 .map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "Invalid dns name error")
                         .with_context("service", Scheme::Memcached)

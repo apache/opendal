@@ -22,6 +22,8 @@ use std::str::FromStr;
 
 use crate::Error;
 
+use super::Builder;
+
 /// Services that OpenDAL supports
 ///
 /// # Notes

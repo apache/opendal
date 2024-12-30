@@ -255,6 +255,9 @@ reqwest = { version = "0.12.2", features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.27", features = ["sync", "io-util"] }
+# TODO: I added this dependency in order to not re-implement the Url::query_pairs function.
+# If its okay to do it (we are using that crate in the ofs binary https://github.com/apache/opendal/blob/main/bin/ofs/Cargo.toml#L45
+url = "2.5.4"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies

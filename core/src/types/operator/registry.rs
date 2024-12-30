@@ -44,11 +44,11 @@ impl OperatorRegistry {
                 .set_source(err)
         })?;
 
-        let scheme = parsed_uri.scheme().ok_or_else(|| {
+        let scheme = parsed_uri.scheme_str().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
         })?;
 
-        let factory = self.registry.get(scheme.as_str()).ok_or_else(|| {
+        let factory = self.registry.get(scheme).ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "could not find any operator factory for the given scheme",

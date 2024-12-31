@@ -1,4 +1,4 @@
-- Proposal Name: `reader_with_options`
+- Proposal Name: `options_for_reader_with`
 - Start Date: 2024-12-31
 - RFC PR: [apache/opendal#5485](https://github.com/apache/opendal/pull/5485)
 - Tracking Issue: [apache/opendal#5486](https://github.com/apache/opendal/issues/5486)

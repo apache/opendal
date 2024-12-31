@@ -1,16 +1,16 @@
-- Proposal Name: `options_for_reader_with`
+- Proposal Name: `conditional_reader`
 - Start Date: 2024-12-31
 - RFC PR: [apache/opendal#5485](https://github.com/apache/opendal/pull/5485)
 - Tracking Issue: [apache/opendal#5486](https://github.com/apache/opendal/issues/5486)
 
 # Summary
 
-Add `if_modified_since` and `if_unmodified_since` options to OpenDAL's `reader_with` API.
+Add `if_match`, `if_none_match`, `if_modified_since` and `if_unmodified_since` options to OpenDAL's `reader_with` API.
 
 # Motivation
 
-OpenDAL currently supports conditional `reader_with` operations based only on `version`. However, many storage services also 
-support conditional operations based on modification time.
+OpenDAL currently supports conditional `reader_with` operations based only on `version`. However, many storage services 
+also support conditional operations based on Etag and/or modification time.
 
 Adding these options will:
 
@@ -19,7 +19,29 @@ Adding these options will:
 
 # Guide-level explanation
 
-Two new options will be added to the `reader_with` API:
+Four new options will be added to the `reader_with` API:
+
+## `if_match`
+
+Return the content only if its Etag matches the specified Etag; otherwise,
+an error kind `ErrorKind::ConditionNotMatch` will be returned:
+
+```rust
+let reader = op.reader_with("path/to/file")
+    .if_match(etag)
+    .await?;
+```
+
+## `if_none_match`
+
+Return the content only if its Etag does NOT match the specified Etag; otherwise,
+an error kind `ErrorKind::ConditionNotMatch` will be returned:
+
+```rust
+let reader = op.reader_with("path/to/file")
+    .if_none_match(etag)
+    .await?;
+```
 
 ## `if_modified_since`
 
@@ -55,7 +77,9 @@ let reader = op.reader_with("path/to/file")
 
 The main implementation will include:
 
-1. Add new fields(`if_modified_since`, `if_unmodified_since`) to `OpRead`.
+1. Add new fields(`if_modified_since`, `if_unmodified_since`) and related functions to `OpRead`.
+
+2. Add the related functions to `FutureReader`
 
 2. Add new capability flags:
 ```rust

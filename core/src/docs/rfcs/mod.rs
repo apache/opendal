@@ -249,6 +249,6 @@ pub mod rfc_5444_operator_from_uri {}
 #[doc = include_str!("5479_context.md")]
 pub mod rfc_5479_context {}
 
-/// Options for reader_with
-#[doc = include_str!("5485_options_for_reader_with.md")]
-pub mod rfc_5485_options_for_reader_with {}
+/// Conditional Reader
+#[doc = include_str!("5485_conditional_reader.md")]
+pub mod rfc_5485_conditional_reader {}

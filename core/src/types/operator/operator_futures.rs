@@ -540,7 +540,19 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     ///   by the underlying service
     ///
     /// Default to `false`
+    #[deprecated(since = "0.51.1", note = "use versioned instead")]
     pub fn version(self, v: bool) -> Self {
+        self.map(|args| args.with_versioned(v))
+    }
+
+    /// The version is used to control whether the object versions should be returned.
+    ///
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    pub fn versioned(self, v: bool) -> Self {
         self.map(|args| args.with_versioned(v))
     }
 }

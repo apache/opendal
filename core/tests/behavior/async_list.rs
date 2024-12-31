@@ -633,7 +633,7 @@ pub async fn test_list_with_versioned_and_limit(op: Operator) -> Result<()> {
         .collect();
     expected.push(parent.to_string());
 
-    let mut objects = op.lister_with(parent).version(true).limit(5).await?;
+    let mut objects = op.lister_with(parent).versioned(true).limit(5).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -672,7 +672,7 @@ pub async fn test_list_with_versioned_and_start_after(op: Operator) -> Result<()
 
     let mut objects = op
         .lister_with(dir)
-        .version(true)
+        .versioned(true)
         .start_after(&given[2])
         .await?;
     let mut actual = vec![];

@@ -184,7 +184,7 @@ impl OpList {
     }
 
     /// Change the version of this list operation
-    #[deprecated(since = "0.51.1", note = "use versioned instead")]
+    #[deprecated(since = "0.51.1", note = "use with_versioned instead")]
     pub fn with_version(mut self, version: bool) -> Self {
         self.versioned = version;
         self

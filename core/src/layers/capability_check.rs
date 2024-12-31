@@ -298,7 +298,7 @@ mod tests {
             list_with_versioned: true,
             ..Default::default()
         });
-        let res = op.lister_with("path/").version(true).await;
+        let res = op.lister_with("path/").versioned(true).await;
         assert!(res.is_ok())
     }
 }

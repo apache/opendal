@@ -175,6 +175,9 @@ pub struct Capability {
     /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
     /// Indicates if versioned listing is supported.
+    #[deprecated(since = "0.51.1", note = "use with_versioned instead")]
+    pub list_with_version: bool,
+    /// Indicates if versioned listing is supported.
     pub list_with_versioned: bool,
     /// Indicates whether cache control information is available in list response
     pub list_has_cache_control: bool,
@@ -193,7 +196,7 @@ pub struct Capability {
     /// Indicates whether last modified timestamp is available in list response
     pub list_has_last_modified: bool,
     /// Indicates whether version information is available in list response
-    pub list_has_versioned: bool,
+    pub list_has_version: bool,
     /// Indicates whether user-defined metadata is available in list response
     pub list_has_user_metadata: bool,
 

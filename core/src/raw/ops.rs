@@ -111,7 +111,7 @@ pub struct OpList {
     ///   by the underlying service
     ///
     /// Default to `false`
-    version: bool,
+    versions: bool,
 }
 
 impl Default for OpList {
@@ -121,7 +121,7 @@ impl Default for OpList {
             start_after: None,
             recursive: false,
             concurrent: 1,
-            version: false,
+            versions: false,
         }
     }
 }
@@ -184,14 +184,27 @@ impl OpList {
     }
 
     /// Change the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub fn with_version(mut self, version: bool) -> Self {
-        self.version = version;
+        self.versions = version;
+        self
+    }
+
+    /// Change the version of this list operation
+    pub fn with_versions(mut self, versions: bool) -> Self {
+        self.versions = versions;
         self
     }
 
     /// Get the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
     pub fn version(&self) -> bool {
-        self.version
+        self.versions
+    }
+
+    /// Get the version of this list operation
+    pub fn versions(&self) -> bool {
+        self.versions
     }
 }
 

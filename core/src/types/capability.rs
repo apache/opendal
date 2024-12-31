@@ -76,7 +76,7 @@ pub struct Capability {
     pub stat_with_override_content_disposition: bool,
     /// Indicates if Content-Type header override is supported during stat operations.
     pub stat_with_override_content_type: bool,
-    /// Indicates if versioned stat operations are supported.
+    /// Indicates if versions stat operations are supported.
     pub stat_with_version: bool,
     /// Indicates whether cache control information is available in stat response
     pub stat_has_cache_control: bool,
@@ -113,7 +113,7 @@ pub struct Capability {
     pub read_with_override_content_disposition: bool,
     /// Indicates if Content-Type header override is supported during read operations.
     pub read_with_override_content_type: bool,
-    /// Indicates if versioned read operations are supported.
+    /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
 
     /// Indicates if the operator supports write operations.
@@ -155,7 +155,7 @@ pub struct Capability {
 
     /// Indicates if delete operations are supported.
     pub delete: bool,
-    /// Indicates if versioned delete operations are supported.
+    /// Indicates if versions delete operations are supported.
     pub delete_with_version: bool,
     /// Maximum size supported for single delete operations.
     pub delete_max_size: Option<usize>,
@@ -174,8 +174,11 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
-    /// Indicates if versioned listing is supported.
+    /// Indicates if versions listing is supported.
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub list_with_version: bool,
+    /// Indicates if versions listing is supported.
+    pub list_with_versions: bool,
     /// Indicates whether cache control information is available in list response
     pub list_has_cache_control: bool,
     /// Indicates whether content disposition information is available in list response

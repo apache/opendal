@@ -420,7 +420,7 @@ impl Metadata {
     ///
     /// For HeadObject with version_id, we will set it to None.
     ///
-    /// For ListObjects, we will set all keys to Some(ture)
+    /// For ListObjects, we will set all keys to Some(true)
     ///
     /// For ListObjectVersions, we will decide the value based on IsLatest.
     pub fn set_is_current(&mut self, is_current: bool) {

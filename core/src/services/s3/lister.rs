@@ -124,7 +124,7 @@ impl oio::PageList for S3Lister {
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
-
+            meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
                 meta.set_content_md5(etag.trim_matches('"'));
@@ -239,6 +239,7 @@ impl oio::PageList for S3ObjectVersionsLister {
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_version(&version_object.version_id);
+            meta.set_is_current(version_object.is_latest);
             meta.set_content_length(version_object.size);
             meta.set_last_modified(parse_datetime_from_rfc3339(
                 version_object.last_modified.as_str(),

@@ -521,8 +521,11 @@ impl Access for OssBackend {
                 let headers = resp.headers();
                 let mut meta = self.core.parse_metadata(path, resp.headers())?;
 
+                // If version id exists, set the version; otherwise, mark as the current version.
                 if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
                     meta.set_version(v);
+                } else {
+                    meta.set_is_current(true);
                 }
 
                 Ok(RpStat::new(meta))

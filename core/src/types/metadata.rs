@@ -43,6 +43,7 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
+    is_current: Option<bool>,
 
     user_metadata: Option<HashMap<String, String>>,
 }
@@ -64,6 +65,7 @@ impl Metadata {
             content_disposition: None,
             version: None,
             user_metadata: None,
+            is_current: None,
         }
     }
 
@@ -402,6 +404,27 @@ impl Metadata {
     pub fn set_version(&mut self, v: &str) -> &mut Self {
         self.version = Some(v.to_string());
         self
+    }
+
+    /// Is_current of this entry.
+    /// 
+    /// Is_current is a boolean that can be used to identify 
+    /// if the version of this entry is the latest version.
+    pub fn is_current(&self) -> Option<bool> {
+        self.is_current
+    }
+    
+    /// Set is_current of this entry.
+    /// 
+    /// For HeadObject without version_id, we will set it to Some(true).
+    /// 
+    /// For HeadObject with version_id, we will set it to None.
+    /// 
+    /// For ListObjects, we will set all keys to Some(ture)
+    /// 
+    /// For ListObjectVersions, we will decide the value based on IsLatest.
+    pub fn set_is_current(&mut self, is_current:bool)  {
+        self.is_current = Some(is_current);
     }
 
     /// User defined metadata of this entry

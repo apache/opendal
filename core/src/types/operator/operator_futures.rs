@@ -248,6 +248,16 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<(OpRead, OpReader), Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
+    /// Set the If-Match for this operation.
+    pub fn if_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_match(etag), op_reader))
+    }
+
+    /// Set the If-None-Match for this operation.
+    pub fn if_none_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_none_match(etag), op_reader))
+    }
+
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|(op_read, op_reader)| (op_read.with_version(v), op_reader))

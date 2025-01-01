@@ -81,7 +81,7 @@ The main implementation will include:
 
 2. Add the related functions to `FutureReader`
 
-2. Add new capability flags:
+3. Add new capability flags:
 ```rust
 pub struct Capability {
     // ... other fields
@@ -89,8 +89,7 @@ pub struct Capability {
     pub read_with_if_unmodified_since: bool,
 }
 ```
-
-3. implement `if_modified_since`, `if_unmodified_since` for the underlying storage service.
+4. implement `if_modified_since`, `if_unmodified_since` for the underlying storage service.
 
 # Drawbacks
 

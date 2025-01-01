@@ -407,23 +407,23 @@ impl Metadata {
     }
 
     /// Is_current of this entry.
-    /// 
-    /// Is_current is a boolean that can be used to identify 
+    ///
+    /// Is_current is a boolean that can be used to identify
     /// if the version of this entry is the latest version.
     pub fn is_current(&self) -> Option<bool> {
         self.is_current
     }
-    
+
     /// Set is_current of this entry.
-    /// 
+    ///
     /// For HeadObject without version_id, we will set it to Some(true).
-    /// 
+    ///
     /// For HeadObject with version_id, we will set it to None.
-    /// 
+    ///
     /// For ListObjects, we will set all keys to Some(ture)
-    /// 
+    ///
     /// For ListObjectVersions, we will decide the value based on IsLatest.
-    pub fn set_is_current(&mut self, is_current:bool)  {
+    pub fn set_is_current(&mut self, is_current: bool) {
         self.is_current = Some(is_current);
     }
 

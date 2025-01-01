@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check typos
-        uses: crate-ci/typos@v1.28.4
+        uses: crate-ci/typos@v1.29.0
 
   licenses:
     runs-on: ubuntu-latest

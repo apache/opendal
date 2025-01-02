@@ -248,3 +248,7 @@ pub mod rfc_5444_operator_from_uri {}
 /// Context
 #[doc = include_str!("5479_context.md")]
 pub mod rfc_5479_context {}
+
+/// List With Deleted
+#[doc = include_str!("5495_list_with_deleted.md")]
+pub mod rfc_5495_list_with_deleted {}

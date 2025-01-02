@@ -1,7 +1,7 @@
 - Proposal Name: `list_with_deleted`
 - Start Date: 2025-01-02
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5495](https://github.com/apache/opendal/pull/0000)
+- Tracking Issue: [apache/opendal#5496](https://github.com/apache/opendal/issues/5496)
 
 # Summary
 

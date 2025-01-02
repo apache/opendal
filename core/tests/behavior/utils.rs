@@ -187,6 +187,11 @@ impl Fixture {
     pub async fn cleanup(&self, op: impl Into<Operator>) {
         let op = op.into();
         let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
+        // Don't call delete if paths is empty
+        if paths.is_empty() {
+            return;
+        }
+
         // We try our best to clean up fixtures, but won't panic if failed.
         let _ = op.delete_iter(paths).await;
     }

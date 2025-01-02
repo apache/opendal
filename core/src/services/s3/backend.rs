@@ -948,6 +948,8 @@ impl Access for S3Backend {
                 read_with_override_content_disposition: true,
                 read_with_override_content_type: true,
                 read_with_version: self.core.enable_versioning,
+                read_with_if_modified_since: true,
+                read_with_if_unmodified_since: true,
 
                 write: true,
                 write_can_empty: true,

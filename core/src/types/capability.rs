@@ -115,6 +115,10 @@ pub struct Capability {
     pub read_with_override_content_type: bool,
     /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
+    /// Indicates if conditional read operations using If-Modified-Since are supported.
+    pub read_with_if_modified_since: bool,
+    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
+    pub read_with_if_unmodified_since: bool,
 
     /// Indicates if the operator supports write operations.
     pub write: bool,

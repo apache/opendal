@@ -249,6 +249,10 @@ pub mod rfc_5444_operator_from_uri {}
 #[doc = include_str!("5479_context.md")]
 pub mod rfc_5479_context {}
 
+/// Conditional Reader
+#[doc = include_str!("5485_conditional_reader.md")]
+pub mod rfc_5485_conditional_reader {}
+
 /// List With Deleted
 #[doc = include_str!("5495_list_with_deleted.md")]
 pub mod rfc_5495_list_with_deleted {}

@@ -48,7 +48,7 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    logforth::stderr().apply();
+    env_logger::init();
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),

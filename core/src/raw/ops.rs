@@ -19,11 +19,11 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::collections::HashMap;
-use std::time::Duration;
-
 use crate::raw::*;
 use crate::*;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -304,6 +304,8 @@ pub struct OpRead {
     override_content_disposition: Option<String>,
     version: Option<String>,
     executor: Option<Executor>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
 }
 
 impl OpRead {
@@ -418,6 +420,28 @@ impl OpRead {
     /// Get executor from option
     pub fn executor(&self) -> Option<&Executor> {
         self.executor.as_ref()
+    }
+
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, if_modified_since: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(if_modified_since);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, if_unmodified_since: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(if_unmodified_since);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
     }
 }
 

@@ -39,7 +39,7 @@ pub struct HttpBody {
 
 /// # Safety
 ///
-/// HttpBody is send on non wasm32 targets.
+/// HttpBody is sent on non wasm32 targets.
 unsafe impl Send for HttpBody {}
 
 /// # Safety

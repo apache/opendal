@@ -93,12 +93,6 @@ impl MemcachedBuilder {
         self
     }
 
-    /// Set the tls cafile path.
-    pub fn cafile(mut self, cafile: &str) -> Self {
-        self.config.cafile = Some(cafile.to_string());
-        self
-    }
-
     /// Set the tls key path.
     pub fn tls_key(mut self, tls_key: &str) -> Self {
         self.config.tls_key = Some(tls_key.to_string());
@@ -187,7 +181,6 @@ impl Builder for MemcachedBuilder {
             username: self.config.username.clone(),
             password: self.config.password.clone(),
             enable_tls: self.config.enable_tls,
-            cafile: self.config.cafile.clone(),
             tls_key: self.config.tls_key.clone(),
             tls_cert: self.config.tls_cert.clone(),
             conn,
@@ -207,7 +200,6 @@ pub struct Adapter {
     password: Option<String>,
     default_ttl: Option<Duration>,
     enable_tls: bool,
-    cafile: Option<String>,
     tls_key: Option<String>,
     tls_cert: Option<String>,
     conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
@@ -223,7 +215,6 @@ impl Adapter {
                     self.username.clone(),
                     self.password.clone(),
                     self.enable_tls,
-                    self.cafile.clone(),
                     self.tls_key.clone(),
                     self.tls_cert.clone(),
                 );
@@ -295,7 +286,6 @@ struct MemcacheConnectionManager {
     username: Option<String>,
     password: Option<String>,
     enable_tls: bool,
-    cafile: Option<String>,
     tls_key: Option<String>,
     tls_cert: Option<String>,
 }
@@ -306,7 +296,6 @@ impl MemcacheConnectionManager {
         username: Option<String>,
         password: Option<String>,
         enable_tls: bool,
-        cafile: Option<String>,
         tls_key: Option<String>,
         tls_cert: Option<String>,
     ) -> Self {
@@ -315,7 +304,6 @@ impl MemcacheConnectionManager {
             username,
             password,
             enable_tls,
-            cafile,
             tls_key,
             tls_cert,
         }
@@ -341,21 +329,6 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
                 }
             }
 
-            if let Some(cafile) = &self.cafile {
-                for cert in CertificateDer::pem_file_iter(cafile).map_err(|err| match err {
-                    rustls::pki_types::pem::Error::Io(err) => new_std_io_error(err),
-                    _ => unreachable!(),
-                })? {
-                    root_cert_store
-                        .add(cert.map_err(|err| match err {
-                            rustls::pki_types::pem::Error::Io(err) => new_std_io_error(err),
-                            _ => unreachable!(),
-                        })?)
-                        .map_err(|err| {
-                            Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
-                        })?;
-                }
-            }
             let config = if let (Some(cert_path), Some(key_path)) = (&self.tls_cert, &self.tls_key)
             {
                 let cert_chain = CertificateDer::pem_file_iter(cert_path)

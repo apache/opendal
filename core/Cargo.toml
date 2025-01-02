@@ -47,7 +47,7 @@ rust-version = "1.75"
 version = "0.50.1"
 
 [features]
-default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
+default = ["reqwest/rustls-tls", "executors-tokio", "services-memory" ,"services-memcached"]
 
 # Build test utils or not.
 #

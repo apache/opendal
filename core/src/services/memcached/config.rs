@@ -42,8 +42,6 @@ pub struct MemcachedConfig {
     pub default_ttl: Option<Duration>,
     /// default is false
     pub enable_tls: bool,
-    /// Path to the CA certificate for TLS verification.
-    pub cafile: Option<String>,
     /// Path to the CA certificate for TLS key.
     pub tls_key: Option<String>,
     /// Path to the CA certificate for TLS cert.

@@ -43,6 +43,7 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
+    is_current: Option<bool>,
 
     user_metadata: Option<HashMap<String, String>>,
 }
@@ -64,6 +65,7 @@ impl Metadata {
             content_disposition: None,
             version: None,
             user_metadata: None,
+            is_current: None,
         }
     }
 
@@ -401,6 +403,35 @@ impl Metadata {
     /// This field may come out from the version control system, like object versioning in AWS S3.
     pub fn set_version(&mut self, v: &str) -> &mut Self {
         self.version = Some(v.to_string());
+        self
+    }
+
+    /// Determines if the provided metadata reflects the current status of the path.
+    ///
+    /// - `Ok(true)` indicates it is the latest status.
+    /// - `Ok(false)` indicates it is an older version of the file.
+    /// - `None` indicates uncertainty about its status.
+    ///
+    /// This API allows users to verify if the version is up-to-date when listing with versions.
+    pub fn is_current(&self) -> Option<bool> {
+        self.is_current
+    }
+
+    /// Set the `is_current` status of this entry.
+    ///
+    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
+    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
+    pub fn with_is_current(mut self, is_current: Option<bool>) -> Self {
+        self.is_current = is_current;
+        self
+    }
+
+    /// Set the `is_current` status of this entry.
+    ///
+    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
+    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
+    pub fn set_is_current(&mut self, is_current: bool) -> &mut Self {
+        self.is_current = Some(is_current);
         self
     }
 

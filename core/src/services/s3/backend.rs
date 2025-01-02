@@ -1016,11 +1016,8 @@ impl Access for S3Backend {
                     meta.with_user_metadata(user_meta);
                 }
 
-                // If version id exists, set the version; otherwise, mark as the current version.
                 if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
                     meta.set_version(v);
-                } else {
-                    meta.set_is_current(true);
                 }
 
                 Ok(RpStat::new(meta))

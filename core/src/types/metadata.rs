@@ -27,11 +27,32 @@ use crate::*;
 /// Depending on the context of the requests, the metadata for the same path may vary. For example, two
 /// versions of the same path might have different content lengths. Keep in mind that metadata is always
 /// tied to the given context and is not a global state.
+///
+/// ## File Versions
+///
+/// In systems that support versioning, such as AWS S3, the metadata may represent a specific version
+/// of a file.
+///
+/// Users can access [`Metadata::version`] to retrieve the file's version, if available. They can also
+/// use [`Metadata::is_current`] and [`Metadata::is_deleted`] to determine whether the metadata
+/// corresponds to the latest version or a deleted one.
+///
+/// The all possible combinations of `is_current` and `is_deleted` are as follows:
+///
+/// | `is_current`  | `is_deleted` | description                                                                                                                                                                                                                                                                                                                                                                          |
+/// |---------------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+/// | `Some(true)`  | `false`      | **The metadata's associated version is the latest, current version.** This is the normal state, indicating that this version is the most up-to-date and accessible version.                                                                                                                                                                                                          |
+/// | `Some(true)`  | `true`       | **The metadata's associated version is the latest, deleted version (Latest Delete Marker or Soft Deleted).** This is particularly important in object storage systems like S3. It signifies that this version is the **most recent delete marker**, indicating the object has been deleted. Subsequent GET requests will return 404 errors unless a specific version ID is provided. |
+/// | `Some(false)` | `false`      | **The metadata's associated version is neither the latest version nor deleted.** This indicates that this version is a previous version, still accessible by specifying its version ID.                                                                                                                                                                                              |
+/// | `Some(false)` | `true`       | **The metadata's associated version is not the latest version and is deleted.** This represents a historical version that has been marked for deletion. Users will need to specify the version ID to access it, and accessing it may be subject to specific delete marker behavior (e.g., in S3, it might not return actual data but a specific delete marker response).             |
+/// | `None`        | `false`      | **The metadata's associated file is not deleted, but its version status is either unknown or it is not the latest version.** This likely indicates that versioning is not enabled for this file, or versioning information is unavailable.                                                                                                                                           |
+/// | `None`        | `true`       | **The metadata's associated file is deleted, but its version status is either unknown or it is not the latest version.** This typically means the file was deleted without versioning enabled, or its versioning information is unavailable. This may represent an actual data deletion operation rather than an S3 delete marker.                                                   |
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Metadata {
     mode: EntryMode,
 
     is_current: Option<bool>,
+    is_deleted: bool,
 
     cache_control: Option<String>,
     content_disposition: Option<String>,
@@ -54,6 +75,7 @@ impl Metadata {
             mode,
 
             is_current: None,
+            is_deleted: false,
 
             cache_control: None,
             content_length: None,
@@ -74,6 +96,18 @@ impl Metadata {
         self.mode
     }
 
+    /// Set mode for entry.
+    pub fn set_mode(&mut self, v: EntryMode) -> &mut Self {
+        self.mode = v;
+        self
+    }
+
+    /// Set mode for entry.
+    pub fn with_mode(mut self, v: EntryMode) -> Self {
+        self.mode = v;
+        self
+    }
+
     /// Returns `true` if this metadata is for a file.
     pub fn is_file(&self) -> bool {
         matches!(self.mode, EntryMode::FILE)
@@ -84,15 +118,71 @@ impl Metadata {
         matches!(self.mode, EntryMode::DIR)
     }
 
-    /// Set mode for entry.
-    pub fn set_mode(&mut self, v: EntryMode) -> &mut Self {
-        self.mode = v;
+    /// Checks whether the metadata corresponds to the most recent version of the file.
+    ///
+    /// This function is particularly useful when working with versioned objects,
+    /// such as those stored in systems like AWS S3 with versioning enabled. It helps
+    /// determine if the retrieved metadata represents the current state of the file
+    /// or an older version.
+    ///
+    /// Refer to docs in [`Metadata`] for more information about file versions.
+    ///
+    /// # Return Value
+    ///
+    /// The function returns an `Option<bool>` which can have the following values:
+    ///
+    /// - `Some(true)`:  Indicates that the metadata **is** associated with the latest version of the file.
+    ///   The metadata is current and reflects the most up-to-date state.
+    /// - `Some(false)`: Indicates that the metadata **is not** associated with the latest version of the file.
+    ///   The metadata belongs to an older version, and there might be a more recent version available.
+    /// - `None`:      Indicates that the currency of the metadata **cannot be determined**. This might occur if
+    ///   versioning is not supported or enabled, or if there is insufficient information to ascertain the version status.
+    pub fn is_current(&self) -> Option<bool> {
+        self.is_current
+    }
+
+    /// Set the `is_current` status of this entry.
+    ///
+    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
+    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
+    pub fn set_is_current(&mut self, is_current: bool) -> &mut Self {
+        self.is_current = Some(is_current);
         self
     }
 
-    /// Set mode for entry.
-    pub fn with_mode(mut self, v: EntryMode) -> Self {
-        self.mode = v;
+    /// Set the `is_current` status of this entry.
+    ///
+    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
+    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
+    pub fn with_is_current(mut self, is_current: Option<bool>) -> Self {
+        self.is_current = is_current;
+        self
+    }
+
+    /// Checks if the file (or version) associated with this metadata has been deleted.
+    ///
+    /// This function returns `true` if the file represented by this metadata has been marked for
+    /// deletion or has been permanently deleted.
+    /// It returns `false` otherwise, indicating that the file (or version) is still present and accessible.
+    ///
+    /// Refer to docs in [`Metadata`] for more information about file versions.
+    ///
+    /// # Returns
+    ///
+    /// `bool`: `true` if the object is considered deleted, `false` otherwise.
+    pub fn is_deleted(&self) -> bool {
+        self.is_deleted
+    }
+
+    /// Set the deleted status of this entry.
+    pub fn set_is_deleted(&mut self, v: bool) -> &mut Self {
+        self.is_deleted = v;
+        self
+    }
+
+    /// Set the deleted status of this entry.
+    pub fn with_is_deleted(mut self, v: bool) -> Self {
+        self.is_deleted = v;
         self
     }
 
@@ -127,6 +217,10 @@ impl Metadata {
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     ///
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
+    ///
+    /// # Returns
+    ///
+    /// Content length of this entry. It will be `0` if the content length is not set by the storage services.
     pub fn content_length(&self) -> u64 {
         self.content_length.unwrap_or_default()
     }
@@ -323,45 +417,6 @@ impl Metadata {
     /// With the version of the file.
     pub fn with_version(mut self, v: String) -> Self {
         self.version = Some(v);
-        self
-    }
-
-    /// Checks whether the metadata corresponds to the most recent version of the file.
-    ///
-    /// This function is particularly useful when working with versioned objects,
-    /// such as those stored in systems like AWS S3 with versioning enabled. It helps
-    /// determine if the retrieved metadata represents the current state of the file
-    /// or an older version.
-    ///
-    /// # Return Value
-    ///
-    /// The function returns an `Option<bool>` which can have the following values:
-    ///
-    /// - `Some(true)`:  Indicates that the metadata **is** associated with the latest version of the file.
-    ///   The metadata is current and reflects the most up-to-date state.
-    /// - `Some(false)`: Indicates that the metadata **is not** associated with the latest version of the file.
-    ///   The metadata belongs to an older version, and there might be a more recent version available.
-    /// - `None`:      Indicates that the currency of the metadata **cannot be determined**. This might occur if
-    ///   versioning is not supported or enabled, or if there is insufficient information to ascertain the version status.
-    pub fn is_current(&self) -> Option<bool> {
-        self.is_current
-    }
-
-    /// Set the `is_current` status of this entry.
-    ///
-    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
-    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
-    pub fn set_is_current(&mut self, is_current: bool) -> &mut Self {
-        self.is_current = Some(is_current);
-        self
-    }
-
-    /// Set the `is_current` status of this entry.
-    ///
-    /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
-    /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
-    pub fn with_is_current(mut self, is_current: Option<bool>) -> Self {
-        self.is_current = is_current;
         self
     }
 

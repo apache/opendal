@@ -177,8 +177,10 @@ pub struct Capability {
     /// Indicates if versions listing is supported.
     #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub list_with_version: bool,
-    /// Indicates if versions listing is supported.
+    /// Indicates if listing with versions included is supported.
     pub list_with_versions: bool,
+    /// Indicates if listing with deleted files included is supported.
+    pub list_with_deleted: bool,
     /// Indicates whether cache control information is available in list response
     pub list_has_cache_control: bool,
     /// Indicates whether content disposition information is available in list response

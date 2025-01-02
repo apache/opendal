@@ -49,7 +49,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_remove_all,
             test_list_files_with_versions,
             test_list_with_versions_and_limit,
-            test_list_with_versions_and_start_after
+            test_list_with_versions_and_start_after,
+            test_list_files_with_deleted
         ))
     }
 
@@ -595,14 +596,32 @@ pub async fn test_list_files_with_versions(op: Operator) -> Result<()> {
         assert_eq!(de.name(), file_name);
         let meta = de.metadata();
         assert_eq!(meta.mode(), EntryMode::FILE);
-
-        // just ensure they don't panic
-        let _ = meta.content_length();
-        let _ = meta.version();
-        let _ = meta.last_modified();
-        let _ = meta.etag();
-        let _ = meta.content_md5();
     }
+
+    Ok(())
+}
+
+pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
+    if !op.info().full_capability().list_with_deleted {
+        return Ok(());
+    }
+
+    let parent = TEST_FIXTURE.new_dir_path();
+    let file_name = TEST_FIXTURE.new_file_path();
+    let file_path = format!("{}{}", parent, file_name);
+    op.write(file_path.as_str(), "1").await?;
+    op.write(file_path.as_str(), "2").await?;
+    op.delete(file_path.as_str()).await?;
+
+    // This file has been deleted
+    let mut ds = op.list_with(&file_path).deleted(true).await?;
+    ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
+
+    assert_eq!(
+        ds.len(),
+        1,
+        "deleted file should be found and only have one"
+    );
 
     Ok(())
 }

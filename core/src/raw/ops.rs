@@ -112,6 +112,14 @@ pub struct OpList {
     ///
     /// Default to `false`
     versions: bool,
+    /// The deleted is used to control whether the deleted objects should be returned.
+    ///
+    /// - If `false`, list operation will not return with deleted objects
+    /// - If `true`, list operation will return with deleted objects if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    deleted: bool,
 }
 
 impl Default for OpList {
@@ -122,6 +130,7 @@ impl Default for OpList {
             recursive: false,
             concurrent: 1,
             versions: false,
+            deleted: false,
         }
     }
 }
@@ -205,6 +214,17 @@ impl OpList {
     /// Get the version of this list operation
     pub fn versions(&self) -> bool {
         self.versions
+    }
+
+    /// Change the deleted of this list operation
+    pub fn with_deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
+        self
+    }
+
+    /// Get the deleted of this list operation
+    pub fn deleted(&self) -> bool {
+        self.deleted
     }
 }
 

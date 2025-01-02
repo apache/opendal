@@ -149,6 +149,14 @@ impl Builder for MemcachedBuilder {
             );
         };
         if self.config.enable_tls {
+            rustls::crypto::aws_lc_rs::default_provider()
+                .install_default()
+                .map_err(|_err| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "no process-level CryptoProvider available",
+                    )
+                })?;
             ServerName::try_from(host.clone()).map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "Invalid dns name error")
                     .with_context("service", Scheme::Memcached)

@@ -614,7 +614,7 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     op.delete(file_path.as_str()).await?;
 
     // This file has been deleted
-    let mut ds = op.list_with(parent.as_str()).deleted(true).await?;
+    let mut ds = op.list_with(&file_path).deleted(true).await?;
     ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
 
     assert_eq!(

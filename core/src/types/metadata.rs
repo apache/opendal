@@ -175,13 +175,13 @@ impl Metadata {
     }
 
     /// Set the deleted status of this entry.
-    pub fn set_deleted(&mut self, v: bool) -> &mut Self {
+    pub fn set_is_deleted(&mut self, v: bool) -> &mut Self {
         self.is_deleted = v;
         self
     }
 
     /// Set the deleted status of this entry.
-    pub fn with_deleted(mut self, v: bool) -> Self {
+    pub fn with_is_deleted(mut self, v: bool) -> Self {
         self.is_deleted = v;
         self
     }

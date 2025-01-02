@@ -255,6 +255,7 @@ impl oio::PageList for S3ObjectVersionsLister {
 
                 let mut meta = Metadata::new(EntryMode::FILE);
                 meta.set_version(&delete_marker.version_id);
+                meta.set_is_deleted(true);
                 meta.set_is_current(delete_marker.is_latest);
                 meta.set_last_modified(parse_datetime_from_rfc3339(
                     delete_marker.last_modified.as_str(),

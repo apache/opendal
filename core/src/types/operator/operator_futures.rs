@@ -501,15 +501,29 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.map(|args| args.with_versions(v))
     }
 
-    /// The version is used to control whether the object versions should be returned.
+    /// Controls whether the `list` operation should return file versions.
     ///
-    /// - If `false`, list operation will not return with object versions
-    /// - If `true`, list operation will return with object versions if object versioning is supported
-    ///   by the underlying service
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// information about different versions of files, if versioning is supported and enabled.
+    ///
+    /// If `true`, subsequent `list` operations will include version information for each file.
+    /// If `false`, version information will be omitted from the `list` results.
     ///
     /// Default to `false`
     pub fn versions(self, v: bool) -> Self {
         self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should include deleted files (or versions).
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// entries for files or versions that have been marked as deleted. This is particularly relevant
+    /// in object storage systems that support soft deletion or versioning.
+    ///
+    /// If `true`, subsequent `list` operations will include deleted files or versions.
+    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    pub fn deleted(self, v: bool) -> Self {
+        self.map(|args| args.with_deleted(v))
     }
 }
 
@@ -555,14 +569,28 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self.map(|args| args.with_versions(v))
     }
 
-    /// The version is used to control whether the object versions should be returned.
+    /// Controls whether the `list` operation should return file versions.
     ///
-    /// - If `false`, list operation will not return with object versions
-    /// - If `true`, list operation will return with object versions if object versioning is supported
-    ///   by the underlying service
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// information about different versions of files, if versioning is supported and enabled.
+    ///
+    /// If `true`, subsequent `list` operations will include version information for each file.
+    /// If `false`, version information will be omitted from the `list` results.
     ///
     /// Default to `false`
     pub fn versions(self, v: bool) -> Self {
         self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should include deleted files (or versions).
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// entries for files or versions that have been marked as deleted. This is particularly relevant
+    /// in object storage systems that support soft deletion or versioning.
+    ///
+    /// If `true`, subsequent `list` operations will include deleted files or versions.
+    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    pub fn deleted(self, v: bool) -> Self {
+        self.map(|args| args.with_deleted(v))
     }
 }

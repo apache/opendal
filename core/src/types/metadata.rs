@@ -217,6 +217,10 @@ impl Metadata {
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     ///
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
+    ///
+    /// # Returns
+    ///
+    /// Content length of this entry. It will be `0` if the content length is not set by the storage services.
     pub fn content_length(&self) -> u64 {
         self.content_length.unwrap_or_default()
     }

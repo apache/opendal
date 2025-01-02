@@ -983,6 +983,7 @@ impl Access for S3Backend {
                 list_with_start_after: true,
                 list_with_recursive: true,
                 list_with_versions: self.core.enable_versioning,
+                list_with_deleted: self.core.enable_versioning,
                 list_has_etag: true,
                 list_has_content_md5: true,
                 list_has_content_length: true,
@@ -1060,21 +1061,17 @@ impl Access for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if args.versions() {
+        let l = if args.versions() || args.deleted() {
             TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
+                args,
             )))
         } else {
             TwoWays::One(PageLister::new(S3Lister::new(
                 self.core.clone(),
                 path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
+                args,
             )))
         };
 

@@ -47,7 +47,7 @@ default = [
 
 # NOTE: this is the feature we used to build pypi wheels.
 # When enable or disable some features,
-# also need to update dev/src/generate/binding_python.rs `enabled_service` to match it.
+# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
 services-all = [
   "default",
   "services-aliyun-drive",

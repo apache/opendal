@@ -15,40 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::Result;
 use anyhow::{anyhow, Context};
+use anyhow::{bail, Result};
 use log::debug;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
-use std::{fs, vec};
 use syn::{
     Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
 };
 
-#[derive(Debug, Clone)]
-pub struct Services(HashMap<String, Service>);
-
-impl IntoIterator for Services {
-    type Item = (String, Service);
-    type IntoIter = vec::IntoIter<(String, Service)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let mut v = Vec::from_iter(self.0);
-        v.sort();
-        v.into_iter()
-    }
-}
+pub type Services = HashMap<String, Service>;
 
 /// Service represents a service supported by opendal core, like `s3` and `fs`
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Service {
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
 
 /// Config represents a configuration item for a service.
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Config {
     /// The name of this config, for example, `access_key_id` and `secret_access_key`
     pub name: String,
@@ -64,7 +53,7 @@ pub struct Config {
     pub comments: String,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum ConfigType {
     /// Mapping to rust's `bool`
     Bool,
@@ -94,7 +83,7 @@ impl FromStr for ConfigType {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let ct = match s {
+        Ok(match s {
             "bool" => ConfigType::Bool,
             "String" => ConfigType::String,
             "Duration" => ConfigType::Duration,
@@ -106,10 +95,9 @@ impl FromStr for ConfigType {
             "u16" => ConfigType::U16,
 
             "Vec" => ConfigType::Vec,
-            v => return Err(anyhow!("unsupported config type {v:?}")),
-        };
 
-        Ok(ct)
+            v => bail!("unsupported config type {v}"),
+        })
     }
 }
 
@@ -135,11 +123,11 @@ impl FromStr for ConfigType {
 /// ```
 ///
 /// - since = "0.52.0"
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct AttrDeprecated {
-    /// The since of this deprecated field.
+    /// The `since` of this deprecated field.
     pub since: String,
-    /// The note for this deprecated field.
+    /// The `note` for this deprecated field.
     pub note: String,
 }
 
@@ -163,7 +151,7 @@ pub fn parse(path: &str) -> Result<Services> {
         map.insert(parser.service, service);
     }
 
-    Ok(Services(map))
+    Ok(map)
 }
 
 /// ServiceParser is used to parse a service config file.

@@ -16,20 +16,18 @@
 // under the License.
 
 mod parser;
+mod python;
 
-mod binding_python;
-
+use crate::workspace_dir;
 use anyhow::Result;
-use std::path::PathBuf;
 
 pub fn run(language: &str) -> Result<()> {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let services_path = manifest_dir.join("../core/src/services").canonicalize()?;
-    let project_root = manifest_dir.join("..").canonicalize()?;
+    let workspace_dir = workspace_dir();
+    let services_path = workspace_dir.join("core/src/services").canonicalize()?;
     let services = parser::parse(&services_path.to_string_lossy())?;
 
     match language {
-        "python" | "py" => binding_python::generate(project_root, &services),
-        _ => Err(anyhow::anyhow!("Unsupported language: {}", language)),
+        "python" | "py" => python::generate(workspace_dir, services),
+        _ => anyhow::bail!("unsupported language: {}", language),
     }
 }

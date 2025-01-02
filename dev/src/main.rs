@@ -19,10 +19,21 @@ mod generate;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+
+fn manifest_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .unwrap()
+}
+
+fn workspace_dir() -> PathBuf {
+    manifest_dir().join("..").canonicalize().unwrap()
+}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-struct Cli {
+struct Cmd {
     #[command(subcommand)]
     command: Commands,
 }
@@ -37,15 +48,9 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
+    logforth::stderr().apply();
 
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Generate { language } => {
-            generate::run(&language)?;
-        }
+    match Cmd::parse().command {
+        Commands::Generate { language } => generate::run(&language),
     }
-
-    Ok(())
 }

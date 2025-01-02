@@ -22,16 +22,16 @@ use chrono::prelude::*;
 use crate::raw::*;
 use crate::*;
 
-/// Metadata carries all metadata associated with a path.
+/// Metadata contains all the information related to a specific path.
 ///
-/// # Notes
-///
-/// mode and content_length are required metadata that all services
-/// should provide during `stat` operation. But in `list` operation,
-/// a.k.a., `Entry`'s content length could be `None`.
+/// Depending on the context of the requests, the metadata for the same path may vary. For example, two
+/// versions of the same path might have different content lengths. Keep in mind that metadata is always
+/// tied to the given context and is not a global state.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Metadata {
     mode: EntryMode,
+
+    is_current: Option<bool>,
 
     cache_control: Option<String>,
     content_disposition: Option<String>,
@@ -43,7 +43,6 @@ pub struct Metadata {
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
-    is_current: Option<bool>,
 
     user_metadata: Option<HashMap<String, String>>,
 }
@@ -53,6 +52,8 @@ impl Metadata {
     pub fn new(mode: EntryMode) -> Self {
         Self {
             mode,
+
+            is_current: None,
 
             cache_control: None,
             content_length: None,
@@ -65,7 +66,6 @@ impl Metadata {
             content_disposition: None,
             version: None,
             user_metadata: None,
-            is_current: None,
         }
     }
 
@@ -97,11 +97,9 @@ impl Metadata {
     }
 
     /// Cache control of this entry.
+    ///
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::CacheControl`], otherwise this method returns `None`.
     pub fn cache_control(&self) -> Option<&str> {
         self.cache_control.as_deref()
     }
@@ -127,12 +125,8 @@ impl Metadata {
     /// Content length of this entry.
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
+    ///
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
-    ///
-    /// # Panics
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentLength`], otherwise it will panic.
     pub fn content_length(&self) -> u64 {
         self.content_length.unwrap_or_default()
     }
@@ -155,26 +149,17 @@ impl Metadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentMd5`], otherwise this method returns `None`.
     pub fn content_md5(&self) -> Option<&str> {
         self.content_md5.as_deref()
     }
 
     /// Set content MD5 of this entry.
-    ///
-    /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
-    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn set_content_md5(&mut self, v: &str) -> &mut Self {
         self.content_md5 = Some(v.to_string());
         self
     }
 
     /// Set content MD5 of this entry.
-    ///
-    /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
-    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn with_content_md5(mut self, v: String) -> Self {
         self.content_md5 = Some(v);
         self
@@ -184,29 +169,28 @@ impl Metadata {
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentType`], otherwise this method returns `None`.
+    /// Refer to [MDN Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) for more information.
     pub fn content_type(&self) -> Option<&str> {
         self.content_type.as_deref()
     }
 
     /// Set Content Type of this entry.
-    ///
-    /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn set_content_type(&mut self, v: &str) -> &mut Self {
         self.content_type = Some(v.to_string());
         self
     }
 
     /// Set Content Type of this entry.
-    ///
-    /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: String) -> Self {
         self.content_type = Some(v);
         self
     }
 
     /// Content Encoding of this entry.
+    ///
+    /// Content Encoding is defined by [RFC 7231](https://httpwg.org/specs/rfc7231.html#header.content-encoding)
+    ///
+    /// Refer to [MDN Content-Encoding](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding) for more information.
     pub fn content_encoding(&self) -> Option<&str> {
         self.content_encoding.as_deref()
     }
@@ -221,23 +205,18 @@ impl Metadata {
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentRange`], otherwise this method returns `None`.
+    /// Refer to [MDN Content-Range](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range) for more information.
     pub fn content_range(&self) -> Option<BytesContentRange> {
         self.content_range
     }
 
     /// Set Content Range of this entry.
-    ///
-    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
         self.content_range = Some(v);
         self
     }
 
     /// Set Content Range of this entry.
-    ///
-    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
         self.content_range = Some(v);
         self
@@ -246,29 +225,19 @@ impl Metadata {
     /// Last modified of this entry.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
+    ///
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    ///
-    /// OpenDAL parse the raw value into [`DateTime`] for convenient.
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::LastModified`], otherwise this method returns `None`.
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
         self.last_modified
     }
 
     /// Set Last modified of this entry.
-    ///
-    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
-    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn set_last_modified(&mut self, v: DateTime<Utc>) -> &mut Self {
         self.last_modified = Some(v);
         self
     }
 
     /// Set Last modified of this entry.
-    ///
-    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
-    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn with_last_modified(mut self, v: DateTime<Utc>) -> Self {
         self.last_modified = Some(v);
         self
@@ -277,6 +246,7 @@ impl Metadata {
     /// ETag of this entry.
     ///
     /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
+    ///
     /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
     ///
     /// OpenDAL will return this value AS-IS like the following:
@@ -285,40 +255,17 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag.
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Etag`], otherwise this method returns `None`.
     pub fn etag(&self) -> Option<&str> {
         self.etag.as_deref()
     }
 
     /// Set ETag of this entry.
-    ///
-    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
-    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
-    /// - `W/"0815"`
-    ///
-    /// `"` is part of etag, don't trim it before setting.
     pub fn set_etag(&mut self, v: &str) -> &mut Self {
         self.etag = Some(v.to_string());
         self
     }
 
     /// Set ETag of this entry.
-    ///
-    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
-    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
-    /// - `W/"0815"`
-    ///
-    /// `"` is part of etag, don't trim it before setting.
     pub fn with_etag(mut self, v: String) -> Self {
         self.etag = Some(v);
         self
@@ -328,6 +275,7 @@ impl Metadata {
     ///
     /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
     /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
+    ///
     /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
     ///
     /// OpenDAL will return this value AS-IS like the following:
@@ -335,84 +283,66 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::ContentDisposition`], otherwise this method returns `None`.
     pub fn content_disposition(&self) -> Option<&str> {
         self.content_disposition.as_deref()
     }
 
     /// Set Content-Disposition of this entry
-    ///
-    /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
-    /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
-    /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - "inline"
-    /// - "attachment"
-    /// - "attachment; filename=\"filename.jpg\""
-    pub fn with_content_disposition(mut self, v: String) -> Self {
-        self.content_disposition = Some(v);
-        self
-    }
-
-    /// Set Content-Disposition of this entry
-    ///
-    /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
-    /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
-    /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - "inline"
-    /// - "attachment"
-    /// - "attachment; filename=\"filename.jpg\""
     pub fn set_content_disposition(&mut self, v: &str) -> &mut Self {
         self.content_disposition = Some(v.to_string());
         self
     }
 
-    /// Version of this entry.
+    /// Set Content-Disposition of this entry
+    pub fn with_content_disposition(mut self, v: String) -> Self {
+        self.content_disposition = Some(v);
+        self
+    }
+
+    /// Retrieves the `version` of the file, if available.
     ///
-    /// Version is a string that can be used to identify the version of this entry.
+    /// The version is typically used in systems that support object versioning, such as AWS S3.
     ///
-    /// This field may come out from the version control system, like object versioning in AWS S3.
+    /// # Returns
     ///
-    /// This value is only available when calling on result of `stat` or `list` with
-    /// [`Metakey::Version`], otherwise this method returns `None`.
+    /// - `Some(&str)`: If the file has a version associated with it,
+    ///   this function returns `Some` containing a reference to the version ID string.
+    /// - `None`: If the file does not have a version, or if versioning is
+    ///   not supported or enabled for the underlying storage system, this function
+    ///   returns `None`.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
 
-    /// Set version of this entry.
-    ///
-    /// Version is a string that can be used to identify the version of this entry.
-    ///
-    /// This field may come out from the version control system, like object versioning in AWS S3.
-    pub fn with_version(mut self, v: String) -> Self {
-        self.version = Some(v);
-        self
-    }
-
-    /// Set version of this entry.
-    ///
-    /// Version is a string that can be used to identify the version of this entry.
-    ///
-    /// This field may come out from the version control system, like object versioning in AWS S3.
+    /// Set the version of the file
     pub fn set_version(&mut self, v: &str) -> &mut Self {
         self.version = Some(v.to_string());
         self
     }
 
-    /// Determines if the provided metadata reflects the current status of the path.
+    /// With the version of the file.
+    pub fn with_version(mut self, v: String) -> Self {
+        self.version = Some(v);
+        self
+    }
+
+    /// Checks whether the metadata corresponds to the most recent version of the file.
     ///
-    /// - `Ok(true)` indicates it is the latest status.
-    /// - `Ok(false)` indicates it is an older version of the file.
-    /// - `None` indicates uncertainty about its status.
+    /// This function is particularly useful when working with versioned objects,
+    /// such as those stored in systems like AWS S3 with versioning enabled. It helps
+    /// determine if the retrieved metadata represents the current state of the file
+    /// or an older version.
     ///
-    /// This API allows users to verify if the version is up-to-date when listing with versions.
+    /// # Return Value
+    ///
+    /// The function returns an `Option<bool>` which can have the following values:
+    ///
+    /// - `Some(true)`:  Indicates that the metadata **is** associated with the latest version of the file.
+    ///   The metadata is current and reflects the most up-to-date state.
+    /// - `Some(false)`: Indicates that the metadata **is not** associated with the latest version of the file.
+    ///   The metadata belongs to an older version, and there might be a more recent version available.
+    /// - `None`:      Indicates that the currency of the metadata **cannot be determined**. This might occur if
+    ///   versioning is not supported or enabled, or if there is insufficient information to ascertain the version status.
     pub fn is_current(&self) -> Option<bool> {
         self.is_current
     }
@@ -421,8 +351,8 @@ impl Metadata {
     ///
     /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
     /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
-    pub fn with_is_current(mut self, is_current: Option<bool>) -> Self {
-        self.is_current = is_current;
+    pub fn set_is_current(&mut self, is_current: bool) -> &mut Self {
+        self.is_current = Some(is_current);
         self
     }
 
@@ -430,8 +360,8 @@ impl Metadata {
     ///
     /// By default, this value will be `None`. Please avoid using this API if it's unclear whether the entry is current.
     /// Set it to `true` if it is known to be the latest; otherwise, set it to `false`.
-    pub fn set_is_current(&mut self, is_current: bool) -> &mut Self {
-        self.is_current = Some(is_current);
+    pub fn with_is_current(mut self, is_current: Option<bool>) -> Self {
+        self.is_current = is_current;
         self
     }
 

@@ -70,7 +70,6 @@
         <commons-io.version>2.16.1</commons-io.version>
         <dotenv.version>2.3.2</dotenv.version>
         <lombok.version>1.18.34</lombok.version>
-        <jackson.version>2.18.2</jackson.version>
         <slf4j.version>2.0.7</slf4j.version>
         <httpclient.version>5.2</httpclient.version>
 
@@ -90,13 +89,6 @@
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
                 <version>5.9.2</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
-                <version>${jackson.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -140,11 +132,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <dependency>

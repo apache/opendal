@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{sorted_services, ConfigType, Services};
+use crate::generate::parser::{sorted_services, Config, ConfigType, Services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
 use minijinja::{context, Environment};
@@ -35,12 +35,23 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let mut env = Environment::new();
     env.add_template("java", include_str!("java.j2"))?;
     env.add_function("make_java_type", make_java_type);
+    env.add_function("make_populate_map", make_populate_map);
+    env.add_filter("case_java_class_name", case_java_class_name);
+    env.add_filter("case_java_field_name", case_java_field_name);
     let tmpl = env.get_template("java")?;
 
     let output =
         workspace_dir.join("bindings/java/src/main/java/org/apache/opendal/ServiceConfig.java");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
     Ok(())
+}
+
+fn case_java_class_name(s: String) -> String {
+    heck::AsUpperCamelCase(s).to_string()
+}
+
+fn case_java_field_name(s: String) -> String {
+    heck::AsLowerCamelCase(s).to_string()
 }
 
 fn make_java_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
@@ -53,4 +64,30 @@ fn make_java_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::E
         ConfigType::String => "String",
     }
     .to_string())
+}
+
+fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let is_primitive_type = match field.value {
+        ConfigType::U64
+        | ConfigType::I64
+        | ConfigType::U32
+        | ConfigType::U16
+        | ConfigType::Usize
+        | ConfigType::Bool => true,
+        ConfigType::Duration | ConfigType::Vec | ConfigType::String => false,
+    };
+
+    let field_name = case_java_field_name(field.name.clone());
+    if is_primitive_type {
+        return Ok(format!("map.put(\"{}\", String.valueOf({}));", field.name, field_name));
+    }
+
+    if field.optional {
+        return Ok(format!(
+            "if ({} != null) map.put(\"{}\", {});",
+            field_name, field.name, field_name
+        ));
+    }
+
+    Ok(format!("\nmap.put(\"{}\", {});", field.name, field_name))
 }

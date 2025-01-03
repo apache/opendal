@@ -21,38 +21,50 @@
 
 package org.apache.opendal;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.time.Duration;
+import java.util.HashMap;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.jackson.Jacksonized;
 
 /**
-  * Service configurations that are mapped from
-  * <a href="https://docs.rs/opendal/*/opendal/services/index.html>OpenDAL's services</a>.
-  */
+ * Service configurations that are mapped from
+ * <a href="https://docs.rs/opendal/latest/opendal/services/index.html>OpenDAL's services</a>.
+ */
 @SuppressWarnings("unused") // intended to be used by users
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "schema")
 public interface ServiceConfig {
+    String scheme();
+
+    HashMap<String, String> configMap();
+
     {% for srv in srvs %}
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Jacksonized
-    class {{srv}} {
+    class {{srv | case_java_class_name}} implements ServiceConfig {
         {%- for field in srvs[srv].config %}
         {%- if field.deprecated %}
         /**
          * @deprecated {{field.deprecated["note"]}}
          */
-        @JsonProperty("{{field.name}}")
         {%- endif %}
-        public final {{make_java_type(field.value)}} {{field.name}};
+        public final {{make_java_type(field.value)}} {{field.name | case_java_field_name}};
         {%- endfor %}
+
+        @Override
+        public String scheme() {
+            return "{{srv}}";
+        }
+
+        @Override
+        public HashMap<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            {% for field in srvs[srv].config -%}
+            {{make_populate_map(field)}}
+            {%- endfor %}
+            return map;
+        }
     }
     {% endfor %}
 }

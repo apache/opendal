@@ -323,32 +323,52 @@ impl ObjectStore for OpendalStore {
         let offset = offset.clone();
 
         let fut = async move {
-            let fut = if self.inner.info().full_capability().list_with_start_after {
-                self.inner
-                    .lister_with(&path)
-                    .start_after(offset.as_ref())
-                    .recursive(true)
-                    .into_future()
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, &path))?
-                    .then(try_format_object_meta)
-                    .into_send()
-                    .boxed()
+            let list_with_start_after = self.inner.info().full_capability().list_with_start_after;
+            let mut fut = self.inner.lister_with(&path).recursive(true);
+
+            // Use native start_after support if possible.
+            if list_with_start_after {
+                fut = fut.start_after(offset.as_ref());
+            }
+
+            let lister = fut
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .then(move |entry| {
+                    let path = path.clone();
+
+                    async move {
+                        let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
+                        let (path, metadata) = entry.into_parts();
+
+                        // If it's a dir or last_modified is present, we can use it directly.
+                        if metadata.is_dir() || metadata.last_modified().is_some() {
+                            let object_meta = format_object_meta(&path, &metadata);
+                            return Ok(object_meta);
+                        }
+
+                        let metadata = self
+                            .inner
+                            .stat(&path)
+                            .await
+                            .map_err(|err| format_object_store_error(err, &path))?;
+                        let object_meta = format_object_meta(&path, &metadata);
+                        Ok::<_, object_store::Error>(object_meta)
+                    }
+                })
+                .into_send()
+                .boxed();
+
+            let stream = if list_with_start_after {
+                lister
             } else {
-                self.inner
-                    .lister_with(&path)
-                    .recursive(true)
-                    .into_future()
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, &path))?
-                    .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
-                    .then(try_format_object_meta)
+                lister
+                    .try_filter(move |entry| futures::future::ready(entry.location > offset))
                     .into_send()
                     .boxed()
             };
-            Ok::<_, object_store::Error>(fut)
+
+            Ok::<_, object_store::Error>(stream)
         };
 
         fut.into_stream().into_send().try_flatten().boxed()

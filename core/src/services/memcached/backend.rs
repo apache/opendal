@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::binary::{self, Conn};
+use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::MemcachedConfig;
@@ -149,7 +149,7 @@ impl Builder for MemcachedBuilder {
             );
         };
         if self.config.enable_tls {
-            rustls::crypto::aws_lc_rs::default_provider()
+            rustls::crypto::ring::default_provider()
                 .install_default()
                 .map_err(|_err| {
                     Error::new(
@@ -325,40 +325,37 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
 
     /// TODO: Implement unix stream support.
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = if self.enable_tls {
+        let mut conn = if self.enable_tls {
             let mut root_cert_store = rustls::RootCertStore::empty();
 
-            let native_certs = rustls_native_certs::load_native_certs();
-            if native_certs.errors.is_empty() {
-                for cert in rustls_native_certs::load_native_certs().expect("unreachable!") {
-                    root_cert_store.add(cert).map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
-                    })?;
-                }
+            let native_certs = rustls_native_certs::load_native_certs()
+                .expect("errors occurred while loading certificates");
+            for cert in native_certs {
+                root_cert_store.add(cert).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "load cafile failed").set_source(err)
+                })?;
             }
-
+            let tls_config =
+                rustls::ClientConfig::builder().with_root_certificates(root_cert_store);
             let config = if let (Some(cert_path), Some(key_path)) = (&self.tls_cert, &self.tls_key)
             {
                 let cert_chain = CertificateDer::pem_file_iter(cert_path)
                     .map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
+                        Error::new(ErrorKind::Unexpected, "load tls cert failed").set_source(err)
                     })?
                     .filter_map(Result::ok)
                     .collect();
                 let key_der = PrivateKeyDer::from_pem_file(key_path).map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
+                    Error::new(ErrorKind::Unexpected, "load tls key failed").set_source(err)
                 })?;
 
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(root_cert_store)
+                tls_config
                     .with_client_auth_cert(cert_chain, key_der)
                     .map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
+                        Error::new(ErrorKind::Unexpected, "build tls client failed").set_source(err)
                     })?
             } else {
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(root_cert_store)
-                    .with_no_client_auth()
+                tls_config.with_no_client_auth()
             };
 
             let connector = TlsConnector::from(Arc::new(config));
@@ -381,29 +378,17 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
                 Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
             })?;
 
-            let mut conn = binary::TlsConnection::new(conn);
-
-            if let (Some(username), Some(password)) =
-                (self.username.as_ref(), self.password.as_ref())
-            {
-                conn.auth(username, password).await?;
-            }
-            binary::Connection::Tls(conn)
+            binary::Connection::new(Box::new(conn))
         } else {
             let conn = TcpStream::connect(&self.address)
                 .await
                 .map_err(new_std_io_error)?;
 
-            let mut conn = binary::TcpConnection::new(conn);
-
-            if let (Some(username), Some(password)) =
-                (self.username.as_ref(), self.password.as_ref())
-            {
-                conn.auth(username, password).await?;
-            }
-
-            binary::Connection::Tcp(conn)
+            binary::Connection::new(Box::new(conn))
         };
+        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
+            conn.auth(username, password).await?;
+        }
         Ok(conn)
     }
 

@@ -37,11 +37,11 @@ public class Operator extends NativeObject {
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
      * and see what config options each service supports.
      *
-     * @param schema the name of the underneath service to access data from.
+     * @param scheme the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public static Operator of(String schema, Map<String, String> map) {
-        try (final AsyncOperator operator = AsyncOperator.of(schema, map)) {
+    public static Operator of(String scheme, Map<String, String> map) {
+        try (final AsyncOperator operator = AsyncOperator.of(scheme, map)) {
             return operator.blocking();
         }
     }

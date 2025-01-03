@@ -107,11 +107,9 @@ impl Connection {
             io: BufReader::new(io),
         }
     }
-    pub fn get_mut(&mut self) -> &mut Box<dyn Connect> {
-        self.io.get_mut()
-    }
+
     pub async fn auth(&mut self, username: &str, password: &str) -> Result<()> {
-        let writer = self.get_mut();
+        let writer = self.io.get_mut();
         let key = "PLAIN";
         let request_header = PacketHeader {
             magic: Magic::Request as u8,
@@ -138,7 +136,7 @@ impl Connection {
     }
 
     pub async fn version(&mut self) -> Result<String> {
-        let writer = self.get_mut();
+        let writer = self.io.get_mut();
         let request_header = PacketHeader {
             magic: Magic::Request as u8,
             opcode: Opcode::Version as u8,
@@ -160,7 +158,7 @@ impl Connection {
     }
 
     pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
-        let writer = self.get_mut();
+        let writer = self.io.get_mut();
         let request_header = PacketHeader {
             magic: Magic::Request as u8,
             opcode: Opcode::Get as u8,
@@ -189,7 +187,7 @@ impl Connection {
     }
 
     pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
-        let writer = self.get_mut();
+        let writer = self.io.get_mut();
         let request_header = PacketHeader {
             magic: Magic::Request as u8,
             opcode: Opcode::Set as u8,
@@ -226,7 +224,7 @@ impl Connection {
     }
 
     pub async fn delete(&mut self, key: &str) -> Result<()> {
-        let writer = self.get_mut();
+        let writer = self.io.get_mut();
         let request_header = PacketHeader {
             magic: Magic::Request as u8,
             opcode: Opcode::Delete as u8,

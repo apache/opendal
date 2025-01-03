@@ -123,14 +123,14 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
             ));
         }
         if let Some(if_none_match) = args.if_none_match() {
-            // AWS S3 supports only wildcard (every resource) matching
-            let is_s3_wildcard_match = self.info.scheme() == Scheme::S3 && if_none_match == "*";
-            if !is_s3_wildcard_match || !capability.write_with_if_none_match {
-                return Err(new_unsupported_error(
-                    self.info.as_ref(),
-                    Operation::Write,
-                    "if_none_match",
-                ));
+            if !capability.write_with_if_none_match {
+                let mut err =
+                    new_unsupported_error(self.info.as_ref(), Operation::Write, "if_none_match");
+                if if_none_match == "*" && capability.write_with_if_not_exists {
+                    err = err.with_context("hint", "use if_not_exists instead");
+                }
+
+                return Err(err);
             }
         }
 
@@ -308,7 +308,7 @@ mod tests {
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), Box::new(())))
+            Ok((RpWrite::new(), Box::new(MockWriter)))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -317,6 +317,22 @@ mod tests {
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             Ok((RpDelete::default(), Box::new(MockDeleter)))
+        }
+    }
+
+    struct MockWriter;
+
+    impl oio::Write for MockWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -380,6 +396,7 @@ mod tests {
     async fn test_write_with() {
         let op = new_test_operator(Capability {
             write: true,
+            write_with_if_not_exists: true,
             ..Default::default()
         });
         let res = op.write_with("path", "".as_bytes()).append(true).await;
@@ -388,17 +405,31 @@ mod tests {
 
         let res = op
             .write_with("path", "".as_bytes())
-            .if_not_exists(true)
-            .await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let res = op
-            .write_with("path", "".as_bytes())
             .if_none_match("etag")
             .await;
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Unsupported (permanent) at write => service memory doesn't support operation write with args if_none_match"
+        );
+
+        // Now try a wildcard if-none-match
+        let res = op
+            .write_with("path", "".as_bytes())
+            .if_none_match("*")
+            .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => \
+            service memory doesn't support operation write with args if_none_match"
+        );
+
+        let res = op
+            .write_with("path", "".as_bytes())
+            .if_not_exists(true)
+            .await;
+        assert!(res.is_ok());
 
         let op = new_test_operator(Capability {
             write: true,

@@ -465,7 +465,7 @@ impl S3Core {
             req = req.header(IF_MATCH, if_match);
         }
 
-        if args.if_not_exists() {
+        if args.if_not_exists() || args.if_none_match() == Some("*") {
             req = req.header(IF_NONE_MATCH, "*");
         }
 

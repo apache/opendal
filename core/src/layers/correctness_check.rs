@@ -122,12 +122,16 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_not_exists",
             ));
         }
-        if args.if_none_match().is_some() && !capability.write_with_if_none_match {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Write,
-                "if_none_match",
-            ));
+        if let Some(if_none_match) = args.if_none_match() {
+            // AWS S3 supports only wildcard (every resource) matching
+            let is_s3_wildcard_match = self.info.scheme() == Scheme::S3 && if_none_match == "*";
+            if !is_s3_wildcard_match || !capability.write_with_if_none_match {
+                return Err(new_unsupported_error(
+                    self.info.as_ref(),
+                    Operation::Write,
+                    "if_none_match",
+                ));
+            }
         }
 
         self.inner.write(path, args).await

@@ -18,12 +18,7 @@
 use crate::raw::*;
 use crate::*;
 
-use tokio::io::AsyncRead;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWrite;
-use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::io::{self};
+use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 
@@ -253,7 +248,7 @@ impl Connection {
     }
 }
 
-pub async fn parse_response<T: AsyncWriteExt + std::marker::Unpin + tokio::io::AsyncRead>(
+pub async fn parse_response<T: AsyncWrite + std::marker::Unpin + tokio::io::AsyncRead>(
     reader: &mut T,
 ) -> Result<Response> {
     let header = PacketHeader::read::<T>(reader)

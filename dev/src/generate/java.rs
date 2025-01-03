@@ -24,8 +24,8 @@ use std::path::PathBuf;
 
 fn enabled_service(srv: &str) -> bool {
     match srv {
-        // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
+        // not enabled in bindings/java/Cargo.toml
+        "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
         _ => true,
     }
 }
@@ -33,26 +33,24 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
-    env.add_template("python", include_str!("python.j2"))?;
-    env.add_function("make_python_type", make_python_type);
-    let tmpl = env.get_template("python")?;
+    env.add_template("java", include_str!("java.j2"))?;
+    env.add_function("make_java_type", make_java_type);
+    let tmpl = env.get_template("java")?;
 
-    let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
+    let output =
+        workspace_dir.join("bindings/java/src/main/java/org/apache/opendal/ServiceConfig.java");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
     Ok(())
 }
 
-fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
+fn make_java_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
     Ok(match ty.0 {
-        ConfigType::Bool => "_bool",
-        ConfigType::Duration => "_duration",
-        ConfigType::I64
-        | ConfigType::Usize
-        | ConfigType::U64
-        | ConfigType::U32
-        | ConfigType::U16 => "_int",
-        ConfigType::Vec => "_strings",
-        ConfigType::String => "str",
+        ConfigType::Bool => "boolean",
+        ConfigType::Duration => "Duration",
+        ConfigType::I64 | ConfigType::U64 | ConfigType::Usize => "long",
+        ConfigType::U32 | ConfigType::U16 => "int",
+        ConfigType::Vec => "List<String>",
+        ConfigType::String => "String",
     }
     .to_string())
 }

@@ -54,7 +54,7 @@ class _Base:
         {% if field.deprecated %}
         # deprecated: {{field.deprecated["note"]}}
         {%- endif %}
-        {{field.name}}: {{make_pytype(field.value)}}{% if field.optional %} = ...{% endif %},
+        {{field.name}}: {{make_python_type(field.value)}}{% if field.optional %} = ...{% endif %},
     {%- endfor %}
     ) -> None: ...
 {% endfor %}

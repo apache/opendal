@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{ConfigType, Service, Services};
+use crate::generate::parser::{sorted_services, ConfigType, Services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
 use minijinja::{context, Environment};
 use std::fs;
 use std::path::PathBuf;
 
-/// TODO: add a common utils to parse enabled features from cargo.toml
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
@@ -32,30 +31,18 @@ fn enabled_service(srv: &str) -> bool {
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let mut srvs = Services::new();
-    for (k, srv) in services.into_iter() {
-        if !enabled_service(k.as_str()) {
-            continue;
-        }
-
-        let mut sorted = srv.config.into_iter().enumerate().collect::<Vec<_>>();
-        sorted.sort_by_key(|(i, v)| (v.optional, *i));
-        let config = sorted.into_iter().map(|(_, v)| v).collect();
-        srvs.insert(k, Service { config });
-    }
-
+    let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
-    env.add_function("make_pytype", make_pytype);
+    env.add_function("make_python_type", make_python_type);
     let tmpl = env.get_template("python")?;
 
     let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
-
     Ok(())
 }
 
-fn make_pytype(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
+fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
     Ok(match ty.0 {
         ConfigType::Bool => "_bool",
         ConfigType::Duration => "_duration",

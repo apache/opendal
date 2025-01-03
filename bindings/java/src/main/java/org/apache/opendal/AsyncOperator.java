@@ -107,17 +107,23 @@ public class AsyncOperator extends NativeObject {
     private final long executorHandle;
 
     /**
-     * Construct an OpenDAL operator:
+     * Construct an OpenDAL operator.
      *
-     * <p>
-     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
-     * and see what config options each service supports.
-     *
-     * @param schema the name of the underneath service to access data from.
-     * @param map    a map of properties to construct the underneath operator.
+     * @param config the config of the underneath service to access data from.
      */
-    public static AsyncOperator of(String schema, Map<String, String> map) {
-        return of(schema, map, null);
+    public static AsyncOperator of(ServiceConfig config) {
+        return of(config, null);
+    }
+
+    /**
+     * Construct an OpenDAL operator.
+     *
+     * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
+     */
+    public static AsyncOperator of(ServiceConfig config, AsyncExecutor executor) {
+        final String scheme = config.scheme();
+        final Map<String, String> map = config.configMap();
+        return of(scheme, map, executor);
     }
 
     /**
@@ -127,13 +133,27 @@ public class AsyncOperator extends NativeObject {
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
      * and see what config options each service supports.
      *
-     * @param schema   the name of the underneath service to access data from.
+     * @param scheme the name of the underneath service to access data from.
+     * @param map    a map of properties to construct the underneath operator.
+     */
+    public static AsyncOperator of(String scheme, Map<String, String> map) {
+        return of(scheme, map, null);
+    }
+
+    /**
+     * Construct an OpenDAL operator:
+     *
+     * <p>
+     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * and see what config options each service supports.
+     *
+     * @param scheme   the name of the underneath service to access data from.
      * @param map      a map of properties to construct the underneath operator.
      * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
      */
-    public static AsyncOperator of(String schema, Map<String, String> map, AsyncExecutor executor) {
+    public static AsyncOperator of(String scheme, Map<String, String> map, AsyncExecutor executor) {
         final long executorHandle = executor != null ? executor.nativeHandle : 0;
-        final long nativeHandle = constructor(executorHandle, schema, map);
+        final long nativeHandle = constructor(executorHandle, scheme, map);
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
         return new AsyncOperator(nativeHandle, executorHandle, info);
     }
@@ -248,7 +268,7 @@ public class AsyncOperator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(long executorHandle, String schema, Map<String, String> map);
+    private static native long constructor(long executorHandle, String scheme, Map<String, String> map);
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 

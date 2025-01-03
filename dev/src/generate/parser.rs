@@ -29,6 +29,21 @@ use syn::{
 
 pub type Services = HashMap<String, Service>;
 
+pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
+    let mut srvs = Services::new();
+    for (k, srv) in services.into_iter() {
+        if !test(k.as_str()) {
+            continue;
+        }
+
+        let mut sorted = srv.config.into_iter().enumerate().collect::<Vec<_>>();
+        sorted.sort_by_key(|(i, v)| (v.optional, *i));
+        let config = sorted.into_iter().map(|(_, v)| v).collect();
+        srvs.insert(k, Service { config });
+    }
+    srvs
+}
+
 /// Service represents a service supported by opendal core, like `s3` and `fs`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Service {

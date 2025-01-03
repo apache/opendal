@@ -187,6 +187,7 @@ dependencies = [
  "anyhow",
  "clap",
  "env_logger",
+ "heck",
  "log",
  "minijinja",
  "pretty_assertions",

@@ -70,7 +70,7 @@ fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Re
 }
 
 fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JObject<'a>> {
-    let schema = env.new_string(info.scheme().to_string())?;
+    let scheme = env.new_string(info.scheme().to_string())?;
     let root = env.new_string(info.root().to_string())?;
     let name = env.new_string(info.name().to_string())?;
     let full_capability_obj = make_capability(env, info.full_capability())?;
@@ -81,7 +81,7 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
             "org/apache/opendal/OperatorInfo",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/apache/opendal/Capability;Lorg/apache/opendal/Capability;)V",
             &[
-                JValue::Object(&schema),
+                JValue::Object(&scheme),
                 JValue::Object(&root),
                 JValue::Object(&name),
                 JValue::Object(&full_capability_obj),

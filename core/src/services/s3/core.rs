@@ -408,11 +408,17 @@ impl S3Core {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(IF_MODIFIED_SINCE, to_rfc_1123(if_modified_since));
+            req = req.header(
+                IF_MODIFIED_SINCE,
+                format_datetime_into_http_date(if_modified_since),
+            );
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(IF_UNMODIFIED_SINCE, to_rfc_1123(if_unmodified_since));
+            req = req.header(
+                IF_UNMODIFIED_SINCE,
+                format_datetime_into_http_date(if_unmodified_since),
+            );
         }
 
         // Set SSE headers.

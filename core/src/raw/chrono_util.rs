@@ -63,9 +63,24 @@ pub fn parse_datetime_from_from_timestamp(s: i64) -> Result<DateTime<Utc>> {
     Ok(st.into())
 }
 
-/// format datetime to rfc1123
+/// format datetime into http date, this format is required by:
+/// https://httpwg.org/specs/rfc9110.html#field.if-modified-since
 ///
-/// for example: `Sun, 06 Nov 1994 08:49:37 GMT`
-pub fn to_rfc_1123(s: DateTime<Utc>) -> String {
+pub fn format_datetime_into_http_date(s: DateTime<Utc>) -> String {
     s.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_datetime_into_http_date() {
+        let s = "Sat, 29 Oct 1994 19:43:31 +0000";
+        let v = parse_datetime_from_rfc2822(s).unwrap();
+        assert_eq!(
+            format_datetime_into_http_date(v),
+            "Sat, 29 Oct 1994 19:43:31 GMT"
+        );
+    }
 }

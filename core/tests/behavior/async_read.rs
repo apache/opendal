@@ -44,15 +44,15 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
+            test_read_with_if_modified_since,
+            test_read_with_if_unmodified_since,
             test_read_with_dir_path,
             test_read_with_special_chars,
             test_read_with_override_cache_control,
             test_read_with_override_content_disposition,
             test_read_with_override_content_type,
             test_read_with_version,
-            test_read_with_not_existing_version,
-            test_read_with_if_modified_since,
-            test_read_with_if_unmodified_since
+            test_read_with_not_existing_version
         ))
     }
 
@@ -286,21 +286,15 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
         .await
         .expect("write must succeed");
 
-    let one_hour_ago_check = chrono::Utc::now() - chrono::Duration::seconds(3600);
-    let reader = op
-        .reader_with(&path)
-        .if_modified_since(one_hour_ago_check)
-        .await?;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(3600);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
     let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
 
     sleep(Duration::from_secs(3)).await;
 
-    let one_second_ago_check = chrono::Utc::now() - chrono::Duration::seconds(1);
-    let reader = op
-        .reader_with(&path)
-        .if_modified_since(one_second_ago_check)
-        .await?;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
     let res = reader.read(..).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
@@ -320,22 +314,16 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
         .await
         .expect("write must succeed");
 
-    let one_hour_ago_check = chrono::Utc::now() - chrono::Duration::seconds(3600);
-    let reader = op
-        .reader_with(&path)
-        .if_unmodified_since(one_hour_ago_check)
-        .await?;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(3600);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
     let res = reader.read(..).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     sleep(Duration::from_secs(3)).await;
 
-    let one_second_ago_check = chrono::Utc::now() - chrono::Duration::seconds(1);
-    let reader = op
-        .reader_with(&path)
-        .if_unmodified_since(one_second_ago_check)
-        .await?;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
     let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
 
@@ -576,21 +564,18 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
         .await
         .expect("write must succeed");
 
-    let one_hour_ago_check = chrono::Utc::now() - chrono::Duration::seconds(3600);
+    let since = chrono::Utc::now() - chrono::Duration::seconds(3600);
     let bs = op
         .read_with(&path)
-        .if_modified_since(one_hour_ago_check)
+        .if_modified_since(since)
         .await?
         .to_bytes();
     assert_eq!(bs, content);
 
     sleep(Duration::from_secs(3)).await;
 
-    let one_second_ago_check = chrono::Utc::now() - chrono::Duration::seconds(1);
-    let res = op
-        .read_with(&path)
-        .if_modified_since(one_second_ago_check)
-        .await;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(1);
+    let res = op.read_with(&path).if_modified_since(since).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
@@ -609,20 +594,17 @@ pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<
         .await
         .expect("write must succeed");
 
-    let one_hour_ago_check = chrono::Utc::now() - chrono::Duration::seconds(3600);
-    let res = op
-        .read_with(&path)
-        .if_unmodified_since(one_hour_ago_check)
-        .await;
+    let since = chrono::Utc::now() - chrono::Duration::seconds(3600);
+    let res = op.read_with(&path).if_unmodified_since(since).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     sleep(Duration::from_secs(3)).await;
 
-    let one_second_ago_check = chrono::Utc::now() - chrono::Duration::seconds(1);
+    let since = chrono::Utc::now() - chrono::Duration::seconds(1);
     let bs = op
         .read_with(&path)
-        .if_unmodified_since(one_second_ago_check)
+        .if_unmodified_since(since)
         .await?
         .to_bytes();
     assert_eq!(bs, content);

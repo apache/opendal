@@ -26,6 +26,7 @@ import java.util.HashMap;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -44,12 +45,13 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class {{srv | case_java_class_name}} implements ServiceConfig {
         {%- for field in srvs[srv].config %}
-        {%- if field.deprecated %}
         /**
+         * {{field.comments}}
+        {%- if field.deprecated %}
          * @deprecated {{field.deprecated["note"]}}
-         */
         {%- endif %}
-        public final {{make_java_type(field.value)}} {{field.name | case_java_field_name}};
+         */
+        {{make_field(field)}}
         {%- endfor %}
 
         @Override
@@ -62,7 +64,7 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             {% for field in srvs[srv].config -%}
             {{make_populate_map(field)}}
-            {%- endfor %}
+            {% endfor -%}
             return map;
         }
     }

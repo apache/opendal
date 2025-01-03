@@ -34,10 +34,9 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
     env.add_template("java", include_str!("java.j2"))?;
-    env.add_function("make_java_type", make_java_type);
+    env.add_function("make_field", make_field);
     env.add_function("make_populate_map", make_populate_map);
     env.add_filter("case_java_class_name", case_java_class_name);
-    env.add_filter("case_java_field_name", case_java_field_name);
     let tmpl = env.get_template("java")?;
 
     let output =
@@ -54,40 +53,70 @@ fn case_java_field_name(s: String) -> String {
     heck::AsLowerCamelCase(s).to_string()
 }
 
-fn make_java_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
-    Ok(match ty.0 {
-        ConfigType::Bool => "boolean",
-        ConfigType::Duration => "Duration",
-        ConfigType::I64 | ConfigType::U64 | ConfigType::Usize => "long",
-        ConfigType::U32 | ConfigType::U16 => "int",
-        ConfigType::Vec => "List<String>",
-        ConfigType::String => "String",
-    }
-    .to_string())
+fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let field_type = if field.optional {
+        match field.value {
+            ConfigType::Bool => "Boolean",
+            ConfigType::String => "String",
+            ConfigType::Duration => "Duration",
+            ConfigType::Usize | ConfigType::U64 | ConfigType::I64 => "Long",
+            ConfigType::U32 | ConfigType::U16 => "Integer",
+            ConfigType::Vec => "List<String>",
+        }
+    } else {
+        match field.value {
+            ConfigType::Bool => "boolean",
+            ConfigType::String => "@NonNull String",
+            ConfigType::Duration => "@NonNull Duration",
+            ConfigType::Usize | ConfigType::U64 | ConfigType::I64 => "long",
+            ConfigType::U32 | ConfigType::U16 => "int",
+            ConfigType::Vec => "@NonNull List<String>",
+        }
+    };
+
+    Ok(format!(
+        "private final {} {};",
+        field_type,
+        case_java_field_name(field.name.clone())
+    ))
 }
 
 fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
-    let is_primitive_type = match field.value {
-        ConfigType::U64
+    let populate = match field.value {
+        ConfigType::Usize
+        | ConfigType::U64
         | ConfigType::I64
+        | ConfigType::Bool
         | ConfigType::U32
-        | ConfigType::U16
-        | ConfigType::Usize
-        | ConfigType::Bool => true,
-        ConfigType::Duration | ConfigType::Vec | ConfigType::String => false,
+        | ConfigType::U16 => format!(
+            "map.put(\"{}\", String.valueOf({}));",
+            field.name,
+            case_java_field_name(field.name.clone())
+        ),
+        ConfigType::String => format!(
+            "map.put(\"{}\", {});",
+            field.name,
+            case_java_field_name(field.name.clone())
+        ),
+        ConfigType::Duration => format!(
+            "map.put(\"{}\", {}.toString());",
+            field.name,
+            case_java_field_name(field.name.clone())
+        ),
+        ConfigType::Vec => format!(
+            "map.put(\"{}\", String.join(\",\", {}));",
+            field.name,
+            case_java_field_name(field.name.clone())
+        ),
     };
 
-    let field_name = case_java_field_name(field.name.clone());
-    if is_primitive_type {
-        return Ok(format!("map.put(\"{}\", String.valueOf({}));", field.name, field_name));
-    }
-
     if field.optional {
-        return Ok(format!(
-            "if ({} != null) map.put(\"{}\", {});",
-            field_name, field.name, field_name
-        ));
+        Ok(format!(
+            "if ({} != null) {{\n    {}\n}}",
+            case_java_field_name(field.name.clone()),
+            populate
+        ))
+    } else {
+        Ok(populate)
     }
-
-    Ok(format!("\nmap.put(\"{}\", {});", field.name, field_name))
 }

@@ -107,6 +107,26 @@ public class AsyncOperator extends NativeObject {
     private final long executorHandle;
 
     /**
+     * Construct an OpenDAL operator.
+     *
+     * @param config the config of the underneath service to access data from.
+     */
+    public static AsyncOperator of(ServiceConfig config) {
+        return of(config, null);
+    }
+
+    /**
+     * Construct an OpenDAL operator.
+     *
+     * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
+     */
+    public static AsyncOperator of(ServiceConfig config, AsyncExecutor executor) {
+        final String scheme = config.scheme();
+        final Map<String, String> map = config.configMap();
+        return of(scheme, map, executor);
+    }
+
+    /**
      * Construct an OpenDAL operator:
      *
      * <p>

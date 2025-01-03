@@ -21,11 +21,10 @@ package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInfo;
+import org.apache.opendal.ServiceConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,10 +34,10 @@ public class OperatorInfoTest {
 
     @Test
     public void testBlockingOperatorInfo() {
-        final Map<String, String> conf = new HashMap<>();
-        conf.put("root", tempDir.toString());
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
 
-        try (final Operator op = Operator.of("fs", conf)) {
+        try (final Operator op = Operator.of(fs)) {
             final OperatorInfo info = op.info;
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("fs");
@@ -57,9 +56,9 @@ public class OperatorInfoTest {
 
     @Test
     public void testOperatorInfo() {
-        final Map<String, String> conf = new HashMap<>();
-        conf.put("root", "/opendal/");
-        try (final AsyncOperator op = AsyncOperator.of("memory", conf)) {
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
+        try (final AsyncOperator op = AsyncOperator.of(memory)) {
             final OperatorInfo info = op.info;
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("memory");

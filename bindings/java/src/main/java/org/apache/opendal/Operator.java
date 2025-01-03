@@ -31,6 +31,17 @@ public class Operator extends NativeObject {
     public final OperatorInfo info;
 
     /**
+     * Construct an OpenDAL blocking operator.
+     *
+     * @param config the config of the underneath service to access data from.
+     */
+    public static Operator of(ServiceConfig config) {
+        try (final AsyncOperator operator = AsyncOperator.of(config)) {
+            return operator.blocking();
+        }
+    }
+
+    /**
      * Construct an OpenDAL blocking operator:
      *
      * <p>

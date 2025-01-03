@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Service configurations that are mapped from
- * <a href="https://docs.rs/opendal/latest/opendal/services/index.html>OpenDAL's services</a>.
+ * <a href="https://docs.rs/opendal/latest/opendal/services/index.html">OpenDAL's services</a>.
  */
 @SuppressWarnings("unused") // intended to be used by users
 public interface ServiceConfig {

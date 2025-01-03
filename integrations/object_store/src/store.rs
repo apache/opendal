@@ -394,8 +394,15 @@ impl ObjectStore for OpendalStore {
 
             if meta.is_dir() {
                 common_prefixes.push(entry.path().into());
-            } else {
+            } else if meta.last_modified().is_some() {
                 objects.push(format_object_meta(entry.path(), meta));
+            } else {
+                let meta = self
+                    .inner
+                    .stat(entry.path())
+                    .await
+                    .map_err(|err| format_object_store_error(err, entry.path()))?;
+                objects.push(format_object_meta(entry.path(), &meta));
             }
         }
 

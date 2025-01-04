@@ -21,6 +21,8 @@ use std::sync::Arc;
 use crate::layers::*;
 use crate::raw::*;
 use crate::*;
+// TODO: is this impor path idiomatic to the project?
+use super::registry::GLOBAL_OPERATOR_REGISTRY;
 
 /// # Operator build API
 ///
@@ -93,6 +95,26 @@ impl Operator {
         let builder = cfg.into_builder();
         let acc = builder.build()?;
         Ok(OperatorBuilder::new(acc))
+    }
+
+    /// TODO: document this.
+    ///
+    /// TODO: improve those examples
+    /// # Examples
+    /// ```
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// fn test() -> Result<()> {
+    ///     let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_uri(
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Self> {
+        GLOBAL_OPERATOR_REGISTRY.with(|registry| registry.parse(uri, options))
     }
 
     /// Create a new operator from given iterator in static dispatch.

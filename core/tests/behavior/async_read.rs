@@ -18,6 +18,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::*;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
@@ -25,8 +26,7 @@ use log::warn;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
-
-use crate::*;
+use tokio::time::sleep;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -39,9 +39,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_reader,
             test_reader_with_if_match,
             test_reader_with_if_none_match,
+            test_reader_with_if_modified_since,
+            test_reader_with_if_unmodified_since,
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
+            test_read_with_if_modified_since,
+            test_read_with_if_unmodified_since,
             test_read_with_dir_path,
             test_read_with_special_chars,
             test_read_with_override_cache_control,
@@ -270,6 +274,64 @@ pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> 
     Ok(())
 }
 
+/// Reader with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
+    let bs = reader.read(..).await?.to_bytes();
+    assert_eq!(bs, content);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Reader with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
+    let bs = reader.read(..).await?.to_bytes();
+    assert_eq!(bs, content);
+
+    Ok(())
+}
+
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
     if !op.info().full_capability().read_with_if_none_match {
@@ -488,6 +550,68 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
         target_content_type
     );
     assert_eq!(resp.bytes().await?, content);
+
+    Ok(())
+}
+
+/// Read with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let bs = op
+        .read_with(&path)
+        .if_modified_since(since)
+        .await?
+        .to_bytes();
+    assert_eq!(bs, content);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let res = op.read_with(&path).if_modified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Read with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified - chrono::Duration::seconds(3600);
+    let res = op.read_with(&path).if_unmodified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified + chrono::Duration::seconds(1);
+    let bs = op
+        .read_with(&path)
+        .if_unmodified_since(since)
+        .await?
+        .to_bytes();
+    assert_eq!(bs, content);
 
     Ok(())
 }

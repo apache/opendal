@@ -28,7 +28,6 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
 use constants::X_AMZ_META_PREFIX;
-use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -37,6 +36,7 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::header::{HeaderName, IF_MODIFIED_SINCE, IF_UNMODIFIED_SINCE};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -406,6 +406,21 @@ impl S3Core {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(
+                IF_MODIFIED_SINCE,
+                format_datetime_into_http_date(if_modified_since),
+            );
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(
+                IF_UNMODIFIED_SINCE,
+                format_datetime_into_http_date(if_unmodified_since),
+            );
+        }
+
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);

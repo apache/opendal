@@ -19,12 +19,12 @@
 //!
 //! By using futures, users can add more options for operation.
 
+use chrono::{DateTime, Utc};
+use futures::Future;
 use std::collections::HashMap;
 use std::future::IntoFuture;
 use std::ops::RangeBounds;
 use std::time::Duration;
-
-use futures::Future;
 
 use crate::raw::*;
 use crate::*;
@@ -212,6 +212,16 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
         self.map(|(args, op_reader)| (args.with_if_none_match(v), op_reader))
     }
 
+    /// Set the If-Modified-Since for this operation.
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set the If-Unmodified-Since for this operation.
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_unmodified_since(v), op_reader))
+    }
+
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|(args, op_reader)| (args.with_version(v), op_reader))
@@ -256,6 +266,16 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// Set the If-None-Match for this operation.
     pub fn if_none_match(self, etag: &str) -> Self {
         self.map(|(op_read, op_reader)| (op_read.with_if_none_match(etag), op_reader))
+    }
+
+    /// Set the If-Modified-Since for this operation.
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set the If-Unmodified-Since for this operation.
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_unmodified_since(v), op_reader))
     }
 
     /// Set the version for this operation.

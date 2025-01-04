@@ -65,7 +65,6 @@ pub fn parse_datetime_from_from_timestamp(s: i64) -> Result<DateTime<Utc>> {
 
 /// format datetime into http date, this format is required by:
 /// https://httpwg.org/specs/rfc9110.html#field.if-modified-since
-///
 pub fn format_datetime_into_http_date(s: DateTime<Utc>) -> String {
     s.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
 }

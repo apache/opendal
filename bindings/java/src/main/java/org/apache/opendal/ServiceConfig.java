@@ -23,6 +23,7 @@ package org.apache.opendal;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -35,56 +36,59 @@ import lombok.RequiredArgsConstructor;
  */
 @SuppressWarnings("unused") // intended to be used by users
 public interface ServiceConfig {
+    /**
+     * The scheme of the service.
+     *
+     * @return the scheme
+     */
     String scheme();
 
-    HashMap<String, String> configMap();
+    /**
+     * Convert the structured config to a type erased config map.
+     *
+     * @return the config map
+     */
+    Map<String, String> configMap();
 
+    /**
+     * Configuration for service aliyun_drive.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class AliyunDrive implements ServiceConfig {
         /**
-         * The drive_type of this backend.
-         * <p>
-         * All operations will happen under this type of drive.
-         * <p>
-         * Available values are `default`, `backup` and `resource`.
-         * <p>
-         * Fallback to default if not set or no other drives can be found.
+         * <p>The drive_type of this backend.</p>
+         * <p>All operations will happen under this type of drive.</p>
+         * <p>Available values are <code>default</code>, <code>backup</code> and <code>resource</code>.</p>
+         * <p>Fallback to default if not set or no other drives can be found.</p>
          */
         private final @NonNull String driveType;
         /**
-         * The Root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * Default to `/` if not set.
+         * <p>The Root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>Default to <code>/</code> if not set.</p>
          */
         private final String root;
         /**
-         * The access_token of this backend.
-         * <p>
-         * Solution for client-only purpose. #4733
-         * <p>
-         * Required if no client_id, client_secret and refresh_token are provided.
+         * <p>The access_token of this backend.</p>
+         * <p>Solution for client-only purpose. #4733</p>
+         * <p>Required if no client_id, client_secret and refresh_token are provided.</p>
          */
         private final String accessToken;
         /**
-         * The client_id of this backend.
-         * <p>
-         * Required if no access_token is provided.
+         * <p>The client_id of this backend.</p>
+         * <p>Required if no access_token is provided.</p>
          */
         private final String clientId;
         /**
-         * The client_secret of this backend.
-         * <p>
-         * Required if no access_token is provided.
+         * <p>The client_secret of this backend.</p>
+         * <p>Required if no access_token is provided.</p>
          */
         private final String clientSecret;
         /**
-         * The refresh_token of this backend.
-         * <p>
-         * Required if no access_token is provided.
+         * <p>The refresh_token of this backend.</p>
+         * <p>Required if no access_token is provided.</p>
          */
         private final String refreshToken;
 
@@ -94,7 +98,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("drive_type", driveType);
             if (root != null) {
@@ -116,22 +120,22 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service alluxio.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Alluxio implements ServiceConfig {
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * default to `/` if not set.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>default to <code>/</code> if not set.</p>
          */
         private final String root;
         /**
-         * endpoint of this backend.
-         * <p>
-         * Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
+         * <p>endpoint of this backend.</p>
+         * <p>Endpoint must be full uri, mostly like <code>http://127.0.0.1:39999</code>.</p>
          */
         private final String endpoint;
 
@@ -141,7 +145,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -153,28 +157,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service atomicserver.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Atomicserver implements ServiceConfig {
         /**
-         * work dir of this backend
+         * <p>work dir of this backend</p>
          */
         private final String root;
         /**
-         * endpoint of this backend
+         * <p>endpoint of this backend</p>
          */
         private final String endpoint;
         /**
-         * private_key of this backend
+         * <p>private_key of this backend</p>
          */
         private final String privateKey;
         /**
-         * public_key of this backend
+         * <p>public_key of this backend</p>
          */
         private final String publicKey;
         /**
-         * parent_resource_id of this backend
+         * <p>parent_resource_id of this backend</p>
          */
         private final String parentResourceId;
 
@@ -184,7 +191,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -205,55 +212,57 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service azblob.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Azblob implements ServiceConfig {
         /**
-         * The container name of Azblob service backend.
+         * <p>The container name of Azblob service backend.</p>
          */
         private final @NonNull String container;
         /**
-         * The root of Azblob service backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>The root of Azblob service backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * The endpoint of Azblob service backend.
-         * <p>
-         * Endpoint must be full uri, e.g.
-         * <p>
-         * - Azblob: `https://accountname.blob.core.windows.net`
-         * - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
+         * <p>The endpoint of Azblob service backend.</p>
+         * <p>Endpoint must be full uri, e.g.</p>
+         * <ul>
+         * <li>Azblob: <code>https://accountname.blob.core.windows.net</code></li>
+         * <li>Azurite: <code>http://127.0.0.1:10000/devstoreaccount1</code></li>
+         * </ul>
          */
         private final String endpoint;
         /**
-         * The account name of Azblob service backend.
+         * <p>The account name of Azblob service backend.</p>
          */
         private final String accountName;
         /**
-         * The account key of Azblob service backend.
+         * <p>The account key of Azblob service backend.</p>
          */
         private final String accountKey;
         /**
-         * The encryption key of Azblob service backend.
+         * <p>The encryption key of Azblob service backend.</p>
          */
         private final String encryptionKey;
         /**
-         * The encryption key sha256 of Azblob service backend.
+         * <p>The encryption key sha256 of Azblob service backend.</p>
          */
         private final String encryptionKeySha256;
         /**
-         * The encryption algorithm of Azblob service backend.
+         * <p>The encryption algorithm of Azblob service backend.</p>
          */
         private final String encryptionAlgorithm;
         /**
-         * The sas token of Azblob service backend.
+         * <p>The sas token of Azblob service backend.</p>
          */
         private final String sasToken;
         /**
-         * The maximum batch operations of Azblob service backend.
+         * <p>The maximum batch operations of Azblob service backend.</p>
          */
         private final Long batchMaxOperations;
 
@@ -263,7 +272,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("container", container);
             if (root != null) {
@@ -297,28 +306,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service azdls.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Azdls implements ServiceConfig {
         /**
-         * Filesystem name of this backend.
+         * <p>Filesystem name of this backend.</p>
          */
         private final @NonNull String filesystem;
         /**
-         * Root of this backend.
+         * <p>Root of this backend.</p>
          */
         private final String root;
         /**
-         * Endpoint of this backend.
+         * <p>Endpoint of this backend.</p>
          */
         private final String endpoint;
         /**
-         * Account name of this backend.
+         * <p>Account name of this backend.</p>
          */
         private final String accountName;
         /**
-         * Account key of this backend.
+         * <p>Account key of this backend.</p>
          */
         private final String accountKey;
 
@@ -328,7 +340,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("filesystem", filesystem);
             if (root != null) {
@@ -347,32 +359,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service azfile.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Azfile implements ServiceConfig {
         /**
-         * The share name for azfile.
+         * <p>The share name for azfile.</p>
          */
         private final @NonNull String shareName;
         /**
-         * The root path for azfile.
+         * <p>The root path for azfile.</p>
          */
         private final String root;
         /**
-         * The endpoint for azfile.
+         * <p>The endpoint for azfile.</p>
          */
         private final String endpoint;
         /**
-         * The account name for azfile.
+         * <p>The account name for azfile.</p>
          */
         private final String accountName;
         /**
-         * The account key for azfile.
+         * <p>The account key for azfile.</p>
          */
         private final String accountKey;
         /**
-         * The sas token for azfile.
+         * <p>The sas token for azfile.</p>
          */
         private final String sasToken;
 
@@ -382,7 +397,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("share_name", shareName);
             if (root != null) {
@@ -404,40 +419,42 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service b2.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class B2 implements ServiceConfig {
         /**
-         * bucket of this backend.
-         * <p>
-         * required.
+         * <p>bucket of this backend.</p>
+         * <p>required.</p>
          */
         private final @NonNull String bucket;
         /**
-         * bucket id of this backend.
-         * <p>
-         * required.
+         * <p>bucket id of this backend.</p>
+         * <p>required.</p>
          */
         private final @NonNull String bucketId;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * keyID of this backend.
-         * <p>
-         * - If application_key_id is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
+         * <p>keyID of this backend.</p>
+         * <ul>
+         * <li>If application_key_id is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
          */
         private final String applicationKeyId;
         /**
-         * applicationKey of this backend.
-         * <p>
-         * - If application_key is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
+         * <p>applicationKey of this backend.</p>
+         * <ul>
+         * <li>If application_key is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
          */
         private final String applicationKey;
 
@@ -447,7 +464,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             map.put("bucket_id", bucketId);
@@ -464,12 +481,15 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service cacache.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Cacache implements ServiceConfig {
         /**
-         * That path to the cacache data directory.
+         * <p>That path to the cacache data directory.</p>
          */
         private final String datadir;
 
@@ -479,7 +499,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (datadir != null) {
                 map.put("datadir", datadir);
@@ -488,24 +508,25 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service chainsafe.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Chainsafe implements ServiceConfig {
         /**
-         * bucket_id of this backend.
-         * <p>
-         * required.
+         * <p>bucket_id of this backend.</p>
+         * <p>required.</p>
          */
         private final @NonNull String bucketId;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * api_key of this backend.
+         * <p>api_key of this backend.</p>
          */
         private final String apiKey;
 
@@ -515,7 +536,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket_id", bucketId);
             if (root != null) {
@@ -528,24 +549,27 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service cloudflare_kv.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class CloudflareKv implements ServiceConfig {
         /**
-         * The token used to authenticate with CloudFlare.
+         * <p>The token used to authenticate with CloudFlare.</p>
          */
         private final String token;
         /**
-         * The account ID used to authenticate with CloudFlare. Used as URI path parameter.
+         * <p>The account ID used to authenticate with CloudFlare. Used as URI path parameter.</p>
          */
         private final String accountId;
         /**
-         * The namespace ID. Used as URI path parameter.
+         * <p>The namespace ID. Used as URI path parameter.</p>
          */
         private final String namespaceId;
         /**
-         * Root within this backend.
+         * <p>Root within this backend.</p>
          */
         private final String root;
 
@@ -555,7 +579,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (token != null) {
                 map.put("token", token);
@@ -573,14 +597,16 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service compfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Compfs implements ServiceConfig {
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
 
@@ -590,7 +616,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -599,32 +625,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service cos.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Cos implements ServiceConfig {
         /**
-         * Root of this backend.
+         * <p>Root of this backend.</p>
          */
         private final String root;
         /**
-         * Endpoint of this backend.
+         * <p>Endpoint of this backend.</p>
          */
         private final String endpoint;
         /**
-         * Secret ID of this backend.
+         * <p>Secret ID of this backend.</p>
          */
         private final String secretId;
         /**
-         * Secret key of this backend.
+         * <p>Secret key of this backend.</p>
          */
         private final String secretKey;
         /**
-         * Bucket of this backend.
+         * <p>Bucket of this backend.</p>
          */
         private final String bucket;
         /**
-         * Disable config load so that opendal will not load config from
+         * <p>Disable config load so that opendal will not load config from</p>
          */
         private final Boolean disableConfigLoad;
 
@@ -634,7 +663,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -658,36 +687,39 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service d1.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class D1 implements ServiceConfig {
         /**
-         * Set the token of cloudflare api.
+         * <p>Set the token of cloudflare api.</p>
          */
         private final String token;
         /**
-         * Set the account id of cloudflare api.
+         * <p>Set the account id of cloudflare api.</p>
          */
         private final String accountId;
         /**
-         * Set the database id of cloudflare api.
+         * <p>Set the database id of cloudflare api.</p>
          */
         private final String databaseId;
         /**
-         * Set the working directory of OpenDAL.
+         * <p>Set the working directory of OpenDAL.</p>
          */
         private final String root;
         /**
-         * Set the table of D1 Database.
+         * <p>Set the table of D1 Database.</p>
          */
         private final String table;
         /**
-         * Set the key field of D1 Database.
+         * <p>Set the key field of D1 Database.</p>
          */
         private final String keyField;
         /**
-         * Set the value field of D1 Database.
+         * <p>Set the value field of D1 Database.</p>
          */
         private final String valueField;
 
@@ -697,7 +729,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (token != null) {
                 map.put("token", token);
@@ -724,12 +756,15 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service dashmap.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Dashmap implements ServiceConfig {
         /**
-         * The root path for dashmap.
+         * <p>The root path for dashmap.</p>
          */
         private final String root;
 
@@ -739,7 +774,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -748,20 +783,23 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service dbfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Dbfs implements ServiceConfig {
         /**
-         * The root for dbfs.
+         * <p>The root for dbfs.</p>
          */
         private final String root;
         /**
-         * The endpoint for dbfs.
+         * <p>The endpoint for dbfs.</p>
          */
         private final String endpoint;
         /**
-         * The token for dbfs.
+         * <p>The token for dbfs.</p>
          */
         private final String token;
 
@@ -771,7 +809,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -786,28 +824,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service dropbox.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Dropbox implements ServiceConfig {
         /**
-         * root path for dropbox.
+         * <p>root path for dropbox.</p>
          */
         private final String root;
         /**
-         * access token for dropbox.
+         * <p>access token for dropbox.</p>
          */
         private final String accessToken;
         /**
-         * refresh_token for dropbox.
+         * <p>refresh_token for dropbox.</p>
          */
         private final String refreshToken;
         /**
-         * client_id for dropbox.
+         * <p>client_id for dropbox.</p>
          */
         private final String clientId;
         /**
-         * client_secret for dropbox.
+         * <p>client_secret for dropbox.</p>
          */
         private final String clientSecret;
 
@@ -817,7 +858,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -838,52 +879,48 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service etcd.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Etcd implements ServiceConfig {
         /**
-         * network address of the Etcd services.
-         * If use https, must set TLS options: `ca_path`, `cert_path`, `key_path`.
-         * e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792"
-         * <p>
-         * default is "http://127.0.0.1:2379"
+         * <p>network address of the Etcd services.
+         * If use https, must set TLS options: <code>ca_path</code>, <code>cert_path</code>, <code>key_path</code>.
+         * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
+         * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
         private final String endpoints;
         /**
-         * the username to connect etcd service.
-         * <p>
-         * default is None
+         * <p>the username to connect etcd service.</p>
+         * <p>default is None</p>
          */
         private final String username;
         /**
-         * the password for authentication
-         * <p>
-         * default is None
+         * <p>the password for authentication</p>
+         * <p>default is None</p>
          */
         private final String password;
         /**
-         * the working directory of the etcd service. Can be "/path/to/dir"
-         * <p>
-         * default is "/"
+         * <p>the working directory of the etcd service. Can be &quot;/path/to/dir&quot;</p>
+         * <p>default is &quot;/&quot;</p>
          */
         private final String root;
         /**
-         * certificate authority file path
-         * <p>
-         * default is None
+         * <p>certificate authority file path</p>
+         * <p>default is None</p>
          */
         private final String caPath;
         /**
-         * cert path
-         * <p>
-         * default is None
+         * <p>cert path</p>
+         * <p>default is None</p>
          */
         private final String certPath;
         /**
-         * key path
-         * <p>
-         * default is None
+         * <p>key path</p>
+         * <p>default is None</p>
          */
         private final String keyPath;
 
@@ -893,7 +930,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoints != null) {
                 map.put("endpoints", endpoints);
@@ -920,16 +957,19 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service fs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Fs implements ServiceConfig {
         /**
-         * root dir for backend
+         * <p>root dir for backend</p>
          */
         private final String root;
         /**
-         * tmp dir for atomic write
+         * <p>tmp dir for atomic write</p>
          */
         private final String atomicWriteDir;
 
@@ -939,7 +979,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -951,65 +991,67 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service gcs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Gcs implements ServiceConfig {
         /**
-         * bucket name
+         * <p>bucket name</p>
          */
         private final @NonNull String bucket;
         /**
-         * root URI, all operations happens under `root`
+         * <p>root URI, all operations happens under <code>root</code></p>
          */
         private final String root;
         /**
-         * endpoint URI of GCS service,
-         * default is `https://storage.googleapis.com`
+         * <p>endpoint URI of GCS service,
+         * default is <code>https://storage.googleapis.com</code></p>
          */
         private final String endpoint;
         /**
-         * Scope for gcs.
+         * <p>Scope for gcs.</p>
          */
         private final String scope;
         /**
-         * Service Account for gcs.
+         * <p>Service Account for gcs.</p>
          */
         private final String serviceAccount;
         /**
-         * Credentials string for GCS service OAuth2 authentication.
+         * <p>Credentials string for GCS service OAuth2 authentication.</p>
          */
         private final String credential;
         /**
-         * Local path to credentials file for GCS service OAuth2 authentication.
+         * <p>Local path to credentials file for GCS service OAuth2 authentication.</p>
          */
         private final String credentialPath;
         /**
-         * The predefined acl for GCS.
+         * <p>The predefined acl for GCS.</p>
          */
         private final String predefinedAcl;
         /**
-         * The default storage class used by gcs.
+         * <p>The default storage class used by gcs.</p>
          */
         private final String defaultStorageClass;
         /**
-         * Allow opendal to send requests without signing when credentials are not
-         * loaded.
+         * <p>Allow opendal to send requests without signing when credentials are not
+         * loaded.</p>
          */
         private final Boolean allowAnonymous;
         /**
-         * Disable attempting to load credentials from the GCE metadata server when
-         * running within Google Cloud.
+         * <p>Disable attempting to load credentials from the GCE metadata server when
+         * running within Google Cloud.</p>
          */
         private final Boolean disableVmMetadata;
         /**
-         * Disable loading configuration from the environment.
+         * <p>Disable loading configuration from the environment.</p>
          */
         private final Boolean disableConfigLoad;
         /**
-         * A Google Cloud OAuth2 token.
-         * <p>
-         * Takes precedence over `credential` and `credential_path`.
+         * <p>A Google Cloud OAuth2 token.</p>
+         * <p>Takes precedence over <code>credential</code> and <code>credential_path</code>.</p>
          */
         private final String token;
 
@@ -1019,7 +1061,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             if (root != null) {
@@ -1062,28 +1104,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service gdrive.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Gdrive implements ServiceConfig {
         /**
-         * The root for gdrive
+         * <p>The root for gdrive</p>
          */
         private final String root;
         /**
-         * Access token for gdrive.
+         * <p>Access token for gdrive.</p>
          */
         private final String accessToken;
         /**
-         * Refresh token for gdrive.
+         * <p>Refresh token for gdrive.</p>
          */
         private final String refreshToken;
         /**
-         * Client id for gdrive.
+         * <p>Client id for gdrive.</p>
          */
         private final String clientId;
         /**
-         * Client secret for gdrive.
+         * <p>Client secret for gdrive.</p>
          */
         private final String clientSecret;
 
@@ -1093,7 +1138,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1114,24 +1159,27 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service ghac.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Ghac implements ServiceConfig {
         /**
-         * The root path for ghac.
+         * <p>The root path for ghac.</p>
          */
         private final String root;
         /**
-         * The version that used by cache.
+         * <p>The version that used by cache.</p>
          */
         private final String version;
         /**
-         * The endpoint for ghac service.
+         * <p>The endpoint for ghac service.</p>
          */
         private final String endpoint;
         /**
-         * The runtime token for ghac service.
+         * <p>The runtime token for ghac service.</p>
          */
         private final String runtimeToken;
 
@@ -1141,7 +1189,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1159,34 +1207,33 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service github.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Github implements ServiceConfig {
         /**
-         * GitHub repo owner.
-         * <p>
-         * required.
+         * <p>GitHub repo owner.</p>
+         * <p>required.</p>
          */
         private final @NonNull String owner;
         /**
-         * GitHub repo name.
-         * <p>
-         * required.
+         * <p>GitHub repo name.</p>
+         * <p>required.</p>
          */
         private final @NonNull String repo;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * GitHub access_token.
-         * <p>
-         * optional.
+         * <p>GitHub access_token.</p>
+         * <p>optional.
          * If not provided, the backend will only support read operations for public repositories.
-         * And rate limit will be limited to 60 requests per hour.
+         * And rate limit will be limited to 60 requests per hour.</p>
          */
         private final String token;
 
@@ -1196,7 +1243,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("owner", owner);
             map.put("repo", repo);
@@ -1210,28 +1257,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service gridfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Gridfs implements ServiceConfig {
         /**
-         * The connection string of the MongoDB service.
+         * <p>The connection string of the MongoDB service.</p>
          */
         private final String connectionString;
         /**
-         * The database name of the MongoDB GridFs service to read/write.
+         * <p>The database name of the MongoDB GridFs service to read/write.</p>
          */
         private final String database;
         /**
-         * The bucket name of the MongoDB GridFs service to read/write.
+         * <p>The bucket name of the MongoDB GridFs service to read/write.</p>
          */
         private final String bucket;
         /**
-         * The chunk size of the MongoDB GridFs service used to break the user file into chunks.
+         * <p>The chunk size of the MongoDB GridFs service used to break the user file into chunks.</p>
          */
         private final Integer chunkSize;
         /**
-         * The working directory, all operations will be performed under it.
+         * <p>The working directory, all operations will be performed under it.</p>
          */
         private final String root;
 
@@ -1241,7 +1291,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -1262,20 +1312,23 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service hdfs_native.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class HdfsNative implements ServiceConfig {
         /**
-         * work dir of this backend
+         * <p>work dir of this backend</p>
          */
         private final String root;
         /**
-         * url of this backend
+         * <p>url of this backend</p>
          */
         private final String url;
         /**
-         * enable the append capacity
+         * <p>enable the append capacity</p>
          */
         private final Boolean enableAppend;
 
@@ -1285,7 +1338,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1300,28 +1353,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service http.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Http implements ServiceConfig {
         /**
-         * endpoint of this backend
+         * <p>endpoint of this backend</p>
          */
         private final String endpoint;
         /**
-         * username of this backend
+         * <p>username of this backend</p>
          */
         private final String username;
         /**
-         * password of this backend
+         * <p>password of this backend</p>
          */
         private final String password;
         /**
-         * token of this backend
+         * <p>token of this backend</p>
          */
         private final String token;
         /**
-         * root of this backend
+         * <p>root of this backend</p>
          */
         private final String root;
 
@@ -1331,7 +1387,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1352,40 +1408,40 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service huggingface.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Huggingface implements ServiceConfig {
         /**
-         * Repo type of this backend. Default is model.
-         * <p>
-         * Available values:
-         * - model
-         * - dataset
+         * <p>Repo type of this backend. Default is model.</p>
+         * <p>Available values:</p>
+         * <ul>
+         * <li>model</li>
+         * <li>dataset</li>
+         * </ul>
          */
         private final String repoType;
         /**
-         * Repo id of this backend.
-         * <p>
-         * This is required.
+         * <p>Repo id of this backend.</p>
+         * <p>This is required.</p>
          */
         private final String repoId;
         /**
-         * Revision of this backend.
-         * <p>
-         * Default is main.
+         * <p>Revision of this backend.</p>
+         * <p>Default is main.</p>
          */
         private final String revision;
         /**
-         * Root of this backend. Can be "/path/to/dir".
-         * <p>
-         * Default is "/".
+         * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
+         * <p>Default is &quot;/&quot;.</p>
          */
         private final String root;
         /**
-         * Token of this backend.
-         * <p>
-         * This is optional.
+         * <p>Token of this backend.</p>
+         * <p>This is optional.</p>
          */
         private final String token;
 
@@ -1395,7 +1451,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (repoType != null) {
                 map.put("repo_type", repoType);
@@ -1416,45 +1472,42 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service icloud.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Icloud implements ServiceConfig {
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * default to `/` if not set.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>default to <code>/</code> if not set.</p>
          */
         private final String root;
         /**
-         * apple_id of this backend.
-         * <p>
-         * apple_id must be full, mostly like `example@gmail.com`.
+         * <p>apple_id of this backend.</p>
+         * <p>apple_id must be full, mostly like <code>example@gmail.com</code>.</p>
          */
         private final String appleId;
         /**
-         * password of this backend.
-         * <p>
-         * password must be full.
+         * <p>password of this backend.</p>
+         * <p>password must be full.</p>
          */
         private final String password;
         /**
-         * Session
-         * <p>
-         * token must be valid.
+         * <p>Session</p>
+         * <p>token must be valid.</p>
          */
         private final String trustToken;
         /**
-         * ds_web_auth_token must be set in Session
+         * <p>ds_web_auth_token must be set in Session</p>
          */
         private final String dsWebAuthToken;
         /**
-         * enable the china origin
-         * China region `origin` Header needs to be set to "https://www.icloud.com.cn".
-         * <p>
-         * otherwise Apple server will return 302.
+         * <p>enable the china origin
+         * China region <code>origin</code> Header needs to be set to &quot;https://www.icloud.com.cn&quot;.</p>
+         * <p>otherwise Apple server will return 302.</p>
          */
         private final Boolean isChinaMainland;
 
@@ -1464,7 +1517,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1488,16 +1541,19 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service ipfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Ipfs implements ServiceConfig {
         /**
-         * IPFS gateway endpoint.
+         * <p>IPFS gateway endpoint.</p>
          */
         private final String endpoint;
         /**
-         * IPFS root.
+         * <p>IPFS root.</p>
          */
         private final String root;
 
@@ -1507,7 +1563,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1519,16 +1575,19 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service ipmfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Ipmfs implements ServiceConfig {
         /**
-         * Root for ipfs.
+         * <p>Root for ipfs.</p>
          */
         private final String root;
         /**
-         * Endpoint for ipfs.
+         * <p>Endpoint for ipfs.</p>
          */
         private final String endpoint;
 
@@ -1538,7 +1597,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1550,26 +1609,28 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service koofr.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Koofr implements ServiceConfig {
         /**
-         * Koofr endpoint.
+         * <p>Koofr endpoint.</p>
          */
         private final @NonNull String endpoint;
         /**
-         * Koofr email.
+         * <p>Koofr email.</p>
          */
         private final @NonNull String email;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * password of this backend. (Must be the application password)
+         * <p>password of this backend. (Must be the application password)</p>
          */
         private final String password;
 
@@ -1579,7 +1640,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("endpoint", endpoint);
             map.put("email", email);
@@ -1593,44 +1654,41 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service lakefs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Lakefs implements ServiceConfig {
         /**
-         * Base url.
-         * <p>
-         * This is required.
+         * <p>Base url.</p>
+         * <p>This is required.</p>
          */
         private final String endpoint;
         /**
-         * Username for Lakefs basic authentication.
-         * <p>
-         * This is required.
+         * <p>Username for Lakefs basic authentication.</p>
+         * <p>This is required.</p>
          */
         private final String username;
         /**
-         * Password for Lakefs basic authentication.
-         * <p>
-         * This is required.
+         * <p>Password for Lakefs basic authentication.</p>
+         * <p>This is required.</p>
          */
         private final String password;
         /**
-         * Root of this backend. Can be "/path/to/dir".
-         * <p>
-         * Default is "/".
+         * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
+         * <p>Default is &quot;/&quot;.</p>
          */
         private final String root;
         /**
-         * The repository name
-         * <p>
-         * This is required.
+         * <p>The repository name</p>
+         * <p>This is required.</p>
          */
         private final String repository;
         /**
-         * Name of the branch or a commit ID. Default is main.
-         * <p>
-         * This is optional.
+         * <p>Name of the branch or a commit ID. Default is main.</p>
+         * <p>This is optional.</p>
          */
         private final String branch;
 
@@ -1640,7 +1698,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1664,32 +1722,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service libsql.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Libsql implements ServiceConfig {
         /**
-         * Connection string for libsql service.
+         * <p>Connection string for libsql service.</p>
          */
         private final String connectionString;
         /**
-         * Authentication token for libsql service.
+         * <p>Authentication token for libsql service.</p>
          */
         private final String authToken;
         /**
-         * Table name for libsql service.
+         * <p>Table name for libsql service.</p>
          */
         private final String table;
         /**
-         * Key field name for libsql service.
+         * <p>Key field name for libsql service.</p>
          */
         private final String keyField;
         /**
-         * Value field name for libsql service.
+         * <p>Value field name for libsql service.</p>
          */
         private final String valueField;
         /**
-         * Root for libsql service.
+         * <p>Root for libsql service.</p>
          */
         private final String root;
 
@@ -1699,7 +1760,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -1723,32 +1784,33 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service memcached.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Memcached implements ServiceConfig {
         /**
-         * network address of the memcached service.
-         * <p>
-         * For example: "tcp://localhost:11211"
+         * <p>network address of the memcached service.</p>
+         * <p>For example: &quot;tcp://localhost:11211&quot;</p>
          */
         private final String endpoint;
         /**
-         * the working directory of the service. Can be "/path/to/dir"
-         * <p>
-         * default is "/"
+         * <p>the working directory of the service. Can be &quot;/path/to/dir&quot;</p>
+         * <p>default is &quot;/&quot;</p>
          */
         private final String root;
         /**
-         * Memcached username, optional.
+         * <p>Memcached username, optional.</p>
          */
         private final String username;
         /**
-         * Memcached password, optional.
+         * <p>Memcached password, optional.</p>
          */
         private final String password;
         /**
-         * The default ttl for put operations.
+         * <p>The default ttl for put operations.</p>
          */
         private final Duration defaultTtl;
 
@@ -1758,7 +1820,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1779,12 +1841,15 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service memory.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Memory implements ServiceConfig {
         /**
-         * root of the backend.
+         * <p>root of the backend.</p>
          */
         private final String root;
 
@@ -1794,7 +1859,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -1803,30 +1868,30 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service mini_moka.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class MiniMoka implements ServiceConfig {
         /**
-         * Sets the max capacity of the cache.
-         * <p>
-         * Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
+         * <p>Sets the max capacity of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity"><code>mini-moka::sync::CacheBuilder::max_capacity</code></a></p>
          */
         private final Long maxCapacity;
         /**
-         * Sets the time to live of the cache.
-         * <p>
-         * Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
+         * <p>Sets the time to live of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
         private final Duration timeToLive;
         /**
-         * Sets the time to idle of the cache.
-         * <p>
-         * Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+         * <p>Sets the time to idle of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
         private final Duration timeToIdle;
         /**
-         * root path of this backend
+         * <p>root path of this backend</p>
          */
         private final String root;
 
@@ -1836,7 +1901,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (maxCapacity != null) {
                 map.put("max_capacity", String.valueOf(maxCapacity));
@@ -1854,40 +1919,39 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service moka.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Moka implements ServiceConfig {
         /**
-         * Name for this cache instance.
+         * <p>Name for this cache instance.</p>
          */
         private final String name;
         /**
-         * Sets the max capacity of the cache.
-         * <p>
-         * Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
+         * <p>Sets the max capacity of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity"><code>moka::sync::CacheBuilder::max_capacity</code></a></p>
          */
         private final Long maxCapacity;
         /**
-         * Sets the time to live of the cache.
-         * <p>
-         * Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
+         * <p>Sets the time to live of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
         private final Duration timeToLive;
         /**
-         * Sets the time to idle of the cache.
-         * <p>
-         * Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+         * <p>Sets the time to idle of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
         private final Duration timeToIdle;
         /**
-         * Sets the segments number of the cache.
-         * <p>
-         * Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
+         * <p>Sets the segments number of the cache.</p>
+         * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments"><code>moka::sync::CacheBuilder::segments</code></a></p>
          */
         private final Long numSegments;
         /**
-         * root path of this backend
+         * <p>root path of this backend</p>
          */
         private final String root;
 
@@ -1897,7 +1961,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (name != null) {
                 map.put("name", name);
@@ -1921,32 +1985,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service mongodb.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Mongodb implements ServiceConfig {
         /**
-         * connection string of this backend
+         * <p>connection string of this backend</p>
          */
         private final String connectionString;
         /**
-         * database of this backend
+         * <p>database of this backend</p>
          */
         private final String database;
         /**
-         * collection of this backend
+         * <p>collection of this backend</p>
          */
         private final String collection;
         /**
-         * root of this backend
+         * <p>root of this backend</p>
          */
         private final String root;
         /**
-         * key field of this backend
+         * <p>key field of this backend</p>
          */
         private final String keyField;
         /**
-         * value field of this backend
+         * <p>value field of this backend</p>
          */
         private final String valueField;
 
@@ -1956,7 +2023,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -1980,16 +2047,17 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service monoiofs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Monoiofs implements ServiceConfig {
         /**
-         * The Root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * Builder::build will return error if not set.
+         * <p>The Root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>Builder::build will return error if not set.</p>
          */
         private final String root;
 
@@ -1999,7 +2067,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -2008,39 +2076,40 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service mysql.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Mysql implements ServiceConfig {
         /**
-         * This connection string is used to connect to the mysql service. There are url based formats:
-         * <p>
-         * ## Url
-         * <p>
-         * This format resembles the url format of the mysql client. The format is: `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`
-         * <p>
-         * - `mysql://user@localhost`
-         * - `mysql://user:password@localhost`
-         * - `mysql://user:password@localhost:3306`
-         * - `mysql://user:password@localhost:3306/db`
-         * <p>
-         * For more information, please refer to <https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html>.
+         * <p>This connection string is used to connect to the mysql service. There are url based formats:</p>
+         * <h2>Url</h2>
+         * <p>This format resembles the url format of the mysql client. The format is: <code>[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&amp;attribute2=value2...</code></p>
+         * <ul>
+         * <li><code>mysql://user@localhost</code></li>
+         * <li><code>mysql://user:password@localhost</code></li>
+         * <li><code>mysql://user:password@localhost:3306</code></li>
+         * <li><code>mysql://user:password@localhost:3306/db</code></li>
+         * </ul>
+         * <p>For more information, please refer to <a href="https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html</a>.</p>
          */
         private final String connectionString;
         /**
-         * The table name for mysql.
+         * <p>The table name for mysql.</p>
          */
         private final String table;
         /**
-         * The key field name for mysql.
+         * <p>The key field name for mysql.</p>
          */
         private final String keyField;
         /**
-         * The value field name for mysql.
+         * <p>The value field name for mysql.</p>
          */
         private final String valueField;
         /**
-         * The root for mysql.
+         * <p>The root for mysql.</p>
          */
         private final String root;
 
@@ -2050,7 +2119,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -2071,44 +2140,47 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service nebula_graph.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class NebulaGraph implements ServiceConfig {
         /**
-         * The host addr of nebulagraph's graphd server
+         * <p>The host addr of nebulagraph's graphd server</p>
          */
         private final String host;
         /**
-         * The host port of nebulagraph's graphd server
+         * <p>The host port of nebulagraph's graphd server</p>
          */
         private final Integer port;
         /**
-         * The username of nebulagraph's graphd server
+         * <p>The username of nebulagraph's graphd server</p>
          */
         private final String username;
         /**
-         * The password of nebulagraph's graphd server
+         * <p>The password of nebulagraph's graphd server</p>
          */
         private final String password;
         /**
-         * The space name of nebulagraph's graphd server
+         * <p>The space name of nebulagraph's graphd server</p>
          */
         private final String space;
         /**
-         * The tag name of nebulagraph's graphd server
+         * <p>The tag name of nebulagraph's graphd server</p>
          */
         private final String tag;
         /**
-         * The key field name of the NebulaGraph service to read/write.
+         * <p>The key field name of the NebulaGraph service to read/write.</p>
          */
         private final String keyField;
         /**
-         * The value field name of the NebulaGraph service to read/write.
+         * <p>The value field name of the NebulaGraph service to read/write.</p>
          */
         private final String valueField;
         /**
-         * The root for NebulaGraph
+         * <p>The root for NebulaGraph</p>
          */
         private final String root;
 
@@ -2118,7 +2190,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (host != null) {
                 map.put("host", host);
@@ -2151,28 +2223,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service obs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Obs implements ServiceConfig {
         /**
-         * Root for obs.
+         * <p>Root for obs.</p>
          */
         private final String root;
         /**
-         * Endpoint for obs.
+         * <p>Endpoint for obs.</p>
          */
         private final String endpoint;
         /**
-         * Access key id for obs.
+         * <p>Access key id for obs.</p>
          */
         private final String accessKeyId;
         /**
-         * Secret access key for obs.
+         * <p>Secret access key for obs.</p>
          */
         private final String secretAccessKey;
         /**
-         * Bucket for obs.
+         * <p>Bucket for obs.</p>
          */
         private final String bucket;
 
@@ -2182,7 +2257,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -2203,16 +2278,19 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service onedrive.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Onedrive implements ServiceConfig {
         /**
-         * bearer access token for OneDrive
+         * <p>bearer access token for OneDrive</p>
          */
         private final String accessToken;
         /**
-         * root path of OneDrive folder.
+         * <p>root path of OneDrive folder.</p>
          */
         private final String root;
 
@@ -2222,7 +2300,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (accessToken != null) {
                 map.put("access_token", accessToken);
@@ -2234,84 +2312,90 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service oss.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Oss implements ServiceConfig {
         /**
-         * Bucket for oss.
+         * <p>Bucket for oss.</p>
          */
         private final @NonNull String bucket;
         /**
-         * Root for oss.
+         * <p>Root for oss.</p>
          */
         private final String root;
         /**
-         * Endpoint for oss.
+         * <p>Endpoint for oss.</p>
          */
         private final String endpoint;
         /**
-         * Presign endpoint for oss.
+         * <p>Presign endpoint for oss.</p>
          */
         private final String presignEndpoint;
         /**
-         * Server side encryption for oss.
+         * <p>Server side encryption for oss.</p>
          */
         private final String serverSideEncryption;
         /**
-         * Server side encryption key id for oss.
+         * <p>Server side encryption key id for oss.</p>
          */
         private final String serverSideEncryptionKeyId;
         /**
-         * Allow anonymous for oss.
+         * <p>Allow anonymous for oss.</p>
          */
         private final Boolean allowAnonymous;
         /**
-         * Access key id for oss.
+         * <p>Access key id for oss.</p>
          */
         private final String accessKeyId;
         /**
-         * Access key secret for oss.
+         * <p>Access key secret for oss.</p>
          */
         private final String accessKeySecret;
         /**
-         * The size of max batch operations.
+         * <p>The size of max batch operations.</p>
          *
          * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
          */
         private final Long batchMaxOperations;
         /**
-         * The size of max delete operations.
+         * <p>The size of max delete operations.</p>
          */
         private final Long deleteMaxSize;
         /**
-         * If `role_arn` is set, we will use already known config as source
-         * credential to assume role with `role_arn`.
+         * <p>If <code>role_arn</code> is set, we will use already known config as source
+         * credential to assume role with <code>role_arn</code>.</p>
          */
         private final String roleArn;
         /**
-         * role_session_name for this backend.
+         * <p>role_session_name for this backend.</p>
          */
         private final String roleSessionName;
         /**
-         * `oidc_provider_arn` will be loaded from
-         * <p>
-         * - this field if it's `is_some`
-         * - env value: [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+         * <p><code>oidc_provider_arn</code> will be loaded from</p>
+         * <ul>
+         * <li>this field if it's <code>is_some</code></li>
+         * <li>env value: [<code>ALIBABA_CLOUD_OIDC_PROVIDER_ARN</code>]</li>
+         * </ul>
          */
         private final String oidcProviderArn;
         /**
-         * `oidc_token_file` will be loaded from
-         * <p>
-         * - this field if it's `is_some`
-         * - env value: [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+         * <p><code>oidc_token_file</code> will be loaded from</p>
+         * <ul>
+         * <li>this field if it's <code>is_some</code></li>
+         * <li>env value: [<code>ALIBABA_CLOUD_OIDC_TOKEN_FILE</code>]</li>
+         * </ul>
          */
         private final String oidcTokenFile;
         /**
-         * `sts_endpoint` will be loaded from
-         * <p>
-         * - this field if it's `is_some`
-         * - env value: [`ALIBABA_CLOUD_STS_ENDPOINT`]
+         * <p><code>sts_endpoint</code> will be loaded from</p>
+         * <ul>
+         * <li>this field if it's <code>is_some</code></li>
+         * <li>env value: [<code>ALIBABA_CLOUD_STS_ENDPOINT</code>]</li>
+         * </ul>
          */
         private final String stsEndpoint;
 
@@ -2321,7 +2405,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             if (root != null) {
@@ -2373,26 +2457,28 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service pcloud.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Pcloud implements ServiceConfig {
         /**
-         * pCloud  endpoint address.
+         * <p>pCloud  endpoint address.</p>
          */
         private final @NonNull String endpoint;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * pCloud username.
+         * <p>pCloud username.</p>
          */
         private final String username;
         /**
-         * pCloud password.
+         * <p>pCloud password.</p>
          */
         private final String password;
 
@@ -2402,7 +2488,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("endpoint", endpoint);
             if (root != null) {
@@ -2418,20 +2504,23 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service persy.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Persy implements ServiceConfig {
         /**
-         * That path to the persy data file. The directory in the path must already exist.
+         * <p>That path to the persy data file. The directory in the path must already exist.</p>
          */
         private final String datafile;
         /**
-         * That name of the persy segment.
+         * <p>That name of the persy segment.</p>
          */
         private final String segment;
         /**
-         * That name of the persy index.
+         * <p>That name of the persy index.</p>
          */
         private final String index;
 
@@ -2441,7 +2530,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (datafile != null) {
                 map.put("datafile", datafile);
@@ -2456,39 +2545,40 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service postgresql.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Postgresql implements ServiceConfig {
         /**
-         * Root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * Default to `/` if not set.
+         * <p>Root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>Default to <code>/</code> if not set.</p>
          */
         private final String root;
         /**
-         * The URL should be with a scheme of either `postgres://` or `postgresql://`.
-         * <p>
-         * - `postgresql://user@localhost`
-         * - `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10`
-         * - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`
-         * - `postgresql:///mydb?user=user&host=/var/lib/postgresql`
-         * <p>
-         * For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
+         * <p>The URL should be with a scheme of either <code>postgres://</code> or <code>postgresql://</code>.</p>
+         * <ul>
+         * <li><code>postgresql://user@localhost</code></li>
+         * <li><code>postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10</code></li>
+         * <li><code>postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write</code></li>
+         * <li><code>postgresql:///mydb?user=user&amp;host=/var/lib/postgresql</code></li>
+         * </ul>
+         * <p>For more information, please visit <a href="https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html</a>.</p>
          */
         private final String connectionString;
         /**
-         * the table of postgresql
+         * <p>the table of postgresql</p>
          */
         private final String table;
         /**
-         * the key field of postgresql
+         * <p>the key field of postgresql</p>
          */
         private final String keyField;
         /**
-         * the value field of postgresql
+         * <p>the value field of postgresql</p>
          */
         private final String valueField;
 
@@ -2498,7 +2588,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -2519,20 +2609,23 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service redb.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Redb implements ServiceConfig {
         /**
-         * path to the redb data directory.
+         * <p>path to the redb data directory.</p>
          */
         private final String datadir;
         /**
-         * The root for redb.
+         * <p>The root for redb.</p>
          */
         private final String root;
         /**
-         * The table name for redb.
+         * <p>The table name for redb.</p>
          */
         private final String table;
 
@@ -2542,7 +2635,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (datadir != null) {
                 map.put("datadir", datadir);
@@ -2557,48 +2650,45 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service redis.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Redis implements ServiceConfig {
         /**
-         * the number of DBs redis can take is unlimited
-         * <p>
-         * default is db 0
+         * <p>the number of DBs redis can take is unlimited</p>
+         * <p>default is db 0</p>
          */
         private final long db;
         /**
-         * network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
-         * <p>
-         * default is "tcp://127.0.0.1:6379"
+         * <p>network address of the Redis service. Can be &quot;tcp://127.0.0.1:6379&quot;, e.g.</p>
+         * <p>default is &quot;tcp://127.0.0.1:6379&quot;</p>
          */
         private final String endpoint;
         /**
-         * network address of the Redis cluster service. Can be "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381", e.g.
-         * <p>
-         * default is None
+         * <p>network address of the Redis cluster service. Can be &quot;tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381&quot;, e.g.</p>
+         * <p>default is None</p>
          */
         private final String clusterEndpoints;
         /**
-         * the username to connect redis service.
-         * <p>
-         * default is None
+         * <p>the username to connect redis service.</p>
+         * <p>default is None</p>
          */
         private final String username;
         /**
-         * the password for authentication
-         * <p>
-         * default is None
+         * <p>the password for authentication</p>
+         * <p>default is None</p>
          */
         private final String password;
         /**
-         * the working directory of the Redis service. Can be "/path/to/dir"
-         * <p>
-         * default is "/"
+         * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
+         * <p>default is &quot;/&quot;</p>
          */
         private final String root;
         /**
-         * The default ttl for put operations.
+         * <p>The default ttl for put operations.</p>
          */
         private final Duration defaultTtl;
 
@@ -2608,7 +2698,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("db", String.valueOf(db));
             if (endpoint != null) {
@@ -2633,219 +2723,210 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service s3.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class S3 implements ServiceConfig {
         /**
-         * bucket name of this backend.
-         * <p>
-         * required.
+         * <p>bucket name of this backend.</p>
+         * <p>required.</p>
          */
         private final @NonNull String bucket;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
-         * <p>
-         * default to `/` if not set.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>default to <code>/</code> if not set.</p>
          */
         private final String root;
         /**
-         * is bucket versioning enabled for this bucket
+         * <p>is bucket versioning enabled for this bucket</p>
          */
         private final Boolean enableVersioning;
         /**
-         * endpoint of this backend.
-         * <p>
-         * Endpoint must be full uri, e.g.
-         * <p>
-         * - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
-         * - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
-         * - Aliyun OSS: `https://{region}.aliyuncs.com`
-         * - Tencent COS: `https://cos.{region}.myqcloud.com`
-         * - Minio: `http://127.0.0.1:9000`
-         * <p>
-         * If user inputs endpoint without scheme like "s3.amazonaws.com", we
-         * will prepend "https://" before it.
-         * <p>
-         * - If endpoint is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
-         * - If still not set, default to `https://s3.amazonaws.com`.
+         * <p>endpoint of this backend.</p>
+         * <p>Endpoint must be full uri, e.g.</p>
+         * <ul>
+         * <li>AWS S3: <code>https://s3.amazonaws.com</code> or <code>https://s3.{region}.amazonaws.com</code></li>
+         * <li>Cloudflare R2: <code>https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com</code></li>
+         * <li>Aliyun OSS: <code>https://{region}.aliyuncs.com</code></li>
+         * <li>Tencent COS: <code>https://cos.{region}.myqcloud.com</code></li>
+         * <li>Minio: <code>http://127.0.0.1:9000</code></li>
+         * </ul>
+         * <p>If user inputs endpoint without scheme like &quot;s3.amazonaws.com&quot;, we
+         * will prepend &quot;https://&quot; before it.</p>
+         * <ul>
+         * <li>If endpoint is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * <li>If still not set, default to <code>https://s3.amazonaws.com</code>.</li>
+         * </ul>
          */
         private final String endpoint;
         /**
-         * Region represent the signing region of this endpoint. This is required
-         * if you are using the default AWS S3 endpoint.
-         * <p>
-         * If using a custom endpoint,
-         * - If region is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
+         * <p>Region represent the signing region of this endpoint. This is required
+         * if you are using the default AWS S3 endpoint.</p>
+         * <p>If using a custom endpoint,</p>
+         * <ul>
+         * <li>If region is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
          */
         private final String region;
         /**
-         * access_key_id of this backend.
-         * <p>
-         * - If access_key_id is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
+         * <p>access_key_id of this backend.</p>
+         * <ul>
+         * <li>If access_key_id is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
          */
         private final String accessKeyId;
         /**
-         * secret_access_key of this backend.
-         * <p>
-         * - If secret_access_key is set, we will take user's input first.
-         * - If not, we will try to load it from environment.
+         * <p>secret_access_key of this backend.</p>
+         * <ul>
+         * <li>If secret_access_key is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
          */
         private final String secretAccessKey;
         /**
-         * session_token (aka, security token) of this backend.
-         * <p>
-         * This token will expire after sometime, it's recommended to set session_token
-         * by hand.
+         * <p>session_token (aka, security token) of this backend.</p>
+         * <p>This token will expire after sometime, it's recommended to set session_token
+         * by hand.</p>
          */
         private final String sessionToken;
         /**
-         * role_arn for this backend.
-         * <p>
-         * If `role_arn` is set, we will use already known config as source
-         * credential to assume role with `role_arn`.
+         * <p>role_arn for this backend.</p>
+         * <p>If <code>role_arn</code> is set, we will use already known config as source
+         * credential to assume role with <code>role_arn</code>.</p>
          */
         private final String roleArn;
         /**
-         * external_id for this backend.
+         * <p>external_id for this backend.</p>
          */
         private final String externalId;
         /**
-         * role_session_name for this backend.
+         * <p>role_session_name for this backend.</p>
          */
         private final String roleSessionName;
         /**
-         * Disable config load so that opendal will not load config from
-         * environment.
-         * <p>
-         * For examples:
-         * <p>
-         * - envs like `AWS_ACCESS_KEY_ID`
-         * - files like `~/.aws/config`
+         * <p>Disable config load so that opendal will not load config from
+         * environment.</p>
+         * <p>For examples:</p>
+         * <ul>
+         * <li>envs like <code>AWS_ACCESS_KEY_ID</code></li>
+         * <li>files like <code>~/.aws/config</code></li>
+         * </ul>
          */
         private final Boolean disableConfigLoad;
         /**
-         * Disable load credential from ec2 metadata.
-         * <p>
-         * This option is used to disable the default behavior of opendal
-         * to load credential from ec2 metadata, a.k.a, IMDSv2
+         * <p>Disable load credential from ec2 metadata.</p>
+         * <p>This option is used to disable the default behavior of opendal
+         * to load credential from ec2 metadata, a.k.a, IMDSv2</p>
          */
         private final Boolean disableEc2Metadata;
         /**
-         * Allow anonymous will allow opendal to send request without signing
-         * when credential is not loaded.
+         * <p>Allow anonymous will allow opendal to send request without signing
+         * when credential is not loaded.</p>
          */
         private final Boolean allowAnonymous;
         /**
-         * server_side_encryption for this backend.
-         * <p>
-         * Available values: `AES256`, `aws:kms`.
+         * <p>server_side_encryption for this backend.</p>
+         * <p>Available values: <code>AES256</code>, <code>aws:kms</code>.</p>
          */
         private final String serverSideEncryption;
         /**
-         * server_side_encryption_aws_kms_key_id for this backend
-         * <p>
-         * - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-         * is not set, S3 will use aws managed kms key to encrypt data.
-         * - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
-         * is a valid kms key id, S3 will use the provided kms key to encrypt data.
-         * - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be
-         * returned.
-         * - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
-         * is a noop.
+         * <p>server_side_encryption_aws_kms_key_id for this backend</p>
+         * <ul>
+         * <li>If <code>server_side_encryption</code> set to <code>aws:kms</code>, and <code>server_side_encryption_aws_kms_key_id</code>
+         * is not set, S3 will use aws managed kms key to encrypt data.</li>
+         * <li>If <code>server_side_encryption</code> set to <code>aws:kms</code>, and <code>server_side_encryption_aws_kms_key_id</code>
+         * is a valid kms key id, S3 will use the provided kms key to encrypt data.</li>
+         * <li>If the <code>server_side_encryption_aws_kms_key_id</code> is invalid or not found, an error will be
+         * returned.</li>
+         * <li>If <code>server_side_encryption</code> is not <code>aws:kms</code>, setting <code>server_side_encryption_aws_kms_key_id</code>
+         * is a noop.</li>
+         * </ul>
          */
         private final String serverSideEncryptionAwsKmsKeyId;
         /**
-         * server_side_encryption_customer_algorithm for this backend.
-         * <p>
-         * Available values: `AES256`.
+         * <p>server_side_encryption_customer_algorithm for this backend.</p>
+         * <p>Available values: <code>AES256</code>.</p>
          */
         private final String serverSideEncryptionCustomerAlgorithm;
         /**
-         * server_side_encryption_customer_key for this backend.
-         * <p>
-         * # Value
-         * <p>
-         * base64 encoded key that matches algorithm specified in
-         * `server_side_encryption_customer_algorithm`.
+         * <p>server_side_encryption_customer_key for this backend.</p>
+         * <h1>Value</h1>
+         * <p>base64 encoded key that matches algorithm specified in
+         * <code>server_side_encryption_customer_algorithm</code>.</p>
          */
         private final String serverSideEncryptionCustomerKey;
         /**
-         * Set server_side_encryption_customer_key_md5 for this backend.
-         * <p>
-         * # Value
-         * <p>
-         * MD5 digest of key specified in `server_side_encryption_customer_key`.
+         * <p>Set server_side_encryption_customer_key_md5 for this backend.</p>
+         * <h1>Value</h1>
+         * <p>MD5 digest of key specified in <code>server_side_encryption_customer_key</code>.</p>
          */
         private final String serverSideEncryptionCustomerKeyMd5;
         /**
-         * default storage_class for this backend.
-         * <p>
-         * Available values:
-         * - `DEEP_ARCHIVE`
-         * - `GLACIER`
-         * - `GLACIER_IR`
-         * - `INTELLIGENT_TIERING`
-         * - `ONEZONE_IA`
-         * - `OUTPOSTS`
-         * - `REDUCED_REDUNDANCY`
-         * - `STANDARD`
-         * - `STANDARD_IA`
-         * <p>
-         * S3 compatible services don't support all of them
+         * <p>default storage_class for this backend.</p>
+         * <p>Available values:</p>
+         * <ul>
+         * <li><code>DEEP_ARCHIVE</code></li>
+         * <li><code>GLACIER</code></li>
+         * <li><code>GLACIER_IR</code></li>
+         * <li><code>INTELLIGENT_TIERING</code></li>
+         * <li><code>ONEZONE_IA</code></li>
+         * <li><code>OUTPOSTS</code></li>
+         * <li><code>REDUCED_REDUNDANCY</code></li>
+         * <li><code>STANDARD</code></li>
+         * <li><code>STANDARD_IA</code></li>
+         * </ul>
+         * <p>S3 compatible services don't support all of them</p>
          */
         private final String defaultStorageClass;
         /**
-         * Enable virtual host style so that opendal will send API requests
-         * in virtual host style instead of path style.
-         * <p>
-         * - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
-         * - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
+         * <p>Enable virtual host style so that opendal will send API requests
+         * in virtual host style instead of path style.</p>
+         * <ul>
+         * <li>By default, opendal will send API to <code>https://s3.us-east-1.amazonaws.com/bucket_name</code></li>
+         * <li>Enabled, opendal will send API to <code>https://bucket_name.s3.us-east-1.amazonaws.com</code></li>
+         * </ul>
          */
         private final Boolean enableVirtualHostStyle;
         /**
-         * Set maximum batch operations of this backend.
-         * <p>
-         * Some compatible services have a limit on the number of operations in a batch request.
-         * For example, R2 could return `Internal Error` while batch delete 1000 files.
-         * <p>
-         * Please tune this value based on services' document.
+         * <p>Set maximum batch operations of this backend.</p>
+         * <p>Some compatible services have a limit on the number of operations in a batch request.
+         * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
+         * <p>Please tune this value based on services' document.</p>
          *
          * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
          */
         private final Long batchMaxOperations;
         /**
-         * Set the maximum delete size of this backend.
-         * <p>
-         * Some compatible services have a limit on the number of operations in a batch request.
-         * For example, R2 could return `Internal Error` while batch delete 1000 files.
-         * <p>
-         * Please tune this value based on services' document.
+         * <p>Set the maximum delete size of this backend.</p>
+         * <p>Some compatible services have a limit on the number of operations in a batch request.
+         * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
+         * <p>Please tune this value based on services' document.</p>
          */
         private final Long deleteMaxSize;
         /**
-         * Disable stat with override so that opendal will not send stat request with override queries.
-         * <p>
-         * For example, R2 doesn't support stat with `response_content_type` query.
+         * <p>Disable stat with override so that opendal will not send stat request with override queries.</p>
+         * <p>For example, R2 doesn't support stat with <code>response_content_type</code> query.</p>
          */
         private final Boolean disableStatWithOverride;
         /**
-         * Checksum Algorithm to use when sending checksums in HTTP headers.
-         * This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
-         * <p>
-         * Available options:
-         * - "crc32c"
+         * <p>Checksum Algorithm to use when sending checksums in HTTP headers.
+         * This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.</p>
+         * <p>Available options:</p>
+         * <ul>
+         * <li>&quot;crc32c&quot;</li>
+         * </ul>
          */
         private final String checksumAlgorithm;
         /**
-         * Disable write with if match so that opendal will not send write request with if match headers.
-         * <p>
-         * For example, Ceph RADOS S3 doesn't support write with if match.
+         * <p>Disable write with if match so that opendal will not send write request with if match headers.</p>
+         * <p>For example, Ceph RADOS S3 doesn't support write with if match.</p>
          */
         private final Boolean disableWriteWithIfMatch;
 
@@ -2855,7 +2936,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             if (root != null) {
@@ -2937,32 +3018,33 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service seafile.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Seafile implements ServiceConfig {
         /**
-         * repo_name of this backend.
-         * <p>
-         * required.
+         * <p>repo_name of this backend.</p>
+         * <p>required.</p>
          */
         private final @NonNull String repoName;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * endpoint address of this backend.
+         * <p>endpoint address of this backend.</p>
          */
         private final String endpoint;
         /**
-         * username of this backend.
+         * <p>username of this backend.</p>
          */
         private final String username;
         /**
-         * password of this backend.
+         * <p>password of this backend.</p>
          */
         private final String password;
 
@@ -2972,7 +3054,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("repo_name", repoName);
             if (root != null) {
@@ -2991,32 +3073,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service sftp.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
-         * endpoint of this backend
+         * <p>endpoint of this backend</p>
          */
         private final String endpoint;
         /**
-         * root of this backend
+         * <p>root of this backend</p>
          */
         private final String root;
         /**
-         * user of this backend
+         * <p>user of this backend</p>
          */
         private final String user;
         /**
-         * key of this backend
+         * <p>key of this backend</p>
          */
         private final String key;
         /**
-         * known_hosts_strategy of this backend
+         * <p>known_hosts_strategy of this backend</p>
          */
         private final String knownHostsStrategy;
         /**
-         * enable_copy of this backend
+         * <p>enable_copy of this backend</p>
          */
         private final Boolean enableCopy;
 
@@ -3026,7 +3111,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -3050,20 +3135,23 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service sled.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sled implements ServiceConfig {
         /**
-         * That path to the sled data directory.
+         * <p>That path to the sled data directory.</p>
          */
         private final String datadir;
         /**
-         * The root for sled.
+         * <p>The root for sled.</p>
          */
         private final String root;
         /**
-         * The tree for sled.
+         * <p>The tree for sled.</p>
          */
         private final String tree;
 
@@ -3073,7 +3161,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (datadir != null) {
                 map.put("datadir", datadir);
@@ -3088,46 +3176,43 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service sqlite.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sqlite implements ServiceConfig {
         /**
-         * Set the connection_string of the sqlite service.
-         * <p>
-         * This connection string is used to connect to the sqlite service. There are url based formats:
-         * <p>
-         * ## Url
-         * <p>
-         * This format resembles the url format of the sqlite client:
-         * <p>
-         * - `sqlite::memory:`
-         * - `sqlite:data.db`
-         * - `sqlite://data.db`
-         * <p>
-         * For more information, please visit <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
+         * <p>Set the connection_string of the sqlite service.</p>
+         * <p>This connection string is used to connect to the sqlite service. There are url based formats:</p>
+         * <h2>Url</h2>
+         * <p>This format resembles the url format of the sqlite client:</p>
+         * <ul>
+         * <li><code>sqlite::memory:</code></li>
+         * <li><code>sqlite:data.db</code></li>
+         * <li><code>sqlite://data.db</code></li>
+         * </ul>
+         * <p>For more information, please visit <a href="https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html</a>.</p>
          */
         private final String connectionString;
         /**
-         * Set the table name of the sqlite service to read/write.
+         * <p>Set the table name of the sqlite service to read/write.</p>
          */
         private final String table;
         /**
-         * Set the key field name of the sqlite service to read/write.
-         * <p>
-         * Default to `key` if not specified.
+         * <p>Set the key field name of the sqlite service to read/write.</p>
+         * <p>Default to <code>key</code> if not specified.</p>
          */
         private final String keyField;
         /**
-         * Set the value field name of the sqlite service to read/write.
-         * <p>
-         * Default to `value` if not specified.
+         * <p>Set the value field name of the sqlite service to read/write.</p>
+         * <p>Default to <code>value</code> if not specified.</p>
          */
         private final String valueField;
         /**
-         * set the working directory, all operations will be performed under it.
-         * <p>
-         * default: "/"
+         * <p>set the working directory, all operations will be performed under it.</p>
+         * <p>default: &quot;/&quot;</p>
          */
         private final String root;
 
@@ -3137,7 +3222,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -3158,24 +3243,27 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service supabase.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Supabase implements ServiceConfig {
         /**
-         * The bucket for supabase service.
+         * <p>The bucket for supabase service.</p>
          */
         private final @NonNull String bucket;
         /**
-         * The root for supabase service.
+         * <p>The root for supabase service.</p>
          */
         private final String root;
         /**
-         * The endpoint for supabase service.
+         * <p>The endpoint for supabase service.</p>
          */
         private final String endpoint;
         /**
-         * The key for supabase service.
+         * <p>The key for supabase service.</p>
          */
         private final String key;
 
@@ -3185,7 +3273,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             if (root != null) {
@@ -3201,44 +3289,47 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service surrealdb.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Surrealdb implements ServiceConfig {
         /**
-         * The connection string for surrealdb.
+         * <p>The connection string for surrealdb.</p>
          */
         private final String connectionString;
         /**
-         * The username for surrealdb.
+         * <p>The username for surrealdb.</p>
          */
         private final String username;
         /**
-         * The password for surrealdb.
+         * <p>The password for surrealdb.</p>
          */
         private final String password;
         /**
-         * The namespace for surrealdb.
+         * <p>The namespace for surrealdb.</p>
          */
         private final String namespace;
         /**
-         * The database for surrealdb.
+         * <p>The database for surrealdb.</p>
          */
         private final String database;
         /**
-         * The table for surrealdb.
+         * <p>The table for surrealdb.</p>
          */
         private final String table;
         /**
-         * The key field for surrealdb.
+         * <p>The key field for surrealdb.</p>
          */
         private final String keyField;
         /**
-         * The value field for surrealdb.
+         * <p>The value field for surrealdb.</p>
          */
         private final String valueField;
         /**
-         * The root for surrealdb.
+         * <p>The root for surrealdb.</p>
          */
         private final String root;
 
@@ -3248,7 +3339,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (connectionString != null) {
                 map.put("connection_string", connectionString);
@@ -3281,24 +3372,27 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service swift.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Swift implements ServiceConfig {
         /**
-         * The endpoint for Swift.
+         * <p>The endpoint for Swift.</p>
          */
         private final String endpoint;
         /**
-         * The container for Swift.
+         * <p>The container for Swift.</p>
          */
         private final String container;
         /**
-         * The root for Swift.
+         * <p>The root for Swift.</p>
          */
         private final String root;
         /**
-         * The token for Swift.
+         * <p>The token for Swift.</p>
          */
         private final String token;
 
@@ -3308,7 +3402,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -3326,26 +3420,28 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service upyun.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Upyun implements ServiceConfig {
         /**
-         * bucket address of this backend.
+         * <p>bucket address of this backend.</p>
          */
         private final @NonNull String bucket;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * username of this backend.
+         * <p>username of this backend.</p>
          */
         private final String operator;
         /**
-         * password of this backend.
+         * <p>password of this backend.</p>
          */
         private final String password;
 
@@ -3355,7 +3451,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("bucket", bucket);
             if (root != null) {
@@ -3371,12 +3467,15 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service vercel_artifacts.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class VercelArtifacts implements ServiceConfig {
         /**
-         * The access token for Vercel.
+         * <p>The access token for Vercel.</p>
          */
         private final String accessToken;
 
@@ -3386,7 +3485,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (accessToken != null) {
                 map.put("access_token", accessToken);
@@ -3395,18 +3494,20 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service vercel_blob.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class VercelBlob implements ServiceConfig {
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
         /**
-         * vercel blob token.
+         * <p>vercel blob token.</p>
          */
         private final String token;
 
@@ -3416,7 +3517,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -3428,32 +3529,35 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service webdav.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Webdav implements ServiceConfig {
         /**
-         * endpoint of this backend
+         * <p>endpoint of this backend</p>
          */
         private final String endpoint;
         /**
-         * username of this backend
+         * <p>username of this backend</p>
          */
         private final String username;
         /**
-         * password of this backend
+         * <p>password of this backend</p>
          */
         private final String password;
         /**
-         * token of this backend
+         * <p>token of this backend</p>
          */
         private final String token;
         /**
-         * root of this backend
+         * <p>root of this backend</p>
          */
         private final String root;
         /**
-         * WebDAV Service doesn't support copy.
+         * <p>WebDAV Service doesn't support copy.</p>
          */
         private final Boolean disableCopy;
 
@@ -3463,7 +3567,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -3487,28 +3591,31 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service webhdfs.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Webhdfs implements ServiceConfig {
         /**
-         * Root for webhdfs.
+         * <p>Root for webhdfs.</p>
          */
         private final String root;
         /**
-         * Endpoint for webhdfs.
+         * <p>Endpoint for webhdfs.</p>
          */
         private final String endpoint;
         /**
-         * Delegation token for webhdfs.
+         * <p>Delegation token for webhdfs.</p>
          */
         private final String delegation;
         /**
-         * Disable batch listing
+         * <p>Disable batch listing</p>
          */
         private final Boolean disableListBatch;
         /**
-         * atomic_write_dir of this backend
+         * <p>atomic_write_dir of this backend</p>
          */
         private final String atomicWriteDir;
 
@@ -3518,7 +3625,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             if (root != null) {
                 map.put("root", root);
@@ -3539,18 +3646,20 @@ public interface ServiceConfig {
         }
     }
 
+    /**
+     * Configuration for service yandex_disk.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class YandexDisk implements ServiceConfig {
         /**
-         * yandex disk oauth access_token.
+         * <p>yandex disk oauth access_token.</p>
          */
         private final @NonNull String accessToken;
         /**
-         * root of this backend.
-         * <p>
-         * All operations will happen under this root.
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
          */
         private final String root;
 
@@ -3560,7 +3669,7 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             map.put("access_token", accessToken);
             if (root != null) {

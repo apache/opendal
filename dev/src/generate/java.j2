@@ -23,6 +23,7 @@ package org.apache.opendal;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -35,23 +36,29 @@ import lombok.RequiredArgsConstructor;
  */
 @SuppressWarnings("unused") // intended to be used by users
 public interface ServiceConfig {
+    /**
+     * The scheme of the service.
+     *
+     * @return the scheme
+     */
     String scheme();
 
-    HashMap<String, String> configMap();
-
-    {% for srv in srvs %}
+    /**
+     * Convert the structured config to a type erased config map.
+     *
+     * @return the config map
+     */
+    Map<String, String> configMap();
+{% for srv in srvs %}
+    /**
+     * Configuration for service {{srv}}.
+     */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class {{srv | case_java_class_name}} implements ServiceConfig {
         {%- for field in srvs[srv].config %}
-        /**
-         * {{field.comments}}
-        {%- if field.deprecated %}
-         * @deprecated {{field.deprecated["note"]}}
-        {%- endif %}
-         */
-        {{make_field(field)}}
+        {{make_field(field) | indent(8)}}
         {%- endfor %}
 
         @Override
@@ -60,13 +67,13 @@ public interface ServiceConfig {
         }
 
         @Override
-        public HashMap<String, String> configMap() {
+        public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
             {% for field in srvs[srv].config -%}
-            {{make_populate_map(field)}}
+            {{make_populate_map(field) | indent(12)}}
             {% endfor -%}
             return map;
         }
     }
-    {% endfor %}
+{% endfor -%}
 }

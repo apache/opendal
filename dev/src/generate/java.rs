@@ -41,19 +41,38 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
 
     let output =
         workspace_dir.join("bindings/java/src/main/java/org/apache/opendal/ServiceConfig.java");
-    fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
+    let rendered = tmpl.render(context! { srvs => srvs })?;
+    fs::write(output, format!("{rendered}\n"))?;
     Ok(())
 }
 
-fn case_java_class_name(s: String) -> String {
+fn case_java_class_name(s: &str) -> String {
     heck::AsUpperCamelCase(s).to_string()
 }
 
-fn case_java_field_name(s: String) -> String {
+fn case_java_field_name(s: &str) -> String {
     heck::AsLowerCamelCase(s).to_string()
 }
 
 fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    use std::fmt::Write;
+
+    let mut result = String::new();
+    let w = &mut result;
+
+    // write comment
+    let html = markdown::to_html(&field.comments);
+    writeln!(w, "/**")?;
+    for line in html.lines() {
+        writeln!(w, " * {}", line)?;
+    }
+    if let Some(deprecated) = &field.deprecated {
+        writeln!(w, " *")?;
+        writeln!(w, " * @deprecated {}", deprecated.note)?;
+    }
+    writeln!(w, " */")?;
+
+    // write field definition
     let field_type = if field.optional {
         match field.value {
             ConfigType::Bool => "Boolean",
@@ -74,14 +93,21 @@ fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error>
         }
     };
 
-    Ok(format!(
+    writeln!(
+        w,
         "private final {} {};",
         field_type,
-        case_java_field_name(field.name.clone())
-    ))
+        case_java_field_name(&field.name)
+    )?;
+    Ok(result)
 }
 
 fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    use std::fmt::Write;
+
+    let mut result = String::new();
+    let w = &mut result;
+
     let populate = match field.value {
         ConfigType::Usize
         | ConfigType::U64
@@ -91,32 +117,32 @@ fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja:
         | ConfigType::U16 => format!(
             "map.put(\"{}\", String.valueOf({}));",
             field.name,
-            case_java_field_name(field.name.clone())
+            case_java_field_name(&field.name)
         ),
         ConfigType::String => format!(
             "map.put(\"{}\", {});",
             field.name,
-            case_java_field_name(field.name.clone())
+            case_java_field_name(&field.name)
         ),
         ConfigType::Duration => format!(
             "map.put(\"{}\", {}.toString());",
             field.name,
-            case_java_field_name(field.name.clone())
+            case_java_field_name(&field.name)
         ),
         ConfigType::Vec => format!(
             "map.put(\"{}\", String.join(\",\", {}));",
             field.name,
-            case_java_field_name(field.name.clone())
+            case_java_field_name(&field.name)
         ),
     };
 
     if field.optional {
-        Ok(format!(
-            "if ({} != null) {{\n    {}\n}}",
-            case_java_field_name(field.name.clone()),
-            populate
-        ))
+        writeln!(w, "if ({} != null) {{", case_java_field_name(&field.name))?;
+        writeln!(w, "    {}", populate)?;
+        writeln!(w, "}}")?;
     } else {
-        Ok(populate)
+        writeln!(w, "{}", populate)?;
     }
+
+    Ok(result)
 }

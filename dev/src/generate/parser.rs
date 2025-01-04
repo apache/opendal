@@ -362,8 +362,8 @@ impl ServiceParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::workspace_dir;
     use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
     use syn::ItemStruct;
 
     #[test]
@@ -680,9 +680,8 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
 
     #[test]
     fn test_parse() {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let path = manifest_dir
-            .join("../core/src/services")
+        let path = workspace_dir()
+            .join("core/src/services")
             .canonicalize()
             .unwrap();
 

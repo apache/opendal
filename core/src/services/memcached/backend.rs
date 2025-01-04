@@ -15,17 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
 use std::time::Duration;
-
-use bb8::RunError;
-use tokio::net::TcpStream;
-use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::MemcachedConfig;
 use crate::*;
+
+use bb8::RunError;
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use tokio::net::TcpStream;
+use tokio::sync::OnceCell;
+use tokio_rustls::TlsConnector;
 
 impl Configurator for MemcachedConfig {
     type Builder = MemcachedBuilder;
@@ -82,6 +86,24 @@ impl MemcachedBuilder {
         self.config.default_ttl = Some(ttl);
         self
     }
+
+    /// Set the tls connect on.
+    pub fn enable_tls(mut self, enable_tls: bool) -> Self {
+        self.config.enable_tls = enable_tls;
+        self
+    }
+
+    /// Set the tls key path.
+    pub fn tls_key(mut self, tls_key: &str) -> Self {
+        self.config.tls_key = Some(tls_key.to_string());
+        self
+    }
+
+    /// Set the tls cert path.
+    pub fn tls_cert(mut self, tls_cert: &str) -> Self {
+        self.config.tls_cert = Some(tls_cert.to_string());
+        self
+    }
 }
 
 impl Builder for MemcachedBuilder {
@@ -126,6 +148,22 @@ impl Builder for MemcachedBuilder {
                     .with_context("endpoint", &endpoint),
             );
         };
+        if self.config.enable_tls {
+            rustls::crypto::ring::default_provider()
+                .install_default()
+                .map_err(|_err| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "no process-level CryptoProvider available",
+                    )
+                })?;
+            ServerName::try_from(host.clone()).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "Invalid dns name error")
+                    .with_context("service", Scheme::Memcached)
+                    .with_context("host", &host)
+                    .set_source(err)
+            })?;
+        }
         let port = if let Some(port) = uri.port_u16() {
             port
         } else {
@@ -150,6 +188,9 @@ impl Builder for MemcachedBuilder {
             endpoint,
             username: self.config.username.clone(),
             password: self.config.password.clone(),
+            enable_tls: self.config.enable_tls,
+            tls_key: self.config.tls_key.clone(),
+            tls_cert: self.config.tls_cert.clone(),
             conn,
             default_ttl: self.config.default_ttl,
         })
@@ -166,6 +207,9 @@ pub struct Adapter {
     username: Option<String>,
     password: Option<String>,
     default_ttl: Option<Duration>,
+    enable_tls: bool,
+    tls_key: Option<String>,
+    tls_cert: Option<String>,
     conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
 }
 
@@ -178,6 +222,9 @@ impl Adapter {
                     &self.endpoint,
                     self.username.clone(),
                     self.password.clone(),
+                    self.enable_tls,
+                    self.tls_key.clone(),
+                    self.tls_cert.clone(),
                 );
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
@@ -246,14 +293,27 @@ struct MemcacheConnectionManager {
     address: String,
     username: Option<String>,
     password: Option<String>,
+    enable_tls: bool,
+    tls_key: Option<String>,
+    tls_cert: Option<String>,
 }
 
 impl MemcacheConnectionManager {
-    fn new(address: &str, username: Option<String>, password: Option<String>) -> Self {
+    fn new(
+        address: &str,
+        username: Option<String>,
+        password: Option<String>,
+        enable_tls: bool,
+        tls_key: Option<String>,
+        tls_cert: Option<String>,
+    ) -> Self {
         Self {
             address: address.to_string(),
             username,
             password,
+            enable_tls,
+            tls_key,
+            tls_cert,
         }
     }
 }
@@ -265,11 +325,67 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
 
     /// TODO: Implement unix stream support.
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = TcpStream::connect(&self.address)
-            .await
-            .map_err(new_std_io_error)?;
-        let mut conn = binary::Connection::new(conn);
+        let mut conn = if self.enable_tls {
+            let mut root_cert_store = rustls::RootCertStore::empty();
 
+            let native_certs = rustls_native_certs::load_native_certs()
+                .expect("errors occurred while loading certificates");
+            for cert in native_certs {
+                root_cert_store.add(cert).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "load cafile failed").set_source(err)
+                })?;
+            }
+            let tls_config =
+                rustls::ClientConfig::builder().with_root_certificates(root_cert_store);
+            let config = if let (Some(cert_path), Some(key_path)) = (&self.tls_cert, &self.tls_key)
+            {
+                let cert_chain = CertificateDer::pem_file_iter(cert_path)
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "load tls cert failed").set_source(err)
+                    })?
+                    .filter_map(Result::ok)
+                    .collect();
+                let key_der = PrivateKeyDer::from_pem_file(key_path).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "load tls key failed").set_source(err)
+                })?;
+
+                tls_config
+                    .with_client_auth_cert(cert_chain, key_der)
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "build tls client failed").set_source(err)
+                    })?
+            } else {
+                tls_config.with_no_client_auth()
+            };
+
+            let connector = TlsConnector::from(Arc::new(config));
+            let conn = TcpStream::connect(&self.address)
+                .await
+                .map_err(new_std_io_error)?;
+
+            let uri = http::Uri::try_from(&self.address).expect("unreachable!");
+            let host = uri.host().expect("unreachable!");
+            let domain = ServerName::try_from(host)
+                .map_err(|err| {
+                    Error::new(ErrorKind::ConfigInvalid, "Invalid dns name error")
+                        .with_context("service", Scheme::Memcached)
+                        .with_context("address", &self.address)
+                        .set_source(err)
+                })?
+                .to_owned();
+
+            let conn = connector.connect(domain, conn).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "tls connect failed").set_source(err)
+            })?;
+
+            binary::Connection::new(Box::new(conn))
+        } else {
+            let conn = TcpStream::connect(&self.address)
+                .await
+                .map_err(new_std_io_error)?;
+
+            binary::Connection::new(Box::new(conn))
+        };
         if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
             conn.auth(username, password).await?;
         }

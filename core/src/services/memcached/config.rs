@@ -40,4 +40,10 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+    /// default is false
+    pub enable_tls: bool,
+    /// Path to the CA certificate for TLS key.
+    pub tls_key: Option<String>,
+    /// Path to the CA certificate for TLS cert.
+    pub tls_cert: Option<String>,
 }

@@ -159,7 +159,12 @@ services-ipmfs = []
 services-koofr = []
 services-lakefs = []
 services-libsql = ["dep:hrana-client-proto"]
-services-memcached = ["dep:bb8"]
+services-memcached = [
+    "dep:bb8",
+    "dep:tokio-rustls",
+    "dep:rustls",
+    "dep:rustls-native-certs",
+]
 services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
@@ -359,6 +364,13 @@ monoio = { version = "0.2.4", optional = true, features = [
     "unlinkat",
     "renameat",
 ] }
+# for services-memcached
+rustls = { version = "0.23.15", default-features = false, features = [
+    "std",
+],  optional = true }
+rustls-native-certs = {version = "0.8.1", optional = true}
+tokio-rustls = { version = "0.26.1", optional = true }
+
 
 # Layers
 # for layers-async-backtrace

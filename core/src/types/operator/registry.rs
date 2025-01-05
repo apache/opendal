@@ -33,7 +33,7 @@ thread_local! {
 // In order to reduce boilerplate, we should return in this function a `Builder` instead of operator?.
 pub type OperatorFactory = fn(&str, HashMap<String, String>) -> Result<Operator>;
 
-// TODO: the default implementation should return an empty registry? Or it shoudl return the initialized
+// TODO: the default implementation should return an empty registry? Or it should return the initialized
 // registry with all the services that are enabled? If so, should we include an `OperatorRegistry::empty` method
 // that allows users to create an empty registry?
 #[derive(Clone, Debug, Default)]

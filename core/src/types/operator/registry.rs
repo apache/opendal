@@ -18,6 +18,8 @@
 use std::cell::LazyCell;
 use std::collections::HashMap;
 
+use http::Uri;
+
 use crate::services::*;
 use crate::*;
 
@@ -57,16 +59,15 @@ impl OperatorRegistry {
     ) -> Result<Operator> {
         // TODO: we use the `url::Url` struct instead of `http:Uri`, because
         // we needed it in `Configurator::from_uri` method.
-        let parsed_url = url::Url::parse(uri).map_err(|err| {
+        let parsed_uri = uri.parse::<Uri>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
                 .with_context("uri", uri)
                 .set_source(err)
         })?;
 
-        // TODO: with the `url::Url` struct, we always have the scheme (it is not an Option<str>)
-        // but with the `http::Uri` crate, it can be missing https://docs.rs/http/latest/http/uri/struct.Uri.html#method.scheme
-        // which one should we use?
-        let scheme = parsed_url.scheme();
+        let scheme = parsed_uri.scheme_str().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
+        })?;
 
         let factory = self.registry.get(scheme).ok_or_else(|| {
             Error::new(
@@ -81,7 +82,6 @@ impl OperatorRegistry {
         // however, impl Traits in type aliases is unstable and also are not allowed in fn pointers
         let options = options.into_iter().collect();
 
-        // TODO: `OperatorFactory` should use `&str` instead of `String`? we are cloning it anyway
         factory(uri, options)
     }
 

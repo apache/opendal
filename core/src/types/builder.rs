@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use http::Uri;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -149,27 +150,19 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
 
     /// TODO: document this.
     fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
-        // TODO: We are using the `url::Url` struct instead of `http:Uri`, because `http::Uri` does not implement
-        // the `query_pairs` method, which we need to extract the options from the uri.
-        // `http::Uri` has the `query` method (https://docs.rs/http/latest/http/uri/struct.Uri.html#method.query)
-        // but it outputs the raw query string. Otherwise, we would need to implement the parsing of the query string
-        // ourselves.
-
-        // TODO: we are using `url::Url`, not an URI. Should we rename this method to `from_url`? (all of the rest of the PR)
-        // The rfc stated that we would use URIs and not URL, but I wonder if we should refer to just URL instead.
-        // See the goal section of  https://url.spec.whatwg.org/ (the `url` crate implements that spec).
-        // There they say that the term URI is confusing and that URL
-        // should be used instead. The `url::Url` crate supports URL fragments, so it should be enough for our use case.
-        let parsed_url = url::Url::parse(uri).map_err(|err| {
+        let parsed_uri = uri.parse::<Uri>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
                 .with_context("uri", uri)
                 .set_source(err)
         })?;
-        // TODO: I have some doubts about this
+
+        // TODO: I have some doubts about this default implementation
         // It was inspired from https://github.com/apache/opendal/blob/52c96bb8e8cb4d024ccab1f415c4756447c726dd/bin/ofs/src/main.rs#L60
         // Parameters should be specified in uri's query param. Example: 'fs://?root=<directory>'
         // this is very similar to https://github.com/apache/opendal/blob/52c96bb8e8cb4d024ccab1f415c4756447c726dd/bin/ofs/README.md?plain=1#L45
-        let url_options = parsed_url.query_pairs().into_owned();
+        let query_pairs = parsed_uri.query().map(query_pairs).unwrap_or_default();
+
+        // TODO: should we log a warning if the query_pairs vector is empty?
 
         // TODO: we are not interpreting the host or path params
         // the `let op = Operator::from_uri("fs:///tmp/test", vec![])?;` statement from the RFC wont work.
@@ -177,7 +170,7 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         // in `ofs`. The `fs` service should override this default implementation if it wants to use the host or path params?
 
         // TODO: should we merge it this way?
-        let merged_options = url_options.into_iter().chain(options);
+        let merged_options = query_pairs.into_iter().chain(options);
 
         Self::from_iter(merged_options)
     }

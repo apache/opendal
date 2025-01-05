@@ -27,7 +27,7 @@ use crate::*;
 // TODO: thread local or use LazyLock instead? this way the access is lock-free
 // TODO: should we expose the `GLOBAL_OPERATOR_REGISTRY` as public API at `crate::types::operator::GLOBAL_OPERATOR_REGISTRY`?
 thread_local! {
-    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(OperatorRegistry::with_enabled_services);
+    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(OperatorRegistry::new);
 }
 
 // In order to reduce boilerplate, we should return in this function a `Builder` instead of operator?.
@@ -36,61 +36,14 @@ pub type OperatorFactory = fn(&str, HashMap<String, String>) -> Result<Operator>
 // TODO: create an static registry? or a global() method of OperatorRegistry that lazily initializes the registry?
 // Register only services in `Scheme::enabled()`
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OperatorRegistry {
     registry: Arc<Mutex<HashMap<String, OperatorFactory>>>,
 }
 
 impl OperatorRegistry {
     pub fn new() -> Self {
-        Self {
-            registry: Default::default(),
-        }
-    }
-
-    pub fn register(&mut self, scheme: &str, factory: OperatorFactory) {
-        // TODO: should we receive a `&str` or a `String`? we are cloning it anyway
-        self.registry
-            .lock()
-            .expect("poisoned lock")
-            .insert(scheme.to_string(), factory);
-    }
-
-    pub fn parse(
-        &self,
-        uri: &str,
-        options: impl IntoIterator<Item = (String, String)>,
-    ) -> Result<Operator> {
-        // TODO: we use the `url::Url` struct instead of `http:Uri`, because
-        // we needed it in `Configurator::from_uri` method.
-        let parsed_uri = uri.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
-                .with_context("uri", uri)
-                .set_source(err)
-        })?;
-
-        let scheme = parsed_uri.scheme_str().ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
-        })?;
-
-        let factory = self.registry.get(scheme).ok_or_else(|| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "could not find any operator factory for the given scheme",
-            )
-            .with_context("uri", uri)
-            .with_context("scheme", scheme)
-        })?;
-
-        // TODO: `OperatorFactory` should receive `IntoIterator<Item = (String, String)>` instead of `HashMap<String, String>`?
-        // however, impl Traits in type aliases is unstable and also are not allowed in fn pointers
-        let options = options.into_iter().collect();
-
-        factory(uri, options)
-    }
-
-    pub fn with_enabled_services() -> Self {
-        let mut registry = Self::new();
+        let mut registry = Self::default();
         // TODO: is this correct? have a `Builder::enabled()` method that returns the set of enabled services builders?
         // Similar to `Scheme::Enabled()`
         // or have an `Scheme::associated_builder` that given a scheme returns the associated builder? The problem with this
@@ -228,6 +181,48 @@ impl OperatorRegistry {
         registry.register_builder::<NebulaGraph>();
 
         registry
+    }
+
+    pub fn register(&mut self, scheme: &str, factory: OperatorFactory) {
+        // TODO: should we receive a `&str` or a `String`? we are cloning it anyway
+        self.registry
+            .lock()
+            .expect("poisoned lock")
+            .insert(scheme.to_string(), factory);
+    }
+
+    pub fn parse(
+        &self,
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Operator> {
+        // TODO: we use the `url::Url` struct instead of `http:Uri`, because
+        // we needed it in `Configurator::from_uri` method.
+        let parsed_uri = uri.parse::<Uri>().map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
+                .with_context("uri", uri)
+                .set_source(err)
+        })?;
+
+        let scheme = parsed_uri.scheme_str().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
+        })?;
+
+        let registry_lock = self.registry.lock().expect("poisoned lock");
+        let factory = registry_lock.get(scheme).ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "could not find any operator factory for the given scheme",
+            )
+            .with_context("uri", uri)
+            .with_context("scheme", scheme)
+        })?;
+
+        // TODO: `OperatorFactory` should receive `IntoIterator<Item = (String, String)>` instead of `HashMap<String, String>`?
+        // however, impl Traits in type aliases is unstable and also are not allowed in fn pointers
+        let options = options.into_iter().collect();
+
+        factory(uri, options)
     }
 
     fn register_builder<B: Builder>(&mut self) {

@@ -186,14 +186,14 @@ impl CosCore {
 
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
-            // before insert user defined metadata header, add prefix to the header name
-            if !self.check_user_metadata_key(key) {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "the format of the user metadata key is invalid, please refer the document",
-                ));
-            }
             for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                if !self.check_user_metadata_key(key) {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "the format of the user metadata key is invalid, please refer the document",
+                    ));
+                }
                 req = req.header(format!("x-cos-meta-{key}"), value)
             }
         }
@@ -361,14 +361,14 @@ impl CosCore {
 
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
-            // before insert user defined metadata header, add prefix to the header name
-            if !self.check_user_metadata_key(key) {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "the format of the user metadata key is invalid, please refer the document",
-                ));
-            }
             for (key, value) in user_metadata {
+                // before insert user defined metadata header, add prefix to the header name
+                if !self.check_user_metadata_key(key) {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "the format of the user metadata key is invalid, please refer the document",
+                    ));
+                }
                 req = req.header(format!("x-cos-meta-{key}"), value)
             }
         }

@@ -100,14 +100,15 @@ impl Operator {
     /// TODO: document this.
     ///
     /// TODO: improve those examples
+    /// TODO: this test does not work. It always output Ok
     /// # Examples
     /// ```
     /// # use anyhow::Result;
     /// use opendal::Operator;
     ///
     /// fn test() -> Result<()> {
-    ///     let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?;
-    ///     Ok(())
+    ///     Operator::from_uri("fs://?root=/tmp/test", vec![])?;
+    ///      Ok(())
     /// }
     /// ```
     pub fn from_uri(

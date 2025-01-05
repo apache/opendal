@@ -315,7 +315,7 @@ impl Access for CosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = self.core.parse_metadata(path, resp.headers())?;
+                let meta = self.core.parse_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),

@@ -20,8 +20,9 @@
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! Apache OpenDAL™ is a data access layer that allows users to easily and
-//! efficiently retrieve data from various storage services in a unified way.
+//! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+//!
+//! OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
 //!
 //! # Quick Start
 //!
@@ -143,16 +144,15 @@ mod tests {
     use std::mem::size_of;
 
     use super::*;
-
     /// This is not a real test case.
     ///
     /// We assert our public structs here to make sure we don't introduce
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(40, size_of::<Operator>());
-        assert_eq!(304, size_of::<Entry>());
-        assert_eq!(280, size_of::<Metadata>());
+        assert_eq!(32, size_of::<Operator>());
+        assert_eq!(320, size_of::<Entry>());
+        assert_eq!(296, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }

@@ -15,6 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-fn main() {
-    println!("hello, world!")
+mod generate;
+
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+
+fn manifest_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .unwrap()
+}
+
+fn workspace_dir() -> PathBuf {
+    manifest_dir().join("..").canonicalize().unwrap()
+}
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cmd {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Generate all services configs for opendal.
+    Generate {
+        #[arg(short, long)]
+        language: String,
+    },
+}
+
+fn main() -> Result<()> {
+    env_logger::init();
+
+    match Cmd::parse().command {
+        Commands::Generate { language } => generate::run(&language),
+    }
 }

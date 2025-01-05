@@ -94,6 +94,7 @@ impl typed_kv::Adapter for Adapter {
                 set: true,
                 scan: true,
                 delete: true,
+                shared: false,
             },
         )
     }

@@ -18,6 +18,7 @@
 use anyhow::Result;
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 
 #[derive(Debug, clap::Parser)]
@@ -25,6 +26,7 @@ use crate::params::config::ConfigParams;
 pub struct RmCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
     #[arg()]
     pub target: String,
     /// Remove objects recursively.
@@ -33,7 +35,11 @@ pub struct RmCmd {
 }
 
 impl RmCmd {
-    pub async fn run(&self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+
+    async fn do_run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
         let (op, path) = cfg.parse_location(&self.target)?;

@@ -147,9 +147,11 @@ impl Access for VercelBlobBackend {
     type Reader = HttpBody;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -157,6 +159,10 @@ impl Access for VercelBlobBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_type: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
@@ -165,11 +171,16 @@ impl Access for VercelBlobBackend {
                 write_can_multi: true,
                 write_multi_min_size: Some(5 * 1024 * 1024),
 
-                delete: true,
                 copy: true,
 
                 list: true,
                 list_with_limit: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+                list_has_content_disposition: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -220,10 +231,6 @@ impl Access for VercelBlobBackend {
         let w = oio::MultipartWriter::new(writer, executor, concurrent);
 
         Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

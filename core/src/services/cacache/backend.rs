@@ -96,6 +96,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )

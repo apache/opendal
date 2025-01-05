@@ -207,6 +207,8 @@ mod tests {
         type BlockingWriter = ();
         type Lister = ();
         type BlockingLister = MockLister;
+        type Deleter = ();
+        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();

@@ -21,8 +21,6 @@
 
 use std::ops::RangeBounds;
 
-use flagset::FlagSet;
-
 use crate::raw::*;
 use crate::*;
 
@@ -277,19 +275,6 @@ impl FunctionList {
         self
     }
 
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
-        self.0 = self.0.map_args(|args| args.with_metakey(v));
-        self
-    }
-
     /// Call the function to consume all the input and generate a
     /// result.
     pub fn call(self) -> Result<Vec<Entry>> {
@@ -327,19 +312,6 @@ impl FunctionLister {
     /// Default to `false`.
     pub fn recursive(mut self, v: bool) -> Self {
         self.0 = self.0.map_args(|args| args.with_recursive(v));
-        self
-    }
-
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
-        self.0 = self.0.map_args(|args| args.with_metakey(v));
         self
     }
 

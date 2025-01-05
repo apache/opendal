@@ -26,7 +26,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
+use anyhow::bail;
 use anyhow::Result;
 use oli::commands::OliSubcommand;
 
@@ -37,8 +37,7 @@ pub struct Oli {
     subcommand: OliSubcommand,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Guard against infinite proxy recursion. This mostly happens due to
     // bugs in oli.
     do_recursion_guard()?;
@@ -52,32 +51,40 @@ async fn main() -> Result<()> {
     {
         Some("oli") => {
             let cmd: Oli = clap::Parser::parse();
-            cmd.subcommand.run().await?;
+            cmd.subcommand.run()?;
+        }
+        Some("obench") => {
+            let cmd: oli::commands::bench::BenchCmd = clap::Parser::parse();
+            cmd.run()?;
         }
         Some("ocat") => {
             let cmd: oli::commands::cat::CatCmd = clap::Parser::parse();
-            cmd.run().await?;
+            cmd.run()?;
         }
         Some("ocp") => {
             let cmd: oli::commands::cp::CopyCmd = clap::Parser::parse();
-            cmd.run().await?;
+            cmd.run()?;
         }
         Some("ols") => {
             let cmd: oli::commands::ls::LsCmd = clap::Parser::parse();
-            cmd.run().await?;
+            cmd.run()?;
         }
         Some("orm") => {
             let cmd: oli::commands::rm::RmCmd = clap::Parser::parse();
-            cmd.run().await?;
+            cmd.run()?;
         }
         Some("ostat") => {
             let cmd: oli::commands::stat::StatCmd = clap::Parser::parse();
-            cmd.run().await?;
+            cmd.run()?;
+        }
+        Some("omv") => {
+            let cmd: oli::commands::mv::MoveCmd = clap::Parser::parse();
+            cmd.run()?;
         }
         Some(v) => {
             println!("{v} is not supported")
         }
-        None => return Err(anyhow!("couldn't determine self executable name")),
+        None => bail!("couldn't determine self executable name"),
     }
 
     Ok(())
@@ -90,8 +97,9 @@ fn do_recursion_guard() -> Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
+
     if recursion_count > OLI_RECURSION_COUNT_MAX {
-        return Err(anyhow!("infinite recursion detected"));
+        bail!("infinite recursion detected");
     }
 
     Ok(())

@@ -282,6 +282,7 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 list: true,
+                shared: true,
 
                 ..Default::default()
             },

@@ -43,6 +43,8 @@ const PROVIDER_NAME: &str = "ro-cloud_filter";
 const DISPLAY_NAME: &str = "Test Cloud Filter";
 const ROOT_PATH: &str = "C:\\sync_root";
 
+type Callback = Pin<Box<dyn Future<Output = ()>>>;
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = Arguments::from_args();
@@ -80,7 +82,7 @@ fn init(
     op: Operator,
 ) -> (
     SyncRootId,
-    Connection<AsyncBridge<CloudFilter, impl Fn(Pin<Box<dyn Future<Output = ()>>>)>>,
+    Connection<AsyncBridge<CloudFilter, impl Fn(Callback)>>,
 ) {
     let sync_root_id = SyncRootIdBuilder::new(PROVIDER_NAME)
         .user_security_id(SecurityId::current_user().unwrap())

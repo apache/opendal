@@ -17,8 +17,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
 )

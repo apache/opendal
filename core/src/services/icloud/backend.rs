@@ -226,11 +226,13 @@ pub struct IcloudBackend {
 
 impl Access for IcloudBackend {
     type Reader = HttpBody;
-    type BlockingReader = ();
     type Writer = ();
-    type BlockingWriter = ();
     type Lister = ();
+    type Deleter = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -238,7 +240,12 @@ impl Access for IcloudBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+
                 read: true,
+
+                shared: true,
                 ..Default::default()
             });
         ma.into()

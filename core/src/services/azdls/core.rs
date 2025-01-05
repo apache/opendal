@@ -20,9 +20,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 
-use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_DISPOSITION, IF_NONE_MATCH};
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -151,6 +151,14 @@ impl AzdlsCore {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*")
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v)
         }
 
         // Set body

@@ -29,13 +29,14 @@ use tokio::sync::RwLock;
 use super::core::constants;
 use super::core::parse_file_info;
 use super::core::B2Core;
+use super::core::B2Signer;
+use super::core::ListFileNamesResponse;
+use super::delete::B2Deleter;
 use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
 use crate::raw::*;
-use crate::services::b2::core::B2Signer;
-use crate::services::b2::core::ListFileNamesResponse;
 use crate::services::B2Config;
 use crate::*;
 
@@ -216,9 +217,11 @@ impl Access for B2Backend {
     type Reader = HttpBody;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
+    type Deleter = oio::OneShotDeleter<B2Deleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -226,6 +229,9 @@ impl Access for B2Backend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_md5: true,
+                stat_has_content_type: true,
 
                 read: true,
 
@@ -253,11 +259,16 @@ impl Access for B2Backend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
 
                 presign: true,
                 presign_read: true,
                 presign_write: true,
                 presign_stat: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -326,23 +337,11 @@ impl Access for B2Backend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.hide_file(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    // Representative deleted
-                    ErrorKind::AlreadyExists => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(B2Deleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

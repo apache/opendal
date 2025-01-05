@@ -50,7 +50,13 @@ pub struct OssConfig {
     /// Access key secret for oss.
     pub access_key_secret: Option<String>,
     /// The size of max batch operations.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub batch_max_operations: Option<usize>,
+    /// The size of max delete operations.
+    pub delete_max_size: Option<usize>,
     /// If `role_arn` is set, we will use already known config as source
     /// credential to assume role with `role_arn`.
     pub role_arn: Option<String>,

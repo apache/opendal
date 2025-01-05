@@ -35,29 +35,26 @@ pub struct S3Lister {
     core: Arc<S3Core>,
 
     path: String,
-    delimiter: &'static str,
-    limit: Option<usize>,
+    args: OpList,
 
-    /// Amazon S3 starts listing **after** this specified key
-    start_after: Option<String>,
+    delimiter: &'static str,
+    abs_start_after: Option<String>,
 }
 
 impl S3Lister {
-    pub fn new(
-        core: Arc<S3Core>,
-        path: &str,
-        recursive: bool,
-        limit: Option<usize>,
-        start_after: Option<&str>,
-    ) -> Self {
-        let delimiter = if recursive { "" } else { "/" };
+    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let abs_start_after = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after));
+
         Self {
             core,
 
             path: path.to_string(),
+            args,
             delimiter,
-            limit,
-            start_after: start_after.map(String::from),
+            abs_start_after,
         }
     }
 }
@@ -70,10 +67,10 @@ impl oio::PageList for S3Lister {
                 &self.path,
                 &ctx.token,
                 self.delimiter,
-                self.limit,
+                self.args.limit(),
                 // start after should only be set for the first page.
                 if ctx.token.is_empty() {
-                    self.start_after.clone()
+                    self.abs_start_after.clone()
                 } else {
                     None
                 },
@@ -124,7 +121,7 @@ impl oio::PageList for S3Lister {
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
-
+            meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
                 meta.set_content_md5(etag.trim_matches('"'));
@@ -143,35 +140,29 @@ impl oio::PageList for S3Lister {
     }
 }
 
-// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
+/// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
 pub struct S3ObjectVersionsLister {
     core: Arc<S3Core>,
 
     prefix: String,
+    args: OpList,
+
     delimiter: &'static str,
-    limit: Option<usize>,
-    start_after: String,
-    abs_start_after: String,
+    abs_start_after: Option<String>,
 }
 
 impl S3ObjectVersionsLister {
-    pub fn new(
-        core: Arc<S3Core>,
-        path: &str,
-        recursive: bool,
-        limit: Option<usize>,
-        start_after: Option<&str>,
-    ) -> Self {
-        let delimiter = if recursive { "" } else { "/" };
-        let start_after = start_after.unwrap_or_default().to_owned();
-        let abs_start_after = build_abs_path(core.root.as_str(), start_after.as_str());
+    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let abs_start_after = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after));
 
         Self {
             core,
             prefix: path.to_string(),
+            args,
             delimiter,
-            limit,
-            start_after,
             abs_start_after,
         }
     }
@@ -182,8 +173,8 @@ impl oio::PageList for S3ObjectVersionsLister {
         let markers = ctx.token.rsplit_once(" ");
         let (key_marker, version_id_marker) = if let Some(data) = markers {
             data
-        } else if !self.start_after.is_empty() {
-            (self.abs_start_after.as_str(), "")
+        } else if let Some(start_after) = &self.abs_start_after {
+            (start_after.as_str(), "")
         } else {
             ("", "")
         };
@@ -193,7 +184,7 @@ impl oio::PageList for S3ObjectVersionsLister {
             .s3_list_object_versions(
                 &self.prefix,
                 self.delimiter,
-                self.limit,
+                self.args.limit(),
                 key_marker,
                 version_id_marker,
             )
@@ -231,25 +222,48 @@ impl oio::PageList for S3ObjectVersionsLister {
             ctx.entries.push_back(de);
         }
 
-        for version_object in output.version {
-            let mut path = build_rel_path(&self.core.root, &version_object.key);
-            if path.is_empty() {
-                path = "/".to_owned();
-            }
+        if self.args.versions() {
+            for version_object in output.version {
+                let mut path = build_rel_path(&self.core.root, &version_object.key);
+                if path.is_empty() {
+                    path = "/".to_owned();
+                }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
-            meta.set_version(&version_object.version_id);
-            meta.set_content_length(version_object.size);
-            meta.set_last_modified(parse_datetime_from_rfc3339(
-                version_object.last_modified.as_str(),
-            )?);
-            if let Some(etag) = version_object.etag {
-                meta.set_etag(&etag);
-                meta.set_content_md5(etag.trim_matches('"'));
-            }
+                let mut meta = Metadata::new(EntryMode::from_path(&path));
+                meta.set_version(&version_object.version_id);
+                meta.set_is_current(version_object.is_latest);
+                meta.set_content_length(version_object.size);
+                meta.set_last_modified(parse_datetime_from_rfc3339(
+                    version_object.last_modified.as_str(),
+                )?);
+                if let Some(etag) = version_object.etag {
+                    meta.set_etag(&etag);
+                    meta.set_content_md5(etag.trim_matches('"'));
+                }
 
-            let entry = oio::Entry::new(&path, meta);
-            ctx.entries.push_back(entry);
+                let entry = oio::Entry::new(&path, meta);
+                ctx.entries.push_back(entry);
+            }
+        }
+
+        if self.args.deleted() {
+            for delete_marker in output.delete_marker {
+                let mut path = build_rel_path(&self.core.root, &delete_marker.key);
+                if path.is_empty() {
+                    path = "/".to_owned();
+                }
+
+                let mut meta = Metadata::new(EntryMode::FILE);
+                meta.set_version(&delete_marker.version_id);
+                meta.set_is_deleted(true);
+                meta.set_is_current(delete_marker.is_latest);
+                meta.set_last_modified(parse_datetime_from_rfc3339(
+                    delete_marker.last_modified.as_str(),
+                )?);
+
+                let entry = oio::Entry::new(&path, meta);
+                ctx.entries.push_back(entry);
+            }
         }
 
         Ok(())

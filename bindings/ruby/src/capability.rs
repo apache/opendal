@@ -79,7 +79,6 @@ define_accessors!(Capability, {
     write_with_user_metadata: bool,
     write_multi_max_size: Option<usize>,
     write_multi_min_size: Option<usize>,
-    write_multi_align_size: Option<usize>,
     write_total_max_size: Option<usize>,
     create_dir: bool,
     delete: bool,
@@ -90,15 +89,13 @@ define_accessors!(Capability, {
     list_with_limit: bool,
     list_with_start_after: bool,
     list_with_recursive: bool,
-    list_with_version: bool,
+    list_with_versions: bool,
     presign: bool,
     presign_read: bool,
     presign_stat: bool,
     presign_write: bool,
-    batch: bool,
-    batch_delete: bool,
-    batch_max_operations: Option<usize>,
-    blocking: bool
+    shared: bool,
+    blocking: bool,
 });
 
 // includes class into the Ruby module
@@ -130,7 +127,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
         write_with_user_metadata,
         write_multi_max_size,
         write_multi_min_size,
-        write_multi_align_size,
         write_total_max_size,
         create_dir,
         delete,
@@ -141,14 +137,11 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
         list_with_limit,
         list_with_start_after,
         list_with_recursive,
-        list_with_version,
+        list_with_versions,
         presign,
         presign_read,
         presign_stat,
         presign_write,
-        batch,
-        batch_delete,
-        batch_max_operations,
         blocking
     });
 

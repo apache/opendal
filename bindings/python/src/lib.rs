@@ -70,7 +70,7 @@ pub use options::*;
 ///
 /// asyncio.run(main())
 /// ```
-#[pymodule]
+#[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<AsyncOperator>()?;
@@ -87,35 +87,29 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<WriteOptions>()?;
 
     // Layer module
-    let layers_module = PyModule::new_bound(py, "layers")?;
+    let layers_module = PyModule::new(py, "layers")?;
     layers_module.add_class::<Layer>()?;
     layers_module.add_class::<RetryLayer>()?;
     layers_module.add_class::<ConcurrentLimitLayer>()?;
     m.add_submodule(&layers_module)?;
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("opendal.layers", layers_module)?;
 
-    let exception_module = PyModule::new_bound(py, "exceptions")?;
-    exception_module.add("Error", py.get_type_bound::<Error>())?;
-    exception_module.add("Unexpected", py.get_type_bound::<UnexpectedError>())?;
-    exception_module.add("Unsupported", py.get_type_bound::<UnsupportedError>())?;
-    exception_module.add("ConfigInvalid", py.get_type_bound::<ConfigInvalidError>())?;
-    exception_module.add("NotFound", py.get_type_bound::<NotFoundError>())?;
-    exception_module.add(
-        "PermissionDenied",
-        py.get_type_bound::<PermissionDeniedError>(),
-    )?;
-    exception_module.add("IsADirectory", py.get_type_bound::<IsADirectoryError>())?;
-    exception_module.add("NotADirectory", py.get_type_bound::<NotADirectoryError>())?;
-    exception_module.add("AlreadyExists", py.get_type_bound::<AlreadyExistsError>())?;
-    exception_module.add("IsSameFile", py.get_type_bound::<IsSameFileError>())?;
-    exception_module.add(
-        "ConditionNotMatch",
-        py.get_type_bound::<ConditionNotMatchError>(),
-    )?;
+    let exception_module = PyModule::new(py, "exceptions")?;
+    exception_module.add("Error", py.get_type::<Error>())?;
+    exception_module.add("Unexpected", py.get_type::<Unexpected>())?;
+    exception_module.add("Unsupported", py.get_type::<Unsupported>())?;
+    exception_module.add("ConfigInvalid", py.get_type::<ConfigInvalid>())?;
+    exception_module.add("NotFound", py.get_type::<NotFound>())?;
+    exception_module.add("PermissionDenied", py.get_type::<PermissionDenied>())?;
+    exception_module.add("IsADirectory", py.get_type::<IsADirectory>())?;
+    exception_module.add("NotADirectory", py.get_type::<NotADirectory>())?;
+    exception_module.add("AlreadyExists", py.get_type::<AlreadyExists>())?;
+    exception_module.add("IsSameFile", py.get_type::<IsSameFile>())?;
+    exception_module.add("ConditionNotMatch", py.get_type::<ConditionNotMatch>())?;
     m.add_submodule(&exception_module)?;
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("opendal.exceptions", exception_module)?;
     Ok(())

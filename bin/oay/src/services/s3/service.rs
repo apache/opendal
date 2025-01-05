@@ -26,7 +26,6 @@ use axum::routing::get;
 use axum::Router;
 use chrono::SecondsFormat;
 use futures_util::StreamExt;
-use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
 use serde::Serialize;
@@ -100,7 +99,6 @@ async fn handle_list_objects(
         .op
         .lister_with(&params.prefix)
         .start_after(&params.start_after)
-        .metakey(Metakey::Mode | Metakey::LastModified | Metakey::Etag | Metakey::ContentLength)
         .await?
         .chunks(1000);
 

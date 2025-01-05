@@ -27,6 +27,7 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzdlsCore;
+use super::delete::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
@@ -217,9 +218,11 @@ impl Access for AzdlsBackend {
     type Reader = HttpBody;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
+    type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -228,16 +231,33 @@ impl Access for AzdlsBackend {
             .set_name(&self.core.filesystem)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
                 write: true,
                 write_can_append: true,
+                write_with_if_none_match: true,
+                write_with_if_not_exists: true,
+
                 create_dir: true,
                 delete: true,
                 rename: true,
 
                 list: true,
+                list_has_etag: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -335,15 +355,11 @@ impl Access for AzdlsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.azdls_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AzdlsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

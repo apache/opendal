@@ -33,6 +33,7 @@ clap_builder@4.5.20		X							X
 clap_derive@4.5.18		X							X					
 clap_lex@0.7.2		X							X					
 colorchoice@1.0.2		X							X					
+console@0.15.8									X					
 const-oid@0.9.6		X							X					
 const-random@0.1.18		X							X					
 const-random-macro@0.1.16		X							X					
@@ -47,9 +48,9 @@ digest@0.10.7		X							X
 dirs@5.0.1		X							X					
 dirs-sys@0.4.1		X							X					
 dlv-list@0.5.2		X							X					
+encode_unicode@0.3.6		X							X					
 equivalent@1.0.1		X							X					
 fastrand@2.1.1		X							X					
-flagset@0.4.6		X												
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.1		X							X					
 futures@0.3.31		X							X					
@@ -83,6 +84,7 @@ iana-time-zone@0.1.61		X							X
 iana-time-zone-haiku@0.1.2		X							X					
 idna@0.5.0		X							X					
 indexmap@2.6.0		X							X					
+indicatif@0.17.9									X					
 inout@0.1.3		X							X					
 ipnet@2.10.1		X							X					
 is_terminal_polyfill@1.70.1		X							X					
@@ -105,10 +107,11 @@ num-conv@0.1.0		X							X
 num-integer@0.1.46		X							X					
 num-iter@0.1.45		X							X					
 num-traits@0.2.19		X							X					
+number_prefix@0.4.0									X					
 object@0.36.5		X							X					
-oli@0.41.13		X												
+oli@0.41.14		X												
 once_cell@1.20.2		X							X					
-opendal@0.50.2		X												
+opendal@0.51.0		X												
 option-ext@0.2.0										X				
 ordered-multimap@0.7.3									X					
 pbkdf2@0.12.2		X							X					
@@ -120,6 +123,7 @@ pin-utils@0.1.0		X							X
 pkcs1@0.7.5		X							X					
 pkcs5@0.7.1		X							X					
 pkcs8@0.10.2		X							X					
+portable-atomic@1.10.0		X							X					
 powerfmt@0.2.0		X							X					
 ppv-lite86@0.2.20		X							X					
 proc-macro2@1.0.88		X							X					
@@ -145,8 +149,8 @@ ryu@1.0.18		X				X
 salsa20@0.10.2		X							X					
 scrypt@0.11.0		X							X					
 semver@1.0.23		X							X					
-serde@1.0.210		X							X					
-serde_derive@1.0.210		X							X					
+serde@1.0.215		X							X					
+serde_derive@1.0.215		X							X					
 serde_json@1.0.132		X							X					
 serde_spanned@0.6.8		X							X					
 serde_urlencoded@0.7.1		X							X					
@@ -188,6 +192,8 @@ typenum@1.17.0		X							X
 unicode-bidi@0.3.17		X							X					
 unicode-ident@1.0.13		X							X			X		
 unicode-normalization@0.1.24		X							X					
+unicode-width@0.1.14		X							X					
+unicode-width@0.2.0		X							X					
 untrusted@0.9.0								X						
 url@2.5.2		X							X					
 utf8parse@0.2.2		X							X					
@@ -203,6 +209,7 @@ wasm-bindgen-macro-support@0.2.95		X							X
 wasm-bindgen-shared@0.2.95		X							X					
 wasm-streams@0.4.1		X							X					
 web-sys@0.3.72		X							X					
+web-time@1.1.0		X							X					
 webpki-roots@0.26.6										X				
 windows-core@0.52.0		X							X					
 windows-registry@0.2.0		X							X					

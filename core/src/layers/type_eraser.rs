@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use crate::raw::*;
 use crate::*;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///
@@ -53,11 +52,13 @@ impl<A: Access> Debug for TypeEraseAccessor<A> {
 impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     type Inner = A;
     type Reader = oio::Reader;
-    type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
-    type BlockingWriter = oio::BlockingWriter;
     type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type BlockingReader = oio::BlockingReader;
+    type BlockingWriter = oio::BlockingWriter;
     type BlockingLister = oio::BlockingLister;
+    type BlockingDeleter = oio::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -77,6 +78,13 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
             .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
     }
 
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Deleter))
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
@@ -94,6 +102,12 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner
+            .blocking_delete()
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingDeleter))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

@@ -42,7 +42,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::INTERNAL_SERVER_ERROR

@@ -11,7 +11,7 @@ More details can be found [here](https://community.apache.org/apache-way/apache-
 
 ## Status of this assessment
 
-This assessment is still working in progress.
+This assessment is evaluated during OpenDAL's graduation, which is finished on 2024-01-18.
 
 ## Maturity model assessment
 

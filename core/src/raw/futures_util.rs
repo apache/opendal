@@ -49,17 +49,17 @@ pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 ///
 /// # Safety
 ///
-/// MaybeSend equivalent to `Send` on non-wasm32 target. And it's empty
-/// on wasm32 target.
+/// [`MaybeSend`] is equivalent to `Send` on non-wasm32 target.
+/// And it's empty trait on wasm32 target to indicate that a type is not `Send`.
 #[cfg(not(target_arch = "wasm32"))]
-pub unsafe trait MaybeSend: Send {}
+pub trait MaybeSend: Send {}
 #[cfg(target_arch = "wasm32")]
-pub unsafe trait MaybeSend {}
+pub trait MaybeSend {}
 
 #[cfg(not(target_arch = "wasm32"))]
-unsafe impl<T: Send> MaybeSend for T {}
+impl<T: Send> MaybeSend for T {}
 #[cfg(target_arch = "wasm32")]
-unsafe impl<T> MaybeSend for T {}
+impl<T> MaybeSend for T {}
 
 /// ConcurrentTasks is used to execute tasks concurrently.
 ///

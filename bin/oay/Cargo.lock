@@ -49,9 +49,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.90"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37bf3594c4c988a53154954629820791dde498571819ae4ca50ca811e060cc95"
+checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
 
 [[package]]
 name = "async-trait"
@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "bytes",
@@ -323,12 +323,6 @@ name = "fastrand"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
-
-[[package]]
-name = "flagset"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3ea1ec5f8307826a5b71094dd91fc04d4ae75d5709b20ad351c7fb4815c86ec"
 
 [[package]]
 name = "fnv"
@@ -827,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.41.13"
+version = "0.41.14"
 dependencies = [
  "anyhow",
  "axum",
@@ -862,7 +856,7 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "opendal"
-version = "0.50.2"
+version = "0.51.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -870,7 +864,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
- "flagset",
  "futures",
  "getrandom",
  "http",

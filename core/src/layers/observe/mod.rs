@@ -51,11 +51,11 @@ pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;
 /// - level > 0: the path label will be the path split by "/" and get the last n level,
 ///   if n=1 and input path is "abc/def/ghi", and then we'll use "abc/" as the path label.
 pub fn path_label_value(path: &str, level: usize) -> Option<&str> {
-    if path.is_empty() {
-        return None;
-    }
-
     if level > 0 {
+        if path.is_empty() {
+            return Some("");
+        }
+
         let label_value = path
             .char_indices()
             .filter(|&(_, c)| c == '/')
@@ -80,6 +80,7 @@ mod tests {
         assert_eq!(path_label_value(path, 3), Some("abc/def/ghi"));
         assert_eq!(path_label_value(path, usize::MAX), Some("abc/def/ghi"));
 
-        assert_eq!(path_label_value("", 1), None);
+        assert_eq!(path_label_value("", 0), None);
+        assert_eq!(path_label_value("", 1), Some(""));
     }
 }

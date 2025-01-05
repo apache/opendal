@@ -20,7 +20,7 @@ name: Release Python
 on:
   push:
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - main
@@ -51,60 +51,51 @@ jobs:
           name: wheels
           path: bindings/python/dist
 
-  linux:
-    runs-on: ubuntu-latest
+  wheels:
+    runs-on: "${{ matrix.os }}"
     strategy:
       matrix:
-        target: [ x86_64, aarch64, armv7l ]
+        include:
+          - { os: windows-latest }
+          - { os: macos-latest, target: "universal2-apple-darwin" }
+          - { os: ubuntu-latest, target: "x86_64" }
+          - { os: ubuntu-latest, target: "aarch64" }
+          - { os: ubuntu-latest, target: "armv7l" }
+    env:
+      # Workaround ring 0.17 build issue
+      CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
+          working-directory: "bindings/python"
+          target: "${{ matrix.target }}"
+          command: build
+          args: --release -o dist -i python3.11 --features=pyo3/extension-module,services-all,abi3
+          sccache: true
           manylinux: auto
-          working-directory: "bindings/python"
-          command: build
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
-        env:
-          # Workaround ring 0.17 build issue
-          CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: bindings/python/dist
-
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
+          target: "${{ matrix.target }}"
           command: build
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: bindings/python/dist
-
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - uses: PyO3/maturin-action@v1
+          args: --release -o dist -i python3.10 --features=pyo3/extension-module,services-all
+          sccache: true
+          manylinux: auto
+      - name: Build free-threaded wheels
+        # windows free-threading building doesn't work on windows
+        # https://github.com/apache/opendal/pull/5449#issuecomment-2560469190
+        if: ${{ runner.os != 'Windows' }}
+        uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
+          target: "${{ matrix.target }}"
           command: build
-          target: universal2-apple-darwin
-          args: --release -o dist --find-interpreter --features=pyo3/extension-module,services-all
+          args: --release -o dist -i python3.13t --features=pyo3/extension-module,services-all
+          sccache: true
+          manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -118,7 +109,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    needs: [ macos, linux, windows ]
+    needs: [sdist, wheels]
     steps:
       - uses: actions/download-artifact@v3
         with:

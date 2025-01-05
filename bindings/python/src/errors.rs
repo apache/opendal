@@ -20,36 +20,55 @@ use pyo3::exceptions::PyException;
 
 use crate::*;
 
-create_exception!(opendal, Error, PyException, "OpenDAL Base Exception");
-create_exception!(opendal, UnexpectedError, Error, "Unexpected errors");
-create_exception!(opendal, UnsupportedError, Error, "Unsupported operation");
-create_exception!(opendal, ConfigInvalidError, Error, "Config is invalid");
-create_exception!(opendal, NotFoundError, Error, "Not found");
-create_exception!(opendal, PermissionDeniedError, Error, "Permission denied");
-create_exception!(opendal, IsADirectoryError, Error, "Is a directory");
-create_exception!(opendal, NotADirectoryError, Error, "Not a directory");
-create_exception!(opendal, AlreadyExistsError, Error, "Already exists");
-create_exception!(opendal, IsSameFileError, Error, "Is same file");
 create_exception!(
-    opendal,
-    ConditionNotMatchError,
+    opendal.exceptions,
+    Error,
+    PyException,
+    "OpenDAL Base Exception"
+);
+create_exception!(opendal.exceptions, Unexpected, Error, "Unexpected errors");
+create_exception!(
+    opendal.exceptions,
+    Unsupported,
+    Error,
+    "Unsupported operation"
+);
+create_exception!(
+    opendal.exceptions,
+    ConfigInvalid,
+    Error,
+    "Config is invalid"
+);
+create_exception!(opendal.exceptions, NotFound, Error, "Not found");
+create_exception!(
+    opendal.exceptions,
+    PermissionDenied,
+    Error,
+    "Permission denied"
+);
+create_exception!(opendal.exceptions, IsADirectory, Error, "Is a directory");
+create_exception!(opendal.exceptions, NotADirectory, Error, "Not a directory");
+create_exception!(opendal.exceptions, AlreadyExists, Error, "Already exists");
+create_exception!(opendal.exceptions, IsSameFile, Error, "Is same file");
+create_exception!(
+    opendal.exceptions,
+    ConditionNotMatch,
     Error,
     "Condition not match"
 );
 
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
-    use ocore::ErrorKind::*;
     match err.kind() {
-        Unexpected => UnexpectedError::new_err(err.to_string()),
-        Unsupported => UnsupportedError::new_err(err.to_string()),
-        ConfigInvalid => ConfigInvalidError::new_err(err.to_string()),
-        NotFound => NotFoundError::new_err(err.to_string()),
-        PermissionDenied => PermissionDeniedError::new_err(err.to_string()),
-        IsADirectory => IsADirectoryError::new_err(err.to_string()),
-        NotADirectory => NotADirectoryError::new_err(err.to_string()),
-        AlreadyExists => AlreadyExistsError::new_err(err.to_string()),
-        IsSameFile => IsSameFileError::new_err(err.to_string()),
-        ConditionNotMatch => ConditionNotMatchError::new_err(err.to_string()),
-        _ => UnexpectedError::new_err(err.to_string()),
+        ocore::ErrorKind::Unexpected => Unexpected::new_err(err.to_string()),
+        ocore::ErrorKind::Unsupported => Unsupported::new_err(err.to_string()),
+        ocore::ErrorKind::ConfigInvalid => ConfigInvalid::new_err(err.to_string()),
+        ocore::ErrorKind::NotFound => NotFound::new_err(err.to_string()),
+        ocore::ErrorKind::PermissionDenied => PermissionDenied::new_err(err.to_string()),
+        ocore::ErrorKind::IsADirectory => IsADirectory::new_err(err.to_string()),
+        ocore::ErrorKind::NotADirectory => NotADirectory::new_err(err.to_string()),
+        ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(err.to_string()),
+        ocore::ErrorKind::IsSameFile => IsSameFile::new_err(err.to_string()),
+        ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(err.to_string()),
+        _ => Unexpected::new_err(err.to_string()),
     }
 }

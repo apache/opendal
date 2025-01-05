@@ -17,192 +17,232 @@
 
 use std::fmt::Debug;
 
-/// Capability is used to describe what operations are supported
-/// by current Operator.
+/// Capability defines the supported operations and their constraints for a storage Operator.
 ///
-/// Via capability, we can know:
+/// # Overview
 ///
-/// - Whether current Operator supports read or not.
-/// - Whether current Operator supports read with if match or not.
-/// - What's current Operator max supports batch operations count.
+/// This structure provides a comprehensive description of an Operator's capabilities,
+/// including:
 ///
-/// Add fields of Capabilities with be public and can be accessed directly.
+/// - Basic operations support (read, write, delete, etc.)
+/// - Advanced operation variants (conditional operations, metadata handling)
+/// - Operational constraints (size limits, batch limitations)
 ///
-/// # Notes
+/// # Capability Types
 ///
-/// Every operator has two kinds of capabilities:
+/// Every operator maintains two capability sets:
 ///
-/// - [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability] reflects the native
-///   support for operations.
-/// - [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability] reflects the full support
-///   for operations.
+/// 1. [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability]:
+///    Represents operations natively supported by the storage backend.
 ///
-/// It's possible that some operations are not supported by current Operator, but still
-/// can be used. For examples:
+/// 2. [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability]:
+///    Represents all available operations, including those implemented through
+///    alternative mechanisms.
 ///
-/// - S3 doesn't support `seek` natively, but we implement it via `range` header.
-/// - S3 doesn't support blocking API, but `BlockingLayer` makes it possible.
+/// # Implementation Details
 ///
-/// Users can use full_capability to decide what operations can be used and use native_capability to
-/// decide if this operation optimized or not.
+/// Some operations might be available even when not natively supported by the
+/// backend. For example:
 ///
-/// # Naming Style
+/// - Blocking operations are provided through the BlockingLayer
 ///
-/// - Operation itself should be in lower case, like `read`, `write`.
-/// - Operation with sub operations should be named like `presign_read`.
-/// - Operation with variants should be named like `read_can_seek`.
-/// - Operation with arguments should be named like `read_with_range`.
-/// - Operation with limitations should be named like `batch_max_operations`.
+/// Developers should:
+/// - Use `full_capability` to determine available operations
+/// - Use `native_capability` to identify optimized operations
+///
+/// # Field Naming Conventions
+///
+/// Fields follow these naming patterns:
+///
+/// - Basic operations: Simple lowercase (e.g., `read`, `write`)
+/// - Compound operations: Underscore-separated (e.g., `presign_read`)
+/// - Variants: Capability description (e.g., `write_can_empty`)
+/// - Parameterized operations: With-style (e.g., `read_with_if_match`)
+/// - Limitations: Constraint description (e.g., `write_multi_max_size`)
+/// - Metadata Results: Returning metadata capabilities (e.g., `stat_has_content_length`)
+///
+/// All capability fields are public and can be accessed directly.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
-    /// If operator supports stat.
+    /// Indicates if the operator supports metadata retrieval operations.
     pub stat: bool,
-    /// If operator supports stat with if match.
+    /// Indicates if conditional stat operations using If-Match are supported.
     pub stat_with_if_match: bool,
-    /// If operator supports stat with if none match.
+    /// Indicates if conditional stat operations using If-None-Match are supported.
     pub stat_with_if_none_match: bool,
-    /// if operator supports stat with override cache control.
+    /// Indicates if Cache-Control header override is supported during stat operations.
     pub stat_with_override_cache_control: bool,
-    /// if operator supports stat with override content disposition.
+    /// Indicates if Content-Disposition header override is supported during stat operations.
     pub stat_with_override_content_disposition: bool,
-    /// if operator supports stat with override content type.
+    /// Indicates if Content-Type header override is supported during stat operations.
     pub stat_with_override_content_type: bool,
-    /// if operator supports stat with version.
+    /// Indicates if versions stat operations are supported.
     pub stat_with_version: bool,
+    /// Indicates whether cache control information is available in stat response
+    pub stat_has_cache_control: bool,
+    /// Indicates whether content disposition information is available in stat response
+    pub stat_has_content_disposition: bool,
+    /// Indicates whether content length information is available in stat response
+    pub stat_has_content_length: bool,
+    /// Indicates whether content MD5 checksum is available in stat response
+    pub stat_has_content_md5: bool,
+    /// Indicates whether content range information is available in stat response
+    pub stat_has_content_range: bool,
+    /// Indicates whether content type information is available in stat response
+    pub stat_has_content_type: bool,
+    /// Indicates whether content encoding information is available in stat response
+    pub stat_has_content_encoding: bool,
+    /// Indicates whether entity tag is available in stat response
+    pub stat_has_etag: bool,
+    /// Indicates whether last modified timestamp is available in stat response
+    pub stat_has_last_modified: bool,
+    /// Indicates whether version information is available in stat response
+    pub stat_has_version: bool,
+    /// Indicates whether user-defined metadata is available in stat response
+    pub stat_has_user_metadata: bool,
 
-    /// If operator supports read.
+    /// Indicates if the operator supports read operations.
     pub read: bool,
-    /// If operator supports read with if match.
+    /// Indicates if conditional read operations using If-Match are supported.
     pub read_with_if_match: bool,
-    /// If operator supports read with if none match.
+    /// Indicates if conditional read operations using If-None-Match are supported.
     pub read_with_if_none_match: bool,
-    /// if operator supports read with override cache control.
+    /// Indicates if conditional read operations using If-Modified-Since are supported.
+    pub read_with_if_modified_since: bool,
+    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
+    pub read_with_if_unmodified_since: bool,
+    /// Indicates if Cache-Control header override is supported during read operations.
     pub read_with_override_cache_control: bool,
-    /// if operator supports read with override content disposition.
+    /// Indicates if Content-Disposition header override is supported during read operations.
     pub read_with_override_content_disposition: bool,
-    /// if operator supports read with override content type.
+    /// Indicates if Content-Type header override is supported during read operations.
     pub read_with_override_content_type: bool,
-    /// if operator supports read with version.
+    /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
 
-    /// If operator supports write.
+    /// Indicates if the operator supports write operations.
     pub write: bool,
-    /// If operator supports write can be called in multi times.
+    /// Indicates if multiple write operations can be performed on the same object.
     pub write_can_multi: bool,
-    /// If operator supports write with empty content.
+    /// Indicates if writing empty content is supported.
     pub write_can_empty: bool,
-    /// If operator supports write by append.
+    /// Indicates if append operations are supported.
     pub write_can_append: bool,
-    /// If operator supports write with content type.
+    /// Indicates if Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
-    /// If operator supports write with content disposition.
+    /// Indicates if Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
-    /// If operator supports write with cache control.
+    /// Indicates if Content-Encoding can be specified during write operations.
+    pub write_with_content_encoding: bool,
+    /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
-    /// If operator supports write with if none match.
+    /// Indicates if conditional write operations using If-Match are supported.
+    pub write_with_if_match: bool,
+    /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
-    /// If operator supports write with user defined metadata
+    /// Indicates if write operations can be conditional on object non-existence.
+    pub write_with_if_not_exists: bool,
+    /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
-    /// write_multi_max_size is the max size that services support in write_multi.
-    ///
-    /// For example, AWS S3 supports 5GiB as max in write_multi.
+    /// Maximum size supported for multipart uploads.
+    /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
-    /// write_multi_min_size is the min size that services support in write_multi.
-    ///
-    /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+    /// Minimum size required for multipart uploads (except for the last part).
+    /// For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: Option<usize>,
-    /// write_multi_align_size is the align size that services required in write_multi.
-    ///
-    /// For example, Google GCS requires align size to 256KiB in write_multi.
-    pub write_multi_align_size: Option<usize>,
-    /// write_total_max_size is the max size that services support in write_total.
-    ///
-    /// For example, Cloudflare D1 supports 1MB as max in write_total.
+    /// Maximum total size supported for write operations.
+    /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
 
-    /// If operator supports create dir.
+    /// Indicates if directory creation is supported.
     pub create_dir: bool,
 
-    /// If operator supports delete.
+    /// Indicates if delete operations are supported.
     pub delete: bool,
-    /// if operator supports delete with version.
+    /// Indicates if versions delete operations are supported.
     pub delete_with_version: bool,
+    /// Maximum size supported for single delete operations.
+    pub delete_max_size: Option<usize>,
 
-    /// If operator supports copy.
+    /// Indicates if copy operations are supported.
     pub copy: bool,
 
-    /// If operator supports rename.
+    /// Indicates if rename operations are supported.
     pub rename: bool,
 
-    /// If operator supports list.
+    /// Indicates if list operations are supported.
     pub list: bool,
-    /// If backend supports list with limit.
+    /// Indicates if list operations support result limiting.
     pub list_with_limit: bool,
-    /// If backend supports list with start after.
+    /// Indicates if list operations support continuation from a specific point.
     pub list_with_start_after: bool,
-    /// If backend supports list with recursive.
+    /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
-    /// if operator supports list with version.
+    /// Indicates if versions listing is supported.
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub list_with_version: bool,
+    /// Indicates if listing with versions included is supported.
+    pub list_with_versions: bool,
+    /// Indicates if listing with deleted files included is supported.
+    pub list_with_deleted: bool,
+    /// Indicates whether cache control information is available in list response
+    pub list_has_cache_control: bool,
+    /// Indicates whether content disposition information is available in list response
+    pub list_has_content_disposition: bool,
+    /// Indicates whether content length information is available in list response
+    pub list_has_content_length: bool,
+    /// Indicates whether content MD5 checksum is available in list response
+    pub list_has_content_md5: bool,
+    /// Indicates whether content range information is available in list response
+    pub list_has_content_range: bool,
+    /// Indicates whether content type information is available in list response
+    pub list_has_content_type: bool,
+    /// Indicates whether entity tag is available in list response
+    pub list_has_etag: bool,
+    /// Indicates whether last modified timestamp is available in list response
+    pub list_has_last_modified: bool,
+    /// Indicates whether version information is available in list response
+    pub list_has_version: bool,
+    /// Indicates whether user-defined metadata is available in list response
+    pub list_has_user_metadata: bool,
 
-    /// If operator supports presign.
+    /// Indicates if presigned URL generation is supported.
     pub presign: bool,
-    /// If operator supports presign read.
+    /// Indicates if presigned URLs for read operations are supported.
     pub presign_read: bool,
-    /// If operator supports presign stat.
+    /// Indicates if presigned URLs for stat operations are supported.
     pub presign_stat: bool,
-    /// If operator supports presign write.
+    /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
 
-    /// If operator supports batch.
-    pub batch: bool,
-    /// If operator supports batch delete.
-    pub batch_delete: bool,
-    /// The max operations that operator supports in batch.
-    pub batch_max_operations: Option<usize>,
+    /// Indicate if the operator supports shared access.
+    pub shared: bool,
 
-    /// If operator supports blocking.
+    /// Indicates if blocking operations are supported.
     pub blocking: bool,
 }
 
 impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = vec![];
-
-        if self.stat {
-            s.push("Stat");
-        }
+        // NOTE: All services in opendal are readable.
         if self.read {
-            s.push("Read");
+            f.write_str("Read")?;
         }
         if self.write {
-            s.push("Write");
-        }
-        if self.create_dir {
-            s.push("CreateDir");
-        }
-        if self.delete {
-            s.push("Delete");
-        }
-        if self.copy {
-            s.push("Copy");
-        }
-        if self.rename {
-            s.push("Rename");
+            f.write_str("| Write")?;
         }
         if self.list {
-            s.push("List");
+            f.write_str("| List")?;
         }
         if self.presign {
-            s.push("Presign");
+            f.write_str("| Presign")?;
         }
-        if self.batch {
-            s.push("Batch");
+        if self.shared {
+            f.write_str("| Shared")?;
         }
         if self.blocking {
-            s.push("Blocking");
+            f.write_str("| Blocking")?;
         }
-
-        write!(f, "{{ {} }}", s.join(" | "))
+        Ok(())
     }
 }

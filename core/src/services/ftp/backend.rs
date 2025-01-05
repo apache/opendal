@@ -37,6 +37,7 @@ use suppaftp::Status;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
+use super::delete::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
@@ -259,9 +260,11 @@ impl Access for FtpBackend {
     type Reader = FtpReader;
     type Writer = FtpWriter;
     type Lister = FtpLister;
+    type Deleter = oio::OneShotDeleter<FtpDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -269,6 +272,8 @@ impl Access for FtpBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
@@ -280,6 +285,10 @@ impl Access for FtpBackend {
                 create_dir: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -377,27 +386,11 @@ impl Access for FtpBackend {
         Ok((RpWrite::new(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
-
-        let result = if path.ends_with('/') {
-            ftp_stream.rmdir(&path).await
-        } else {
-            ftp_stream.rm(&path).await
-        };
-
-        match result {
-            Err(FtpError::UnexpectedResponse(Response {
-                status: Status::FileUnavailable,
-                ..
-            }))
-            | Ok(_) => (),
-            Err(e) => {
-                return Err(parse_error(e));
-            }
-        }
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FtpDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

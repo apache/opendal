@@ -139,11 +139,10 @@ For example:
 Bump all components' version in the project to the new opendal version.
 Please note that this version is the exact version of the release, not the release candidate version.
 
-- rust core: bump version in `Cargo.toml`
-- cpp binding: bump version in `bindings/cpp/CMakeLists.txt`
-- haskell binding: bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`
-- java binding: bump version in `bindings/java/pom.xml`
-- node.js binding: bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`
+- Rust core: Bump version in `Cargo.toml`
+- Haskell binding: Bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`
+- Java binding: Bump version in `bindings/java/pom.xml`
+- Node.js binding: Bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`
 
 ### Update docs
 

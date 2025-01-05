@@ -28,6 +28,7 @@ use serde_json::json;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::delete::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
@@ -43,9 +44,11 @@ impl Access for GdriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
+    type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
@@ -53,10 +56,16 @@ impl Access for GdriveBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
                 list: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_etag: true,
 
                 write: true,
 
@@ -64,6 +73,9 @@ impl Access for GdriveBackend {
                 delete: true,
                 rename: true,
                 copy: true,
+
+                shared: true,
+
                 ..Default::default()
             });
 
@@ -88,11 +100,12 @@ impl Access for GdriveBackend {
         let gdrive_file: GdriveFile =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        let file_type = if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
         };
-
-        let mut meta = Metadata::new(EntryMode::FILE);
+        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
         if let Some(v) = gdrive_file.size {
             meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
@@ -133,24 +146,11 @@ impl Access for GdriveBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = build_abs_path(&self.core.root, path);
-        let file_id = self.core.path_cache.get(&path).await?;
-        let file_id = if let Some(id) = file_id {
-            id
-        } else {
-            return Ok(RpDelete::default());
-        };
-
-        let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
-        if status != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        self.core.path_cache.remove(&path).await;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

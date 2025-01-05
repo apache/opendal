@@ -157,12 +157,6 @@ export class Capability {
    */
   get writeMultiMinSize(): bigint | null
   /**
-   * write_multi_align_size is the align size that services required in write_multi.
-   *
-   * For example, Google GCS requires align size to 256KiB in write_multi.
-   */
-  get writeMultiAlignSize(): bigint | null
-  /**
    * write_total_max_size is the max size that services support in write_total.
    *
    * For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -192,12 +186,8 @@ export class Capability {
   get presignStat(): boolean
   /** If operator supports presign write. */
   get presignWrite(): boolean
-  /** If operator supports batch. */
-  get batch(): boolean
-  /** If operator supports batch delete. */
-  get batchDelete(): boolean
-  /** The max operations that operator supports in batch. */
-  get batchMaxOperations(): bigint | null
+  /** If operator supports shared. */
+  get shared(): boolean
   /** If operator supports blocking. */
   get blocking(): boolean
 }

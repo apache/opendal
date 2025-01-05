@@ -39,8 +39,8 @@ use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
+use opendal::Buffer;
 use opendal::Writer;
-use opendal::{Buffer, Metakey};
 use opendal::{Operator, OperatorInfo};
 use tokio::sync::{Mutex, Notify};
 
@@ -102,16 +102,6 @@ impl OpendalStore {
             info: op.info().into(),
             inner: op,
         }
-    }
-
-    /// The metakey that requested by object_store, should align with its meta.
-    #[inline]
-    fn metakey() -> flagset::FlagSet<Metakey> {
-        Metakey::Mode
-            | Metakey::LastModified
-            | Metakey::ContentLength
-            | Metakey::Etag
-            | Metakey::Version
     }
 }
 
@@ -308,7 +298,6 @@ impl ObjectStore for OpendalStore {
             let stream = self
                 .inner
                 .lister_with(&path)
-                .metakey(Self::metakey())
                 .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
@@ -334,34 +323,52 @@ impl ObjectStore for OpendalStore {
         let offset = offset.clone();
 
         let fut = async move {
-            let fut = if self.inner.info().full_capability().list_with_start_after {
-                self.inner
-                    .lister_with(&path)
-                    .start_after(offset.as_ref())
-                    .metakey(Self::metakey())
-                    .recursive(true)
-                    .into_future()
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, &path))?
-                    .then(try_format_object_meta)
-                    .into_send()
-                    .boxed()
+            let list_with_start_after = self.inner.info().full_capability().list_with_start_after;
+            let mut fut = self.inner.lister_with(&path).recursive(true);
+
+            // Use native start_after support if possible.
+            if list_with_start_after {
+                fut = fut.start_after(offset.as_ref());
+            }
+
+            let lister = fut
+                .await
+                .map_err(|err| format_object_store_error(err, &path))?
+                .then(move |entry| {
+                    let path = path.clone();
+
+                    async move {
+                        let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
+                        let (path, metadata) = entry.into_parts();
+
+                        // If it's a dir or last_modified is present, we can use it directly.
+                        if metadata.is_dir() || metadata.last_modified().is_some() {
+                            let object_meta = format_object_meta(&path, &metadata);
+                            return Ok(object_meta);
+                        }
+
+                        let metadata = self
+                            .inner
+                            .stat(&path)
+                            .await
+                            .map_err(|err| format_object_store_error(err, &path))?;
+                        let object_meta = format_object_meta(&path, &metadata);
+                        Ok::<_, object_store::Error>(object_meta)
+                    }
+                })
+                .into_send()
+                .boxed();
+
+            let stream = if list_with_start_after {
+                lister
             } else {
-                self.inner
-                    .lister_with(&path)
-                    .metakey(Self::metakey())
-                    .recursive(true)
-                    .into_future()
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, &path))?
-                    .try_filter(move |entry| futures::future::ready(entry.path() > offset.as_ref()))
-                    .then(try_format_object_meta)
+                lister
+                    .try_filter(move |entry| futures::future::ready(entry.location > offset))
                     .into_send()
                     .boxed()
             };
-            Ok::<_, object_store::Error>(fut)
+
+            Ok::<_, object_store::Error>(stream)
         };
 
         fut.into_stream().into_send().try_flatten().boxed()
@@ -372,7 +379,6 @@ impl ObjectStore for OpendalStore {
         let mut stream = self
             .inner
             .lister_with(&path)
-            .metakey(Self::metakey())
             .into_future()
             .into_send()
             .await
@@ -388,8 +394,15 @@ impl ObjectStore for OpendalStore {
 
             if meta.is_dir() {
                 common_prefixes.push(entry.path().into());
-            } else {
+            } else if meta.last_modified().is_some() {
                 objects.push(format_object_meta(entry.path(), meta));
+            } else {
+                let meta = self
+                    .inner
+                    .stat(entry.path())
+                    .await
+                    .map_err(|err| format_object_store_error(err, entry.path()))?;
+                objects.push(format_object_meta(entry.path(), &meta));
             }
         }
 

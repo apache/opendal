@@ -25,6 +25,7 @@ use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;
 use super::core::BUFFER_SIZE;
+use super::delete::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;
@@ -104,9 +105,11 @@ impl Access for MonoiofsBackend {
     type Reader = MonoiofsReader;
     type Writer = MonoiofsWriter;
     type Lister = ();
+    type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -114,6 +117,9 @@ impl Access for MonoiofsBackend {
             .set_root(&self.core.root().to_string_lossy())
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+
                 read: true,
                 write: true,
                 write_can_append: true,
@@ -121,6 +127,7 @@ impl Access for MonoiofsBackend {
                 rename: true,
                 create_dir: true,
                 copy: true,
+                shared: true,
                 ..Default::default()
             });
         am.into()
@@ -162,34 +169,11 @@ impl Access for MonoiofsBackend {
         Ok((RpWrite::default(), writer))
     }
 
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
-        let path = self.core.prepare_path(path);
-        let meta = self
-            .core
-            .dispatch({
-                let path = path.clone();
-                move || monoio::fs::metadata(path)
-            })
-            .await;
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    self.core
-                        .dispatch(move || monoio::fs::remove_dir(path))
-                        .await
-                        .map_err(new_std_io_error)?;
-                } else {
-                    self.core
-                        .dispatch(move || monoio::fs::remove_file(path))
-                        .await
-                        .map_err(new_std_io_error)?;
-                }
-
-                Ok(RpDelete::default())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(MonoiofsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

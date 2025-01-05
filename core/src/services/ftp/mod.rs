@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-ftp")]
+mod delete;
+#[cfg(feature = "services-ftp")]
 mod err;
 #[cfg(feature = "services-ftp")]
 mod lister;

@@ -29,6 +29,7 @@ use log::debug;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
+use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
@@ -171,10 +172,7 @@ impl Builder for WebhdfsBuilder {
 
         let atomic_write_dir = self.config.atomic_write_dir;
 
-        let auth = self
-            .config
-            .delegation
-            .map(|dt| format!("delegation_token={dt}"));
+        let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let client = HttpClient::new()?;
 
@@ -517,9 +515,11 @@ impl Access for WebhdfsBackend {
     type Reader = HttpBody;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
+    type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -527,6 +527,8 @@ impl Access for WebhdfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
@@ -538,6 +540,10 @@ impl Access for WebhdfsBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -641,13 +647,11 @@ impl Access for WebhdfsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.webhdfs_delete(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(WebhdfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -26,6 +26,7 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::delete::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
@@ -64,9 +65,11 @@ impl Access for IpmfsBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
+    type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -74,6 +77,7 @@ impl Access for IpmfsBackend {
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
 
                 read: true,
 
@@ -81,6 +85,9 @@ impl Access for IpmfsBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -155,15 +162,11 @@ impl Access for IpmfsBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.ipmfs_rm(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(IpmfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -208,7 +211,7 @@ impl IpmfsBackend {
         self.client.fetch(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

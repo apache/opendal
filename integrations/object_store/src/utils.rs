@@ -17,7 +17,7 @@
 
 use futures::Stream;
 use object_store::ObjectMeta;
-use opendal::{Entry, Metadata, Metakey};
+use opendal::Metadata;
 use std::future::IntoFuture;
 
 /// Conditionally add the `Send` marker trait for the wrapped type.
@@ -51,33 +51,13 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
 
 /// Format `opendal::Metadata` to `object_store::ObjectMeta`.
 pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
-    let version = match meta.metakey().contains(Metakey::Version) {
-        true => meta.version().map(|x| x.to_string()),
-        false => None,
-    };
-
-    let e_tag = match meta.metakey().contains(Metakey::Etag) {
-        true => meta.etag().map(|x| x.to_string()),
-        false => None,
-    };
-
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
-        e_tag,
-        version,
+        e_tag: meta.etag().map(|x| x.to_string()),
+        version: meta.version().map(|x| x.to_string()),
     }
-}
-
-/// Try to format `opendal::Entry` to `object_store::ObjectMeta`.
-pub async fn try_format_object_meta(
-    res: object_store::Result<Entry, opendal::Error>,
-) -> object_store::Result<ObjectMeta> {
-    let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-    let meta = entry.metadata();
-
-    Ok(format_object_meta(entry.path(), meta))
 }
 
 /// Make given future `Send`.

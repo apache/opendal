@@ -89,12 +89,6 @@ pub struct opendal_capability {
     ///
     /// If it is not set, this will be zero
     pub write_multi_min_size: usize,
-    /// write_multi_align_size is the align size that services required in write_multi.
-    ///
-    /// For example, Google GCS requires align size to 256KiB in write_multi.
-    ///
-    /// If it is not set, this will be zero
-    pub write_multi_align_size: usize,
     /// write_total_max_size is the max size that services support in write_total.
     ///
     /// For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -132,14 +126,8 @@ pub struct opendal_capability {
     /// If operator supports presign write.
     pub presign_write: bool,
 
-    /// If operator supports batch.
-    pub batch: bool,
-    /// If operator supports batch delete.
-    pub batch_delete: bool,
-    /// The max operations that operator supports in batch.
-    ///
-    /// If it is not set, this will be zero
-    pub batch_max_operations: usize,
+    /// If operator supports shared.
+    pub shared: bool,
 
     /// If operator supports blocking.
     pub blocking: bool,
@@ -253,7 +241,6 @@ impl From<core::Capability> for opendal_capability {
             write_with_cache_control: value.write_with_cache_control,
             write_multi_max_size: value.write_multi_max_size.unwrap_or(0),
             write_multi_min_size: value.write_multi_min_size.unwrap_or(0),
-            write_multi_align_size: value.write_multi_align_size.unwrap_or(0),
             write_total_max_size: value.write_total_max_size.unwrap_or(0),
             create_dir: value.create_dir,
             delete: value.delete,
@@ -267,9 +254,7 @@ impl From<core::Capability> for opendal_capability {
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,
             presign_write: value.presign_write,
-            batch: value.batch,
-            batch_delete: value.batch_delete,
-            batch_max_operations: value.batch_max_operations.unwrap_or(0),
+            shared: value.shared,
             blocking: value.blocking,
         }
     }

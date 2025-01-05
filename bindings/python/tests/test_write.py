@@ -29,7 +29,7 @@ def test_sync_write(service_name, operator, async_operator):
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     size = len(content)
-    operator.write(filename, content)
+    operator.write(filename, content, content_type="text/plain")
     metadata = operator.stat(filename)
     assert metadata is not None
     assert metadata.mode.is_file()

@@ -19,12 +19,11 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::collections::HashMap;
-use std::time::Duration;
-
 use crate::raw::*;
 use crate::*;
-use flagset::FlagSet;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -42,7 +41,7 @@ impl OpCreateDir {
 /// Args for `delete` operation.
 ///
 /// The path must be normalized.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
 }
@@ -67,6 +66,19 @@ impl OpDelete {
     }
 }
 
+/// Args for `delete` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpDeleter {}
+
+impl OpDeleter {
+    /// Create a new `OpDelete`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Args for `list` operation.
 #[derive(Debug, Clone)]
 pub struct OpList {
@@ -85,13 +97,6 @@ pub struct OpList {
     ///
     /// Default to `false`.
     recursive: bool,
-    /// Metakey is used to control which meta should be returned.
-    ///
-    /// Lister will make sure the result for specified meta is **known**:
-    ///
-    /// - `Some(v)` means exist.
-    /// - `None` means services doesn't have this meta.
-    metakey: FlagSet<Metakey>,
     /// The concurrent of stat operations inside list operation.
     /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
     ///
@@ -106,7 +111,15 @@ pub struct OpList {
     ///   by the underlying service
     ///
     /// Default to `false`
-    version: bool,
+    versions: bool,
+    /// The deleted is used to control whether the deleted objects should be returned.
+    ///
+    /// - If `false`, list operation will not return with deleted objects
+    /// - If `true`, list operation will return with deleted objects if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    deleted: bool,
 }
 
 impl Default for OpList {
@@ -115,10 +128,9 @@ impl Default for OpList {
             limit: None,
             start_after: None,
             recursive: false,
-            // By default, we want to know what's the mode of this entry.
-            metakey: Metakey::Mode.into(),
             concurrent: 1,
-            version: false,
+            versions: false,
+            deleted: false,
         }
     }
 }
@@ -167,19 +179,6 @@ impl OpList {
         self.recursive
     }
 
-    /// Change the metakey of this list operation.
-    ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn with_metakey(mut self, metakey: impl Into<FlagSet<Metakey>>) -> Self {
-        self.metakey = metakey.into();
-        self
-    }
-
-    /// Get the current metakey.
-    pub fn metakey(&self) -> FlagSet<Metakey> {
-        self.metakey
-    }
-
     /// Change the concurrent of this list operation.
     ///
     /// The default concurrent is 1.
@@ -194,14 +193,38 @@ impl OpList {
     }
 
     /// Change the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub fn with_version(mut self, version: bool) -> Self {
-        self.version = version;
+        self.versions = version;
+        self
+    }
+
+    /// Change the version of this list operation
+    pub fn with_versions(mut self, versions: bool) -> Self {
+        self.versions = versions;
         self
     }
 
     /// Get the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
     pub fn version(&self) -> bool {
-        self.version
+        self.versions
+    }
+
+    /// Get the version of this list operation
+    pub fn versions(&self) -> bool {
+        self.versions
+    }
+
+    /// Change the deleted of this list operation
+    pub fn with_deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
+        self
+    }
+
+    /// Get the deleted of this list operation
+    pub fn deleted(&self) -> bool {
+        self.deleted
     }
 }
 
@@ -270,59 +293,14 @@ impl From<OpWrite> for PresignOperation {
     }
 }
 
-/// Args for `batch` operation.
-#[derive(Debug, Clone)]
-pub struct OpBatch {
-    ops: Vec<(String, BatchOperation)>,
-}
-
-impl OpBatch {
-    /// Create a new batch options.
-    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
-        Self { ops }
-    }
-
-    /// Get operation from op.
-    pub fn operation(&self) -> &[(String, BatchOperation)] {
-        &self.ops
-    }
-
-    /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
-        self.ops
-    }
-}
-
-/// Batch operation used for batch.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum BatchOperation {
-    /// Batch delete operation.
-    Delete(OpDelete),
-}
-
-impl From<OpDelete> for BatchOperation {
-    fn from(op: OpDelete) -> Self {
-        Self::Delete(op)
-    }
-}
-
-impl BatchOperation {
-    /// Return the operation of this batch.
-    pub fn operation(&self) -> Operation {
-        use BatchOperation::*;
-        match self {
-            Delete(_) => Operation::Delete,
-        }
-    }
-}
-
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -406,6 +384,28 @@ impl OpRead {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(v);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
     }
 
     /// Set the version of the option
@@ -598,9 +598,12 @@ pub struct OpWrite {
     concurrent: usize,
     content_type: Option<String>,
     content_disposition: Option<String>,
+    content_encoding: Option<String>,
     cache_control: Option<String>,
     executor: Option<Executor>,
+    if_match: Option<String>,
     if_none_match: Option<String>,
+    if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -653,6 +656,17 @@ impl OpWrite {
         self
     }
 
+    /// Get the content encoding from option
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set the content encoding of option
+    pub fn with_content_encoding(mut self, content_encoding: &str) -> Self {
+        self.content_encoding = Some(content_encoding.to_string());
+        self
+    }
+
     /// Get the cache control from option
     pub fn cache_control(&self) -> Option<&str> {
         self.cache_control.as_deref()
@@ -686,6 +700,17 @@ impl OpWrite {
         self
     }
 
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, s: &str) -> Self {
+        self.if_match = Some(s.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
+
     /// Set the If-None-Match of the option
     pub fn with_if_none_match(mut self, s: &str) -> Self {
         self.if_none_match = Some(s.to_string());
@@ -695,6 +720,17 @@ impl OpWrite {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Not-Exist of the option
+    pub fn with_if_not_exists(mut self, b: bool) -> Self {
+        self.if_not_exists = b;
+        self
+    }
+
+    /// Get If-Not-Exist from option
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
     }
 
     /// Merge given executor into option.

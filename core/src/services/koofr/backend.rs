@@ -29,6 +29,7 @@ use tokio::sync::OnceCell;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
+use super::delete::KoofrDeleter;
 use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
@@ -198,9 +199,11 @@ impl Access for KoofrBackend {
     type Reader = HttpBody;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
+    type Deleter = oio::OneShotDeleter<KoofrDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -208,6 +211,9 @@ impl Access for KoofrBackend {
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_last_modified: true,
 
                 create_dir: true,
 
@@ -223,6 +229,11 @@ impl Access for KoofrBackend {
                 copy: true,
 
                 list: true,
+                list_has_content_length: true,
+                list_has_content_type: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
@@ -293,17 +304,11 @@ impl Access for KoofrBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.remove(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(KoofrDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

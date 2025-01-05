@@ -38,7 +38,6 @@ digest@0.10.7		X							X
 dlv-list@0.5.2		X							X					
 either@1.13.0		X							X					
 fastrand@2.1.1		X							X					
-flagset@0.4.6		X												
 fnv@1.0.7		X							X					
 form_urlencoded@1.2.1		X							X					
 futures@0.3.31		X							X					
@@ -94,8 +93,8 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.5		X							X					
 once_cell@1.20.2		X							X					
-opendal@0.50.2		X												
-opendal-lua@0.1.11		X												
+opendal@0.51.0		X												
+opendal-lua@0.2.0		X												
 ordered-multimap@0.7.3									X					
 pbkdf2@0.12.2		X							X					
 pem@3.0.4									X					

@@ -138,16 +138,6 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         })
     }
 
-    // TODO: should we split `from_uri` into two functions? `from_uri` and `from_uri_opts`?
-    // So we can have:
-    // ```rust
-    // fn from_uri(uri: &str) -> Result<Self> {...}
-    // fn from_uri_opts(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {...}
-    //```?
-    // This way, we can reduce the boilerplate of passing an empty iterator and
-    // `let op = Operator::from_uri("fs:///tmp/test", vec![])?;`
-    // becomes `let op = Operator::from_uri("fs:///tmp/test")?;` which is simpler.
-
     /// TODO: document this.
     fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
         let parsed_uri = uri.parse::<Uri>().map_err(|err| {

@@ -159,7 +159,6 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         // instead we should use `let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?;` as done
         // in `ofs`. The `fs` service should override this default implementation if it wants to use the host or path params?
 
-        // TODO: should we merge it this way?
         let merged_options = query_pairs.into_iter().chain(options);
 
         Self::from_iter(merged_options)

@@ -257,6 +257,7 @@ impl Access for CosBackend {
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
+                stat_has_user_metadata: true,
 
                 read: true,
 
@@ -284,6 +285,7 @@ impl Access for CosBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 copy: true,
@@ -311,7 +313,11 @@ impl Access for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK =>{
+                let headers = resp.headers();
+                let mut meta = self.core.parse_metadata(path, resp.headers())?;
+                Ok(RpStat::new(meta))
+            },
             _ => Err(parse_error(resp)),
         }
     }

@@ -33,9 +33,9 @@ thread_local! {
 // In order to reduce boilerplate, we should return in this function a `Builder` instead of operator?.
 pub type OperatorFactory = fn(&str, HashMap<String, String>) -> Result<Operator>;
 
-// TODO: create an static registry? or a global() method of OperatorRegistry that lazily initializes the registry?
-// Register only services in `Scheme::enabled()`
-
+// TODO: the default implementation should return an empty registry? Or it shoudl return the initialized
+// registry with all the services that are enabled? If so, should we include an `OperatorRegistry::empty` method
+// that allows users to create an empty registry?
 #[derive(Clone, Debug, Default)]
 pub struct OperatorRegistry {
     registry: Arc<Mutex<HashMap<String, OperatorFactory>>>,
@@ -54,131 +54,131 @@ impl OperatorRegistry {
         //
         // ```rust
         // apply_for_all_services!{
-        //    registry.register_builder::<$service>();
+        //   $service::register_in_registry(&mut registry>();
         // }
         // ```
         // and the apply_for_all_services macro would gate every statement behind the corresponding feature gate
         // This seems to not be the place where we should have a "list of enabled services".
         #[cfg(feature = "services-aliyun-drive")]
-        registry.register_builder::<AliyunDrive>();
+        AliyunDrive::register_in_registry(&mut registry);
         #[cfg(feature = "services-atomicserver")]
-        registry.register_builder::<Atomicserver>();
+        Atomicserver::register_in_registry(&mut registry);
         #[cfg(feature = "services-alluxio")]
-        registry.register_builder::<Alluxio>();
+        Alluxio::register_in_registry(&mut registry);
         #[cfg(feature = "services-azblob")]
-        registry.register_builder::<Azblob>();
+        Azblob::register_in_registry(&mut registry);
         #[cfg(feature = "services-azdls")]
-        registry.register_builder::<Azdls>();
+        Azdls::register_in_registry(&mut registry);
         #[cfg(feature = "services-azfile")]
-        registry.register_builder::<Azfile>();
+        Azfile::register_in_registry(&mut registry);
         #[cfg(feature = "services-b2")]
-        registry.register_builder::<B2>();
+        B2::register_in_registry(&mut registry);
         #[cfg(feature = "services-cacache")]
-        registry.register_builder::<Cacache>();
+        Cacache::register_in_registry(&mut registry);
         #[cfg(feature = "services-cos")]
-        registry.register_builder::<Cos>();
+        Cos::register_in_registry(&mut registry);
         #[cfg(feature = "services-compfs")]
-        registry.register_builder::<Compfs>();
+        Compfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-dashmap")]
-        registry.register_builder::<Dashmap>();
+        Dashmap::register_in_registry(&mut registry);
         #[cfg(feature = "services-dropbox")]
-        registry.register_builder::<Dropbox>();
+        Dropbox::register_in_registry(&mut registry);
         #[cfg(feature = "services-etcd")]
-        registry.register_builder::<Etcd>();
+        Etcd::register_in_registry(&mut registry);
         #[cfg(feature = "services-foundationdb")]
-        registry.register_builder::<Foundationdb>();
+        Foundationdb::register_in_registry(&mut registry);
         #[cfg(feature = "services-fs")]
-        registry.register_builder::<Fs>();
+        Fs::register_in_registry(&mut registry);
         #[cfg(feature = "services-ftp")]
-        registry.register_builder::<Ftp>();
+        Ftp::register_in_registry(&mut registry);
         #[cfg(feature = "services-gcs")]
-        registry.register_builder::<Gcs>();
+        Gcs::register_in_registry(&mut registry);
         #[cfg(feature = "services-ghac")]
-        registry.register_builder::<Ghac>();
+        Ghac::register_in_registry(&mut registry);
         #[cfg(feature = "services-hdfs")]
-        registry.register_builder::<Hdfs>();
+        Hdfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-http")]
-        registry.register_builder::<Http>();
+        Http::register_in_registry(&mut registry);
         #[cfg(feature = "services-huggingface")]
-        registry.register_builder::<Huggingface>();
+        Huggingface::register_in_registry(&mut registry);
         #[cfg(feature = "services-ipfs")]
-        registry.register_builder::<Ipfs>();
+        Ipfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-ipmfs")]
-        registry.register_builder::<Ipmfs>();
+        Ipmfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-icloud")]
-        registry.register_builder::<Icloud>();
+        Icloud::register_in_registry(&mut registry);
         #[cfg(feature = "services-libsql")]
-        registry.register_builder::<Libsql>();
+        Libsql::register_in_registry(&mut registry);
         #[cfg(feature = "services-memcached")]
-        registry.register_builder::<Memcached>();
+        Memcached::register_in_registry(&mut registry);
         #[cfg(feature = "services-memory")]
-        registry.register_builder::<Memory>();
+        Memory::register_in_registry(&mut registry);
         #[cfg(feature = "services-mini-moka")]
-        registry.register_builder::<MiniMoka>();
+        MiniMoka::register_in_registry(&mut registry);
         #[cfg(feature = "services-moka")]
-        registry.register_builder::<Moka>();
+        Moka::register_in_registry(&mut registry);
         #[cfg(feature = "services-monoiofs")]
-        registry.register_builder::<Monoiofs>();
+        Monoiofs::register_in_registry(&mut registry);
         #[cfg(feature = "services-mysql")]
-        registry.register_builder::<Mysql>();
+        Mysql::register_in_registry(&mut registry);
         #[cfg(feature = "services-obs")]
-        registry.register_builder::<Obs>();
+        Obs::register_in_registry(&mut registry);
         #[cfg(feature = "services-onedrive")]
-        registry.register_builder::<Onedrive>();
+        Onedrive::register_in_registry(&mut registry);
         #[cfg(feature = "services-postgresql")]
-        registry.register_builder::<Postgresql>();
+        Postgresql::register_in_registry(&mut registry);
         #[cfg(feature = "services-gdrive")]
-        registry.register_builder::<Gdrive>();
+        Gdrive::register_in_registry(&mut registry);
         #[cfg(feature = "services-oss")]
-        registry.register_builder::<Oss>();
+        Oss::register_in_registry(&mut registry);
         #[cfg(feature = "services-persy")]
-        registry.register_builder::<Persy>();
+        Persy::register_in_registry(&mut registry);
         #[cfg(feature = "services-redis")]
-        registry.register_builder::<Redis>();
+        Redis::register_in_registry(&mut registry);
         #[cfg(feature = "services-rocksdb")]
-        registry.register_builder::<Rocksdb>();
+        Rocksdb::register_in_registry(&mut registry);
         #[cfg(feature = "services-s3")]
-        registry.register_builder::<S3>();
+        S3::register_in_registry(&mut registry);
         #[cfg(feature = "services-seafile")]
-        registry.register_builder::<Seafile>();
+        Seafile::register_in_registry(&mut registry);
         #[cfg(feature = "services-upyun")]
-        registry.register_builder::<Upyun>();
+        Upyun::register_in_registry(&mut registry);
         #[cfg(feature = "services-yandex-disk")]
-        registry.register_builder::<YandexDisk>();
+        YandexDisk::register_in_registry(&mut registry);
         #[cfg(feature = "services-pcloud")]
-        registry.register_builder::<Pcloud>();
+        Pcloud::register_in_registry(&mut registry);
         #[cfg(feature = "services-sftp")]
-        registry.register_builder::<Sftp>();
+        Sftp::register_in_registry(&mut registry);
         #[cfg(feature = "services-sled")]
-        registry.register_builder::<Sled>();
+        Sled::register_in_registry(&mut registry);
         #[cfg(feature = "services-sqlite")]
-        registry.register_builder::<Sqlite>();
+        Sqlite::register_in_registry(&mut registry);
         #[cfg(feature = "services-supabase")]
-        registry.register_builder::<Supabase>();
+        Supabase::register_in_registry(&mut registry);
         #[cfg(feature = "services-swift")]
-        registry.register_builder::<Swift>();
+        Swift::register_in_registry(&mut registry);
         #[cfg(feature = "services-tikv")]
-        registry.register_builder::<Tikv>();
+        Tikv::register_in_registry(&mut registry);
         #[cfg(feature = "services-vercel-artifacts")]
-        registry.register_builder::<VercelArtifacts>();
+        VercelArtifacts::register_in_registry(&mut registry);
         #[cfg(feature = "services-vercel-blob")]
-        registry.register_builder::<VercelBlob>();
+        VercelBlob::register_in_registry(&mut registry);
         #[cfg(feature = "services-webdav")]
-        registry.register_builder::<Webdav>();
+        Webdav::register_in_registry(&mut registry);
         #[cfg(feature = "services-webhdfs")]
-        registry.register_builder::<Webhdfs>();
+        Webhdfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-redb")]
-        registry.register_builder::<Redb>();
+        Redb::register_in_registry(&mut registry);
         #[cfg(feature = "services-mongodb")]
-        registry.register_builder::<Mongodb>();
+        Mongodb::register_in_registry(&mut registry);
         #[cfg(feature = "services-hdfs-native")]
-        registry.register_builder::<HdfsNative>();
+        HdfsNative::register_in_registry(&mut registry);
         #[cfg(feature = "services-surrealdb")]
-        registry.register_builder::<Surrealdb>();
+        Surrealdb::register_in_registry(&mut registry);
         #[cfg(feature = "services-lakefs")]
-        registry.register_builder::<Lakefs>();
+        Lakefs::register_in_registry(&mut registry);
         #[cfg(feature = "services-nebula-graph")]
-        registry.register_builder::<NebulaGraph>();
+        NebulaGraph::register_in_registry(&mut registry);
 
         registry
     }
@@ -223,19 +223,5 @@ impl OperatorRegistry {
         let options = options.into_iter().collect();
 
         factory(uri, options)
-    }
-
-    fn register_builder<B: Builder>(&mut self) {
-        self.register(
-            B::SCHEME.into_static(),
-            operator_factory_from_configurator::<B::Config>(),
-        );
-    }
-}
-
-fn operator_factory_from_configurator<C: Configurator>() -> OperatorFactory {
-    |uri, options| {
-        let builder = C::from_uri(uri, options)?.into_builder();
-        Ok(Operator::new(builder)?.finish())
     }
 }

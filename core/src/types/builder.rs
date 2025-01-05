@@ -23,6 +23,7 @@ use serde::Serialize;
 
 use crate::raw::*;
 use crate::*;
+use types::operator::{OperatorFactory, OperatorRegistry};
 
 /// Builder is used to set up underlying services.
 ///
@@ -57,6 +58,15 @@ pub trait Builder: Default + 'static {
 
     /// Consume the accessor builder to build a service.
     fn build(self) -> Result<impl Access>;
+
+    /// Register this builder in the given registry.
+    fn register_in_registry(registry: &mut OperatorRegistry) {
+        let operator_factory: OperatorFactory = |uri, options| {
+            let builder = Self::Config::from_uri(uri, options)?.into_builder();
+            Ok(Operator::new(builder)?.finish())
+        };
+        registry.register(Self::SCHEME.into_static(), operator_factory)
+    }
 }
 
 /// Dummy implementation of builder

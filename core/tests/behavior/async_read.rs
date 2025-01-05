@@ -18,6 +18,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::*;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
@@ -25,8 +26,7 @@ use log::warn;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
-
-use crate::*;
+use tokio::time::sleep;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -37,9 +37,15 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_full,
             test_read_range,
             test_reader,
+            test_reader_with_if_match,
+            test_reader_with_if_none_match,
+            test_reader_with_if_modified_since,
+            test_reader_with_if_unmodified_since,
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
+            test_read_with_if_modified_since,
+            test_read_with_if_unmodified_since,
             test_read_with_dir_path,
             test_read_with_special_chars,
             test_read_with_override_cache_control,
@@ -59,7 +65,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_only_read_not_exist,
             test_read_only_read_with_dir_path,
             test_read_only_read_with_if_match,
-            test_read_only_read_with_if_none_match
+            test_read_only_read_with_if_none_match,
+            test_reader_only_read_with_if_match,
+            test_reader_only_read_with_if_none_match
         ))
     }
 }
@@ -174,6 +182,36 @@ pub async fn test_read_not_exist(op: Operator) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Reader with if_match should match, else get a ConditionNotMatch error.
+pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
+    let reader = op.reader_with(&path).if_match("\"invalid_etag\"").await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let reader = op
+        .reader_with(&path)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await?;
+
+    let bs = reader.read(..).await.expect("read must succeed").to_bytes();
+    assert_eq!(bs, content);
+
+    Ok(())
+}
+
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
     if !op.info().full_capability().read_with_if_match {
@@ -198,6 +236,97 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
         .await
         .expect("read must succeed")
         .to_bytes();
+    assert_eq!(bs, content);
+
+    Ok(())
+}
+
+/// Reader with if_none_match should match, else get a ConditionNotMatch error.
+pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_none_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
+    let reader = op
+        .reader_with(&path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await?;
+    let res = reader.read(..).await;
+
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let reader = op
+        .reader_with(&path)
+        .if_none_match("\"invalid_etag\"")
+        .await?;
+    let bs = reader.read(..).await.expect("read must succeed").to_bytes();
+    assert_eq!(bs, content);
+
+    Ok(())
+}
+
+/// Reader with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
+    let bs = reader.read(..).await?.to_bytes();
+    assert_eq!(bs, content);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_modified_since(since).await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Reader with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let reader = op.reader_with(&path).if_unmodified_since(since).await?;
+    let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
 
     Ok(())
@@ -425,6 +554,68 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
     Ok(())
 }
 
+/// Read with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified_time - chrono::Duration::seconds(1);
+    let bs = op
+        .read_with(&path)
+        .if_modified_since(since)
+        .await?
+        .to_bytes();
+    assert_eq!(bs, content);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified_time + chrono::Duration::seconds(1);
+    let res = op.read_with(&path).if_modified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Read with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
+pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let last_modified = op.stat(&path).await?.last_modified().unwrap();
+
+    let since = last_modified - chrono::Duration::seconds(3600);
+    let res = op.read_with(&path).if_unmodified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = last_modified + chrono::Duration::seconds(1);
+    let bs = op
+        .read_with(&path)
+        .if_unmodified_since(since)
+        .await?
+        .to_bytes();
+    assert_eq!(bs, content);
+
+    Ok(())
+}
+
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
     let bs = op.read("normal_file.txt").await?.to_bytes();
@@ -493,6 +684,38 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> anyhow::Result<(
     Ok(())
 }
 
+/// Reader with if_match should match, else get a ConditionNotMatch error.
+pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_match {
+        return Ok(());
+    }
+
+    let path = "normal_file.txt";
+
+    let meta = op.stat(path).await?;
+
+    let reader = op.reader_with(path).if_match("invalid_etag").await?;
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let reader = op
+        .reader_with(path)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await?;
+
+    let bs = reader.read(..).await.expect("read must succeed").to_bytes();
+
+    assert_eq!(bs.len(), 30482, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
+        "read content"
+    );
+
+    Ok(())
+}
+
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
     if !op.info().full_capability().read_with_if_match {
@@ -513,6 +736,38 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
         .await
         .expect("read must succeed")
         .to_bytes();
+    assert_eq!(bs.len(), 30482, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Reader with if_none_match should match, else get a ConditionNotMatch error.
+pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
+    if !op.info().full_capability().read_with_if_none_match {
+        return Ok(());
+    }
+
+    let path = "normal_file.txt";
+
+    let meta = op.stat(path).await?;
+
+    let reader = op
+        .reader_with(path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await?;
+
+    let res = reader.read(..).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let reader = op.reader_with(path).if_none_match("invalid_etag").await?;
+    let bs = reader.read(..).await.expect("read must succeed").to_bytes();
+
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

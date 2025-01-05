@@ -28,7 +28,6 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
 use constants::X_AMZ_META_PREFIX;
-use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -37,6 +36,7 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::header::{HeaderName, IF_MODIFIED_SINCE, IF_UNMODIFIED_SINCE};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -406,6 +406,21 @@ impl S3Core {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(
+                IF_MODIFIED_SINCE,
+                format_datetime_into_http_date(if_modified_since),
+            );
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(
+                IF_UNMODIFIED_SINCE,
+                format_datetime_into_http_date(if_unmodified_since),
+            );
+        }
+
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
@@ -612,7 +627,6 @@ impl S3Core {
             write!(url, "&max-keys={limit}").expect("write into string must succeed");
         }
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
             write!(url, "&start-after={}", percent_encode_path(&start_after))
                 .expect("write into string must succeed");
         }
@@ -994,6 +1008,7 @@ pub struct ListObjectVersionsOutput {
     pub next_version_id_marker: Option<String>,
     pub common_prefixes: Vec<OutputCommonPrefix>,
     pub version: Vec<ListObjectVersionsOutputVersion>,
+    pub delete_marker: Vec<ListObjectVersionsOutputDeleteMarker>,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
@@ -1006,6 +1021,15 @@ pub struct ListObjectVersionsOutputVersion {
     pub last_modified: String,
     #[serde(rename = "ETag")]
     pub etag: Option<String>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputDeleteMarker {
+    pub key: String,
+    pub version_id: String,
+    pub is_latest: bool,
+    pub last_modified: String,
 }
 
 pub enum ChecksumAlgorithm {
@@ -1284,6 +1308,16 @@ mod tests {
                 <CommonPrefixes>
                     <Prefix>videos/</Prefix>
                 </CommonPrefixes>
+                 <DeleteMarker>
+                    <Key>my-third-image.jpg</Key>
+                    <VersionId>03jpff543dhffds434rfdsFDN943fdsFkdmqnh892</VersionId>
+                    <IsLatest>true</IsLatest>
+                    <LastModified>2009-10-15T17:50:30.000Z</LastModified>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                        <DisplayName>mtd@amazon.com</DisplayName>
+                    </Owner>
+                </DeleteMarker>
                 </ListVersionsResult>"#,
         );
 
@@ -1328,6 +1362,16 @@ mod tests {
                     etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
                 }
             ]
+        );
+
+        assert_eq!(
+            output.delete_marker,
+            vec![ListObjectVersionsOutputDeleteMarker {
+                key: "my-third-image.jpg".to_owned(),
+                version_id: "03jpff543dhffds434rfdsFDN943fdsFkdmqnh892".to_owned(),
+                is_latest: true,
+                last_modified: "2009-10-15T17:50:30.000Z".to_owned(),
+            },]
         );
     }
 }

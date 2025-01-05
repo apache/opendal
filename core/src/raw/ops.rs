@@ -19,11 +19,11 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::collections::HashMap;
-use std::time::Duration;
-
 use crate::raw::*;
 use crate::*;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -111,7 +111,15 @@ pub struct OpList {
     ///   by the underlying service
     ///
     /// Default to `false`
-    version: bool,
+    versions: bool,
+    /// The deleted is used to control whether the deleted objects should be returned.
+    ///
+    /// - If `false`, list operation will not return with deleted objects
+    /// - If `true`, list operation will return with deleted objects if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    deleted: bool,
 }
 
 impl Default for OpList {
@@ -121,7 +129,8 @@ impl Default for OpList {
             start_after: None,
             recursive: false,
             concurrent: 1,
-            version: false,
+            versions: false,
+            deleted: false,
         }
     }
 }
@@ -184,14 +193,38 @@ impl OpList {
     }
 
     /// Change the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
     pub fn with_version(mut self, version: bool) -> Self {
-        self.version = version;
+        self.versions = version;
+        self
+    }
+
+    /// Change the version of this list operation
+    pub fn with_versions(mut self, versions: bool) -> Self {
+        self.versions = versions;
         self
     }
 
     /// Get the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
     pub fn version(&self) -> bool {
-        self.version
+        self.versions
+    }
+
+    /// Get the version of this list operation
+    pub fn versions(&self) -> bool {
+        self.versions
+    }
+
+    /// Change the deleted of this list operation
+    pub fn with_deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
+        self
+    }
+
+    /// Get the deleted of this list operation
+    pub fn deleted(&self) -> bool {
+        self.deleted
     }
 }
 
@@ -266,6 +299,8 @@ pub struct OpRead {
     range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -349,6 +384,28 @@ impl OpRead {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(v);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
     }
 
     /// Set the version of the option

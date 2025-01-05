@@ -102,6 +102,7 @@ impl oio::PageList for OssLister {
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
+            meta.set_is_current(true);
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));
             meta.set_content_length(object.size);

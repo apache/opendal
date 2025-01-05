@@ -19,12 +19,12 @@
 //!
 //! By using futures, users can add more options for operation.
 
+use chrono::{DateTime, Utc};
+use futures::Future;
 use std::collections::HashMap;
 use std::future::IntoFuture;
 use std::ops::RangeBounds;
 use std::time::Duration;
-
-use futures::Future;
 
 use crate::raw::*;
 use crate::*;
@@ -212,6 +212,16 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
         self.map(|(args, op_reader)| (args.with_if_none_match(v), op_reader))
     }
 
+    /// Set the If-Modified-Since for this operation.
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set the If-Unmodified-Since for this operation.
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_unmodified_since(v), op_reader))
+    }
+
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|(args, op_reader)| (args.with_version(v), op_reader))
@@ -248,6 +258,26 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<(OpRead, OpReader), Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
+    /// Set the If-Match for this operation.
+    pub fn if_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_match(etag), op_reader))
+    }
+
+    /// Set the If-None-Match for this operation.
+    pub fn if_none_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_none_match(etag), op_reader))
+    }
+
+    /// Set the If-Modified-Since for this operation.
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set the If-Unmodified-Since for this operation.
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_unmodified_since(v), op_reader))
+    }
+
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|(op_read, op_reader)| (op_read.with_version(v), op_reader))
@@ -486,8 +516,34 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
     ///   by the underlying service
     ///
     /// Default to `false`
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
     pub fn version(self, v: bool) -> Self {
-        self.map(|args| args.with_version(v))
+        self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should return file versions.
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// information about different versions of files, if versioning is supported and enabled.
+    ///
+    /// If `true`, subsequent `list` operations will include version information for each file.
+    /// If `false`, version information will be omitted from the `list` results.
+    ///
+    /// Default to `false`
+    pub fn versions(self, v: bool) -> Self {
+        self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should include deleted files (or versions).
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// entries for files or versions that have been marked as deleted. This is particularly relevant
+    /// in object storage systems that support soft deletion or versioning.
+    ///
+    /// If `true`, subsequent `list` operations will include deleted files or versions.
+    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    pub fn deleted(self, v: bool) -> Self {
+        self.map(|args| args.with_deleted(v))
     }
 }
 
@@ -528,7 +584,33 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     ///   by the underlying service
     ///
     /// Default to `false`
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
     pub fn version(self, v: bool) -> Self {
-        self.map(|args| args.with_version(v))
+        self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should return file versions.
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// information about different versions of files, if versioning is supported and enabled.
+    ///
+    /// If `true`, subsequent `list` operations will include version information for each file.
+    /// If `false`, version information will be omitted from the `list` results.
+    ///
+    /// Default to `false`
+    pub fn versions(self, v: bool) -> Self {
+        self.map(|args| args.with_versions(v))
+    }
+
+    /// Controls whether the `list` operation should include deleted files (or versions).
+    ///
+    /// This function allows you to specify if the `list` operation, when executed, should include
+    /// entries for files or versions that have been marked as deleted. This is particularly relevant
+    /// in object storage systems that support soft deletion or versioning.
+    ///
+    /// If `true`, subsequent `list` operations will include deleted files or versions.
+    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    pub fn deleted(self, v: bool) -> Self {
+        self.map(|args| args.with_deleted(v))
     }
 }

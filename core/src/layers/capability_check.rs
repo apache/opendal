@@ -30,7 +30,7 @@ use std::sync::Arc;
 ///
 /// There are two main differences between this checker with the `CorrectnessChecker`:
 /// 1. This checker provides additional checks for capabilities like write_with_content_type and
-///     list_with_version, among others. These capabilities do not affect data integrity, even if
+///     list_with_versions, among others. These capabilities do not affect data integrity, even if
 ///     the underlying storage services do not support them.
 ///
 /// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to
@@ -131,7 +131,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
         let capability = self.info.full_capability();
-        if !capability.list_with_version && args.version() {
+        if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::List,
@@ -191,7 +191,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         args: OpList,
     ) -> crate::Result<(RpList, Self::BlockingLister)> {
         let capability = self.info.full_capability();
-        if !capability.list_with_version && args.version() {
+        if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
                 Operation::BlockingList,
@@ -289,16 +289,16 @@ mod tests {
             list: true,
             ..Default::default()
         });
-        let res = op.list_with("path/").version(true).await;
+        let res = op.list_with("path/").versions(true).await;
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
 
         let op = new_test_operator(Capability {
             list: true,
-            list_with_version: true,
+            list_with_versions: true,
             ..Default::default()
         });
-        let res = op.lister_with("path/").version(true).await;
+        let res = op.lister_with("path/").versions(true).await;
         assert!(res.is_ok())
     }
 }

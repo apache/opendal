@@ -257,7 +257,7 @@ jobs:
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node

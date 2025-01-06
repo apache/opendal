@@ -15,72 +15,66 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use redb::ReadableTable;
+use tokio::task;
 
 use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::RedbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
+impl Configurator for RedbConfig {
+    type Builder = RedbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        RedbBuilder { config: self }
+    }
+}
+
 /// Redb service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct RedbBuilder {
-    /// That path to the redb data directory.
-    datadir: Option<String>,
-    root: Option<String>,
-    table: Option<String>,
+    config: RedbConfig,
 }
 
 impl RedbBuilder {
     /// Set the path to the redb data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
-        self.datadir = Some(path.into());
+    pub fn datadir(mut self, path: &str) -> Self {
+        self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the table name for Redb.
-    pub fn table(&mut self, table: &str) -> &mut Self {
-        self.table = Some(table.into());
+    pub fn table(mut self, table: &str) -> Self {
+        self.config.table = Some(table.into());
         self
     }
 
     /// Set the root for Redb.
-    pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = Some(path.into());
         self
     }
 }
 
 impl Builder for RedbBuilder {
     const SCHEME: Scheme = Scheme::Redb;
-    type Accessor = RedbBackend;
+    type Config = RedbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = RedbBuilder::default();
-
-        map.get("datadir").map(|v| builder.datadir(v));
-        map.get("table").map(|v| builder.table(v));
-        map.get("root").map(|v| builder.root(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Redb)
         })?;
 
-        let table_name = self.table.take().ok_or_else(|| {
+        let table_name = self.config.table.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
                 .with_context("service", Scheme::Redb)
         })?;
@@ -94,7 +88,7 @@ impl Builder for RedbBuilder {
             table: table_name,
             db,
         })
-        .with_root(self.root.as_deref().unwrap_or_default()))
+        .with_root(self.config.root.as_deref().unwrap_or_default()))
     }
 }
 
@@ -116,26 +110,34 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Redb,
             &self.datadir,
             Capability {
                 read: true,
                 write: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.blocking_get(path)
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
@@ -149,15 +151,21 @@ impl kv::Adapter for Adapter {
             Ok(Some(v)) => Ok(Some(v.value().to_vec())),
             Ok(None) => Ok(None),
             Err(e) => Err(parse_storage_error(e)),
-        };
-        result
+        }?;
+        Ok(result.map(Buffer::from))
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.blocking_set(path, value)
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
@@ -168,7 +176,9 @@ impl kv::Adapter for Adapter {
                 .open_table(table_define)
                 .map_err(parse_table_error)?;
 
-            table.insert(path, value).map_err(parse_storage_error)?;
+            table
+                .insert(path, &*value.to_vec())
+                .map_err(parse_storage_error)?;
         }
 
         write_txn.commit().map_err(parse_commit_error)?;
@@ -176,7 +186,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {

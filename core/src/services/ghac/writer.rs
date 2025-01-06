@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
-
 use super::backend::GhacBackend;
 use super::error::parse_error;
 use crate::raw::*;
@@ -40,33 +37,26 @@ impl GhacWriter {
     }
 }
 
-#[async_trait]
 impl oio::Write for GhacWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len() as u64;
-        let req = self
-            .backend
-            .ghac_upload(self.cache_id, size, AsyncBody::Bytes(bs))
-            .await?;
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len();
+        let offset = self.size;
+
+        let req = self.backend.ghac_upload(
+            self.cache_id,
+            offset,
+            size as u64,
+            Buffer::from(bs.to_bytes()),
+        )?;
 
         let resp = self.backend.client.send(req).await?;
 
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            self.size += size;
-            Ok(())
-        } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?)
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }
-    }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+        self.size += size as u64;
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -74,16 +64,13 @@ impl oio::Write for GhacWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let req = self.backend.ghac_commit(self.cache_id, self.size).await?;
+        let req = self.backend.ghac_commit(self.cache_id, self.size)?;
         let resp = self.backend.client.send(req).await?;
 
         if resp.status().is_success() {
-            resp.into_body().consume().await?;
             Ok(())
         } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
+            Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
         }
     }
 }

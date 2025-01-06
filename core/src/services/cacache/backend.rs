@@ -15,51 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use async_trait::async_trait;
 use cacache;
 
 use crate::raw::adapters::kv;
+use crate::raw::Access;
+use crate::services::CacacheConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
+impl Configurator for CacacheConfig {
+    type Builder = CacacheBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CacacheBuilder { config: self }
+    }
+}
+
 /// cacache service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CacacheBuilder {
-    /// That path to the cacache data directory.
-    datadir: Option<String>,
+    config: CacacheConfig,
 }
 
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
-        self.datadir = Some(path.into());
+    pub fn datadir(mut self, path: &str) -> Self {
+        self.config.datadir = Some(path.into());
         self
     }
 }
 
 impl Builder for CacacheBuilder {
     const SCHEME: Scheme = Scheme::Cacache;
-    type Accessor = CacacheBackend;
+    type Config = CacacheConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = CacacheBuilder::default();
-
-        map.get("datadir").map(|v| builder.datadir(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Cacache)
         })?;
@@ -86,10 +84,11 @@ impl Debug for Adapter {
     }
 }
 
-#[async_trait]
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Cacache,
             &self.datadir,
             Capability {
@@ -97,36 +96,33 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read(&self.datadir, path)
-                .await
-                .map_err(parse_error)?,
-        ))
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(
-            cacache::read_sync(&self.datadir, path).map_err(parse_error)?,
-        ))
-    }
-
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        cacache::write(&self.datadir, path, value)
+    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read(&self.datadir, path)
             .await
             .map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
+    }
 
+    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
+        let result = cacache::read_sync(&self.datadir, path).map_err(parse_error)?;
+        Ok(Some(Buffer::from(result)))
+    }
+
+    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        cacache::write(&self.datadir, path, value.to_vec())
+            .await
+            .map_err(parse_error)?;
         Ok(())
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        cacache::write_sync(&self.datadir, path, value).map_err(parse_error)?;
-
+    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
+        cacache::write_sync(&self.datadir, path, value.to_vec()).map_err(parse_error)?;
         Ok(())
     }
 

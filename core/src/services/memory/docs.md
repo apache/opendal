@@ -10,7 +10,6 @@ This service can be used to:
 - [x] copy
 - [x] rename
 - [ ] list
-- [x] scan
 - [ ] presign
 - [ ] blocking
 
@@ -19,7 +18,7 @@ This service can be used to:
 ### Via Builder
 
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -28,8 +27,7 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Memory::default();
-    builder.root("/tmp");
+    let mut builder = Memory::default().root("/tmp");
 
     let op: Operator = Operator::new(builder)?.finish();
 

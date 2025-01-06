@@ -15,11 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-oss")]
+mod core;
+#[cfg(feature = "services-oss")]
+mod delete;
+#[cfg(feature = "services-oss")]
+mod error;
+#[cfg(feature = "services-oss")]
+mod lister;
+#[cfg(feature = "services-oss")]
+mod writer;
+
+#[cfg(feature = "services-oss")]
 mod backend;
+#[cfg(feature = "services-oss")]
 pub use backend::OssBuilder as Oss;
 
-mod appender;
-mod core;
-mod error;
-mod pager;
-mod writer;
+mod config;
+pub use config::OssConfig;

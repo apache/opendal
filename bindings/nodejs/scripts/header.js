@@ -19,7 +19,7 @@
 
 const fs = require('fs')
 
-let files = ['generated.js', 'index.d.ts']
+let files = ['generated.js', 'generated.d.ts']
 
 for (path of files) {
   let data = fs.readFileSync(path, 'utf8')

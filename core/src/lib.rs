@@ -15,14 +15,54 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL is the Open Data Access Layer to **freely** access data.
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
+)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+//! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 //!
-//! - Documentation: All docs are carried by self, visit [`docs`] for more.
-//! - Services: All supported services could be found at [`services`].
-//! - Layers: All builtin layer could be found at [`layers`].
-//! - Features: All features could be found at [`features`][docs::features].
+//! OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
 //!
 //! # Quick Start
+//!
+//! OpenDAL's API entry points are [`Operator`] and [`BlockingOperator`]. All
+//! public APIs are accessible through the operator. To utilize OpenDAL, you
+//! need to:
+//!
+//! - [Init a service](#init-a-service)
+//! - [Compose layers](#compose-layers)
+//! - [Use operator](#use-operator)
+//!
+//! ## Init a service
+//!
+//! The first step is to pick a service and init it with a builder. All supported
+//! services could be found at [`services`].
+//!
+//! Let's take [`services::S3`] as an example:
+//!
+//! ```no_run
+//! use opendal::services;
+//! use opendal::Operator;
+//! use opendal::Result;
+//!
+//! fn main() -> Result<()> {
+//!     // Pick a builder and configure it.
+//!     let mut builder = services::S3::default().bucket("test");
+//!
+//!     // Init an operator
+//!     let op = Operator::new(builder)?.finish();
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Compose layers
+//!
+//! The next setup is to compose layers. Layers are modules that provide extra
+//! features for every operation. All builtin layers could be found at [`layers`].
+//!
+//! Let's use [`layers::LoggingLayer`] as an example; this layer adds logging to
+//! every operation that OpenDAL performs.
 //!
 //! ```no_run
 //! use opendal::layers::LoggingLayer;
@@ -33,8 +73,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default();
-//!     builder.bucket("test");
+//!     let mut builder = services::S3::default().bucket("test");
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?
@@ -42,19 +81,45 @@
 //!         .layer(LoggingLayer::default())
 //!         .finish();
 //!
-//!     // Write data
-//!     op.write("hello.txt", "Hello, World!").await?;
+//!     Ok(())
+//! }
+//! ```
 //!
-//!     // Read data
-//!     let bs = op.read("hello.txt").await?;
+//! ## Use operator
 //!
-//!     // Fetch metadata
+//! The final step is to use the operator. OpenDAL supports both async [`Operator`]
+//! and blocking [`BlockingOperator`]. Please pick the one that fits your use case.
+//!
+//! Every Operator API follows the same pattern, take `read` as an example:
+//!
+//! - `read`: Execute a read operation.
+//! - `read_with`: Execute a read operation with additional options, like `range` and `if_match`.
+//! - `reader`: Create a reader for streaming data, enabling flexible access.
+//! - `reader_with`: Create a reader with advanced options.
+//!
+//! ```no_run
+//! use opendal::layers::LoggingLayer;
+//! use opendal::services;
+//! use opendal::Operator;
+//! use opendal::Result;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     // Pick a builder and configure it.
+//!     let mut builder = services::S3::default().bucket("test");
+//!
+//!     // Init an operator
+//!     let op = Operator::new(builder)?
+//!         // Init with logging layer enabled.
+//!         .layer(LoggingLayer::default())
+//!         .finish();
+//!
+//!     // Fetch this file's metadata
 //!     let meta = op.stat("hello.txt").await?;
-//!     let mode = meta.mode();
 //!     let length = meta.content_length();
 //!
-//!     // Delete
-//!     op.delete("hello.txt").await?;
+//!     // Read data from `hello.txt` with range `0..1024`.
+//!     let bs = op.read_with("hello.txt").range(0..1024).await?;
 //!
 //!     Ok(())
 //! }
@@ -62,15 +127,13 @@
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]
-// Deny unused qualifications.
-#![deny(unused_qualifications)]
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
-#[cfg(feature = "docs")]
+#[cfg(docsrs)]
 pub mod docs;
 pub mod layers;
 pub mod raw;
@@ -81,21 +144,19 @@ mod tests {
     use std::mem::size_of;
 
     use super::*;
-
     /// This is not a real test case.
     ///
     /// We assert our public structs here to make sure we don't introduce
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(24, size_of::<Operator>());
-        assert_eq!(264, size_of::<Entry>());
-        assert_eq!(240, size_of::<Metadata>());
+        assert_eq!(32, size_of::<Operator>());
+        assert_eq!(320, size_of::<Entry>());
+        assert_eq!(296, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }
 
-    /// This is used to make sure our public API implement Send + Sync
     trait AssertSendSync: Send + Sync {}
     impl AssertSendSync for Entry {}
     impl AssertSendSync for Capability {}
@@ -108,4 +169,10 @@ mod tests {
     impl AssertSendSync for BlockingWriter {}
     impl AssertSendSync for BlockingLister {}
     impl AssertSendSync for BlockingOperator {}
+
+    /// This is used to make sure our public API implement Send + Sync
+    #[test]
+    fn test_trait() {
+        let _: Box<dyn AssertSendSync> = Box::new(Capability::default());
+    }
 }

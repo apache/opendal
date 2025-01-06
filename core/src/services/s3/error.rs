@@ -16,29 +16,27 @@
 // under the License.
 
 use bytes::Buf;
+use http::response::Parts;
 use http::Response;
 use quick_xml::de;
 use serde::Deserialize;
 
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 /// S3Error is the error returned by s3 service.
-#[derive(Default, Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "PascalCase")]
-struct S3Error {
-    code: String,
-    message: String,
-    resource: String,
-    request_id: String,
+pub(crate) struct S3Error {
+    pub code: String,
+    pub message: String,
+    pub resource: String,
+    pub request_id: String,
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
@@ -51,15 +49,15 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, s3_err) = de::from_reader::<_, S3Error>(bs.clone().reader())
+    let (message, s3_err) = de::from_reader::<_, S3Error>(body.clone().reader())
         .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+        .unwrap_or_else(|_| (String::from_utf8_lossy(body.chunk()).into_owned(), None));
 
     if let Some(s3_err) = s3_err {
         (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -67,13 +65,33 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
+}
+
+/// Util function to build [`Error`] from a [`S3Error`] object.
+pub(crate) fn from_s3_error(s3_error: S3Error, parts: Parts) -> Error {
+    let (kind, retryable) =
+        parse_s3_error_code(s3_error.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+    let mut err = Error::new(kind, format!("{s3_error:?}"));
+
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }
 
 /// Returns the `Error kind` of this code and whether the error is retryable.
 /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
 pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
+        // > The specified bucket does not exist.
+        //
+        // Although the status code is 404, NoSuchBucket is
+        // a config invalid error, and it's not retryable from OpenDAL.
+        "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
         //
@@ -124,5 +142,23 @@ mod tests {
         assert_eq!(out.message, "The resource you requested does not exist");
         assert_eq!(out.resource, "/mybucket/myfoto.jpg");
         assert_eq!(out.request_id, "4442587FB7D0A2F9");
+    }
+
+    #[test]
+    fn test_parse_error_from_unrelated_input() {
+        let bs = bytes::Bytes::from(
+            r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Location>http://Example-Bucket.s3.ap-southeast-1.amazonaws.com/Example-Object</Location>
+  <Bucket>Example-Bucket</Bucket>
+  <Key>Example-Object</Key>
+  <ETag>"3858f62230ac3c915f300c664312c11f-9"</ETag>
+</CompleteMultipartUploadResult>
+"#,
+        );
+
+        let out: S3Error = de::from_reader(bs.reader()).expect("must success");
+        assert_eq!(out, S3Error::default());
     }
 }

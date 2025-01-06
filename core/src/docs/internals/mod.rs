@@ -20,20 +20,20 @@
 //! OpenDAL has provides unified abstraction via two-level API sets:
 //!
 //! - Public API like [`Operator`] provides user level API.
-//! - Raw API like [`Accessor`], [`Layer`] provides developer level API.
+//! - Raw API like [`Access`], [`Layer`] provides developer level API.
 //!
 //! OpenDAL tries it's best to keep the public API stable. But raw APIs
 //! may change between minor releases from time to time. So most users
 //! should only use the public API. And only developers need to implement
-//! with raw API to implement a new service [`Accessor`] or their own
+//! with raw API to implement a new service [`Access`] or their own
 //! [`Layer`].
 //!
 //! In this section, we will talk about the following components:
 //!
-//! - [`Accessor`][accessor]: to connect underlying storage services.
+//! - [`Access`][accessor]: to connect underlying storage services.
 //! - [`Layer`][layer]: middleware/interceptor between storage services.
 //!
-//! The relation between [`Accessor`], [`Layer`] and [`Operator`] looks like the following:
+//! The relation between [`Access`], [`Layer`] and [`Operator`] looks like the following:
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────┬──────────┐
@@ -55,7 +55,7 @@
 //!
 //! [`Builder`]: crate::Builder
 //! [`Operator`]: crate::Operator
-//! [`Accessor`]: crate::raw::Accessor
+//! [`Access`]: crate::raw::Access
 //! [`Layer`]: crate::raw::Layer
 
 pub mod accessor;

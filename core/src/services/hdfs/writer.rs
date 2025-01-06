@@ -16,81 +16,111 @@
 // under the License.
 
 use std::io::Write;
+use std::sync::Arc;
 
-use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::Buf;
 use futures::AsyncWriteExt;
 
-use super::error::parse_io_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct HdfsWriter<F> {
-    f: F,
-    /// The position of current written bytes in the buffer.
-    ///
-    /// We will maintain the posstion in pos to make sure the buffer is written correctly.
-    pos: usize,
+    target_path: String,
+    tmp_path: Option<String>,
+    f: Option<F>,
+    client: Arc<hdrs::Client>,
+    target_path_exists: bool,
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for HdfsWriter.
+unsafe impl<F> Sync for HdfsWriter<F> {}
+
 impl<F> HdfsWriter<F> {
-    pub fn new(f: F) -> Self {
-        Self { f, pos: 0 }
+    pub fn new(
+        target_path: String,
+        tmp_path: Option<String>,
+        f: F,
+        client: Arc<hdrs::Client>,
+        target_path_exists: bool,
+    ) -> Self {
+        Self {
+            target_path,
+            tmp_path,
+            f: Some(f),
+            client,
+            target_path_exists,
+        }
     }
 }
 
-#[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        while self.pos < bs.len() {
-            let n = self
-                .f
-                .write(&bs[self.pos..])
-                .await
-                .map_err(parse_io_error)?;
-            self.pos += n;
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            bs.advance(n);
         }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
 
         Ok(())
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn close(&mut self) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.close().await.map_err(new_std_io_error)?;
+
+        // TODO: we need to make rename async.
+        if let Some(tmp_path) = &self.tmp_path {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            if self.target_path_exists {
+                self.client
+                    .remove_file(&self.target_path)
+                    .map_err(new_std_io_error)?;
+            }
+            self.client
+                .rename_file(tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?
+        }
+
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "output writer doesn't support abort",
+            "HdfsWriter doesn't support abort",
         ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.f.close().await.map_err(parse_io_error)?;
-
-        Ok(())
     }
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        while self.pos < bs.len() {
-            let n = self.f.write(&bs[self.pos..]).map_err(parse_io_error)?;
-            self.pos += n;
+    fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
+            bs.advance(n);
         }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
 
         Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        self.f.flush().map_err(parse_io_error)?;
+        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
+        f.flush().map_err(new_std_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            if self.target_path_exists {
+                self.client
+                    .remove_file(&self.target_path)
+                    .map_err(new_std_io_error)?;
+            }
+            self.client
+                .rename_file(tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?;
+        }
 
         Ok(())
     }

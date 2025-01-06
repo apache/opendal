@@ -15,58 +15,63 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use async_tls::TlsConnector;
-use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
-use futures::AsyncRead;
-use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
+use suppaftp::AsyncRustlsConnector;
+use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::FtpStream;
+use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
+use uuid::Uuid;
 
-use super::pager::FtpPager;
-use super::util::FtpReader;
+use super::delete::FtpDeleter;
+use super::err::parse_error;
+use super::lister::FtpLister;
+use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+use crate::services::FtpConfig;
 use crate::*;
+
+impl Configurator for FtpConfig {
+    type Builder = FtpBuilder;
+    fn into_builder(self) -> Self::Builder {
+        FtpBuilder { config: self }
+    }
+}
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FtpBuilder {
-    endpoint: Option<String>,
-    root: Option<String>,
-    user: Option<String>,
-    password: Option<String>,
+    config: FtpConfig,
 }
 
 impl Debug for FtpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
+        f.debug_struct("FtpBuilder")
+            .field("config", &self.config)
             .finish()
     }
 }
 
 impl FtpBuilder {
     /// set endpoint for ftp backend.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.to_string())
@@ -76,8 +81,8 @@ impl FtpBuilder {
     }
 
     /// set root path for ftp backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -87,8 +92,8 @@ impl FtpBuilder {
     }
 
     /// set user for ftp backend.
-    pub fn user(&mut self, user: &str) -> &mut Self {
-        self.user = if user.is_empty() {
+    pub fn user(mut self, user: &str) -> Self {
+        self.config.user = if user.is_empty() {
             None
         } else {
             Some(user.to_string())
@@ -98,8 +103,8 @@ impl FtpBuilder {
     }
 
     /// set password for ftp backend.
-    pub fn password(&mut self, password: &str) -> &mut Self {
-        self.password = if password.is_empty() {
+    pub fn password(mut self, password: &str) -> Self {
+        self.config.password = if password.is_empty() {
             None
         } else {
             Some(password.to_string())
@@ -111,11 +116,11 @@ impl FtpBuilder {
 
 impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
-    type Accessor = FtpBackend;
+    type Config = FtpConfig;
 
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("ftp backend build started: {:?}", &self);
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
             Some(v) => v,
         };
@@ -149,19 +154,17 @@ impl Builder for FtpBuilder {
             }
         };
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
 
-        let user = match &self.user {
+        let user = match &self.config.user {
             None => "".to_string(),
             Some(v) => v.clone(),
         };
 
-        let password = match &self.password {
+        let password = match &self.config.password {
             None => "".to_string(),
             Some(v) => v.clone(),
         };
-
-        debug!("ftp backend finished: {:?}", &self);
 
         Ok(FtpBackend {
             endpoint,
@@ -171,17 +174,6 @@ impl Builder for FtpBuilder {
             enable_secure,
             pool: OnceCell::new(),
         })
-    }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = FtpBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("user").map(|v| builder.user(v));
-        map.get("password").map(|v| builder.password(v));
-
-        builder
     }
 }
 
@@ -193,18 +185,20 @@ pub struct Manager {
     enable_secure: bool,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = FtpStream;
+    type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;
 
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let stream = FtpStream::connect(&self.endpoint).await?;
-
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
             stream
-                .into_secure(TlsConnector::default().into(), &self.endpoint)
+                .into_secure(
+                    AsyncRustlsConnector::from(TlsConnector::default()),
+                    &self.endpoint,
+                )
                 .await?
         } else {
             stream
@@ -233,13 +227,15 @@ impl bb8::ManageConnection for Manager {
         Ok(ftp_stream)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         conn.noop().await
     }
 
-    /// Always allow reuse conn.
+    /// Don't allow reuse conn.
+    ///
+    /// We need to investigate why reuse conn will cause error.
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+        true
     }
 }
 
@@ -260,37 +256,44 @@ impl Debug for FtpBackend {
     }
 }
 
-#[async_trait]
-impl Accessor for FtpBackend {
+impl Access for FtpBackend {
     type Reader = FtpReader;
-    type BlockingReader = ();
     type Writer = FtpWriter;
+    type Lister = FtpLister;
+    type Deleter = oio::OneShotDeleter<FtpDeleter>;
+    type BlockingReader = ();
     type BlockingWriter = ();
-    type Appender = ();
-    type Pager = FtpPager;
-    type BlockingPager = ();
+    type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
-            .set_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
-                read_with_range: true,
 
                 write: true,
+                write_can_multi: true,
+                write_can_append: true,
+
                 delete: true,
                 create_dir: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -310,89 +313,15 @@ impl Accessor for FtpBackend {
                 }))
                 | Ok(()) => (),
                 Err(e) => {
-                    return Err(e.into());
+                    return Err(parse_error(e));
                 }
             }
         }
 
-        return Ok(RpCreateDir::default());
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
-
-        let meta = self.ftp_stat(path).await?;
-
-        let br = args.range();
-        let (r, size): (Box<dyn AsyncRead + Send + Unpin>, _) = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?.take(size);
-                (Box::new(ds), min(size, meta.size() as u64 - offset))
-            }
-            (Some(offset), None) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64 - offset)
-            }
-            (None, Some(size)) => {
-                ftp_stream
-                    .resume_transfer((meta.size() as u64 - size) as usize)
-                    .await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), size)
-            }
-            (None, None) => {
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64)
-            }
-        };
-
-        Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
-        // Ensure the parent dir exists.
-        let parent = get_parent(path);
-        let paths: Vec<&str> = parent.split('/').collect();
-
-        // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
-        let mut curr_path = String::new();
-        for path in paths {
-            curr_path.push_str(path);
-            match ftp_stream.mkdir(&curr_path).await {
-                // Do nothing if status is FileUnavailable or OK(()) is return.
-                Err(FtpError::UnexpectedResponse(Response {
-                    status: Status::FileUnavailable,
-                    ..
-                }))
-                | Ok(()) => (),
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Ok((
-            RpWrite::new(),
-            FtpWriter::new(self.clone(), path.to_string()),
-        ))
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // root dir, return default Metadata with Dir EntryMode.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         let file = self.ftp_stat(path).await?;
 
         let mode = if file.is_file() {
@@ -402,6 +331,7 @@ impl Accessor for FtpBackend {
         } else {
             EntryMode::Unknown
         };
+
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
         meta.set_last_modified(file.modified().into());
@@ -409,38 +339,69 @@ impl Accessor for FtpBackend {
         Ok(RpStat::new(meta))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let ftp_stream = self.ftp_connect(Operation::Read).await?;
 
-        let result = if path.ends_with('/') {
-            ftp_stream.rmdir(&path).await
-        } else {
-            ftp_stream.rm(&path).await
-        };
+        let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
+        Ok((RpRead::new(), reader))
+    }
 
-        match result {
-            Err(FtpError::UnexpectedResponse(Response {
-                status: Status::FileUnavailable,
-                ..
-            }))
-            | Ok(_) => (),
-            Err(e) => {
-                return Err(e.into());
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        // Ensure the parent dir exists.
+        let parent = get_parent(path);
+        let paths: Vec<&str> = parent.split('/').collect();
+
+        // TODO: we can optimize this by checking dir existence first.
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut curr_path = String::new();
+
+        for path in paths {
+            if path.is_empty() {
+                continue;
+            }
+            curr_path.push_str(path);
+            curr_path.push('/');
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(parse_error(e));
+                }
             }
         }
 
-        Ok(RpDelete::default())
+        let tmp_path = if op.append() {
+            None
+        } else {
+            let uuid = Uuid::new_v4().to_string();
+            Some(format!("{}.{}", path, uuid))
+        };
+
+        let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
+
+        Ok((RpWrite::new(), w))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FtpDeleter::new(Arc::new(self.clone()))),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await?;
+        let files = ftp_stream.list(pathname).await.map_err(parse_error)?;
 
         Ok((
             RpList::default(),
-            FtpPager::new(if path == "/" { "" } else { path }, files, args.limit()),
+            FtpLister::new(if path == "/" { "" } else { path }, files),
         ))
     }
 }
@@ -461,24 +422,25 @@ impl FtpBackend {
                     })
                     .await
             })
-            .await?;
+            .await
+            .map_err(parse_error)?;
 
         pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => err.into(),
+            RunError::User(err) => parse_error(err),
             RunError::TimedOut => {
                 Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
             }
         })
     }
 
-    async fn ftp_stat(&self, path: &str) -> Result<File> {
+    pub async fn ftp_stat(&self, path: &str) -> Result<File> {
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         let (parent, basename) = (get_parent(path), get_basename(path));
 
         let pathname = if parent == "/" { None } else { Some(parent) };
 
-        let resp = ftp_stream.list(pathname).await?;
+        let resp = ftp_stream.list(pathname).await.map_err(parse_error)?;
 
         // Get stat of file.
         let mut files = resp
@@ -506,27 +468,27 @@ mod build_test {
     #[test]
     fn test_build() {
         // ftps scheme, should suffix with default port 21
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftps://ftp_server.local");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftps://ftp_server.local")
+            .build();
         assert!(b.is_ok());
 
         // ftp scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp://ftp_server.local:1234");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp://ftp_server.local:1234")
+            .build();
         assert!(b.is_ok());
 
         // no scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("ftp_server.local:8765")
+            .build();
         assert!(b.is_ok());
 
         // invalid scheme
-        let mut builder = FtpBuilder::default();
-        builder.endpoint("invalidscheme://ftp_server.local:8765");
-        let b = builder.build();
+        let b = FtpBuilder::default()
+            .endpoint("invalidscheme://ftp_server.local:8765")
+            .build();
         assert!(b.is_err());
         let e = b.unwrap_err();
         assert_eq!(e.kind(), ErrorKind::ConfigInvalid);

@@ -17,9 +17,10 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -27,97 +28,39 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::appender::ObsAppender;
-use super::core::ObsCore;
+use super::core::{constants, ObsCore};
+use super::delete::ObsDeleter;
 use super::error::parse_error;
-use super::pager::ObsPager;
+use super::lister::ObsLister;
 use super::writer::ObsWriter;
+use super::writer::ObsWriters;
 use crate::raw::*;
+use crate::services::ObsConfig;
 use crate::*;
 
-/// Huawei Cloud OBS services support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [ ] rename
-/// - [x] list
-/// - [x] scan
-/// - [x] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work directory for backend
-/// - `bucket`: Set the container name for backend
-/// - `endpoint`: Customizable endpoint setting
-/// - `access_key_id`: Set the access_key_id for backend.
-/// - `secret_access_key`: Set the secret_access_key for backend.
-///
-/// You can refer to [`ObsBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Obs;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Obs::default();
-///
-///     // set the storage bucket for OpenDAL
-///     builder.bucket("test");
-///     // Set the access_key_id and secret_access_key.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.access_key_id("access_key_id");
-///     builder.secret_access_key("secret_access_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
-
-const DEFAULT_WRITE_MIN_SIZE: usize = 100 * 1024;
+impl Configurator for ObsConfig {
+    type Builder = ObsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        ObsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
 
 /// Huawei-Cloud Object Storage Service (OBS) support
+#[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
-    root: Option<String>,
-    endpoint: Option<String>,
-    access_key_id: Option<String>,
-    secret_access_key: Option<String>,
-    bucket: Option<String>,
+    config: ObsConfig,
     http_client: Option<HttpClient>,
-    /// the part size of obs multipart upload, which should be 100 KiB to 5 GiB.
-    /// There is no minimum size limit on the last part of your multipart upload
-    write_min_size: Option<usize>,
 }
 
 impl Debug for ObsBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("access_key_id", &"<redacted>")
-            .field("secret_access_key", &"<redacted>")
-            .field("bucket", &self.bucket)
-            .finish()
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("ObsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -125,10 +68,12 @@ impl ObsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -141,9 +86,9 @@ impl ObsBuilder {
     /// - `https://obs.cn-north-4.myhuaweicloud.com`
     /// - `obs.cn-north-4.myhuaweicloud.com` (https by default)
     /// - `https://custom.obs.com` (port should not be set)
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -152,9 +97,9 @@ impl ObsBuilder {
     /// Set access_key_id of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_id(&mut self, access_key_id: &str) -> &mut Self {
+    pub fn access_key_id(mut self, access_key_id: &str) -> Self {
         if !access_key_id.is_empty() {
-            self.access_key_id = Some(access_key_id.to_string());
+            self.config.access_key_id = Some(access_key_id.to_string());
         }
 
         self
@@ -163,9 +108,9 @@ impl ObsBuilder {
     /// Set secret_access_key of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_access_key(&mut self, secret_access_key: &str) -> &mut Self {
+    pub fn secret_access_key(mut self, secret_access_key: &str) -> Self {
         if !secret_access_key.is_empty() {
-            self.secret_access_key = Some(secret_access_key.to_string());
+            self.config.secret_access_key = Some(secret_access_key.to_string());
         }
 
         self
@@ -173,9 +118,9 @@ impl ObsBuilder {
 
     /// Set bucket of this backend.
     /// The param is required.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
-            self.bucket = Some(bucket.to_string());
+            self.config.bucket = Some(bucket.to_string());
         }
 
         self
@@ -187,46 +132,23 @@ impl ObsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
-        self
-    }
-
-    /// set the minimum size of unsized write, it should be greater than 100 KB.
-    /// Reference: [Huawei Obs multipart upload limits](https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0099.html)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
-        self.write_min_size = Some(write_min_size);
-
         self
     }
 }
 
 impl Builder for ObsBuilder {
     const SCHEME: Scheme = Scheme::Obs;
-    type Accessor = ObsBackend;
+    type Config = ObsConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = ObsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("access_key_id").map(|v| builder.access_key_id(v));
-        map.get("secret_access_key")
-            .map(|v| builder.secret_access_key(v));
-        map.get("write_min_size")
-            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let bucket = match &self.bucket {
+        let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
@@ -235,7 +157,7 @@ impl Builder for ObsBuilder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        let uri = match &self.endpoint {
+        let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                     .with_context("service", Scheme::Obs)
@@ -252,7 +174,9 @@ impl Builder for ObsBuilder {
 
         let (endpoint, is_obs_default) = {
             let host = uri.host().unwrap_or_default().to_string();
-            if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
+            if host.starts_with("obs.")
+                && (host.ends_with(".myhuaweicloud.com") || host.ends_with(".huawei.com"))
+            {
                 (format!("{bucket}.{host}"), true)
             } else {
                 (host, false)
@@ -260,7 +184,7 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -273,11 +197,11 @@ impl Builder for ObsBuilder {
         // Load cfg from env first.
         cfg = cfg.from_env();
 
-        if let Some(v) = self.access_key_id.take() {
+        if let Some(v) = self.config.access_key_id {
             cfg.access_key_id = Some(v);
         }
 
-        if let Some(v) = self.secret_access_key.take() {
+        if let Some(v) = self.config.secret_access_key {
             cfg.secret_access_key = Some(v);
         }
 
@@ -297,14 +221,6 @@ impl Builder for ObsBuilder {
                 &endpoint
             }
         });
-        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
-        if write_min_size < 100 * 1024 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write minimum buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::Obs));
-        }
 
         debug!("backend build finished");
         Ok(ObsBackend {
@@ -315,7 +231,6 @@ impl Builder for ObsBuilder {
                 signer,
                 loader,
                 client,
-                write_min_size,
             }),
         })
     }
@@ -327,81 +242,184 @@ pub struct ObsBackend {
     core: Arc<ObsCore>,
 }
 
-#[async_trait]
-impl Accessor for ObsBackend {
-    type Reader = IncomingAsyncBody;
+impl Access for ObsBackend {
+    type Reader = HttpBody;
+    type Writer = ObsWriters;
+    type Lister = oio::PageLister<ObsLister>;
+    type Deleter = oio::OneShotDeleter<ObsDeleter>;
     type BlockingReader = ();
-    type Writer = ObsWriter;
     type BlockingWriter = ();
-    type Appender = ObsAppender;
-    type Pager = ObsPager;
-    type BlockingPager = ();
+    type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
+                stat_has_user_metadata: true,
 
                 read: true,
-                read_can_next: true,
-                read_with_range: true,
+
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
                 write: true,
-                write_can_sink: true,
+                write_can_empty: true,
+                write_can_append: true,
+                write_can_multi: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
-                write_without_content_length: true,
-
-                append: true,
-                append_with_cache_control: true,
-                append_with_content_type: true,
-                append_with_content_disposition: true,
+                // The min multipart size of OBS is 5 MiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of OBS is 5 GiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
+                write_with_user_metadata: true,
 
                 delete: true,
-                create_dir: true,
                 copy: true,
 
                 list: true,
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
+                list_with_recursive: true,
+                list_has_content_length: true,
 
                 presign: true,
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
-        am
+        am.into()
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.obs_head_object(path, &args).await?;
+        let headers = resp.headers();
+
+        let status = resp.status();
+
+        // The response is very similar to azblob.
+        match status {
+            StatusCode::OK => {
+                let mut meta = parse_into_metadata(path, headers)?;
+                let user_meta = headers
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        name.as_str()
+                            .strip_prefix(constants::X_OBS_META_PREFIX)
+                            .and_then(|stripped_key| {
+                                parse_header_to_str(headers, name)
+                                    .unwrap_or(None)
+                                    .map(|val| (stripped_key.to_string(), val.to_string()))
+                            })
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+
+                Ok(RpStat::new(meta))
+            }
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.obs_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = ObsWriter::new(self.core.clone(), path, args.clone());
+
+        let w = if args.append() {
+            ObsWriters::Two(oio::AppendWriter::new(writer))
+        } else {
+            ObsWriters::One(oio::MultipartWriter::new(
+                writer,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
+        };
+
+        Ok((RpWrite::default(), w))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(ObsDeleter::new(self.core.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = ObsLister::new(self.core.clone(), path, args.recursive(), args.limit());
+        Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.obs_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp)),
+        }
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+            PresignOperation::Read(v) => {
                 self.core
-                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .obs_get_object_request(path, BytesRange::default(), v)?
             }
-            PresignOperation::Read(v) => self.core.obs_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(v) => self.core.obs_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .obs_put_object_request(path, None, v, Buffer::new())?
+            }
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 
@@ -413,113 +431,5 @@ impl Accessor for ObsBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            ObsWriter::new(self.core.clone(), path, args),
-        ))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        Ok((
-            RpAppend::default(),
-            ObsAppender::new(self.core.clone(), path, args),
-        ))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.obs_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        let resp = self
-            .core
-            .obs_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
-
-        let status = resp.status();
-
-        // The response is very similar to azblob.
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.obs_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        Ok((
-            RpList::default(),
-            ObsPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
-        ))
     }
 }

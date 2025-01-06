@@ -23,8 +23,8 @@
   (progn
    (run sh -c "cd %{project_root}/../.. && cargo build --release")
    (run sh -c
-     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllopendal_core.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so")
-   (run mv %{project_root}/../../../../target/release/libopendal_ocaml.a
+     "mv %{project_root}/../../target/release/libopendal_ocaml.so ./dllopendal_core.so 2> /dev/null || mv %{project_root}/../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so")
+   (run mv %{project_root}/../../target/release/libopendal_ocaml.a
      libopendal_core.a))))
 
 (library

@@ -19,12 +19,11 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::time::Duration;
-
-use flagset::FlagSet;
-
 use crate::raw::*;
-use crate::Metakey;
+use crate::*;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -42,7 +41,7 @@ impl OpCreateDir {
 /// Args for `delete` operation.
 ///
 /// The path must be normalized.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
 }
@@ -67,21 +66,60 @@ impl OpDelete {
     }
 }
 
+/// Args for `delete` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpDeleter {}
+
+impl OpDeleter {
+    /// Create a new `OpDelete`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Args for `list` operation.
 #[derive(Debug, Clone)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
-    /// that could return.
+    /// that could return per-request.
+    ///
+    /// Users could use this to control the memory usage of list operation.
     limit: Option<usize>,
-
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
     start_after: Option<String>,
-
-    /// The delimiter used to for the list operation. Default to be `/`
-    delimiter: String,
-
-    metakey: FlagSet<Metakey>,
+    /// The recursive is used to control whether the list operation is recursive.
+    ///
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    recursive: bool,
+    /// The concurrent of stat operations inside list operation.
+    /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
+    ///
+    /// - If this is set to <= 1, the list operation will be sequential.
+    /// - If this is set to > 1, the list operation will be concurrent,
+    ///   and the maximum number of concurrent operations will be determined by this value.
+    concurrent: usize,
+    /// The version is used to control whether the object versions should be returned.
+    ///
+    /// - If `false`, list operation will not return with object versions
+    /// - If `true`, list operation will return with object versions if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    versions: bool,
+    /// The deleted is used to control whether the deleted objects should be returned.
+    ///
+    /// - If `false`, list operation will not return with deleted objects
+    /// - If `true`, list operation will return with deleted objects if object versioning is supported
+    ///   by the underlying service
+    ///
+    /// Default to `false`
+    deleted: bool,
 }
 
 impl Default for OpList {
@@ -89,9 +127,10 @@ impl Default for OpList {
         OpList {
             limit: None,
             start_after: None,
-            delimiter: "/".to_string(),
-            // By default, we want to know what's the mode of this entry.
-            metakey: Metakey::Mode.into(),
+            recursive: false,
+            concurrent: 1,
+            versions: false,
+            deleted: false,
         }
     }
 }
@@ -124,28 +163,68 @@ impl OpList {
         self.start_after.as_deref()
     }
 
-    /// Change the delimiter. The default delimiter is "/"
-    pub fn with_delimiter(mut self, delimiter: &str) -> Self {
-        self.delimiter = delimiter.to_string();
-        self
-    }
-
-    /// Get the current delimiter.
-    pub fn delimiter(&self) -> &str {
-        &self.delimiter
-    }
-
-    /// Change the metakey of this list operation.
+    /// The recursive is used to control whether the list operation is recursive.
     ///
-    /// The default metakey is `Metakey::Mode`.
-    pub fn with_metakey(mut self, metakey: impl Into<FlagSet<Metakey>>) -> Self {
-        self.metakey = metakey.into();
+    /// - If `false`, list operation will only list the entries under the given path.
+    /// - If `true`, list operation will list all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
         self
     }
 
-    /// Get the current metakey.
-    pub fn metakey(&self) -> FlagSet<Metakey> {
-        self.metakey
+    /// Get the current recursive.
+    pub fn recursive(&self) -> bool {
+        self.recursive
+    }
+
+    /// Change the concurrent of this list operation.
+    ///
+    /// The default concurrent is 1.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
+        self
+    }
+
+    /// Get the concurrent of list operation.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Change the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
+    pub fn with_version(mut self, version: bool) -> Self {
+        self.versions = version;
+        self
+    }
+
+    /// Change the version of this list operation
+    pub fn with_versions(mut self, versions: bool) -> Self {
+        self.versions = versions;
+        self
+    }
+
+    /// Get the version of this list operation
+    #[deprecated(since = "0.51.1", note = "use versions instead")]
+    pub fn version(&self) -> bool {
+        self.versions
+    }
+
+    /// Get the version of this list operation
+    pub fn versions(&self) -> bool {
+        self.versions
+    }
+
+    /// Change the deleted of this list operation
+    pub fn with_deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
+        self
+    }
+
+    /// Get the deleted of this list operation
+    pub fn deleted(&self) -> bool {
+        self.deleted
     }
 }
 
@@ -176,6 +255,11 @@ impl OpPresign {
     /// Get expire from op.
     pub fn expire(&self) -> Duration {
         self.expire
+    }
+
+    /// Consume OpPresign into (Duration, PresignOperation)
+    pub fn into_parts(self) -> (Duration, PresignOperation) {
+        (self.expire, self.op)
     }
 }
 
@@ -209,63 +293,19 @@ impl From<OpWrite> for PresignOperation {
     }
 }
 
-/// Args for `batch` operation.
-#[derive(Debug, Clone)]
-pub struct OpBatch {
-    ops: Vec<(String, BatchOperation)>,
-}
-
-impl OpBatch {
-    /// Create a new batch options.
-    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
-        Self { ops }
-    }
-
-    /// Get operation from op.
-    pub fn operation(&self) -> &[(String, BatchOperation)] {
-        &self.ops
-    }
-
-    /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
-        self.ops
-    }
-}
-
-/// Batch operation used for batch.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum BatchOperation {
-    /// Batch delete operation.
-    Delete(OpDelete),
-}
-
-impl From<OpDelete> for BatchOperation {
-    fn from(op: OpDelete) -> Self {
-        Self::Delete(op)
-    }
-}
-
-impl BatchOperation {
-    /// Return the operation of this batch.
-    pub fn operation(&self) -> Operation {
-        use BatchOperation::*;
-        match self {
-            Delete(_) => Operation::Delete,
-        }
-    }
-}
-
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    br: BytesRange,
+    range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    executor: Option<Executor>,
 }
 
 impl OpRead {
@@ -274,47 +314,52 @@ impl OpRead {
         Self::default()
     }
 
-    /// Create a new OpRead with range.
+    /// Set the range of the option
     pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.br = range;
+        self.range = range;
         self
     }
 
-    /// Get range from OpRead.
+    /// Get range from option
     pub fn range(&self) -> BytesRange {
-        self.br
+        self.range
     }
 
-    /// Sets the content-disposition header that should be send back by the remote read operation.
+    /// Returns a mutable range to allow updating.
+    pub(crate) fn range_mut(&mut self) -> &mut BytesRange {
+        &mut self.range
+    }
+
+    /// Sets the content-disposition header that should be sent back by the remote read operation.
     pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());
         self
     }
 
-    /// Returns the content-disposition header that should be send back by the remote read
+    /// Returns the content-disposition header that should be sent back by the remote read
     /// operation.
     pub fn override_content_disposition(&self) -> Option<&str> {
         self.override_content_disposition.as_deref()
     }
 
-    /// Sets the cache-control header that should be send back by the remote read operation.
+    /// Sets the cache-control header that should be sent back by the remote read operation.
     pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
         self.override_cache_control = Some(cache_control.into());
         self
     }
 
-    /// Returns the cache-control header that should be send back by the remote read operation.
+    /// Returns the cache-control header that should be sent back by the remote read operation.
     pub fn override_cache_control(&self) -> Option<&str> {
         self.override_cache_control.as_deref()
     }
 
-    /// Sets the content-type header that should be send back by the remote read operation.
+    /// Sets the content-type header that should be sent back by the remote read operation.
     pub fn with_override_content_type(mut self, content_type: &str) -> Self {
         self.override_content_type = Some(content_type.into());
         self
     }
 
-    /// Returns the content-type header that should be send back by the remote read operation.
+    /// Returns the content-type header that should be sent back by the remote read operation.
     pub fn override_content_type(&self) -> Option<&str> {
         self.override_content_type.as_deref()
     }
@@ -341,6 +386,28 @@ impl OpRead {
         self.if_none_match.as_deref()
     }
 
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(v);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
+    }
+
     /// Set the version of the option
     pub fn with_version(mut self, version: &str) -> Self {
         self.version = Some(version.to_string());
@@ -351,6 +418,92 @@ impl OpRead {
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
+
+    /// Set the executor of the option
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Merge given executor into option.
+    ///
+    /// If executor has already been set, this will do nothing.
+    /// Otherwise, this will set the given executor.
+    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
+        if self.executor.is_some() {
+            return self;
+        }
+        if let Some(exec) = executor {
+            return self.with_executor(exec);
+        }
+        self
+    }
+
+    /// Get executor from option
+    pub fn executor(&self) -> Option<&Executor> {
+        self.executor.as_ref()
+    }
+}
+
+/// Args for reader operation.
+#[derive(Debug, Clone)]
+pub struct OpReader {
+    /// The concurrent requests that reader can send.
+    concurrent: usize,
+    /// The chunk size of each request.
+    chunk: Option<usize>,
+    /// The gap size of each request.
+    gap: Option<usize>,
+}
+
+impl Default for OpReader {
+    fn default() -> Self {
+        Self {
+            concurrent: 1,
+            chunk: None,
+            gap: None,
+        }
+    }
+}
+
+impl OpReader {
+    /// Create a new `OpReader`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the concurrent of the option
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent.max(1);
+        self
+    }
+
+    /// Get concurrent from option
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the chunk of the option
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk.max(1));
+        self
+    }
+
+    /// Get chunk from option
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
+    }
+
+    /// Set the gap of the option
+    pub fn with_gap(mut self, gap: usize) -> Self {
+        self.gap = Some(gap.max(1));
+        self
+    }
+
+    /// Get gap from option
+    pub fn gap(&self) -> Option<usize> {
+        self.gap
+    }
 }
 
 /// Args for `stat` operation.
@@ -358,6 +511,9 @@ impl OpRead {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    override_content_type: Option<String>,
+    override_cache_control: Option<String>,
+    override_content_disposition: Option<String>,
     version: Option<String>,
 }
 
@@ -389,6 +545,40 @@ impl OpStat {
         self.if_none_match.as_deref()
     }
 
+    /// Sets the content-disposition header that should be sent back by the remote read operation.
+    pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
+        self.override_content_disposition = Some(content_disposition.into());
+        self
+    }
+
+    /// Returns the content-disposition header that should be sent back by the remote read
+    /// operation.
+    pub fn override_content_disposition(&self) -> Option<&str> {
+        self.override_content_disposition.as_deref()
+    }
+
+    /// Sets the cache-control header that should be sent back by the remote read operation.
+    pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
+        self.override_cache_control = Some(cache_control.into());
+        self
+    }
+
+    /// Returns the cache-control header that should be sent back by the remote read operation.
+    pub fn override_cache_control(&self) -> Option<&str> {
+        self.override_cache_control.as_deref()
+    }
+
+    /// Sets the content-type header that should be sent back by the remote read operation.
+    pub fn with_override_content_type(mut self, content_type: &str) -> Self {
+        self.override_content_type = Some(content_type.into());
+        self
+    }
+
+    /// Returns the content-type header that should be sent back by the remote read operation.
+    pub fn override_content_type(&self) -> Option<&str> {
+        self.override_content_type.as_deref()
+    }
+
     /// Set the version of the option
     pub fn with_version(mut self, version: &str) -> Self {
         self.version = Some(version.to_string());
@@ -404,10 +594,17 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    content_length: Option<u64>,
+    append: bool,
+    concurrent: usize,
     content_type: Option<String>,
     content_disposition: Option<String>,
+    content_encoding: Option<String>,
     cache_control: Option<String>,
+    executor: Option<Executor>,
+    if_match: Option<String>,
+    if_none_match: Option<String>,
+    if_not_exists: bool,
+    user_metadata: Option<HashMap<String, String>>,
 }
 
 impl OpWrite {
@@ -418,19 +615,22 @@ impl OpWrite {
         Self::default()
     }
 
-    /// Get the content length from op.
+    /// Get the append from op.
     ///
-    /// The content length is the total length of the data to be written.
-    pub fn content_length(&self) -> Option<u64> {
-        self.content_length
+    /// The append is the flag to indicate that this write operation is an append operation.
+    pub fn append(&self) -> bool {
+        self.append
     }
 
-    /// Set the content length of op.
+    /// Set the append mode of op.
     ///
-    /// If the content length is not set, the content length will be
-    /// calculated automatically by buffering part of data.
-    pub fn with_content_length(mut self, content_length: u64) -> Self {
-        self.content_length = Some(content_length);
+    /// If the append mode is set, the data will be appended to the end of the file.
+    ///
+    /// # Notes
+    ///
+    /// Service could return `Unsupported` if the underlying storage does not support append.
+    pub fn with_append(mut self, append: bool) -> Self {
+        self.append = append;
         self
     }
 
@@ -456,6 +656,17 @@ impl OpWrite {
         self
     }
 
+    /// Get the content encoding from option
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set the content encoding of option
+    pub fn with_content_encoding(mut self, content_encoding: &str) -> Self {
+        self.content_encoding = Some(content_encoding.to_string());
+        self
+    }
+
     /// Get the cache control from option
     pub fn cache_control(&self) -> Option<&str> {
         self.cache_control.as_deref()
@@ -466,52 +677,118 @@ impl OpWrite {
         self.cache_control = Some(cache_control.to_string());
         self
     }
+
+    /// Get the concurrent.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent
+    }
+
+    /// Set the maximum concurrent write task amount.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent;
+        self
+    }
+
+    /// Get the executor from option
+    pub fn executor(&self) -> Option<&Executor> {
+        self.executor.as_ref()
+    }
+
+    /// Set the executor of the option
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, s: &str) -> Self {
+        self.if_match = Some(s.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, s: &str) -> Self {
+        self.if_none_match = Some(s.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Not-Exist of the option
+    pub fn with_if_not_exists(mut self, b: bool) -> Self {
+        self.if_not_exists = b;
+        self
+    }
+
+    /// Get If-Not-Exist from option
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
+    }
+
+    /// Merge given executor into option.
+    ///
+    /// If executor has already been set, this will do nothing.
+    /// Otherwise, this will set the given executor.
+    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
+        if self.executor.is_some() {
+            return self;
+        }
+        if let Some(exec) = executor {
+            return self.with_executor(exec);
+        }
+        self
+    }
+
+    /// Set the user defined metadata of the op
+    pub fn with_user_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.user_metadata = Some(metadata);
+        self
+    }
+
+    /// Get the user defined metadata from the op
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.user_metadata.as_ref()
+    }
 }
 
-/// Args for `append` operation.
+/// Args for `writer` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpAppend {
-    content_type: Option<String>,
-    content_disposition: Option<String>,
-    cache_control: Option<String>,
+pub struct OpWriter {
+    chunk: Option<usize>,
 }
 
-impl OpAppend {
-    /// Create a new `OpAppend`.
+impl OpWriter {
+    /// Create a new `OpWriter`.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Get the content type from option
-    pub fn content_type(&self) -> Option<&str> {
-        self.content_type.as_deref()
+    /// Get the chunk from op.
+    ///
+    /// The chunk is used by service to decide the chunk size of the underlying writer.
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
     }
 
-    /// Set the content type of option
-    pub fn with_content_type(mut self, content_type: &str) -> Self {
-        self.content_type = Some(content_type.to_string());
-        self
-    }
-
-    /// Get the content disposition from option
-    pub fn content_disposition(&self) -> Option<&str> {
-        self.content_disposition.as_deref()
-    }
-
-    /// Set the content disposition of option
-    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
-        self.content_disposition = Some(content_disposition.to_string());
-        self
-    }
-
-    /// Get the cache control from option
-    pub fn cache_control(&self) -> Option<&str> {
-        self.cache_control.as_deref()
-    }
-
-    /// Set the cache control of option
-    pub fn with_cache_control(mut self, cache_control: &str) -> Self {
-        self.cache_control = Some(cache_control.to_string());
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk);
         self
     }
 }

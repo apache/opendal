@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
 use http::StatusCode;
@@ -44,44 +43,25 @@ impl OneDriveWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for OneDriveWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for OneDriveWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let size = bs.len();
 
         if size <= Self::MAX_SIMPLE_SIZE {
-            self.write_simple(bs).await
+            self.write_simple(bs).await?;
         } else {
-            self.write_chunked(bs).await
+            self.write_chunked(bs.to_bytes()).await?;
         }
-    }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
         Ok(())
     }
 }
 
 impl OneDriveWriter {
-    async fn write_simple(&mut self, bs: Bytes) -> Result<()> {
+    async fn write_simple(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .backend
-            .onedrive_upload_simple(
-                &self.path,
-                Some(bs.len()),
-                self.op.content_type(),
-                AsyncBody::Bytes(bs),
-            )
+            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, bs)
             .await?;
 
         let status = resp.status();
@@ -89,11 +69,8 @@ impl OneDriveWriter {
         match status {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -121,11 +98,11 @@ impl OneDriveWriter {
                 .backend
                 .onedrive_chunked_upload(
                     &session_response.upload_url,
-                    None,
+                    &OpWrite::default(),
                     offset,
                     chunk_end,
                     total_len,
-                    AsyncBody::Bytes(Bytes::copy_from_slice(chunk)),
+                    Buffer::from(Bytes::copy_from_slice(chunk)),
                 )
                 .await?;
 
@@ -134,10 +111,8 @@ impl OneDriveWriter {
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                }
-                _ => return Err(parse_error(resp).await?),
+                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {}
+                _ => return Err(parse_error(resp)),
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
@@ -170,12 +145,12 @@ impl OneDriveWriter {
         match status {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+                let bs = resp.into_body();
                 let result: OneDriveUploadSessionCreationResponseBody =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

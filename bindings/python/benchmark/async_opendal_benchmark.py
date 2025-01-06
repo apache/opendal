@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from pydantic import BaseSettings
 import asyncio
-import opendal
 import timeit
+
+from pydantic import BaseSettings
+
+import opendal
 
 
 class Config(BaseSettings):

@@ -15,23 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
-use async_trait::async_trait;
-use bytes::Bytes;
-
-use crate::raw::oio::into_flat_page;
-use crate::raw::oio::into_hierarchy_page;
-use crate::raw::oio::ByRangeSeekableReader;
-use crate::raw::oio::Entry;
-use crate::raw::oio::FlatPager;
-use crate::raw::oio::HierarchyPager;
-use crate::raw::oio::StreamableReader;
+use crate::raw::oio::FlatLister;
+use crate::raw::oio::PrefixLister;
 use crate::raw::*;
 use crate::*;
 
@@ -48,6 +38,10 @@ use crate::*;
 ///
 /// So far `CompleteLayer` will do the following things:
 ///
+/// ## Stat Completion
+///
+/// Not all services support stat dir natively, but we can simulate it via list.
+///
 /// ## Read Completion
 ///
 /// OpenDAL requires all reader implements [`oio::Read`] and
@@ -55,12 +49,12 @@ use crate::*;
 /// capabilities. CompleteLayer will add those capabilities in
 /// a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
+/// Underlying services will return [`AccessorInfo`] to indicate the
 /// features that returning readers support.
 ///
 /// - If both `seekable` and `streamable`, return directly.
-/// - If not `streamable`, with [`oio::into_streamable_reader`].
-/// - If not `seekable`, with [`oio::into_reader::by_range`]
+/// - If not `streamable`, with [`oio::into_read_from_stream`].
+/// - If not `seekable`, with [`oio::into_seekable_read_by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
 /// All implementations of Reader should be `zero cost`. In our cases,
@@ -72,10 +66,9 @@ use crate::*;
 ///
 /// ### Read is Seekable
 ///
-/// We use internal `AccessorHint::ReadSeekable` to decide the most
-/// suitable implementations.
+/// We use [`Capability`] to decide the most suitable implementations.
 ///
-/// If there is a hint that `ReadSeekable`, we will open it with given args
+/// If [`Capability`] `read_can_seek` is true, we will open it with given args
 /// directly. Otherwise, we will pick a seekable reader implementation based
 /// on input range for it.
 ///
@@ -91,610 +84,413 @@ use crate::*;
 /// We use internal `AccessorHint::ReadStreamable` to decide the most
 /// suitable implementations.
 ///
-/// If there is a hint that `ReadStreamable`, we will use existing reader
+/// If [`Capability`] `read_can_next` is true, we will use existing reader
 /// directly. Otherwise, we will use transform this reader as a stream.
-///
-/// ### Consume instead of Drop
-///
-/// Normally, if reader is seekable, we need to drop current reader and start
-/// a new read call.
-///
-/// We can consume the data if the seek position is close enough. For
-/// example, users try to seek to `Current(1)`, we can just read the data
-/// can consume it.
-///
-/// In this way, we can reduce the extra cost of dropping reader.
 ///
 /// ## List Completion
 ///
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
-/// features that returning pagers support.
+/// Underlying services will return [`Capability`] to indicate the
+/// features that returning listers support.
 ///
-/// - If both `flat` and `hierarchy`, return directly.
-/// - If only `flat`, with [`oio::to_flat_pager`].
-/// - if only `hierarchy`, with [`oio::to_hierarchy_pager`].
-/// - If neither not supported, something must be wrong.
+/// - If support `list_with_recursive`, return directly.
+/// - if not, wrap with [`FlatLister`].
 ///
-/// ## Capability Check
-///
-/// Before performing any operations, `CompleteLayer` will first check
-/// the operation against capability of the underlying service. If the
-/// operation is not supported, an error will be returned directly.
-///
-/// [`AccessorHint`]: crate::raw::AccessorHint
 pub struct CompleteLayer;
 
-impl<A: Accessor> Layer<A> for CompleteLayer {
-    type LayeredAccessor = CompleteReaderAccessor<A>;
+impl<A: Access> Layer<A> for CompleteLayer {
+    type LayeredAccess = CompleteAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.info();
-        CompleteReaderAccessor {
-            meta,
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        CompleteAccessor {
+            info: inner.info(),
             inner: Arc::new(inner),
         }
     }
 }
 
-/// Provide reader wrapper for backend.
-pub struct CompleteReaderAccessor<A: Accessor> {
-    meta: AccessorInfo,
+/// Provide complete wrapper for backend.
+pub struct CompleteAccessor<A: Access> {
+    info: Arc<AccessorInfo>,
     inner: Arc<A>,
 }
 
-impl<A: Accessor> Debug for CompleteReaderAccessor<A> {
+impl<A: Access> Debug for CompleteAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> CompleteReaderAccessor<A> {
-    async fn complete_reader(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let capability = self.meta.capability();
-        if !capability.read {
-            return new_capability_unsupported_error(Operation::Read);
+impl<A: Access> CompleteAccessor<A> {
+    async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.info.full_capability();
+        if capability.create_dir {
+            return self.inner().create_dir(path, args).await;
         }
 
-        let seekable = capability.read_can_seek;
-        let streamable = capability.read_can_next;
-
-        let range = args.range();
-        let (rp, r) = self.inner.read(path, args).await?;
-        let content_length = rp.metadata().content_length();
-
-        match (seekable, streamable) {
-            (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
-            (true, false) => {
-                let r = oio::into_streamable_read(r, 256 * 1024);
-                Ok((rp, CompleteReader::NeedStreamable(r)))
-            }
-            _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self.inner.stat(path, OpStat::new()).await?.into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
-
-                if streamable {
-                    Ok((rp, CompleteReader::NeedSeekable(r)))
-                } else {
-                    let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((rp, CompleteReader::NeedBoth(r)))
-                }
-            }
+        if capability.write_can_empty && capability.list {
+            let (_, mut w) = self.inner.write(path, OpWrite::default()).await?;
+            oio::Write::close(&mut w).await?;
+            return Ok(RpCreateDir::default());
         }
+
+        self.inner.create_dir(path, args).await
     }
 
-    fn complete_blocking_reader(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let capability = self.meta.capability();
-        if !capability.read || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingRead);
+    fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.info.full_capability();
+        if capability.create_dir && capability.blocking {
+            return self.inner().blocking_create_dir(path, args);
         }
 
-        let seekable = capability.read_can_seek;
-        let streamable = capability.read_can_next;
-
-        let range = args.range();
-        let (rp, r) = self.inner.blocking_read(path, args)?;
-        let content_length = rp.metadata().content_length();
-
-        match (seekable, streamable) {
-            (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
-            (true, false) => {
-                let r = oio::into_streamable_read(r, 256 * 1024);
-                Ok((rp, CompleteReader::NeedStreamable(r)))
-            }
-            _ => {
-                let (offset, size) = match (range.offset(), range.size()) {
-                    (Some(offset), _) => (offset, content_length),
-                    (None, None) => (0, content_length),
-                    (None, Some(size)) => {
-                        // TODO: we can read content range to calculate
-                        // the total content length.
-                        let om = self
-                            .inner
-                            .blocking_stat(path, OpStat::new())?
-                            .into_metadata();
-                        let total_size = om.content_length();
-                        let (offset, size) = if size > total_size {
-                            (0, total_size)
-                        } else {
-                            (total_size - size, size)
-                        };
-
-                        (offset, size)
-                    }
-                };
-                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
-
-                if streamable {
-                    Ok((rp, CompleteReader::NeedSeekable(r)))
-                } else {
-                    let r = oio::into_streamable_read(r, 256 * 1024);
-                    Ok((rp, CompleteReader::NeedBoth(r)))
-                }
-            }
+        if capability.write_can_empty && capability.list && capability.blocking {
+            let (_, mut w) = self.inner.blocking_write(path, OpWrite::default())?;
+            oio::BlockingWrite::close(&mut w)?;
+            return Ok(RpCreateDir::default());
         }
+
+        self.inner.blocking_create_dir(path, args)
+    }
+
+    async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.info.full_capability();
+
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Forward to inner if create_dir is supported.
+        if path.ends_with('/') && capability.create_dir {
+            let meta = self.inner.stat(path, args).await?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(meta));
+        }
+
+        // Otherwise, we can simulate stat dir via `list`.
+        if path.ends_with('/') && capability.list_with_recursive {
+            let (_, mut l) = self
+                .inner
+                .list(path, OpList::default().with_recursive(true).with_limit(1))
+                .await?;
+
+            return if oio::List::next(&mut l).await?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "the directory is not found",
+                ))
+            };
+        }
+
+        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        self.inner.stat(path, args).await
+    }
+
+    fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.info.full_capability();
+
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Forward to inner if create dir is supported.
+        if path.ends_with('/') && capability.create_dir {
+            let meta = self.inner.blocking_stat(path, args)?.into_metadata();
+
+            if meta.is_file() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "stat expected a directory, but found a file",
+                ));
+            }
+
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // Otherwise, we can simulate stat a dir path via `list`.
+        if path.ends_with('/') && capability.list_with_recursive {
+            let (_, mut l) = self
+                .inner
+                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
+
+            return if oio::BlockingList::next(&mut l)?.is_some() {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            } else {
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    "the directory is not found",
+                ))
+            };
+        }
+
+        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        self.inner.blocking_stat(path, args)
     }
 
     async fn complete_list(
         &self,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let cap = self.meta.capability();
-        if !cap.list {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("list"),
-            );
-        }
+    ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
+        let cap = self.info.full_capability();
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (recursive, cap.list_with_recursive) {
+            // - If service can list_with_recursive, we can forward list to it directly.
+            (_, true) => {
                 let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
-                Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
+                Ok((rp, CompleteLister::One(p)))
+            }
+            // If recursive is true but service can't list_with_recursive
+            (true, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let p = FlatLister::new(self.inner.clone(), path);
+                    Ok((RpList::default(), CompleteLister::Two(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let p = FlatLister::new(self.inner.clone(), parent);
+                    let p = PrefixLister::new(p, path);
+                    Ok((RpList::default(), CompleteLister::Four(p)))
+                }
+            }
+            // If recursive and service doesn't support list_with_recursive, we need to handle
+            // list prefix by ourselves.
+            (false, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let (rp, p) = self.inner.list(path, args).await?;
+                    Ok((rp, CompleteLister::One(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let (rp, p) = self.inner.list(parent, args).await?;
+                    let p = PrefixLister::new(p, path);
+                    Ok((rp, CompleteLister::Three(p)))
+                }
+            }
         }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.list(path, args.with_delimiter("")).await?;
-                let p = into_hierarchy_page(p, path);
-                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
-        }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 
     fn complete_blocking_list(
         &self,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let cap = self.meta.capability();
-        if !cap.list {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("list"),
-            );
-        }
+    ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
+        let cap = self.info.full_capability();
 
-        let delimiter = args.delimiter();
+        let recursive = args.recursive();
 
-        if delimiter.is_empty() {
-            return if cap.list_without_delimiter {
+        match (recursive, cap.list_with_recursive) {
+            // - If service can list_with_recursive, we can forward list to it directly.
+            (_, true) => {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let p = into_flat_page(
-                    self.inner.clone(),
-                    path,
-                    args.with_delimiter("/").limit().unwrap_or(1000),
-                );
-                Ok((RpList::default(), CompletePager::NeedFlat(p)))
-            };
+                Ok((rp, CompleteLister::One(p)))
+            }
+            // If recursive is true but service can't list_with_recursive
+            (true, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let p = FlatLister::new(self.inner.clone(), path);
+                    Ok((RpList::default(), CompleteLister::Two(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let p = FlatLister::new(self.inner.clone(), parent);
+                    let p = PrefixLister::new(p, path);
+                    Ok((RpList::default(), CompleteLister::Four(p)))
+                }
+            }
+            // If recursive and service doesn't support list_with_recursive, we need to handle
+            // list prefix by ourselves.
+            (false, false) => {
+                // Forward path that ends with /
+                if path.ends_with('/') {
+                    let (rp, p) = self.inner.blocking_list(path, args)?;
+                    Ok((rp, CompleteLister::One(p)))
+                } else {
+                    let parent = get_parent(path);
+                    let (rp, p) = self.inner.blocking_list(parent, args)?;
+                    let p = PrefixLister::new(p, path);
+                    Ok((rp, CompleteLister::Three(p)))
+                }
+            }
         }
-
-        if delimiter == "/" {
-            return if cap.list_with_delimiter_slash {
-                let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompletePager::AlreadyComplete(p)))
-            } else {
-                let (_, p) = self.inner.blocking_list(path, args.with_delimiter(""))?;
-                let p: HierarchyPager<<A as Accessor>::BlockingPager> =
-                    into_hierarchy_page(p, path);
-                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-            };
-        }
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "list with other delimiter is not supported",
-        )
-        .with_context("service", self.meta.scheme())
-        .with_context("delimiter", delimiter))
     }
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
+impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
-    type Reader = CompleteReader<A, A::Reader>;
-    type BlockingReader = CompleteReader<A, A::BlockingReader>;
+    type Reader = CompleteReader<A::Reader>;
+    type BlockingReader = CompleteReader<A::BlockingReader>;
     type Writer = CompleteWriter<A::Writer>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
-    type Appender = CompleteAppender<A::Appender>;
-    type Pager = CompletePager<A, A::Pager>;
-    type BlockingPager = CompletePager<A, A::BlockingPager>;
+    type Lister = CompleteLister<A, A::Lister>;
+    type BlockingLister = CompleteLister<A, A::BlockingLister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.complete_reader(path, args).await
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_reader(path, args)
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.capability();
-        if !capability.stat {
-            return new_capability_unsupported_error(Operation::Stat);
+    // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
+    fn info(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.info).clone();
+        let cap = meta.full_capability_mut();
+        if cap.list && cap.write_can_empty {
+            cap.create_dir = true;
         }
-
-        self.inner.stat(path, args).await.map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
-            })
-        })
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.capability();
-        if !capability.stat || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingStat);
-        }
-
-        self.inner.blocking_stat(path, args).map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
-            })
-        })
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.meta.capability();
-        if !capability.write {
-            return new_capability_unsupported_error(Operation::Write);
-        }
-
-        let size = args.content_length();
-        self.inner
-            .write(path, args)
-            .await
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.meta.capability();
-        if !capability.write || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingWrite);
-        }
-
-        let size = args.content_length();
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        let capability = self.meta.capability();
-        if !capability.append {
-            return new_capability_unsupported_error(Operation::Append);
-        }
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| (rp, CompleteAppender::new(a)))
+        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.capability();
-        if !capability.create_dir {
-            return new_capability_unsupported_error(Operation::CreateDir);
-        }
-
-        self.inner().create_dir(path, args).await
+        self.complete_create_dir(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.capability();
-        if !capability.create_dir || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingCreateDir);
-        }
-
-        self.inner().blocking_create_dir(path, args)
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let size = args.range().size();
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.capability();
-        if !capability.delete {
-            return new_capability_unsupported_error(Operation::Delete);
-        }
-
-        self.inner().delete(path, args).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, w) = self.inner.write(path, args.clone()).await?;
+        let w = CompleteWriter::new(w);
+        Ok((rp, w))
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.capability();
-        if !capability.delete || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingDelete);
-        }
-
-        self.inner().blocking_delete(path, args)
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.complete_stat(path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.capability();
-        if !capability.copy {
-            return new_capability_unsupported_error(Operation::Copy);
-        }
-
-        self.inner().copy(from, to, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner().delete().await
     }
 
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.capability();
-        if !capability.copy || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingCopy);
-        }
-
-        self.inner().blocking_copy(from, to, args)
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.capability();
-        if !capability.rename {
-            return new_capability_unsupported_error(Operation::Rename);
-        }
-
-        self.inner().rename(from, to, args).await
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.capability();
-        if !capability.rename || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingRename);
-        }
-
-        self.inner().blocking_rename(from, to, args)
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let capability = self.meta.capability();
-        if !capability.list {
-            return new_capability_unsupported_error(Operation::List);
-        }
-
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.complete_list(path, args).await
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        let capability = self.meta.capability();
-        if !capability.list || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingList);
-        }
-
-        self.complete_blocking_list(path, args)
-    }
-
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.meta.capability();
-        if !capability.presign {
-            return new_capability_unsupported_error(Operation::Presign);
-        }
-
         self.inner.presign(path, args).await
     }
 
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.meta.capability();
-        if !capability.batch {
-            return new_capability_unsupported_error(Operation::Batch);
-        }
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        self.complete_blocking_create_dir(path, args)
+    }
 
-        self.inner().batch(args).await
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        let size = args.range().size();
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
+    }
+
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.complete_blocking_stat(path, args)
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner().blocking_delete()
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+        self.complete_blocking_list(path, args)
     }
 }
 
-pub enum CompleteReader<A: Accessor, R> {
-    AlreadyComplete(R),
-    NeedSeekable(ByRangeSeekableReader<A, R>),
-    NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeSeekableReader<A, R>>),
+pub type CompleteLister<A, P> =
+    FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
+
+pub struct CompleteReader<R> {
+    inner: R,
+    size: Option<u64>,
+    read: u64,
 }
 
-impl<A, R> oio::Read for CompleteReader<A, R>
-where
-    A: Accessor<Reader = R>,
-    R: oio::Read,
-{
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.poll_read(cx, buf),
-            NeedSeekable(r) => r.poll_read(cx, buf),
-            NeedStreamable(r) => r.poll_read(cx, buf),
-            NeedBoth(r) => r.poll_read(cx, buf),
+impl<R> CompleteReader<R> {
+    pub fn new(inner: R, size: Option<u64>) -> Self {
+        Self {
+            inner,
+            size,
+            read: 0,
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        use CompleteReader::*;
+    pub fn check(&self) -> Result<()> {
+        let Some(size) = self.size else {
+            return Ok(());
+        };
 
-        match self {
-            AlreadyComplete(r) => r.poll_seek(cx, pos),
-            NeedSeekable(r) => r.poll_seek(cx, pos),
-            NeedStreamable(r) => r.poll_seek(cx, pos),
-            NeedBoth(r) => r.poll_seek(cx, pos),
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.poll_next(cx),
-            NeedSeekable(r) => r.poll_next(cx),
-            NeedStreamable(r) => r.poll_next(cx),
-            NeedBoth(r) => r.poll_next(cx),
-        }
-    }
-}
-
-impl<A, R> oio::BlockingRead for CompleteReader<A, R>
-where
-    A: Accessor<BlockingReader = R>,
-    R: oio::BlockingRead,
-{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.read(buf),
-            NeedSeekable(r) => r.read(buf),
-            NeedStreamable(r) => r.read(buf),
-            NeedBoth(r) => r.read(buf),
-        }
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.seek(pos),
-            NeedSeekable(r) => r.seek(pos),
-            NeedStreamable(r) => r.seek(pos),
-            NeedBoth(r) => r.seek(pos),
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        use CompleteReader::*;
-
-        match self {
-            AlreadyComplete(r) => r.next(),
-            NeedSeekable(r) => r.next(),
-            NeedStreamable(r) => r.next(),
-            NeedBoth(r) => r.next(),
+        match self.read.cmp(&size) {
+            Ordering::Equal => Ok(()),
+            Ordering::Less => Err(
+                Error::new(ErrorKind::Unexpected, "reader got too little data")
+                    .with_context("expect", size)
+                    .with_context("actual", self.read),
+            ),
+            Ordering::Greater => Err(
+                Error::new(ErrorKind::Unexpected, "reader got too much data")
+                    .with_context("expect", size)
+                    .with_context("actual", self.read),
+            ),
         }
     }
 }
 
-pub enum CompletePager<A: Accessor, P> {
-    AlreadyComplete(P),
-    NeedFlat(FlatPager<Arc<A>, P>),
-    NeedHierarchy(HierarchyPager<P>),
-}
+impl<R: oio::Read> oio::Read for CompleteReader<R> {
+    async fn read(&mut self) -> Result<Buffer> {
+        let buf = self.inner.read().await?;
 
-#[async_trait]
-impl<A, P> oio::Page for CompletePager<A, P>
-where
-    A: Accessor<Pager = P>,
-    P: oio::Page,
-{
-    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        use CompletePager::*;
-
-        match self {
-            AlreadyComplete(p) => p.next().await,
-            NeedFlat(p) => p.next().await,
-            NeedHierarchy(p) => p.next().await,
+        if buf.is_empty() {
+            self.check()?;
+        } else {
+            self.read += buf.len() as u64;
         }
+
+        Ok(buf)
     }
 }
 
-impl<A, P> oio::BlockingPage for CompletePager<A, P>
-where
-    A: Accessor<BlockingPager = P>,
-    P: oio::BlockingPage,
-{
-    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        use CompletePager::*;
+impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
+    fn read(&mut self) -> Result<Buffer> {
+        let buf = self.inner.read()?;
 
-        match self {
-            AlreadyComplete(p) => p.next(),
-            NeedFlat(p) => p.next(),
-            NeedHierarchy(p) => p.next(),
+        if buf.is_empty() {
+            self.check()?;
+        } else {
+            self.read += buf.len() as u64;
         }
+
+        Ok(buf)
     }
 }
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
-    size: Option<u64>,
-    written: u64,
 }
 
 impl<W> CompleteWriter<W> {
-    pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
-        CompleteWriter {
-            inner: Some(inner),
-            size,
-            written: 0,
-        }
+    pub fn new(inner: W) -> CompleteWriter<W> {
+        CompleteWriter { inner: Some(inner) }
     }
 }
 
@@ -704,58 +500,31 @@ impl<W> CompleteWriter<W> {
 impl<W> Drop for CompleteWriter<W> {
     fn drop(&mut self) {
         if self.inner.is_some() {
-            // Do we need to panic here?
             log::warn!("writer has not been closed or aborted, must be a bug")
         }
     }
 }
 
-#[async_trait]
 impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let n = bs.len();
-
-        if let Some(size) = self.size {
-            if self.written + n as u64 > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
-
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.write(bs).await?;
-        self.written += n as u64;
-        Ok(())
+
+        w.write(bs).await
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        if let Some(total_size) = self.size {
-            if self.written + size > total_size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + size
-                    ),
-                ));
-            }
-        }
-
+    async fn close(&mut self) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.sink(size, s).await?;
-        self.written += size;
+
+        w.close().await?;
+        self.inner = None;
+
         Ok(())
     }
 
@@ -769,72 +538,21 @@ where
 
         Ok(())
     }
-
-    async fn close(&mut self) -> Result<()> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                ));
-            }
-        }
-
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        w.close().await?;
-        self.inner = None;
-
-        Ok(())
-    }
 }
 
 impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        let n = bs.len();
-
-        if let Some(size) = self.size {
-            if self.written + n as u64 > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
-
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.write(bs)?;
-        self.written += n as u64;
-        Ok(())
+        w.write(bs)
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                ));
-            }
-        }
-
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -843,210 +561,4 @@ where
         self.inner = None;
         Ok(())
     }
-}
-
-pub struct CompleteAppender<A> {
-    inner: Option<A>,
-}
-
-impl<A> CompleteAppender<A> {
-    pub fn new(inner: A) -> CompleteAppender<A> {
-        CompleteAppender { inner: Some(inner) }
-    }
-}
-
-/// Check if the appender has been closed while debug_assertions enabled.
-/// This code will never be executed in release mode.
-#[cfg(debug_assertions)]
-impl<A> Drop for CompleteAppender<A> {
-    fn drop(&mut self) {
-        if self.inner.is_some() {
-            // Do we need to panic here?
-            log::warn!("appender has not been closed, must be a bug")
-        }
-    }
-}
-
-#[async_trait]
-impl<A> oio::Append for CompleteAppender<A>
-where
-    A: oio::Append,
-{
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let a = self
-            .inner
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
-
-        a.append(bs).await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        let a = self
-            .inner
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
-
-        a.close().await?;
-        self.inner = None;
-        Ok(())
-    }
-}
-
-fn new_capability_unsupported_error<R>(operation: Operation) -> Result<R> {
-    Err(Error::new(ErrorKind::Unsupported, "operation is not supported").with_operation(operation))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-    use std::time::Duration;
-
-    use async_trait::async_trait;
-    use http::HeaderMap;
-    use http::Method as HttpMethod;
-
-    use super::*;
-
-    #[derive(Default)]
-    struct MockBuilder {
-        capability: Capability,
-    }
-
-    impl MockBuilder {
-        fn with_capacity(mut self, capability: Capability) -> Self {
-            self.capability = capability;
-            self
-        }
-    }
-
-    impl Builder for MockBuilder {
-        const SCHEME: Scheme = Scheme::Custom("mock");
-        type Accessor = MockService;
-
-        fn from_map(_: HashMap<String, String>) -> Self {
-            Self::default()
-        }
-
-        fn build(&mut self) -> Result<Self::Accessor> {
-            Ok(MockService {
-                capability: self.capability,
-            })
-        }
-    }
-
-    #[derive(Debug)]
-    struct MockService {
-        capability: Capability,
-    }
-
-    #[async_trait]
-    impl Accessor for MockService {
-        type Reader = ();
-        type BlockingReader = ();
-        type Writer = ();
-        type BlockingWriter = ();
-        type Appender = ();
-        type Pager = ();
-        type BlockingPager = ();
-
-        fn info(&self) -> AccessorInfo {
-            let mut info = AccessorInfo::default();
-            info.set_capability(self.capability);
-
-            info
-        }
-
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
-        }
-
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(0), ()))
-        }
-
-        async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), ()))
-        }
-
-        async fn append(&self, _: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-            Ok((RpAppend::new(), ()))
-        }
-
-        async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
-            Ok(RpCopy {})
-        }
-
-        async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-            Ok(RpCreateDir {})
-        }
-
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
-            Ok(RpDelete {})
-        }
-
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-            Ok((RpList {}, ()))
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
-            Ok(RpRename {})
-        }
-
-        async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {
-            Ok(RpPresign::new(PresignedRequest::new(
-                HttpMethod::POST,
-                "https://example.com/presign".parse().expect("should parse"),
-                HeaderMap::new(),
-            )))
-        }
-    }
-
-    /// Perform the test against different capability preconditions.
-    macro_rules! capability_test {
-        ($cap:ident, |$arg:ident| { $($body:tt)* }) => {
-            paste::item! {
-                #[tokio::test]
-                async fn [<test_capability_ $cap>]() {
-                    let res_builder = |$arg: Operator| async move {
-                        let res = { $($body)* };
-                        res.await.err()
-                    };
-
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: false,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert_eq!(res.expect("should not be None").kind(), ErrorKind::Unsupported);
-
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: true,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert!(res.is_none());
-                }
-            }
-        };
-    }
-
-    capability_test!(stat, |op| { op.stat("/path/to/mock_file") });
-    capability_test!(read, |op| { op.read("/path/to/mock_file") });
-    capability_test!(write, |op| { op.writer("/path/to/mock_file") });
-    capability_test!(append, |op| { op.appender("/path/to/mock_file") });
-    capability_test!(create_dir, |op| { op.create_dir("/path/to/mock_dir/") });
-    capability_test!(delete, |op| { op.delete("/path/to/mock_file") });
-    capability_test!(copy, |op| {
-        op.copy("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(rename, |op| {
-        op.rename("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(list, |op| { op.lister("/path/to/mock_dir/") });
-    capability_test!(presign, |op| {
-        op.presign_read("/path/to/mock_file", Duration::from_secs(1))
-    });
 }

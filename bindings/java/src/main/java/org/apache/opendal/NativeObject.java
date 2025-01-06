@@ -19,13 +19,7 @@
 
 package org.apache.opendal;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * NativeObject is the base-class of all OpenDAL classes that have
@@ -58,85 +52,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * for discussion and alternatives.
  */
 public abstract class NativeObject implements AutoCloseable {
-
-    private enum LibraryState {
-        NOT_LOADED,
-        LOADING,
-        LOADED
-    }
-
-    private static final AtomicReference<LibraryState> libraryLoaded = new AtomicReference<>(LibraryState.NOT_LOADED);
-
     static {
-        NativeObject.loadLibrary();
+        NativeLibrary.loadLibrary();
     }
 
-    public static void loadLibrary() {
-        if (libraryLoaded.get() == LibraryState.LOADED) {
-            return;
-        }
-
-        if (libraryLoaded.compareAndSet(LibraryState.NOT_LOADED, LibraryState.LOADING)) {
-            try {
-                doLoadLibrary();
-            } catch (IOException e) {
-                libraryLoaded.set(LibraryState.NOT_LOADED);
-                throw new UncheckedIOException("Unable to load the RocksDB shared library", e);
-            }
-            libraryLoaded.set(LibraryState.LOADED);
-            return;
-        }
-
-        while (libraryLoaded.get() == LibraryState.LOADING) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException ignore) {
-            }
-        }
-    }
-
-    private static void doLoadLibrary() throws IOException {
-        try {
-            // try dynamic library
-            System.loadLibrary("opendal_java");
-            return;
-        } catch (UnsatisfiedLinkError ignore) {
-            // ignore - try from classpath
-        }
-
-        doLoadBundledLibrary();
-    }
-
-    private static void doLoadBundledLibrary() throws IOException {
-        final String libraryPath = bundledLibraryPath();
-        try (final InputStream is = NativeObject.class.getResourceAsStream(libraryPath)) {
-            if (is == null) {
-                throw new IOException("cannot find " + libraryPath + ", broken package?");
-            }
-            final int dot = libraryPath.indexOf('.');
-            final File tmpFile = File.createTempFile(libraryPath.substring(0, dot), libraryPath.substring(dot));
-            tmpFile.deleteOnExit();
-            Files.copy(is, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            System.load(tmpFile.getAbsolutePath());
-        }
-    }
-
-    private static String bundledLibraryPath() {
-        final String os = System.getProperty("os.name").toLowerCase();
-        final StringBuilder path = new StringBuilder("/native/" + Environment.getClassifier() + "/");
-        if (!os.startsWith("windows")) {
-            path.append("lib");
-        }
-        path.append("opendal_java");
-        if (os.startsWith("windows")) {
-            path.append(".dll");
-        } else if (os.startsWith("mac")) {
-            path.append(".dylib");
-        } else {
-            path.append(".so");
-        }
-        return path.toString();
-    }
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
 
     /**
      * An immutable reference to the value of the underneath pointer pointing
@@ -150,7 +70,18 @@ public abstract class NativeObject implements AutoCloseable {
 
     @Override
     public void close() {
-        disposeInternal(nativeHandle);
+        if (disposed.compareAndSet(false, true)) {
+            disposeInternal(nativeHandle);
+        }
+    }
+
+    /**
+     * Check if the object has been disposed. Useful for defensive programming.
+     *
+     * @return if the object has been disposed.
+     */
+    public boolean isDisposed() {
+        return disposed.get();
     }
 
     /**

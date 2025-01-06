@@ -73,3 +73,4 @@ docs/_build/
 
 # Generated docs
 docs
+Cargo.lock

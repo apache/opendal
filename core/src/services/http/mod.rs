@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-http")]
+mod error;
+
+#[cfg(feature = "services-http")]
 mod backend;
+#[cfg(feature = "services-http")]
 pub use backend::HttpBuilder as Http;
 
-mod error;
+mod config;
+pub use config::HttpConfig;

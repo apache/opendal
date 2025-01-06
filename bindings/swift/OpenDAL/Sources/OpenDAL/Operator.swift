@@ -15,75 +15,86 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import Foundation
 import COpenDAL
+import Foundation
 
-public enum OperatorError: Error {
-    case failedToBuild
-    case operationError(UInt32)
+public struct OperatorError: Error {
+    let code: UInt32
+    let message: Data
 }
 
-/// A type used to access almost all OpenDAL APIs.
 public class Operator {
-    var nativeOp: UnsafePointer<opendal_operator_ptr>
-    
+    var nativeOp: UnsafePointer<opendal_operator>
+
     deinit {
         opendal_operator_free(nativeOp)
     }
-    
-    /// Creates an operator with the given options.
-    ///
-    /// - Parameter options: The option map for creating the operator.
-    /// - Throws: `OperatorError` value that indicates an error if failed.
-    public init(scheme: String, options: [String : String] = [:]) throws {
+
+    public init(scheme: String, options: [String: String] = [:]) throws {
         let nativeOptions = opendal_operator_options_new()
         defer {
             opendal_operator_options_free(nativeOptions)
         }
-            
+
         for option in options {
             opendal_operator_options_set(nativeOptions, option.key, option.value)
         }
-        
-        guard let nativeOp = opendal_operator_new(scheme, nativeOptions) else {
-            throw OperatorError.failedToBuild
-        }
-        
-        guard nativeOp.pointee.ptr != nil else {
-            throw OperatorError.failedToBuild
+
+        let ret = opendal_operator_new(scheme, nativeOptions)
+        if let err = ret.error {
+            defer {
+                opendal_error_free(err)
+            }
+            let immutableErr = err.pointee
+            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
+            let messageLength = Int(immutableErr.message.len)
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
 
-        self.nativeOp = nativeOp
+        self.nativeOp = UnsafePointer(ret.op)!
     }
-    
-    /// Blockingly write the data to a given path.
-    ///
-    /// - Parameter data: The content to be written.
-    /// - Parameter path: The destination path for writing the data.
-    /// - Throws: `OperatorError` value that indicates an error if failed to write.
-    public func blockingWrite(_ data: Data, to path: String) throws {
-        let code = data.withUnsafeBytes { dataPointer in
+
+    public func blockingWrite(_ data: inout Data, to path: String) throws {
+        let ret = data.withUnsafeMutableBytes { dataPointer in
             let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count))
-            return opendal_operator_blocking_write(nativeOp, path, bytes)
+            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count), capacity: UInt(dataPointer.count))
+            return withUnsafePointer(to: bytes) { bytesPointer in
+                opendal_operator_write(nativeOp, path, bytesPointer)
+            }
         }
-        
-        guard code == OPENDAL_OK else {
-            throw OperatorError.operationError(code.rawValue)
+
+        if let err = ret {
+            defer {
+                opendal_error_free(err)
+            }
+            let immutableErr = err.pointee
+            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
+            let messageLength = Int(immutableErr.message.len)
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
     }
-    
-    /// Blockingly read the data from a given path.
-    ///
-    /// - Parameter path: Path of the data to read.
-    /// - Returns: `NativeData` object if the data exists.
-    /// - Throws: `OperatorError` value that indicates an error if failed to read.
-    public func blockingRead(_ path: String) throws -> Data? {
-        let result = opendal_operator_blocking_read(nativeOp, path)
-        guard result.code == OPENDAL_OK else {
-            throw OperatorError.operationError(result.code.rawValue)
+
+    public func blockingRead(_ path: String) throws -> Data {
+        var ret = opendal_operator_read(nativeOp, path)
+        if let err = ret.error {
+            defer {
+                opendal_error_free(err)
+            }
+            let immutableErr = err.pointee
+            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
+            let messageLength = Int(immutableErr.message.len)
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
-        
-        return .init(openDALBytes: result.data)
+
+        return withUnsafeMutablePointer(to: &ret.data) { Data(openDALBytes: $0) }
     }
 }

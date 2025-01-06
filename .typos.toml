@@ -18,6 +18,24 @@
 [default.extend-words]
 # Random strings.
 "Dum" = "Dum"
+"Hel" = "Hel"
 "ba" = "ba"
+"hellow" = "hellow"
 # Showed up in examples.
 "thw" = "thw"
+# Showed up in test.
+"hsa" = "hsa"
+# Tech words
+"WRONLY" = "WRONLY"
+
+[files]
+extend-exclude = [
+  # Generated SSH Keys.
+  "fixtures/sftp/test_ssh_key",
+  "fixtures/sftp/test_ssh_key.pub",
+  # Generated pnpm locks.
+  "website/pnpm-lock.yaml",
+  "CHANGELOG.md",
+  # dscanner config
+  "bindings/d/dscanner.ini",
+]

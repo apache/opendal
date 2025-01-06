@@ -41,7 +41,7 @@ rustConfHook (description, buildInfo) flags = do
   let packageDescription = localPkgDescr localBuildInfo
       library = fromJust $ PD.library packageDescription
       libraryBuildInfo = PD.libBuildInfo library
-  dir <- getLibDir
+  dir <- getLibDir $ fromFlagOrDefault False (configProf flags)
   return
     localBuildInfo
       { localPkgDescr =
@@ -51,7 +51,8 @@ rustConfHook (description, buildInfo) flags = do
                   library
                     { PD.libBuildInfo =
                         libraryBuildInfo
-                          { PD.extraLibDirs = dir : PD.extraLibDirs libraryBuildInfo
+                          { PD.extraLibDirs = dir : PD.extraLibDirs libraryBuildInfo,
+                            PD.ldOptions = ("-Wl,-rpath," ++ dir) : (PD.ldOptions libraryBuildInfo)
                           }
                     }
             }
@@ -60,24 +61,18 @@ rustConfHook (description, buildInfo) flags = do
 rustBuildHook :: PD.PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
 rustBuildHook pkg_descr lbi hooks flags = do
   putStrLn "Building Rust code..."
-  rawSystemExit (fromFlag $ buildVerbosity flags) "cargo" ["build", "--release"]
-  createHSLink
+  let isRelease = withProfLib lbi
+  let cargoArgs = if isRelease then ["build", "--release"] else ["build"]
+  rawSystemExit (fromFlag $ buildVerbosity flags) "cargo" cargoArgs
   putStrLn "Build Rust code success!"
   buildHook simpleUserHooks pkg_descr lbi hooks flags
-  where
-    createHSLink = do
-      dir <- getLibDir
-      ghcVersion <- init <$> readProcess "ghc" ["--numeric-version"] ""
-      let srcPath = dir ++ "/libopendal_hs." ++ getDynamicLibExtension lbi
-      let destPath = dir ++ "/libopendal_hs-ghc" ++ ghcVersion ++ "." ++ getDynamicLibExtension lbi
-      exist <- doesFileExist destPath
-      when (not exist) $ createFileLink srcPath destPath
 
-getLibDir :: IO String
-getLibDir = do
+getLibDir :: Bool -> IO String
+getLibDir isRelease = do
   cargoPath <- readProcess "cargo" ["locate-project", "--workspace", "--message-format=plain"] ""
   let dir = take (length cargoPath - 11) cargoPath -- <dir>/Cargo.toml -> <dir>
-  return $ dir ++ "/target/release"
+  let targetDir = if isRelease then "release" else "debug"
+  return $ dir ++ "target/" ++ targetDir
 
 getDynamicLibExtension :: LocalBuildInfo -> String
 getDynamicLibExtension lbi =

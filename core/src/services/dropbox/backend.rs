@@ -17,50 +17,42 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
 
-use async_trait::async_trait;
-use backon::ExponentialBuilder;
-use backon::Retryable;
+use bytes::Buf;
+use http::Response;
 use http::StatusCode;
-use once_cell::sync::Lazy;
-use serde::Deserialize;
 
-use super::core::DropboxCore;
-use super::error::parse_error;
+use super::core::*;
+use super::delete::DropboxDeleter;
+use super::error::*;
+use super::lister::DropboxLister;
 use super::writer::DropboxWriter;
 use crate::raw::*;
-use crate::services::dropbox::error::DropboxErrorResponse;
 use crate::*;
-
-static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
-    ExponentialBuilder::default()
-        .with_max_delay(Duration::from_secs(10))
-        .with_max_times(10)
-        .with_jitter()
-});
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
 }
 
-#[async_trait]
-impl Accessor for DropboxBackend {
-    type Reader = IncomingAsyncBody;
+impl Access for DropboxBackend {
+    type Reader = HttpBody;
+    type Writer = oio::OneShotWriter<DropboxWriter>;
+    type Lister = oio::PageLister<DropboxLister>;
+    type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type BlockingReader = ();
-    type Writer = DropboxWriter;
     type BlockingWriter = ();
-    type Pager = ();
-    type BlockingPager = ();
-    type Appender = ();
+    type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
-            .set_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
+                stat_has_content_length: true,
 
                 read: true,
 
@@ -70,87 +62,58 @@ impl Accessor for DropboxBackend {
 
                 delete: true,
 
-                batch: true,
-                batch_delete: true,
+                list: true,
+                list_with_recursive: true,
+                list_has_last_modified: true,
+                list_has_content_length: true,
+
+                copy: true,
+
+                rename: true,
+
+                shared: true,
 
                 ..Default::default()
             });
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.dropbox_create_folder(path).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
-                    _ => Err(err),
-                }
+        // Check if the folder already exists.
+        let resp = self.core.dropbox_get_metadata(path).await?;
+        if StatusCode::OK == resp.status() {
+            let bytes = resp.into_body();
+            let decoded_response: DropboxMetadataResponse =
+                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+            if "folder" == decoded_response.tag {
+                return Ok(RpCreateDir::default());
+            }
+            if "file" == decoded_response.tag {
+                return Err(Error::new(
+                    ErrorKind::NotADirectory,
+                    format!("it's not a directory {}", path),
+                ));
             }
         }
-    }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.dropbox_get(path).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-        Ok((
-            RpWrite::default(),
-            DropboxWriter::new(self.core.clone(), args, String::from(path)),
-        ))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dropbox_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+        let res = self.core.dropbox_create_folder(path).await?;
+        Ok(res)
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
         let resp = self.core.dropbox_get_metadata(path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
-                let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
-                    .map_err(new_json_deserialize_error)?;
+                let bytes = resp.into_body();
+                let decoded_response: DropboxMetadataResponse =
+                    serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
                 let entry_mode: EntryMode = match decoded_response.tag.as_str() {
                     "file" => EntryMode::FILE,
                     "folder" => EntryMode::DIR,
                     _ => EntryMode::Unknown,
                 };
+
                 let mut metadata = Metadata::new(entry_mode);
                 // Only set last_modified and size if entry_mode is FILE, because Dropbox API
                 // returns last_modified and size only for files.
@@ -165,141 +128,93 @@ impl Accessor for DropboxBackend {
                     } else {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
-                            &format!("no size found for file {}", path),
+                            format!("no size found for file {}", path),
                         ));
                     }
                 }
                 Ok(RpStat::new(metadata))
             }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "dropbox services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.dropbox_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
         }
+    }
 
-        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(DropboxWriter::new(
+                self.core.clone(),
+                args,
+                String::from(path),
+            )),
+        ))
+    }
 
-        let resp = self.core.dropbox_delete_batch(paths).await?;
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        Ok((
+            RpList::default(),
+            oio::PageLister::new(DropboxLister::new(
+                self.core.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+            )),
+        ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.dropbox_copy(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let (_parts, body) = resp.into_parts();
-                let bs = body.bytes().await?;
-                let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
-                    .map_err(new_json_deserialize_error)?;
-
-                match decoded_response.tag.as_str() {
-                    "complete" => {
-                        let entries = decoded_response.entries.unwrap_or_default();
-                        let results = self.core.handle_batch_delete_complete_result(entries);
-                        Ok(RpBatch::new(results))
-                    }
-                    "async_job_id" => {
-                        let job_id = decoded_response
-                            .async_job_id
-                            .expect("async_job_id should be present");
-                        let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
-                            .retry(&*BACKOFF)
-                            .when(|e| e.is_temporary())
-                            .await?;
-
-                        Ok(res)
-                    }
-                    _ => Err(Error::new(
-                        ErrorKind::Unexpected,
-                        &format!(
-                            "delete batch failed with unexpected tag {}",
-                            decoded_response.tag
-                        ),
-                    )),
+            StatusCode::OK => Ok(RpCopy::default()),
+            _ => {
+                let err = parse_error(resp);
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpCopy::default()),
+                    _ => Err(err),
                 }
             }
-            _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxMetadataResponse {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    pub client_modified: String,
-    pub content_hash: Option<String>,
-    pub file_lock_info: Option<DropboxMetadataFileLockInfo>,
-    pub has_explicit_shared_members: Option<bool>,
-    pub id: String,
-    pub is_downloadable: Option<bool>,
-    pub name: String,
-    pub path_display: String,
-    pub path_lower: String,
-    pub property_groups: Option<Vec<DropboxMetadataPropertyGroup>>,
-    pub rev: Option<String>,
-    pub server_modified: Option<String>,
-    pub sharing_info: Option<DropboxMetadataSharingInfo>,
-    pub size: Option<u64>,
-}
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        let resp = self.core.dropbox_move(from, to).await?;
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxMetadataFileLockInfo {
-    pub created: Option<String>,
-    pub is_lockholder: bool,
-    pub lockholder_name: Option<String>,
-}
+        let status = resp.status();
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxMetadataPropertyGroup {
-    pub fields: Vec<DropboxMetadataPropertyGroupField>,
-    pub template_id: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxMetadataPropertyGroupField {
-    pub name: String,
-    pub value: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxMetadataSharingInfo {
-    pub modified_by: Option<String>,
-    pub parent_shared_folder_id: Option<String>,
-    pub read_only: Option<bool>,
-    pub shared_folder_id: Option<String>,
-    pub traverse_only: Option<bool>,
-    pub no_access: Option<bool>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchResponse {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    pub async_job_id: Option<String>,
-    pub entries: Option<Vec<DropboxDeleteBatchResponseEntry>>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchResponseEntry {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    pub metadata: Option<DropboxMetadataResponse>,
-    pub error: Option<DropboxErrorResponse>,
+        match status {
+            StatusCode::OK => Ok(RpRename::default()),
+            _ => {
+                let err = parse_error(resp);
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpRename::default()),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
 }

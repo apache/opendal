@@ -1,14 +1,13 @@
 # IDE and editor
-.vscode
 .idea
-
+.vscode
+!.vscode/settings.json
 **/target
+**/vendor
 dist/
 
 # env files for backends
 .env
-
-incubator-opendal-release-verify
 
 # profiling
 flamegraph.svg
@@ -18,3 +17,6 @@ perf.*
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Python cache files
+**/__pycache__/

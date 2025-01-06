@@ -1,0 +1,11 @@
+{
+    http_port 8080
+}
+
+:8080 {
+    root * /tmp/static
+    file_server
+    log {
+        output stdout
+    }
+}

@@ -2,23 +2,24 @@
 
 First, thank you for contributing to OpenDAL! The goal of this document is to provide everything you need to start contributing to OpenDAL. The following TOC is sorted progressively, starting with the basics and expanding into more specifics.
 
-- [Your First Contribution](#your-first-contribution)
-- [Workflow](#workflow)
-  - [Git Branches](#git-branches)
-  - [GitHub Pull Requests](#github-pull-requests)
-    - [Title](#title)
-    - [Reviews & Approvals](#reviews--approvals)
-    - [Merge Style](#merge-style)
+- [Contributing](#contributing)
+  - [Your First Contribution](#your-first-contribution)
+  - [Workflow](#workflow)
+    - [Git Branches](#git-branches)
+    - [GitHub Pull Requests](#github-pull-requests)
+      - [Title](#title)
+      - [Reviews \& Approvals](#reviews--approvals)
+      - [Merge Style](#merge-style)
     - [CI](#ci)
-- [Setup](#setup)
-  - [Using a dev container environment](#using-a-dev-container-environment)
-  - [Bring your own toolbox](#bring-your-own-toolbox)
-- [Code of Conduct](#code-of-conduct)
+  - [Setup](#setup)
+    - [Using a dev container environment](#using-a-dev-container-environment)
+    - [Bring your own toolbox](#bring-your-own-toolbox)
+  - [Code of Conduct](#code-of-conduct)
 
 ## Your First Contribution
 
-1. Ensure your change has an issue! Find an [existing issue](https://github.com/apache/incubator-opendal/issues) or [open a new issue](https://github.com/apache/incubator-opendal/issues/new).
-1. [Fork the OpenDAL repository](https://github.com/apache/incubator-opendal/fork) in your own GitHub account.
+1. Ensure your change has an issue! Find an [existing issue](https://github.com/apache/opendal/issues) or [open a new issue](https://github.com/apache/opendal/issues/new).
+1. [Fork the OpenDAL repository](https://github.com/apache/opendal/fork) in your own GitHub account.
 1. [Create a new Git branch](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-and-deleting-branches-within-your-repository).
 1. Make your changes.
 1. [Submit the branch as a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork) to the main OpenDAL repo. An OpenDAL team member should comment and/or review your pull request within a few days. Although, depending on the circumstances, it may take longer.
@@ -31,7 +32,7 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
 
 ### GitHub Pull Requests
 
-Once your changes are ready you must submit your branch as a [pull request](https://github.com/apache/incubator-opendal/pulls).
+Once your changes are ready you must submit your branch as a [pull request](https://github.com/apache/opendal/pulls).
 
 #### Title
 
@@ -53,7 +54,12 @@ All pull requests should be reviewed by at least one OpenDAL committer.
 
 #### Merge Style
 
-All pull requests are squash merged. We generally discourage large pull requests that are over 300-500 lines of diff. If you would like to propose a change that is larger we suggest coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discuss it with us. This way we can talk through the solution and discuss if a change that large is even needed! This will produce a quicker response to the change and likely produce code that aligns better with our process.
+All pull requests are squash merged.
+We generally discourage large pull requests that are over 300–500 lines of diff.
+If you would like to propose a change that is larger, we suggest
+coming onto our [Discussions](https://github.com/apache/opendal/discussions) and discussing it with us.
+This way we can talk through the solution and discuss if a change that large is even needed!
+This will produce a quicker response to the change and likely produce code that aligns better with our process.
 
 ### CI
 
@@ -65,17 +71,21 @@ For small or first-time contributions, we recommend the dev container method. Pr
 
 ### Using a dev container environment
 
-OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
+OpenDAL provides a pre-configured [dev container](https://containers.dev/)
+that could be used in [GitHub Codespaces](https://github.com/features/codespaces),
+[VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/),
+[JupyterLab](https://jupyterlab.readthedocs.io/en/stable/).
+Please pick up your favourite runtime environment.
 
 The fastest way is:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
 
 OpenDAL is primarily a Rust project. To build OpenDAL, you will need to set up Rust development first. We highly recommend using [rustup](https://rustup.rs/) for the setup process.
 
-For Linux or MacOS, use the following command:
+For Linux or macOS, use the following command:
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

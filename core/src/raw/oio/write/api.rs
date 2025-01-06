@@ -15,110 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-
-use async_trait::async_trait;
-use bytes::Bytes;
+use std::future::Future;
+use std::ops::DerefMut;
 
 use crate::raw::*;
 use crate::*;
 
-/// WriteOperation is the name for APIs of Writer.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum WriteOperation {
-    /// Operation for [`Write::write`]
-    Write,
-    /// Operation for [`Write::sink`]
-    Sink,
-    /// Operation for [`Write::abort`]
-    Abort,
-    /// Operation for [`Write::close`]
-    Close,
-    /// Operation for [`BlockingWrite::write`]
-    BlockingWrite,
-    /// Operation for [`BlockingWrite::close`]
-    BlockingClose,
-}
-
-impl WriteOperation {
-    /// Convert self into static str.
-    pub fn into_static(self) -> &'static str {
-        self.into()
-    }
-}
-
-impl Display for WriteOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.into_static())
-    }
-}
-
-impl From<WriteOperation> for &'static str {
-    fn from(v: WriteOperation) -> &'static str {
-        use WriteOperation::*;
-
-        match v {
-            Write => "Writer::write",
-            Sink => "Writer::sink",
-            Abort => "Writer::abort",
-            Close => "Writer::close",
-            BlockingWrite => "BlockingWriter::write",
-            BlockingClose => "BlockingWriter::close",
-        }
-    }
-}
-
 /// Writer is a type erased [`Write`]
-pub type Writer = Box<dyn Write>;
+pub type Writer = Box<dyn WriteDyn>;
 
 /// Write is the trait that OpenDAL returns to callers.
-///
-/// # Notes
-///
-/// There are two possible two cases:
-///
-/// - Sized: The total size of the object is known in advance.
-/// - Unsized: The total size of the object is unknown in advance.
-///
-/// And it's possible that the given bs length is less than the total
-/// content length. Users will call write multiple times to write
-/// the whole data.
-#[async_trait]
 pub trait Write: Unpin + Send + Sync {
     /// Write given bytes into writer.
     ///
-    /// # Notes
+    /// # Behavior
     ///
-    /// It's possible that the given bs length is less than the total
-    /// content length. And users will call write multiple times.
-    ///
-    /// Please make sure `write` is safe to re-enter.
-    async fn write(&mut self, bs: Bytes) -> Result<()>;
-
-    /// Sink given stream into writer.
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
-
-    /// Abort the pending writer.
-    async fn abort(&mut self) -> Result<()>;
+    /// - `Ok(())` means all bytes has been written successfully.
+    /// - `Err(err)` means error happens and no bytes has been written.
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Close the writer and make sure all data has been flushed.
-    async fn close(&mut self) -> Result<()>;
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
+
+    /// Abort the pending writer.
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
-#[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
-
+    async fn write(&mut self, _: Buffer) -> Result<()> {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "output writer doesn't support sink",
+            "output writer doesn't support close",
         ))
     }
 
@@ -128,34 +59,41 @@ impl Write for () {
             "output writer doesn't support abort",
         ))
     }
+}
 
-    async fn close(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support close",
-        ))
+pub trait WriteDyn: Unpin + Send + Sync {
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>>;
+
+    fn close_dyn(&mut self) -> BoxedFuture<Result<()>>;
+
+    fn abort_dyn(&mut self) -> BoxedFuture<Result<()>>;
+}
+
+impl<T: Write + ?Sized> WriteDyn for T {
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>> {
+        Box::pin(self.write(bs))
+    }
+
+    fn close_dyn(&mut self) -> BoxedFuture<Result<()>> {
+        Box::pin(self.close())
+    }
+
+    fn abort_dyn(&mut self) -> BoxedFuture<Result<()>> {
+        Box::pin(self.abort())
     }
 }
 
-/// `Box<dyn Write>` won't implement `Write` automatically.
-///
-/// To make Writer work as expected, we must add this impl.
-#[async_trait]
-impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        (**self).write(bs).await
-    }
-
-    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
-        (**self).sink(n, s).await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        (**self).abort().await
+impl<T: WriteDyn + ?Sized> Write for Box<T> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.deref_mut().write_dyn(bs).await
     }
 
     async fn close(&mut self) -> Result<()> {
-        (**self).close().await
+        self.deref_mut().close_dyn().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.deref_mut().abort_dyn().await
     }
 }
 
@@ -165,14 +103,22 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    fn write(&mut self, bs: Bytes) -> Result<()>;
+    ///
+    /// # Behavior
+    ///
+    /// - `Ok(n)` means `n` bytes has been written successfully.
+    /// - `Err(err)` means error happens and no bytes has been written.
+    ///
+    /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
+    /// repeatedly until all bytes has been written.
+    fn write(&mut self, bs: Buffer) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -190,7 +136,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         (**self).write(bs)
     }
 

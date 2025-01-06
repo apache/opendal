@@ -1,7 +1,7 @@
 - Proposal Name: object_versioning
 - Start Date: 2023-07-06
-- RFC PR: [apache/incubator-opendal#2602](https://github.com/apache/incubator-opendal/pull/2602)
-- Tracking Issue: [apache/incubator-opendal#2611](https://github.com/apache/incubator-opendal/issues/2611)
+- RFC PR: [apache/opendal#2602](https://github.com/apache/opendal/pull/2602)
+- Tracking Issue: [apache/opendal#2611](https://github.com/apache/opendal/issues/2611)
 
 # Summary
 

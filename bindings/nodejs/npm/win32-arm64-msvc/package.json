@@ -1,0 +1,19 @@
+{
+  "name": "@opendal/lib-win32-arm64-msvc",
+  "version": "0.47.8",
+  "repository": "git@github.com/apache/opendal.git",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "opendal.win32-arm64-msvc.node",
+  "files": [
+    "opendal.win32-arm64-msvc.node"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">= 10"
+  }
+}

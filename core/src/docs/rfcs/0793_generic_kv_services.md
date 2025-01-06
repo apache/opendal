@@ -1,7 +1,7 @@
 - Proposal Name: `generic-kv-services`
 - Start Date: 2022-10-03
-- RFC PR: [apache/incubator-opendal#793](https://github.com/apache/incubator-opendal/pull/793)
-- Tracking Issue: [apache/incubator-opendal#794](https://github.com/apache/incubator-opendal/issues/794)
+- RFC PR: [apache/opendal#793](https://github.com/apache/opendal/pull/793)
+- Tracking Issue: [apache/opendal#794](https://github.com/apache/opendal/issues/794)
 
 # Summary
 

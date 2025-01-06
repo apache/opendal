@@ -15,50 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
-
-use anyhow::anyhow;
 use anyhow::Result;
-use clap::Arg;
-use clap::ArgAction;
-use clap::ArgMatches;
-use clap::Command;
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
+use crate::params::config::ConfigParams;
 
-pub async fn main(args: &ArgMatches) -> Result<()> {
-    let config_path = args
-        .get_one::<PathBuf>("config")
-        .ok_or_else(|| anyhow!("missing config path"))?;
-    let cfg = Config::load(config_path)?;
-
-    let recursive = args.get_flag("recursive");
-
-    let target = args
-        .get_one::<String>("target")
-        .ok_or_else(|| anyhow!("missing target"))?;
-    let (op, path) = cfg.parse_location(target)?;
-
-    if !recursive {
-        println!("Delete: {path}");
-        op.delete(&path).await?;
-        return Ok(());
-    }
-
-    println!("Delete all: {path}");
-    op.remove_all(&path).await?;
-    Ok(())
+#[derive(Debug, clap::Parser)]
+#[command(name = "rm", about = "Remove object", disable_version_flag = true)]
+pub struct RmCmd {
+    #[command(flatten)]
+    pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
+    #[arg()]
+    pub target: String,
+    /// Remove objects recursively.
+    #[arg(short, long)]
+    pub recursive: bool,
 }
 
-pub fn cli(cmd: Command) -> Command {
-    cmd.about("remove object")
-        .arg(Arg::new("target").required(true))
-        .arg(
-            Arg::new("recursive")
-                .required(false)
-                .long("recursive")
-                .short('r')
-                .help("List recursively")
-                .action(ArgAction::SetTrue),
-        )
+impl RmCmd {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+
+    async fn do_run(self) -> Result<()> {
+        let cfg = Config::load(&self.config_params.config)?;
+
+        let (op, path) = cfg.parse_location(&self.target)?;
+
+        if !self.recursive {
+            println!("Delete: {path}");
+            op.delete(&path).await?;
+            return Ok(());
+        }
+
+        println!("Delete all: {path}");
+        op.remove_all(&path).await?;
+        Ok(())
+    }
 }

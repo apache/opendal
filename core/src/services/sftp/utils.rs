@@ -15,84 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
-
-use async_compat::Compat;
-use futures::AsyncBufRead;
-use futures::AsyncRead;
-use futures::AsyncSeek;
-use openssh_sftp_client::file::File;
-use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::metadata::MetaData as SftpMeta;
 
-use crate::raw::oio;
-use crate::raw::oio::FromFileReader;
-use crate::raw::oio::ReadExt;
 use crate::EntryMode;
 use crate::Metadata;
-use crate::Result;
 
-pub struct SftpReaderInner {
-    file: Pin<Box<Compat<TokioCompatFile>>>,
-}
-pub type SftpReader = FromFileReader<SftpReaderInner>;
-
-impl SftpReaderInner {
-    pub async fn new(file: File) -> Self {
-        let file = Compat::new(file.into());
-        Self {
-            file: Box::pin(file),
-        }
-    }
-}
-
-impl SftpReader {
-    /// Create a new reader from a file, starting at the given offset and ending at the given offset.
-    pub async fn new(file: File, start: u64, end: u64) -> Result<Self> {
-        let file = SftpReaderInner::new(file).await;
-        let mut r = oio::into_read_from_file(file, start, end);
-        r.seek(SeekFrom::Start(0)).await?;
-        Ok(r)
-    }
-}
-
-impl AsyncRead for SftpReaderInner {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
-        let this = self.get_mut();
-        Pin::new(&mut this.file).poll_read(cx, buf)
-    }
-}
-
-impl AsyncBufRead for SftpReaderInner {
-    fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context) -> Poll<std::io::Result<&[u8]>> {
-        let this = self.get_mut();
-        Pin::new(&mut this.file).poll_fill_buf(cx)
-    }
-
-    fn consume(self: Pin<&mut Self>, amt: usize) {
-        let this = self.get_mut();
-        Pin::new(&mut this.file).consume(amt)
-    }
-}
-
-impl AsyncSeek for SftpReaderInner {
-    fn poll_seek(
-        self: Pin<&mut Self>,
-        cx: &mut Context,
-        pos: SeekFrom,
-    ) -> Poll<std::io::Result<u64>> {
-        let this = self.get_mut();
-        Pin::new(&mut this.file).poll_seek(cx, pos)
-    }
-}
-
+/// REMOVE ME: we should not implement `From<SftpMeta> for Metadata`.
 impl From<SftpMeta> for Metadata {
     fn from(meta: SftpMeta) -> Self {
         let mode = meta

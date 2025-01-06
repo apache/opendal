@@ -16,9 +16,10 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use http::Response;
 use http::StatusCode;
 use log::debug;
 
@@ -26,80 +27,32 @@ use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
 use crate::raw::*;
+use crate::services::SupabaseConfig;
 use crate::*;
 
-/// Supabase service
-///
-/// # Capabilities
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [ ] scan
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `bucket`: Set the container name for backend.
-/// - `endpoint`: Set the endpoint for backend.
-/// - `key`: Set the authorization key for the backend, do not set if you want to read public bucket
-///
-/// ## Authorization keys
-///
-/// There are two types of key in the Supabase, one is anon_key(Client key), another one is
-/// service_role_key(Secret key). The former one can only write public resources while the latter one
-/// can access all resources. Note that if you want to read public resources, do not set the key.
-///
-/// # Example
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Supabase;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = Supabase::default();
-///     builder.root("/");
-///     builder.bucket("test_bucket");
-///     builder.endpoint("http://127.0.0.1:54321");
-///     // this sets up the anon_key, which means this operator can only write public resource
-///     builder.key("some_anon_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+impl Configurator for SupabaseConfig {
+    type Builder = SupabaseBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SupabaseBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+/// [Supabase](https://supabase.com/) service support
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SupabaseBuilder {
-    root: Option<String>,
-
-    bucket: String,
-    endpoint: Option<String>,
-
-    key: Option<String>,
-
-    // todo: optional public, currently true always
-    // todo: optional file_size_limit, currently 0
-    // todo: optional allowed_mime_types, currently only string
+    config: SupabaseConfig,
     http_client: Option<HttpClient>,
 }
 
 impl Debug for SupabaseBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SupabaseBuilder")
-            .field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .finish_non_exhaustive()
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("SupabaseBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -107,8 +60,8 @@ impl SupabaseBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -118,16 +71,16 @@ impl SupabaseBuilder {
     }
 
     /// Set bucket name of this backend.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
-        self.bucket = bucket.to_string();
+    pub fn bucket(mut self, bucket: &str) -> Self {
+        self.config.bucket = bucket.to_string();
         self
     }
 
     /// Set endpoint of this backend.
     ///
     /// Endpoint must be full uri
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
@@ -138,8 +91,8 @@ impl SupabaseBuilder {
 
     /// Set the authorization key for this backend
     /// Do not set this key if you want to read public bucket
-    pub fn key(&mut self, key: &str) -> &mut Self {
-        self.key = Some(key.to_string());
+    pub fn key(mut self, key: &str) -> Self {
+        self.config.key = Some(key.to_string());
         self
     }
 
@@ -149,7 +102,7 @@ impl SupabaseBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -157,28 +110,17 @@ impl SupabaseBuilder {
 
 impl Builder for SupabaseBuilder {
     const SCHEME: Scheme = Scheme::Supabase;
-    type Accessor = SupabaseBackend;
+    type Config = SupabaseConfig;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let mut builder = SupabaseBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("key").map(|v| builder.key(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        let bucket = &self.bucket;
+        let bucket = &self.config.bucket;
 
-        let endpoint = self.endpoint.take().unwrap_or_default();
+        let endpoint = self.config.endpoint.unwrap_or_default();
 
-        let http_client = if let Some(client) = self.http_client.take() {
+        let http_client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -187,7 +129,7 @@ impl Builder for SupabaseBuilder {
             })?
         };
 
-        let key = self.key.as_ref().map(|k| k.to_owned());
+        let key = self.config.key.as_ref().map(|k| k.to_owned());
 
         let core = SupabaseCore::new(&root, bucket, &endpoint, key, http_client);
 
@@ -202,96 +144,38 @@ pub struct SupabaseBackend {
     core: Arc<SupabaseCore>,
 }
 
-#[async_trait]
-impl Accessor for SupabaseBackend {
-    type Reader = IncomingAsyncBody;
+impl Access for SupabaseBackend {
+    type Reader = HttpBody;
+    type Writer = oio::OneShotWriter<SupabaseWriter>;
+    // todo: implement Lister to support list
+    type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
-    type Writer = SupabaseWriter;
     type BlockingWriter = ();
-    type Appender = ();
-    // todo: implement Pager to support list and scan
-    type Pager = ();
-    type BlockingPager = ();
+    type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,
 
                 write: true,
-                create_dir: true,
-                delete: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .supabase_upload_object_request(path, Some(0), None, AsyncBody::Empty)?;
-
-        self.core.sign(&mut req)?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        if status.is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreateDir::default())
-        } else {
-            // create duplicate dir is ok
-            let e = parse_error(resp).await?;
-            if e.kind() == ErrorKind::AlreadyExists {
-                Ok(RpCreateDir::default())
-            } else {
-                Err(e)
-            }
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
-        Ok((
-            RpWrite::default(),
-            SupabaseWriter::new(self.core.clone(), path, args),
-        ))
+        am.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
         // The get_object_info does not contain the file size. Therefore
         // we first try the get the metadata through head, if we fail,
         // we then use get_object_info to get the actual error info
@@ -305,25 +189,31 @@ impl Accessor for SupabaseBackend {
                     StatusCode::NOT_FOUND if path.ends_with('/') => {
                         Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                     }
-                    _ => Err(parse_error(resp).await?),
+                    _ => Err(parse_error(resp)),
                 }
             }
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.supabase_delete_object(path).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
 
-        if resp.status().is_success() {
-            Ok(RpDelete::default())
-        } else {
-            // deleting not existing objects is ok
-            let e = parse_error(resp).await?;
-            if e.kind() == ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(e)
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
             }
         }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
+        ))
     }
 }

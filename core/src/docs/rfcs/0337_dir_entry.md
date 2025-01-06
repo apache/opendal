@@ -1,7 +1,7 @@
 - Proposal Name: `dir_entry`
 - Start Date: 2022-06-08
-- RFC PR: [apache/incubator-opendal#337](https://github.com/apache/incubator-opendal/pull/337)
-- Tracking Issue: [apache/incubator-opendal#338](https://github.com/apache/incubator-opendal/issues/338)
+- RFC PR: [apache/opendal#337](https://github.com/apache/opendal/pull/337)
+- Tracking Issue: [apache/opendal#338](https://github.com/apache/opendal/issues/338)
 
 # Summary
 

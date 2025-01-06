@@ -10,7 +10,6 @@ This service can be used to:
 - [ ] copy
 - [ ] rename
 - [x] list
-- [ ] ~~scan~~
 - [ ] ~~presign~~
 - [ ] blocking
 
@@ -27,16 +26,15 @@ You can refer to [`FtpBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Ftp;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Ftp::default();
-
-    builder.endpoint("127.0.0.1");
+    let mut builder = Ftp::default()
+        .endpoint("127.0.0.1");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

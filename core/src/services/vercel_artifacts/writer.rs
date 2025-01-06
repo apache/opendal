@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -26,52 +24,33 @@ use crate::*;
 
 pub struct VercelArtifactsWriter {
     backend: VercelArtifactsBackend,
-    op: OpWrite,
+    _op: OpWrite,
 
     path: String,
 }
 
 impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
-        VercelArtifactsWriter { backend, op, path }
+        VercelArtifactsWriter {
+            backend,
+            _op: op,
+            path,
+        }
     }
 }
 
-#[async_trait]
-impl oio::Write for VercelArtifactsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for VercelArtifactsWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .backend
-            .vercel_artifacts_put(
-                self.path.as_str(),
-                self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs),
-            )
+            .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, bs)
             .await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
+            _ => Err(parse_error(resp)),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

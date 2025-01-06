@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -41,14 +39,15 @@ impl SupabaseWriter {
             path: path.to_string(),
         }
     }
+}
 
-    pub async fn upload(&self, bytes: Bytes) -> Result<()> {
-        let size = bytes.len();
+impl oio::OneShotWrite for SupabaseWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<()> {
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
-            Some(size),
+            Some(bs.len()),
             self.op.content_type(),
-            AsyncBody::Bytes(bytes),
+            bs,
         )?;
 
         self.core.sign(&mut req)?;
@@ -56,40 +55,8 @@ impl SupabaseWriter {
         let resp = self.core.send(req).await?;
 
         match resp.status() {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if bs.is_empty() {
-            return Ok(());
-        }
-
-        self.upload(bs).await
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "The abort operation is not yet supported for Supabase backend",
-        ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

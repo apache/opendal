@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-releases-note/feat:
-    - '^feat'
-releases-note/refactor:
-    - '^refactor'
-releases-note/fix:
-    - '^fix'
-releases-note/docs:
-    - '^doc'
-releases-note/ci:
-    - '^ci'
 releases-note/build:
-    - '^build'
+  - '^build'
 releases-note/chore:
-    - '^chore'
+  - '^chore'
+releases-note/ci:
+  - '^ci'
+releases-note/docs:
+  - '^doc'
+releases-note/feat:
+  - '^feat'
+releases-note/fix:
+  - '^fix'
+releases-note/refactor:
+  - '^refactor'

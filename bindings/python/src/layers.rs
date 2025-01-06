@@ -17,47 +17,27 @@
 
 use std::time::Duration;
 
-use ::opendal as od;
+use opendal::Operator;
 use pyo3::prelude::*;
 
-#[derive(FromPyObject)]
-pub enum Layer {
-    ConcurrentLimit(ConcurrentLimitLayer),
-    ImmutableIndex(ImmutableIndexLayer),
-    Retry(RetryLayer),
+use crate::*;
+
+pub trait PythonLayer: Send + Sync {
+    fn layer(&self, op: Operator) -> Operator;
 }
 
-#[pyclass(module = "opendal.layers")]
-#[derive(Clone)]
-pub struct ConcurrentLimitLayer(pub od::layers::ConcurrentLimitLayer);
+#[pyclass(module = "opendal.layers", subclass)]
+pub struct Layer(pub Box<dyn PythonLayer>);
 
-#[pymethods]
-impl ConcurrentLimitLayer {
-    #[new]
-    fn new(permits: usize) -> Self {
-        Self(od::layers::ConcurrentLimitLayer::new(permits))
+#[pyclass(module = "opendal.layers", extends=Layer)]
+#[derive(Clone)]
+pub struct RetryLayer(ocore::layers::RetryLayer);
+
+impl PythonLayer for RetryLayer {
+    fn layer(&self, op: Operator) -> Operator {
+        op.layer(self.0.clone())
     }
 }
-
-#[pyclass(module = "opendal.layers")]
-#[derive(Clone)]
-pub struct ImmutableIndexLayer(pub od::layers::ImmutableIndexLayer);
-
-#[pymethods]
-impl ImmutableIndexLayer {
-    #[new]
-    fn new() -> Self {
-        Self(od::layers::ImmutableIndexLayer::default())
-    }
-
-    fn insert(&mut self, key: String) {
-        self.0.insert(key);
-    }
-}
-
-#[pyclass(module = "opendal.layers")]
-#[derive(Clone)]
-pub struct RetryLayer(pub od::layers::RetryLayer);
 
 #[pymethods]
 impl RetryLayer {
@@ -75,8 +55,8 @@ impl RetryLayer {
         jitter: bool,
         max_delay: Option<f64>,
         min_delay: Option<f64>,
-    ) -> PyResult<Self> {
-        let mut retry = od::layers::RetryLayer::default();
+    ) -> PyResult<PyClassInitializer<Self>> {
+        let mut retry = ocore::layers::RetryLayer::default();
         if let Some(max_times) = max_times {
             retry = retry.with_max_times(max_times);
         }
@@ -92,14 +72,34 @@ impl RetryLayer {
         if let Some(min_delay) = min_delay {
             retry = retry.with_min_delay(Duration::from_micros((min_delay * 1000000.0) as u64));
         }
-        Ok(Self(retry))
+
+        let retry_layer = Self(retry);
+        let class = PyClassInitializer::from(Layer(Box::new(retry_layer.clone())))
+            .add_subclass(retry_layer);
+
+        Ok(class)
     }
 }
 
-pub fn create_submodule(py: Python) -> PyResult<&PyModule> {
-    let submod = PyModule::new(py, "layers")?;
-    submod.add_class::<ConcurrentLimitLayer>()?;
-    submod.add_class::<ImmutableIndexLayer>()?;
-    submod.add_class::<RetryLayer>()?;
-    Ok(submod)
+#[pyclass(module = "opendal.layers", extends=Layer)]
+#[derive(Clone)]
+pub struct ConcurrentLimitLayer(ocore::layers::ConcurrentLimitLayer);
+
+impl PythonLayer for ConcurrentLimitLayer {
+    fn layer(&self, op: Operator) -> Operator {
+        op.layer(self.0.clone())
+    }
+}
+
+#[pymethods]
+impl ConcurrentLimitLayer {
+    #[new]
+    #[pyo3(signature = (limit))]
+    fn new(limit: usize) -> PyResult<PyClassInitializer<Self>> {
+        let concurrent_limit = Self(ocore::layers::ConcurrentLimitLayer::new(limit));
+        let class = PyClassInitializer::from(Layer(Box::new(concurrent_limit.clone())))
+            .add_subclass(concurrent_limit);
+
+        Ok(class)
+    }
 }

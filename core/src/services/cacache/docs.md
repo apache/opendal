@@ -10,7 +10,6 @@ This service can be used to:
 - [ ] copy
 - [ ] rename
 - [ ] list
-- [ ] ~~scan~~
 - [ ] ~~presign~~
 - [x] blocking
 
@@ -24,15 +23,14 @@ You can refer to [`CacacheBuilder`]'s docs for more information
 
 ### Via Builder
 
-```rust
+```rust,no_run
 use anyhow::Result;
 use opendal::services::Cacache;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Cacache::default();
-    builder.datadir("/tmp/opendal/cacache");
+    let mut builder = Cacache::default().datadir("/tmp/opendal/cacache");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

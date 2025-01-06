@@ -1,7 +1,7 @@
 - Proposal Name: `lister_api`
 - Start Date: 2023-08-04
-- RFC PR: [apache/incubator-opendal#2774](https://github.com/apache/incubator-opendal/pull/2774)
-- Tracking Issue: [apache/incubator-opendal#2775](https://github.com/apache/incubator-opendal/issues/2775)
+- RFC PR: [apache/opendal#2774](https://github.com/apache/opendal/pull/2774)
+- Tracking Issue: [apache/opendal#2775](https://github.com/apache/opendal/issues/2775)
 
 # Summary
 

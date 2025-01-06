@@ -99,7 +99,7 @@ pub unsafe extern "C" fn via_map_ffi(
         }
     }
 
-    let res = match od::Operator::via_map(scheme, map) {
+    let res = match od::Operator::via_iter(scheme, map) {
         Ok(mut operator) => {
             operator = operator.layer(RetryLayer::new());
             if callback.is_some() {
@@ -160,7 +160,7 @@ pub unsafe extern "C" fn blocking_read(
     };
 
     let res = match op.read(path_str) {
-        Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes)),
+        Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes.to_vec())),
         Err(e) => FFIResult::err_with_source("Failed to read", e),
     };
 
@@ -501,7 +501,7 @@ pub unsafe extern "C" fn blocking_list(
         }
     };
 
-    let res = match op.list(path_str) {
+    let res = match op.lister(path_str) {
         Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
         Err(e) => FFIResult::err_with_source("Failed to list", e),
     };
@@ -540,7 +540,7 @@ pub unsafe extern "C" fn blocking_scan(
         }
     };
 
-    let res = match op.scan(path_str) {
+    let res = match op.lister_with(path_str).recursive(true).call() {
         Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
         Err(e) => FFIResult::err_with_source("Failed to scan", e),
     };

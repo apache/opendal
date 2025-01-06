@@ -18,27 +18,36 @@
 mod mode;
 pub use mode::EntryMode;
 
+mod buffer;
+pub use buffer::Buffer;
+
 mod entry;
 pub use entry::Entry;
 
 mod metadata;
 pub use metadata::Metadata;
-pub use metadata::Metakey;
 
-mod reader;
-pub use reader::BlockingReader;
-pub use reader::Reader;
+mod read;
+pub use read::*;
 
-mod writer;
-pub use writer::BlockingWriter;
-pub use writer::Writer;
+mod blocking_read;
+pub use blocking_read::*;
 
-mod appender;
-pub use appender::Appender;
+mod write;
+pub use write::*;
+
+mod blocking_write;
+pub use blocking_write::*;
 
 mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
+
+mod delete;
+pub use delete::*;
+
+mod execute;
+pub use execute::*;
 
 mod operator;
 pub use operator::operator_functions;
@@ -50,6 +59,7 @@ pub use operator::OperatorInfo;
 
 mod builder;
 pub use builder::Builder;
+pub use builder::Configurator;
 
 mod error;
 pub use error::Error;
@@ -61,3 +71,6 @@ pub use scheme::Scheme;
 
 mod capability;
 pub use capability::Capability;
+
+mod context;
+pub(crate) use context::*;

@@ -1,19 +1,13 @@
 ---
-title: "Apache OpenDAL(Incubating): Access Data Freely"
+title: "Apache OpenDAL™: Access Data Freely"
 date: 2023-07-07
 slug: opendal-access-data-freely
 tags: [announcement]
-description: "If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL (Incubating) will be your perfect partner."
-authors:
-  - name: PsiACE
-    url: https://github.com/PsiACE
-    image_url: https://github.com/PsiACE.png
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+description: "If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL™ will be your perfect partner."
+authors: [psiace, xuanwo]
 ---
 
-If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL (Incubating) will be your perfect partner.
+If you're committed to building cloud-native, cross-cloud-first applications and services, or you want to support configurable storage backends to meet complex data access needs, or if you're tired of juggling various SDKs and hoping for a unified abstraction and development experience, Apache OpenDAL™ will be your perfect partner.
 
 ![OpenDAL Arch](opendal-arch.png)
 
@@ -53,7 +47,7 @@ OpenDAL supports dozens of storage services, covering a wide range of scenarios 
 
 - Standard Storage Protocols: FTP, HTTP, SFTP, WebDAV, etc.
 - Object Storage Services: azblob, gcs, obs, oss, s3, etc.
-- File Storage Services: fs, azdfs, hdfs, webhdfs, ipfs, etc.
+- File Storage Services: fs, azdls, hdfs, webhdfs, ipfs, etc.
 - Consumer Cloud Storage Service: Google Drive, OneDrive, Dropbox, etc.
 - Key-Value Storage Service: Memory, Redis, Rocksdb, etc.
 - Cache Storage Service: Ghac, Memcached, etc.

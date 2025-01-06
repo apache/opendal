@@ -15,13 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-use std::task::Context;
-use std::task::Poll;
+use std::sync::Arc;
+use std::sync::Mutex;
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -47,17 +43,19 @@ use crate::*;
 ///
 /// # Examples
 ///
-/// ```
-/// use anyhow::Result;
-/// use opendal::layers::ChaosLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// ```no_run
+/// # use opendal::layers::ChaosLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct ChaosLayer {
@@ -79,10 +77,10 @@ impl ChaosLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for ChaosLayer {
-    type LayeredAccessor = ChaosAccessor<A>;
+impl<A: Access> Layer<A> for ChaosLayer {
+    type LayeredAccess = ChaosAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
             rng: StdRng::from_entropy(),
@@ -99,16 +97,16 @@ pub struct ChaosAccessor<A> {
     error_ratio: f64,
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
+impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;
     type BlockingReader = ChaosReader<A::BlockingReader>;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Appender = A::Appender;
-    type Pager = A::Pager;
-    type BlockingPager = A::BlockingPager;
+    type Lister = A::Lister;
+    type BlockingLister = A::BlockingLister;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -117,8 +115,8 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio))))
             .await
+            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -135,23 +133,27 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 
 /// ChaosReader will inject error into read operations.
 pub struct ChaosReader<R> {
     inner: R,
-    rng: StdRng,
+    rng: Arc<Mutex<StdRng>>,
 
     error_ratio: f64,
 }
@@ -160,15 +162,15 @@ impl<R> ChaosReader<R> {
     fn new(inner: R, rng: StdRng, error_ratio: f64) -> Self {
         Self {
             inner,
-            rng,
+            rng: Arc::new(Mutex::new(rng)),
             error_ratio,
         }
     }
 
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
-    fn i_feel_lucky(&mut self) -> bool {
-        let point = self.rng.gen_range(0..=100);
+    fn i_feel_lucky(&self) -> bool {
+        let point = self.rng.lock().unwrap().gen_range(0..=100);
         point >= (self.error_ratio * 100.0) as i32
     }
 
@@ -180,53 +182,21 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+    async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.poll_read(cx, buf)
+            self.inner.read().await
         } else {
-            Poll::Ready(Err(Self::unexpected_eof()))
-        }
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        if self.i_feel_lucky() {
-            self.inner.poll_seek(cx, pos)
-        } else {
-            Poll::Ready(Err(Self::unexpected_eof()))
-        }
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if self.i_feel_lucky() {
-            self.inner.poll_next(cx)
-        } else {
-            Poll::Ready(Some(Err(Self::unexpected_eof())))
+            Err(Self::unexpected_eof())
         }
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read(buf)
+            self.inner.read()
         } else {
             Err(Self::unexpected_eof())
-        }
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        if self.i_feel_lucky() {
-            self.inner.seek(pos)
-        } else {
-            Err(Self::unexpected_eof())
-        }
-    }
-
-    fn next(&mut self) -> Option<Result<Bytes>> {
-        if self.i_feel_lucky() {
-            self.inner.next()
-        } else {
-            Some(Err(Self::unexpected_eof()))
         }
     }
 }

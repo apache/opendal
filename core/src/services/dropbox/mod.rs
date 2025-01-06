@@ -15,10 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-dropbox")]
 mod backend;
-mod builder;
+#[cfg(feature = "services-dropbox")]
 mod core;
+#[cfg(feature = "services-dropbox")]
+mod delete;
+#[cfg(feature = "services-dropbox")]
 mod error;
+#[cfg(feature = "services-dropbox")]
+mod lister;
+#[cfg(feature = "services-dropbox")]
 mod writer;
 
+#[cfg(feature = "services-dropbox")]
+mod builder;
+#[cfg(feature = "services-dropbox")]
 pub use builder::DropboxBuilder as Dropbox;
+
+mod config;
+pub use config::DropboxConfig;

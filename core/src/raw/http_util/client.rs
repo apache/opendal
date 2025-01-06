@@ -17,25 +17,38 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future;
 use std::mem;
+use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::Arc;
 
+use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use once_cell::sync::Lazy;
+use raw::oio::Read;
 
-use super::body::IncomingAsyncBody;
+use super::parse_content_encoding;
 use super::parse_content_length;
-use super::AsyncBody;
+use super::HttpBody;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
+
+/// Http client used across opendal for loading credentials.
+/// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
+/// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
+#[allow(dead_code)]
+pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+
+/// HttpFetcher is a type erased [`HttpFetch`].
+pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    client: reqwest::Client,
+    fetcher: HttpFetcher,
 }
 
 /// We don't want users to know details about our clients.
@@ -48,35 +61,73 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        Self::build(reqwest::ClientBuilder::new())
+        let fetcher = Arc::new(reqwest::Client::new());
+        Ok(Self { fetcher })
+    }
+
+    /// Construct `Self` with given [`reqwest::Client`]
+    pub fn with(client: impl HttpFetch) -> Self {
+        let fetcher = Arc::new(client);
+        Self { fetcher }
     }
 
     /// Build a new http client in async context.
-    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
-        // Make sure we don't enable auto gzip decompress.
-        builder = builder.no_gzip();
-        // Make sure we don't enable auto brotli decompress.
-        builder = builder.no_brotli();
-        // Make sure we don't enable auto deflate decompress.
-        builder = builder.no_deflate();
-
-        #[cfg(feature = "trust-dns")]
-        let builder = builder.trust_dns(true);
-
-        Ok(Self {
-            client: builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
-            })?,
-        })
-    }
-
-    /// Get the async client from http client.
-    pub fn client(&self) -> reqwest::Client {
-        self.client.clone()
+    #[deprecated]
+    pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
+        let client = builder.build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
+        })?;
+        let fetcher = Arc::new(client);
+        Ok(Self { fetcher })
     }
 
     /// Send a request in async way.
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+        let (parts, mut body) = self.fetch(req).await?.into_parts();
+        let buffer = body.read_all().await?;
+        Ok(Response::from_parts(parts, buffer))
+    }
+
+    /// Fetch a request in async way.
+    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.fetcher.fetch(req).await
+    }
+}
+
+/// HttpFetch is the trait to fetch a request in async way.
+/// User should implement this trait to provide their own http client.
+pub trait HttpFetch: Send + Sync + Unpin + 'static {
+    /// Fetch a request in async way.
+    fn fetch(
+        &self,
+        req: Request<Buffer>,
+    ) -> impl Future<Output = Result<Response<HttpBody>>> + MaybeSend;
+}
+
+/// HttpFetchDyn is the dyn version of [`HttpFetch`]
+/// which make it possible to use as `Arc<dyn HttpFetchDyn>`.
+/// User should never implement this trait, but use `HttpFetch` instead.
+pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
+    /// The dyn version of [`HttpFetch::fetch`].
+    ///
+    /// This function returns a boxed future to make it object safe.
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>>;
+}
+
+impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>> {
+        Box::pin(self.fetch(req))
+    }
+}
+
+impl<T: HttpFetchDyn + ?Sized> HttpFetch for Arc<T> {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        self.deref().fetch_dyn(req).await
+    }
+}
+
+impl HttpFetch for reqwest::Client {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -85,75 +136,88 @@ impl HttpClient {
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
-            .client
             .request(
                 parts.method,
                 reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
             )
-            .version(parts.version)
             .headers(parts.headers);
 
-        req_builder = match body {
-            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
-            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::Stream(s) => req_builder.body(reqwest::Body::wrap_stream(s)),
-        };
+        // Client under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            req_builder = req_builder.version(parts.version);
+        }
+
+        // Don't set body if body is empty.
+        if !body.is_empty() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
+            }
+        }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = !(
-                // Builder related error should not be retried.
-                err.is_builder() ||
-                // Error returned by RedirectPolicy.
-                //
-                // We don't set this by hand, just don't allow retry.
-                err.is_redirect() ||
-                 // We never use `Response::error_for_status`, just don't allow retry.
-                //
-                // Status should be checked by our services.
-                err.is_status()
-            );
-
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
-                .with_operation("http_util::Client::send_async")
+            Error::new(ErrorKind::Unexpected, "send http request")
+                .with_operation("http_util::Client::send")
                 .with_context("url", uri.to_string())
-                .set_source(err);
-            if is_temporary {
-                oerr = oerr.set_temporary();
-            }
-
-            oerr
+                .with_temporary(is_temporary_error(&err))
+                .set_source(err)
         })?;
 
         // Get content length from header so that we can check it.
-        // If the request method is HEAD, we will ignore this.
-        let content_length = if is_head {
+        //
+        // - If the request method is HEAD, we will ignore content length.
+        // - If response contains content_encoding, we should omit its content length.
+        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {
-            parse_content_length(resp.headers()).expect("response content length must be valid")
+            parse_content_length(resp.headers())?
         };
 
         let mut hr = Response::builder()
-            .version(resp.version())
             .status(resp.status())
             // Insert uri into response extension so that we can fetch
             // it later.
             .extension(uri.clone());
+
+        // Response builder under wasm doesn't support set version.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            hr = hr.version(resp.version());
+        }
+
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let stream = resp.bytes_stream().map_err(move |err| {
-            // If stream returns a body related error, we can convert
-            // it to interrupt so we can retry it.
-            Error::new(ErrorKind::Unexpected, "read data from http stream")
-                .map(|v| if err.is_body() { v.set_temporary() } else { v })
-                .with_context("url", uri.to_string())
-                .set_source(err)
-        });
+        let bs = HttpBody::new(
+            resp.bytes_stream()
+                .try_filter(|v| future::ready(!v.is_empty()))
+                .map_ok(Buffer::from)
+                .map_err(move |err| {
+                    Error::new(ErrorKind::Unexpected, "read data from http response")
+                        .with_operation("http_util::Client::send")
+                        .with_context("url", uri.to_string())
+                        .with_temporary(is_temporary_error(&err))
+                        .set_source(err)
+                }),
+            content_length,
+        );
 
-        let body = IncomingAsyncBody::new(Box::new(oio::into_stream(stream)), content_length);
-
-        let resp = hr.body(body).expect("response must build succeed");
-
+        let resp = hr.body(bs).expect("response must build succeed");
         Ok(resp)
     }
+}
+
+#[inline]
+fn is_temporary_error(err: &reqwest::Error) -> bool {
+    // error sending request
+    err.is_request()||
+    // request or response body error
+    err.is_body() ||
+    // error decoding response body, for example, connection reset.
+    err.is_decode()
 }

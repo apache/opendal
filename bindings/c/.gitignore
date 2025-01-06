@@ -1,1 +1,13 @@
 build/
+docs/
+
+*.o
+
+Cargo.lock
+
+examples/*
+!examples/
+!examples/*.h
+!examples/*.c
+!examples/*.cc
+!examples/*.cpp

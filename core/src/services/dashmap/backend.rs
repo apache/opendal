@@ -15,59 +15,75 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 
-use async_trait::async_trait;
 use dashmap::DashMap;
 
 use crate::raw::adapters::typed_kv;
+use crate::raw::Access;
+use crate::services::DashmapConfig;
 use crate::*;
+
+impl Configurator for DashmapConfig {
+    type Builder = DashmapBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DashmapBuilder { config: self }
+    }
+}
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {
-    root: Option<String>,
+    config: DashmapConfig,
 }
 
 impl DashmapBuilder {
     /// Set the root for dashmap.
-    pub fn root(&mut self, path: &str) -> &mut Self {
-        self.root = Some(path.into());
+    pub fn root(mut self, path: &str) -> Self {
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+
         self
     }
 }
 
 impl Builder for DashmapBuilder {
     const SCHEME: Scheme = Scheme::Dashmap;
-    type Accessor = DashmapBackend;
+    type Config = DashmapConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("root").map(|v| builder.root(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        Ok(DashmapBackend::new(Adapter {
+    fn build(self) -> Result<impl Access> {
+        let mut backend = DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        })
-        .with_root(self.root.as_deref().unwrap_or_default()))
+        });
+        if let Some(v) = self.config.root {
+            backend = backend.with_root(&v);
+        }
+
+        Ok(backend)
     }
 }
 
 /// Backend is used to serve `Accessor` support in dashmap.
 pub type DashmapBackend = typed_kv::Backend<Adapter>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Adapter {
     inner: DashMap<String, typed_kv::Value>,
 }
 
-#[async_trait]
+impl Debug for Adapter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashmapAdapter")
+            .field("size", &self.inner.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(
@@ -78,6 +94,7 @@ impl typed_kv::Adapter for Adapter {
                 set: true,
                 scan: true,
                 delete: true,
+                shared: false,
             },
         )
     }
@@ -130,7 +147,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

@@ -20,58 +20,126 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require('prism-react-renderer/themes/github');
-const darkCodeTheme = require('prism-react-renderer/themes/dracula');
-const repoAddress = 'https://github.com/apache/incubator-opendal';
+const semver = require("semver");
+const exec = require("child_process").execSync;
+
+const lightCodeTheme = require("prism-react-renderer/themes/github");
+const darkCodeTheme = require("prism-react-renderer/themes/dracula");
+const repoAddress = "https://github.com/apache/opendal";
+
+const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL
+  ? process.env.OPENDAL_WEBSITE_BASE_URL
+  : "/";
+const websiteNotLatest = process.env.OPENDAL_WEBSITE_NOT_LATEST
+  ? process.env.OPENDAL_WEBSITE_NOT_LATEST
+  : false;
+const websiteStaging = process.env.OPENDAL_WEBSITE_STAGING
+  ? process.env.OPENDAL_WEBSITE_STAGING
+  : false;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Apache OpenDAL',
-  tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
-  favicon: 'img/favicon.ico',
+  title: "Apache OpenDAL™",
+  tagline:
+    "Open Data Access Layer: Access data freely, painlessly, and efficiently",
+  favicon: "img/favicon.ico",
 
-  url: 'https://opendal.apache.org/',
-  baseUrl: '/',
+  customFields: {
+    isStaging: websiteStaging,
+    version: (function () {
+      if (websiteStaging && process.env.GITHUB_REF_TYPE === "tag") {
+        const refName = process.env.GITHUB_REF_NAME;
+        if (refName.startsWith("v")) {
+          const version = semver.parse(refName, {}, true);
+          return `${version.major}.${version.minor}.${version.patch}`;
+        }
+      }
 
-  organizationName: 'Apache',
-  projectName: 'OpenDAL',
+      const refName = exec(
+        "git describe --tags --abbrev=0 --match 'v*'",
+      ).toString();
+      const version = semver.parse(refName, {}, true);
+      return `${version.major}.${version.minor}.${version.patch}`;
+    })(),
+  },
 
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
+  url: "https://opendal.apache.org/",
+  baseUrl: "/",
+
+  onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "throw",
 
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: "en",
+    locales: ["en"],
+  },
+
+  markdown: {
+    format: "detect",
   },
 
   presets: [
     [
-      '@docusaurus/preset-classic',
+      "@docusaurus/preset-classic",
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          sidebarPath: require.resolve('./docs/sidebars.js'),
-          editUrl:
-            'https://github.com/apache/incubator-opendal/website/',
+          routeBasePath: "/",
+          sidebarPath: require.resolve("./docs/sidebars.js"),
+          editUrl: "https://github.com/apache/opendal/tree/main/website/",
           showLastUpdateAuthor: true,
-          showLastUpdateTime: true
+          showLastUpdateTime: true,
         },
         blog: {
           showReadingTime: true,
-          editUrl:
-            'https://github.com/apache/incubator-opendal/website/',
+          editUrl: "https://github.com/apache/opendal/tree/main/website/",
+          onUntruncatedBlogPosts: "warn",
         },
         theme: {
-          customCss: require.resolve('./src/css/custom.css'),
+          customCss: require.resolve("./src/css/custom.css"),
         },
         sitemap: {
-          changefreq: 'daily',
+          changefreq: "daily",
           priority: 0.5,
-          ignorePatterns: ['/tags/**'],
-          filename: 'sitemap.xml',
+          ignorePatterns: ["/tags/**"],
+          filename: "sitemap.xml",
         },
       }),
     ],
+  ],
+
+  plugins: [
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "community",
+        path: "community",
+        routeBasePath: "community",
+        sidebarPath: require.resolve("./community/sidebars.js"),
+        editUrl: "https://github.com/apache/opendal/tree/main/website/",
+      },
+    ],
+    [require.resolve("docusaurus-plugin-image-zoom"), {}],
+    [
+      "@docusaurus/plugin-client-redirects",
+      {
+        redirects: [
+          {
+            from: "/docs/vision",
+            to: "/vision",
+          },
+          {
+            from: "/discord",
+            to: "https://discord.gg/XQy8yGR2dg",
+          },
+          {
+            from: "/maillist",
+            to: "https://lists.apache.org/list.html?dev@opendal.apache.org",
+          },
+        ],
+      },
+    ],
+    require.resolve("docusaurus-lunr-search"),
   ],
 
   themeConfig:
@@ -80,159 +148,130 @@ const config = {
       // TODO social card image
       // image: 'img/opendal-social-card.jpg',
       colorMode: {
-        defaultMode: 'light',
-        disableSwitch: true
+        defaultMode: "light",
+        disableSwitch: true,
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL (incubating)',
-          src: 'img/logo.svg',
-          srcDark: 'img/logo_dark.svg',
-          href: '/',
-          target: '_self',
+          alt: "Apache OpenDAL",
+          src: "img/logo.svg",
+          srcDark: "img/logo_dark.svg",
+          href: "/",
+          target: "_self",
           height: 32,
         },
         items: [
           {
-            position: 'right',
-            label: 'Docs',
+            type: "doc",
+            docId: "overview",
+            position: "right",
+            label: "Docs",
+          },
+          {
+            to: "/blog",
+            label: "Blog",
+            position: "right",
+          },
+          {
+            type: "doc",
+            docId: "community",
+            position: "right",
+            label: "Community",
+            docsPluginId: "community",
+          },
+          {
+            to: "/download",
+            label: "Download",
+            position: "right",
+          },
+          {
+            type: "dropdown",
+            label: "ASF",
+            position: "right",
             items: [
               {
-                label: 'General',
-                to: '/docs/overview'
+                label: "Foundation",
+                to: "https://www.apache.org/",
               },
               {
-                label: 'Contributing',
-                to: '/docs/category/contributing'
+                label: "License",
+                to: "https://www.apache.org/licenses/",
               },
               {
-                label: 'Services',
-                to: '/docs/category/services'
+                label: "Events",
+                to: "https://www.apache.org/events/current-event.html",
               },
               {
-                label: 'Rust Core',
-                to: 'pathname:///docs/rust/opendal/'
+                label: "Privacy",
+                to: "https://privacy.apache.org/policies/privacy-policy-public.html",
               },
               {
-                label: 'Node.js Binding',
-                to: 'pathname:///docs/nodejs/'
+                label: "Security",
+                to: "https://www.apache.org/security/",
               },
               {
-                label: 'Python Binding',
-                to: 'pathname:///docs/python/'
+                label: "Sponsorship",
+                to: "https://www.apache.org/foundation/sponsorship.html",
               },
               {
-                label: 'Java Binding',
-                to: 'pathname:///docs/java/'
+                label: "Thanks",
+                to: "https://www.apache.org/foundation/thanks.html",
               },
               {
-                label: 'C Binding',
-                to: 'pathname:///docs/c/'
+                label: "Code of Conduct",
+                to: "https://www.apache.org/foundation/policies/conduct.html",
               },
-              {
-                label: 'Lua Binding',
-                to: 'pathname:///docs/lua/'
-              },
-              {
-                label: 'Haskell Binding',
-                to: 'pathname:///docs/haskell/'
-              }
-            ]
-          },
-          {
-            to: '/blog',
-            label: 'Blog',
-            position: 'right'
-          },
-          {
-            type: 'dropdown',
-            label: 'Community',
-            position: 'right',
-            items: [
-              {
-                label: 'Source Code',
-                to: repoAddress
-              },
-              {
-                label: 'Issues Tracker',
-                to: `${repoAddress}/issues/`
-              },
-              {
-                label: 'Code of Conduct',
-                to: 'https://www.apache.org/foundation/policies/conduct.html'
-              }
-            ]
-          },
-          {
-            to: '/download',
-            label: 'Download',
-            position: 'right'
-          },
-          {
-            type: 'dropdown',
-            label: 'ASF',
-            position: 'right',
-            items: [
-              {
-                label: 'Foundation',
-                to: 'https://www.apache.org/'
-              },
-              {
-                label: 'License',
-                to: 'https://www.apache.org/licenses/'
-              },
-              {
-                label: 'Events',
-                to: 'https://www.apache.org/events/current-event'
-              },
-              {
-                label: 'Privacy',
-                to: 'https://privacy.apache.org/policies/privacy-policy-public.html'
-              },
-              {
-                label: 'Security',
-                to: 'https://www.apache.org/security/'
-              },
-              {
-                label: 'Sponsorship',
-                to: 'https://www.apache.org/foundation/sponsorship.html'
-              },
-              {
-                label: 'Thanks',
-                to: 'https://www.apache.org/foundation/thanks.html'
-              },
-            ]
+            ],
           },
           {
             href: repoAddress,
-            position: 'right',
-            className: 'header-github-link',
-            'aria-label': 'GitHub repository',
+            position: "right",
+            className: "header-github-link",
+            "aria-label": "GitHub repository",
           },
           {
-            href: 'https://discord.gg/XQy8yGR2dg',
-            position: 'right',
-            className: 'header-discord-link',
-            'aria-label': 'Discord',
+            href: "https://discord.gg/XQy8yGR2dg",
+            position: "right",
+            className: "header-discord-link",
+            "aria-label": "Discord",
           },
         ],
       },
       footer: {
-        style: 'light',
+        style: "light",
         logo: {
-          alt: 'Apache Software Foundation',
-          src: './img/incubator.svg',
-          href: 'https://www.apache.org/',
-          width: 200,
+          alt: "Apache Software Foundation",
+          src: "./img/asf_logo_wide.svg",
+          href: "https://www.apache.org/",
+          width: 300,
         },
-        copyright: `Apache OpenDAL (incubating) is an effort undergoing incubation at The Apache Software Foundation (ASF), sponsored by the Apache Incubator. Incubation is required of all newly accepted projects until a further review indicates that the infrastructure, communications, and decision making process have stabilized in a manner consistent with other successful ASF projects. While incubation status is not necessarily a reflection of the completeness or stability of the code, it does indicate that the project has yet to be fully endorsed by the ASF. <br/><br/> Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator, the Apache feather, the Apache Incubator logo and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
+        copyright: `Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation<br/>Apache OpenDAL, OpenDAL, Apache, the Apache feather and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
       },
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
-        additionalLanguages: ['rust'],
+        additionalLanguages: ["rust", "java", "groovy"],
+      },
+      zoom: {
+        selector: ".markdown img",
+        background: "rgba(255, 255, 255, 0.8)",
+        config: {},
       },
     }),
 };
 
-module.exports = config;
+function generateConfig() {
+  config.baseUrl = baseUrl;
+
+  if (websiteNotLatest) {
+    config.themeConfig.announcementBar = {
+      id: "announcementBar-0", // Increment on change
+      content:
+        'You are viewing the documentation of a <strong>historical release</strong>. <a href="https://nightlies.apache.org/opendal/opendal-docs-stable/">View the latest stable release</a>.',
+    };
+  }
+
+  return config;
+}
+
+module.exports = generateConfig();

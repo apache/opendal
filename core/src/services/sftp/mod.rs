@@ -15,10 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-sftp")]
+mod delete;
+#[cfg(feature = "services-sftp")]
+mod error;
+#[cfg(feature = "services-sftp")]
+mod lister;
+#[cfg(feature = "services-sftp")]
+mod reader;
+#[cfg(feature = "services-sftp")]
+mod utils;
+#[cfg(feature = "services-sftp")]
+mod writer;
+
+#[cfg(feature = "services-sftp")]
+mod backend;
+#[cfg(feature = "services-sftp")]
 pub use backend::SftpBuilder as Sftp;
 
-mod backend;
-mod error;
-mod pager;
-mod utils;
-mod writer;
+mod config;
+pub use config::SftpConfig;

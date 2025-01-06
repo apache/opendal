@@ -19,8 +19,10 @@
 //! output.
 //!
 //! Those types should only be used internally and we don't want users to
-//! depend on them. So we should also implement trait like `AsyncRead` for
-//! our `output` traits.
+//! depend on them.
+
+mod delete;
+pub use delete::*;
 
 mod read;
 pub use read::*;
@@ -28,18 +30,11 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-mod append;
-pub use append::*;
-
-mod stream;
-pub use stream::*;
-
-mod page;
-pub use page::*;
-
-mod cursor;
-pub use cursor::Cursor;
-pub use cursor::VectorCursor;
+mod list;
+pub use list::*;
 
 mod entry;
 pub use entry::Entry;
+
+mod buf;
+pub use buf::*;

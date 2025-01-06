@@ -20,7 +20,6 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use futures::stream;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -36,9 +35,6 @@ use http::Uri;
 use http::Version;
 
 use super::new_request_build_error;
-use super::AsyncBody;
-use super::IncomingAsyncBody;
-use crate::raw::oio;
 use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
@@ -105,67 +101,74 @@ impl<T: Part> Multipart<T> {
         Ok(self)
     }
 
-    pub(crate) fn build(&self) -> Bytes {
+    pub(crate) fn build(self) -> Buffer {
+        let mut bufs = Vec::with_capacity(self.parts.len() + 2);
+
+        // Build pre part.
         let mut bs = BytesMut::new();
+        bs.extend_from_slice(b"--");
+        bs.extend_from_slice(self.boundary.as_bytes());
+        bs.extend_from_slice(b"\r\n");
+        let pre_part = Buffer::from(bs.freeze());
 
-        // Write headers.
-        for v in self.parts.iter() {
-            // Write the first boundary
-            bs.extend_from_slice(b"--");
-            bs.extend_from_slice(self.boundary.as_bytes());
-            bs.extend_from_slice(b"\r\n");
-
-            bs.extend_from_slice(v.format().as_ref());
+        // Write all parts.
+        for part in self.parts {
+            bufs.push(pre_part.clone());
+            bufs.push(part.format());
         }
 
         // Write the last boundary
+        let mut bs = BytesMut::new();
         bs.extend_from_slice(b"--");
         bs.extend_from_slice(self.boundary.as_bytes());
         bs.extend_from_slice(b"--");
         bs.extend_from_slice(b"\r\n");
 
-        bs.freeze()
+        // Build final part.
+        bufs.push(Buffer::from(bs.freeze()));
+
+        bufs.into_iter().flatten().collect()
     }
 
     /// Consume the input and generate a request with multipart body.
     ///
-    /// This founction will make sure content_type and content_length set correctly.
-    pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<AsyncBody>> {
-        let bs = self.build();
+    /// This function will make sure content_type and content_length set correctly.
+    pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<Buffer>> {
+        let boundary = self.boundary.clone();
+        let buf = self.build();
+        let content_length = buf.len();
 
         // Insert content type with correct boundary.
         builder = builder.header(
             CONTENT_TYPE,
-            format!("multipart/{}; boundary={}", T::TYPE, self.boundary).as_str(),
+            format!("multipart/{}; boundary={}", T::TYPE, boundary).as_str(),
         );
         // Insert content length with calculated size.
-        builder = builder.header(CONTENT_LENGTH, bs.len());
+        builder = builder.header(CONTENT_LENGTH, content_length);
 
-        builder
-            .body(AsyncBody::Bytes(bs))
-            .map_err(new_request_build_error)
+        builder.body(buf).map_err(new_request_build_error)
     }
 }
 
 /// Part is a trait for multipart part.
-pub trait Part: Sized {
+pub trait Part: Sized + 'static {
     /// TYPE is the type of multipart.
     ///
     /// Current available types are: `form-data` and `mixed`
     const TYPE: &'static str;
 
     /// format will generates the bytes.
-    fn format(&self) -> Bytes;
+    fn format(self) -> Buffer;
 
     /// parse will parse the bytes into a part.
     fn parse(s: &str) -> Result<Self>;
 }
 
 /// FormDataPart is a builder for multipart/form-data part.
-#[derive(Debug)]
 pub struct FormDataPart {
     headers: HeaderMap,
-    content: Bytes,
+
+    content: Buffer,
 }
 
 impl FormDataPart {
@@ -184,7 +187,7 @@ impl FormDataPart {
 
         Self {
             headers,
-            content: Bytes::new(),
+            content: Buffer::new(),
         }
     }
 
@@ -195,7 +198,7 @@ impl FormDataPart {
     }
 
     /// Set the content for this part.
-    pub fn content(mut self, content: impl Into<Bytes>) -> Self {
+    pub fn content(mut self, content: impl Into<Buffer>) -> Self {
         self.content = content.into();
         self
     }
@@ -204,23 +207,39 @@ impl FormDataPart {
 impl Part for FormDataPart {
     const TYPE: &'static str = "form-data";
 
-    fn format(&self) -> Bytes {
-        let mut bs = BytesMut::new();
+    fn format(self) -> Buffer {
+        let mut bufs = Vec::with_capacity(3);
 
-        // Write headers.
+        // Building pre-content.
+        let mut bs = BytesMut::new();
         for (k, v) in self.headers.iter() {
-            bs.extend_from_slice(k.as_str().as_bytes());
+            // Trick!
+            //
+            // Seafile could not recognize header names like `content-disposition`
+            // and requires to use `Content-Disposition`. So we hardcode the part
+            // headers name here.
+            match k.as_str() {
+                "content-disposition" => {
+                    bs.extend_from_slice("Content-Disposition".as_bytes());
+                }
+                _ => {
+                    bs.extend_from_slice(k.as_str().as_bytes());
+                }
+            }
             bs.extend_from_slice(b": ");
             bs.extend_from_slice(v.as_bytes());
             bs.extend_from_slice(b"\r\n");
         }
-
-        // Write content.
         bs.extend_from_slice(b"\r\n");
-        bs.extend_from_slice(&self.content);
-        bs.extend_from_slice(b"\r\n");
+        bufs.push(Buffer::from(bs.freeze()));
 
-        bs.freeze()
+        // Building content.
+        bufs.push(self.content);
+
+        // Building post-content.
+        bufs.push(Buffer::from("\r\n"));
+
+        bufs.into_iter().flatten().collect()
     }
 
     fn parse(_: &str) -> Result<Self> {
@@ -232,15 +251,13 @@ impl Part for FormDataPart {
 }
 
 /// MixedPart is a builder for multipart/mixed part.
-#[derive(Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct MixedPart {
     part_headers: HeaderMap,
 
     /// Common
     version: Version,
     headers: HeaderMap,
-    content: Bytes,
+    content: Buffer,
 
     /// Request only
     method: Option<Method>,
@@ -264,7 +281,7 @@ impl MixedPart {
 
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            content: Bytes::new(),
+            content: Buffer::new(),
 
             uri: Some(uri),
             method: None,
@@ -274,18 +291,12 @@ impl MixedPart {
     }
 
     /// Build a mixed part from a request.
-    pub fn from_request(req: Request<AsyncBody>) -> Self {
+    pub fn from_request(req: Request<Buffer>) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());
         part_headers.insert("content-transfer-encoding", "binary".parse().unwrap());
 
-        let (parts, body) = req.into_parts();
-
-        let content = match body {
-            AsyncBody::Empty => Bytes::new(),
-            AsyncBody::Bytes(bs) => bs,
-            AsyncBody::Stream(_) => panic!("multipart request can't contain stream body"),
-        };
+        let (parts, content) = req.into_parts();
 
         Self {
             part_headers,
@@ -309,7 +320,7 @@ impl MixedPart {
     }
 
     /// Consume a mixed part to build a response.
-    pub fn into_response(mut self) -> Response<IncomingAsyncBody> {
+    pub fn into_response(mut self) -> Response<Buffer> {
         let mut builder = Response::builder();
 
         builder = builder.status(self.status_code.unwrap_or(StatusCode::OK));
@@ -317,15 +328,8 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        let bs: Bytes = self.content;
-        let length = bs.len();
-        let body = IncomingAsyncBody::new(
-            Box::new(oio::into_stream(stream::iter(vec![Ok(bs)]))),
-            Some(length as u64),
-        );
-
         builder
-            .body(body)
+            .body(self.content)
             .expect("mixed part must be valid response")
     }
 
@@ -354,7 +358,7 @@ impl MixedPart {
     }
 
     /// Set the content for this part.
-    pub fn content(mut self, content: impl Into<Bytes>) -> Self {
+    pub fn content(mut self, content: impl Into<Buffer>) -> Self {
         self.content = content.into();
         self
     }
@@ -363,10 +367,11 @@ impl MixedPart {
 impl Part for MixedPart {
     const TYPE: &'static str = "mixed";
 
-    fn format(&self) -> Bytes {
-        let mut bs = BytesMut::new();
+    fn format(self) -> Buffer {
+        let mut bufs = Vec::with_capacity(3);
 
         // Write parts headers.
+        let mut bs = BytesMut::new();
         for (k, v) in self.part_headers.iter() {
             // Trick!
             //
@@ -420,15 +425,15 @@ impl Part for MixedPart {
             bs.extend_from_slice(v.as_bytes());
             bs.extend_from_slice(b"\r\n");
         }
-
-        // Write content.
         bs.extend_from_slice(b"\r\n");
+        bufs.push(Buffer::from(bs.freeze()));
+
         if !self.content.is_empty() {
-            bs.extend_from_slice(&self.content);
-            bs.extend_from_slice(b"\r\n");
+            bufs.push(self.content);
+            bufs.push(Buffer::from("\r\n"))
         }
 
-        bs.freeze()
+        bufs.into_iter().flatten().collect()
     }
 
     /// TODO
@@ -465,6 +470,7 @@ impl Part for MixedPart {
         let parts = http_response.split("\r\n\r\n").collect::<Vec<&str>>();
         let headers_content = parts[0];
         let body_content = parts.get(1).unwrap_or(&"");
+        let body_bytes = Buffer::from(body_content.to_string());
 
         let status_line = headers_content.lines().next().unwrap_or("");
         let status_code = status_line
@@ -501,7 +507,7 @@ impl Part for MixedPart {
             part_headers,
             version: Version::HTTP_11,
             headers,
-            content: Bytes::from(body_content.to_string()),
+            content: body_bytes,
 
             method: None,
             uri: None,
@@ -525,30 +531,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_multipart_formdata_basic() {
+    fn test_multipart_formdata_basic() -> Result<()> {
         let multipart = Multipart::new()
             .with_boundary("lalala")
             .part(FormDataPart::new("foo").content(Bytes::from("bar")))
             .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
-        let body = multipart.build();
+        let bs = multipart.build();
 
         let expected = "--lalala\r\n\
-             content-disposition: form-data; name=\"foo\"\r\n\
+             Content-Disposition: form-data; name=\"foo\"\r\n\
              \r\n\
              bar\r\n\
              --lalala\r\n\
-             content-disposition: form-data; name=\"hello\"\r\n\
+             Content-Disposition: form-data; name=\"hello\"\r\n\
              \r\n\
              world\r\n\
              --lalala--\r\n";
 
-        assert_eq!(expected, String::from_utf8(body.to_vec()).unwrap());
+        assert_eq!(Bytes::from(expected), bs.to_bytes());
+        Ok(())
     }
 
     /// This test is inspired by <https://docs.aws.amazon.com/AmazonS3/latest/userguide/HTTPPOSTExamples.html>
     #[test]
-    fn test_multipart_formdata_s3_form_upload() {
+    fn test_multipart_formdata_s3_form_upload() -> Result<()> {
         let multipart = Multipart::new()
             .with_boundary("9431149156168")
             .part(FormDataPart::new("key").content("user/eric/MyPicture.jpg"))
@@ -564,51 +571,51 @@ mod tests {
             .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
             .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
-        let body = multipart.build();
+        let bs = multipart.build();
 
         let expected = r#"--9431149156168
-content-disposition: form-data; name="key"
+Content-Disposition: form-data; name="key"
 
 user/eric/MyPicture.jpg
 --9431149156168
-content-disposition: form-data; name="acl"
+Content-Disposition: form-data; name="acl"
 
 public-read
 --9431149156168
-content-disposition: form-data; name="success_action_redirect"
+Content-Disposition: form-data; name="success_action_redirect"
 
 https://awsexamplebucket1.s3.us-west-1.amazonaws.com/successful_upload.html
 --9431149156168
-content-disposition: form-data; name="content-type"
+Content-Disposition: form-data; name="content-type"
 
 image/jpeg
 --9431149156168
-content-disposition: form-data; name="x-amz-meta-uuid"
+Content-Disposition: form-data; name="x-amz-meta-uuid"
 
 14365123651274
 --9431149156168
-content-disposition: form-data; name="x-amz-meta-tag"
+Content-Disposition: form-data; name="x-amz-meta-tag"
 
 Some,Tag,For,Picture
 --9431149156168
-content-disposition: form-data; name="AWSAccessKeyId"
+Content-Disposition: form-data; name="AWSAccessKeyId"
 
 AKIAIOSFODNN7EXAMPLE
 --9431149156168
-content-disposition: form-data; name="Policy"
+Content-Disposition: form-data; name="Policy"
 
 eyAiZXhwaXJhdGlvbiI6ICIyMDA3LTEyLTAxVDEyOjAwOjAwLjAwMFoiLAogICJjb25kaXRpb25zIjogWwogICAgeyJidWNrZXQiOiAiam9obnNtaXRoIn0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiRrZXkiLCAidXNlci9lcmljLyJdLAogICAgeyJhY2wiOiAicHVibGljLXJlYWQifSwKICAgIHsic3VjY2Vzc19hY3Rpb25fcmVkaXJlY3QiOiAiaHR0cDovL2pvaG5zbWl0aC5zMy5hbWF6b25hd3MuY29tL3N1Y2Nlc3NmdWxfdXBsb2FkLmh0bWwifSwKICAgIFsic3RhcnRzLXdpdGgiLCAiJENvbnRlbnQtVHlwZSIsICJpbWFnZS8iXSwKICAgIHsieC1hbXotbWV0YS11dWlkIjogIjE0MzY1MTIzNjUxMjc0In0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiR4LWFtei1tZXRhLXRhZyIsICIiXQogIF0KfQo=
 --9431149156168
-content-disposition: form-data; name="Signature"
+Content-Disposition: form-data; name="Signature"
 
 0RavWzkygo6QX9caELEqKi9kDbU=
 --9431149156168
-content-disposition: form-data; name="file"
+Content-Disposition: form-data; name="file"
 content-type: image/jpeg
 
 ...file content...
 --9431149156168
-content-disposition: form-data; name="submit"
+Content-Disposition: form-data; name="submit"
 
 Upload to Amazon S3
 --9431149156168--
@@ -618,15 +625,17 @@ Upload to Amazon S3
             expected,
             // Rust can't represent `\r` in a string literal, so we
             // replace `\r\n` with `\n` for comparison
-            String::from_utf8(body.to_vec())
+            String::from_utf8(bs.to_bytes().to_vec())
                 .unwrap()
                 .replace("\r\n", "\n")
         );
+
+        Ok(())
     }
 
     /// This test is inspired by <https://cloud.google.com/storage/docs/batch>
     #[test]
-    fn test_multipart_mixed_gcs_batch_metadata() {
+    fn test_multipart_mixed_gcs_batch_metadata() -> Result<()> {
         let multipart = Multipart::new()
             .with_boundary("===============7330845974216740156==")
             .part(
@@ -684,7 +693,7 @@ Upload to Amazon S3
                     .content(r#"{"metadata": {"type": "calico"}}"#),
             );
 
-        let body = multipart.build();
+        let bs = multipart.build();
 
         let expected = r#"--===============7330845974216740156==
 Content-Type: application/http
@@ -726,15 +735,17 @@ content-length: 32
             expected,
             // Rust can't represent `\r` in a string literal, so we
             // replace `\r\n` with `\n` for comparison
-            String::from_utf8(body.to_vec())
+            String::from_utf8(bs.to_bytes().to_vec())
                 .unwrap()
                 .replace("\r\n", "\n")
         );
+
+        Ok(())
     }
 
     /// This test is inspired by <https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=azure-ad>
     #[test]
-    fn test_multipart_mixed_azblob_batch_delete() {
+    fn test_multipart_mixed_azblob_batch_delete() -> Result<()> {
         let multipart = Multipart::new()
             .with_boundary("batch_357de4f7-6d0b-4e02-8cd2-6361411a9525")
             .part(
@@ -786,7 +797,7 @@ content-length: 32
                     .header("content-length".parse().unwrap(), "0".parse().unwrap()),
             );
 
-        let body = multipart.build();
+        let bs = multipart.build();
 
         let expected = r#"--batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
 Content-Type: application/http
@@ -825,10 +836,12 @@ content-length: 0
             expected,
             // Rust can't represent `\r` in a string literal, so we
             // replace `\r\n` with `\n` for comparison
-            String::from_utf8(body.to_vec())
+            String::from_utf8(bs.to_bytes().to_vec())
                 .unwrap()
                 .replace("\r\n", "\n")
         );
+
+        Ok(())
     }
 
     /// This test is inspired by <https://cloud.google.com/storage/docs/batch>
@@ -883,137 +896,137 @@ Content-Length: 846
             .parse(Bytes::from(response))
             .unwrap();
 
-        assert_eq!(multipart.parts.len(), 3);
-        assert_eq!(
-            multipart.parts[0],
-            MixedPart {
-                part_headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert("Content-Type", "application/http".parse().unwrap());
-                    h.insert(
-                        "Content-ID",
-                        "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+1>"
-                            .parse()
-                            .unwrap(),
-                    );
-
-                    h
-                },
-                version: Version::HTTP_11,
-                headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert(
-                        "ETag",
-                        "\"lGaP-E0memYDumK16YuUDM_6Gf0/V43j6azD55CPRGb9b6uytDYl61Y\""
-                            .parse()
-                            .unwrap(),
-                    );
-                    h.insert(
-                        "Content-Type",
-                        "application/json; charset=UTF-8".parse().unwrap(),
-                    );
-                    h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
-                    h.insert("Content-Length", "846".parse().unwrap());
-
-                    h
-                },
-                content: Bytes::from_static(
-                    r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#
-                    .as_bytes()
-                ),
-                uri: None,
-                method: None,
-                status_code: Some(StatusCode::from_u16(200).unwrap())
-            }
+        let part0_bs = Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#.as_bytes());
+        let part1_bs = Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#
+                .as_bytes()
         );
+        let part2_bs = Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#
+                .as_bytes()
+        );
+
+        assert_eq!(multipart.parts.len(), 3);
+
+        assert_eq!(multipart.parts[0].part_headers, {
+            let mut h = HeaderMap::new();
+            h.insert("Content-Type", "application/http".parse().unwrap());
+            h.insert(
+                "Content-ID",
+                "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+1>"
+                    .parse()
+                    .unwrap(),
+            );
+
+            h
+        });
+        assert_eq!(multipart.parts[0].version, Version::HTTP_11);
+        assert_eq!(multipart.parts[0].headers, {
+            let mut h = HeaderMap::new();
+            h.insert(
+                "ETag",
+                "\"lGaP-E0memYDumK16YuUDM_6Gf0/V43j6azD55CPRGb9b6uytDYl61Y\""
+                    .parse()
+                    .unwrap(),
+            );
+            h.insert(
+                "Content-Type",
+                "application/json; charset=UTF-8".parse().unwrap(),
+            );
+            h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
+            h.insert("Content-Length", "846".parse().unwrap());
+
+            h
+        });
+        assert_eq!(multipart.parts[0].content.len(), part0_bs.len());
+        assert_eq!(multipart.parts[0].uri, None);
+        assert_eq!(multipart.parts[0].method, None);
         assert_eq!(
-            multipart.parts[1],
-            MixedPart {
-                part_headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert("Content-Type", "application/http".parse().unwrap());
-                    h.insert(
-                        "Content-ID",
-                        "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+2>"
-                            .parse()
-                            .unwrap(),
-                    );
+            multipart.parts[0].status_code,
+            Some(StatusCode::from_u16(200).unwrap())
+        );
 
-                    h
-                },
-                version: Version::HTTP_11,
-                headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert(
-                        "ETag",
-                        "\"lGaP-E0memYDumK16YuUDM_6Gf0/91POdd-sxSAkJnS8Dm7wMxBSDKk\""
-                            .parse()
-                            .unwrap(),
-                    );
-                    h.insert(
-                        "Content-Type",
-                        "application/json; charset=UTF-8".parse().unwrap(),
-                    );
-                    h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
-                    h.insert("Content-Length", "846".parse().unwrap());
+        assert_eq!(multipart.parts[1].part_headers, {
+            let mut h = HeaderMap::new();
+            h.insert("Content-Type", "application/http".parse().unwrap());
+            h.insert(
+                "Content-ID",
+                "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+2>"
+                    .parse()
+                    .unwrap(),
+            );
 
-                    h
-                },
-                content: Bytes::from_static(
-                    r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#
-                    .as_bytes()
-                ),
-                uri: None,
-                method: None,
-                status_code: Some(StatusCode::from_u16(200).unwrap())
-            }
-         );
+            h
+        });
+        assert_eq!(multipart.parts[1].version, Version::HTTP_11);
+        assert_eq!(multipart.parts[1].headers, {
+            let mut h = HeaderMap::new();
+            h.insert(
+                "ETag",
+                "\"lGaP-E0memYDumK16YuUDM_6Gf0/91POdd-sxSAkJnS8Dm7wMxBSDKk\""
+                    .parse()
+                    .unwrap(),
+            );
+            h.insert(
+                "Content-Type",
+                "application/json; charset=UTF-8".parse().unwrap(),
+            );
+            h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
+            h.insert("Content-Length", "846".parse().unwrap());
+
+            h
+        });
+        assert_eq!(multipart.parts[1].content.len(), part1_bs.len());
+        assert_eq!(multipart.parts[1].uri, None);
+        assert_eq!(multipart.parts[1].method, None);
         assert_eq!(
-            multipart.parts[2],
-            MixedPart {
-                part_headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert("Content-Type", "application/http".parse().unwrap());
-                    h.insert(
-                        "Content-ID",
-                        "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+3>"
-                            .parse()
-                            .unwrap(),
-                    );
+            multipart.parts[1].status_code,
+            Some(StatusCode::from_u16(200).unwrap())
+        );
 
-                    h
-                },
-                version: Version::HTTP_11,
-                headers: {
-                    let mut h = HeaderMap::new();
-                    h.insert(
-                        "ETag",
-                        "\"lGaP-E0memYDumK16YuUDM_6Gf0/d2Z1F1_ZVbB1dC0YKM9rX5VAgIQ\""
-                            .parse()
-                            .unwrap(),
-                    );
-                    h.insert(
-                        "Content-Type",
-                        "application/json; charset=UTF-8".parse().unwrap(),
-                    );
-                    h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
-                    h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
-                    h.insert("Content-Length", "846".parse().unwrap());
+        assert_eq!(multipart.parts[2].part_headers, {
+            let mut h = HeaderMap::new();
+            h.insert("Content-Type", "application/http".parse().unwrap());
+            h.insert(
+                "Content-ID",
+                "<response-b29c5de2-0db4-490b-b421-6a51b598bd22+3>"
+                    .parse()
+                    .unwrap(),
+            );
 
-                    h
-                },
-                content: Bytes::from_static(
-                    r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#
-                    .as_bytes()
-                ),
-                uri: None,
-                method: None,
-                status_code: Some(StatusCode::from_u16(200).unwrap())
-            });
+            h
+        });
+        assert_eq!(multipart.parts[2].version, Version::HTTP_11);
+        assert_eq!(multipart.parts[2].headers, {
+            let mut h = HeaderMap::new();
+            h.insert(
+                "ETag",
+                "\"lGaP-E0memYDumK16YuUDM_6Gf0/d2Z1F1_ZVbB1dC0YKM9rX5VAgIQ\""
+                    .parse()
+                    .unwrap(),
+            );
+            h.insert(
+                "Content-Type",
+                "application/json; charset=UTF-8".parse().unwrap(),
+            );
+            h.insert("Date", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Expires", "Mon, 22 Jan 2018 18:56:00 GMT".parse().unwrap());
+            h.insert("Cache-Control", "private, max-age=0".parse().unwrap());
+            h.insert("Content-Length", "846".parse().unwrap());
+
+            h
+        });
+        assert_eq!(multipart.parts[2].content.len(), part2_bs.len());
+        assert_eq!(multipart.parts[2].uri, None);
+        assert_eq!(multipart.parts[2].method, None);
+        assert_eq!(
+            multipart.parts[2].status_code,
+            Some(StatusCode::from_u16(200).unwrap())
+        );
     }
 }

@@ -15,15 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::*;
+use crate::*;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use async_trait::async_trait;
-
-use crate::raw::*;
-use crate::*;
-
 /// TypeEraseLayer will erase the types on internal accessor.
+///
+/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::Read>`).
 ///
 /// # Notes
 ///
@@ -31,35 +30,35 @@ use crate::*;
 /// external users. We use this layer to erase any generic types.
 pub struct TypeEraseLayer;
 
-impl<A: Accessor> Layer<A> for TypeEraseLayer {
-    type LayeredAccessor = TypeEraseAccessor<A>;
+impl<A: Access> Layer<A> for TypeEraseLayer {
+    type LayeredAccess = TypeEraseAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         TypeEraseAccessor { inner }
     }
 }
 
 /// Provide reader wrapper for backend.
-pub struct TypeEraseAccessor<A: Accessor> {
+pub struct TypeEraseAccessor<A: Access> {
     inner: A,
 }
 
-impl<A: Accessor> Debug for TypeEraseAccessor<A> {
+impl<A: Access> Debug for TypeEraseAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-#[async_trait]
-impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
+impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     type Inner = A;
     type Reader = oio::Reader;
-    type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type BlockingReader = oio::BlockingReader;
     type BlockingWriter = oio::BlockingWriter;
-    type Appender = oio::Appender;
-    type Pager = oio::Pager;
-    type BlockingPager = oio::BlockingPager;
+    type BlockingLister = oio::BlockingLister;
+    type BlockingDeleter = oio::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -72,17 +71,31 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, r)| (rp, Box::new(r) as oio::Reader))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
-    }
-
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
             .await
             .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Deleter))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        self.inner
+            .list(path, args)
+            .await
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Lister))
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -91,23 +104,15 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| (rp, Box::new(a) as oio::Appender))
+            .blocking_delete()
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingDeleter))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        self.inner
-            .list(path, args)
-            .await
-            .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingLister))
     }
 }

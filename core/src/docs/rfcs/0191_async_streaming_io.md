@@ -1,7 +1,7 @@
 - Proposal Name: `async_streaming_io`
 - Start Date: 2022-03-28
-- RFC PR: [apache/incubator-opendal#191](https://github.com/apache/incubator-opendal/pull/191)
-- Tracking Issue: [apache/incubator-opendal#190](https://github.com/apache/incubator-opendal/issues/190)
+- RFC PR: [apache/opendal#191](https://github.com/apache/opendal/pull/191)
+- Tracking Issue: [apache/opendal#190](https://github.com/apache/opendal/issues/190)
 
 **Reverted**
 
@@ -11,7 +11,7 @@ Use `Stream`/`Sink` instead of `AsyncRead` in `Accessor`.
 
 # Motivation
 
-`Accessor` intends to be the `underlying trait of all backends for implementors`. However, it's not so underlying enough.
+`Accessor` intends to be the `underlying trait of all backends for implementers`. However, it's not so underlying enough.
 
 ## Over-wrapped
 

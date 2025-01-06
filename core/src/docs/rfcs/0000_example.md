@@ -1,7 +1,7 @@
 - Proposal Name: (fill me in with a unique ident, `my_awesome_feature`)
 - Start Date: (fill me in with today's date, YYYY-MM-DD)
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
-- Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
+- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary
 

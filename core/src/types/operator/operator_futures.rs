@@ -202,49 +202,170 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
 pub type FutureRead<F> = OperatorFuture<(OpRead, OpReader), Buffer, F>;
 
 impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
-    /// Set the If-Match for this operation.
-    pub fn if_match(self, v: &str) -> Self {
-        self.map(|(args, op_reader)| (args.with_if_match(v), op_reader))
-    }
-
-    /// Set the If-None-Match for this operation.
-    pub fn if_none_match(self, v: &str) -> Self {
-        self.map(|(args, op_reader)| (args.with_if_none_match(v), op_reader))
-    }
-
-    /// Set the If-Modified-Since for this operation.
-    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
-        self.map(|(args, op_reader)| (args.with_if_modified_since(v), op_reader))
-    }
-
-    /// Set the If-Unmodified-Since for this operation.
-    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
-        self.map(|(args, op_reader)| (args.with_if_unmodified_since(v), op_reader))
-    }
-
-    /// Set the version for this operation.
-    pub fn version(self, v: &str) -> Self {
-        self.map(|(args, op_reader)| (args.with_version(v), op_reader))
-    }
-
     /// Set the executor for this operation.
     pub fn executor(self, executor: Executor) -> Self {
         self.map(|(args, op_reader)| (args.with_executor(executor), op_reader))
     }
 
-    /// Set the range header for this operation.
+    /// Set `range` for this `read` request.
+    ///
+    /// If we have a file with size `n`.
+    ///
+    /// - `..` means read bytes in range `[0, n)` of file.
+    /// - `0..1024` and `..1024` means read bytes in range `[0, 1024)` of file
+    /// - `1024..` means read bytes in range `[1024, n)` of file
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.read_with("path/to/file").range(0..1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn range(self, range: impl RangeBounds<u64>) -> Self {
         self.map(|(args, op_reader)| (args.with_range(range.into()), op_reader))
     }
 
-    /// Set the concurrent read task amount.
+    /// Set `concurrent` for the reader.
+    ///
+    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
+    /// read large chunks of data. By setting `concurrent`, opendal will read files concurrently
+    /// on support storage services.
+    ///
+    /// By setting `concurrent`, opendal will fetch chunks concurrently with
+    /// the given chunk size.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.read_with("path/to/file").concurrent(8).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn concurrent(self, concurrent: usize) -> Self {
         self.map(|(args, op_reader)| (args, op_reader.with_concurrent(concurrent)))
     }
 
-    /// Set the chunk size for this operation.
+    /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    ///
+    /// This following example will make opendal read data in 4MiB chunks:
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.read_with("path/to/file").chunk(4 * 1024 * 1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn chunk(self, chunk_size: usize) -> Self {
         self.map(|(args, op_reader)| (args, op_reader.with_chunk(chunk_size)))
+    }
+
+    /// Set `version` for this `read` request.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut bs = op.read_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn version(self, v: &str) -> Self {
+        self.map(|(args, op_reader)| (args.with_version(v), op_reader))
+    }
+
+    /// Set `if_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_match(self, v: &str) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_match(v), op_reader))
+    }
+
+    /// Set `if_none_match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
+    ///
+    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_none_match(self, v: &str) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_none_match(v), op_reader))
+    }
+
+    /// ## `if_modified_since`
+    ///
+    /// Set `if_modified_since` for this `read` request.
+    ///
+    /// This feature can be used to check if the file has been modified since the given timestamp.
+    ///
+    /// If file exists and it hasn't been modified since the specified time, an error with kind
+    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::DateTime;
+    /// use chrono::Utc;
+    /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_modified_since(time).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set `if_unmodified_since` for this `read` request.
+    ///
+    /// This feature can be used to check if the file hasn't been modified since the given timestamp.
+    ///
+    /// If file exists and it has been modified since the specified time, an error with kind
+    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::DateTime;
+    /// use chrono::Utc;
+    /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
+    /// let mut metadata = op.read_with("path/to/file").if_unmodified_since(time).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(args, op_reader)| (args.with_if_unmodified_since(v), op_reader))
     }
 }
 
@@ -258,44 +379,176 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<(OpRead, OpReader), Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
-    /// Set the If-Match for this operation.
-    pub fn if_match(self, etag: &str) -> Self {
-        self.map(|(op_read, op_reader)| (op_read.with_if_match(etag), op_reader))
-    }
-
-    /// Set the If-None-Match for this operation.
-    pub fn if_none_match(self, etag: &str) -> Self {
-        self.map(|(op_read, op_reader)| (op_read.with_if_none_match(etag), op_reader))
-    }
-
-    /// Set the If-Modified-Since for this operation.
-    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
-        self.map(|(op_read, op_reader)| (op_read.with_if_modified_since(v), op_reader))
-    }
-
-    /// Set the If-Unmodified-Since for this operation.
-    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
-        self.map(|(op_read, op_reader)| (op_read.with_if_unmodified_since(v), op_reader))
-    }
-
-    /// Set the version for this operation.
+    /// Set `version` for this `reader`.
+    ///
+    /// This feature can be used to retrieve the data of a specified version of the given path.
+    ///
+    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// let mut r = op.reader_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn version(self, v: &str) -> Self {
         self.map(|(op_read, op_reader)| (op_read.with_version(v), op_reader))
     }
 
-    /// Set the concurrent read task amount.
+    /// Set `concurrent` for the reader.
+    ///
+    /// OpenDAL by default to write file without concurrent. This is not efficient for cases when users
+    /// read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+    /// on support storage services.
+    ///
+    /// By setting `concurrent``, opendal will fetch chunks concurrently with
+    /// the give chunk size.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.reader_with("path/to/file").concurrent(8).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn concurrent(self, concurrent: usize) -> Self {
         self.map(|(op_read, op_reader)| (op_read, op_reader.with_concurrent(concurrent)))
     }
 
-    /// Set the chunk size for this reader.
+    /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    ///
+    /// This following example will make opendal read data in 4MiB chunks:
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op
+    ///     .reader_with("path/to/file")
+    ///     .chunk(4 * 1024 * 1024)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn chunk(self, chunk_size: usize) -> Self {
         self.map(|(op_read, op_reader)| (op_read, op_reader.with_chunk(chunk_size)))
     }
 
-    /// Set the gap size for this reader.
+    /// Controls the optimization strategy for range reads in [`Reader::fetch`].
+    ///
+    /// When performing range reads, if the gap between two requested ranges is smaller than
+    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// and discard the unrequested data in between. This helps reduce the number of API calls
+    /// to remote storage services.
+    ///
+    /// This optimization is particularly useful when performing multiple small range reads
+    /// that are close to each other, as it reduces the overhead of multiple network requests
+    /// at the cost of transferring some additional data.
+    ///
+    /// In this example, if two requested ranges are separated by less than 1MiB,
+    /// they will be merged into a single read request:
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op
+    ///     .reader_with("path/to/file")
+    ///     .chunk(4 * 1024 * 1024)
+    ///     .gap(1024 * 1024)  // 1MiB gap
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn gap(self, gap_size: usize) -> Self {
         self.map(|(op_read, op_reader)| (op_read, op_reader.with_gap(gap_size)))
+    }
+
+    /// Set `if-match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut r = op.reader_with("path/to/file").if_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_match(etag), op_reader))
+    }
+
+    /// Set `if-none-match` for this `read` request.
+    ///
+    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
+    ///
+    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
+    /// let mut r = op.reader_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_none_match(self, etag: &str) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_none_match(etag), op_reader))
+    }
+
+    /// Set `if-modified-since` for this `read` request.
+    ///
+    /// This feature can be used to check if the file has been modified since the given timestamp.
+    ///
+    /// If file exists and it hasn't been modified since the specified time, an error with kind
+    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::DateTime;
+    /// use chrono::Utc;
+    /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
+    /// let mut r = op.reader_with("path/to/file").if_modified_since(time).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_modified_since(v), op_reader))
+    }
+
+    /// Set `if-unmodified-since` for this `read` request.
+    ///
+    /// This feature can be used to check if the file hasn't been modified since the given timestamp.
+    ///
+    /// If file exists and it has been modified since the specified time, an error with kind
+    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::DateTime;
+    /// use chrono::Utc;
+    /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
+    /// let mut r = op.reader_with("path/to/file").if_unmodified_since(time).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|(op_read, op_reader)| (op_read.with_if_unmodified_since(v), op_reader))
     }
 }
 
@@ -305,80 +558,458 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
 pub type FutureWrite<F> = OperatorFuture<(OpWrite, OpWriter, Buffer), (), F>;
 
 impl<F: Future<Output = Result<()>>> FutureWrite<F> {
-    /// Set the append mode of op.
-    ///
-    /// If the append mode is set, the data will be appended to the end of the file.
-    ///
-    /// # Notes
-    ///
-    /// Service could return `Unsupported` if the underlying storage does not support append.
-    pub fn append(self, v: bool) -> Self {
-        self.map(|(args, options, bs)| (args.with_append(v), options, bs))
-    }
-
-    /// Set the buffer size of op.
-    ///
-    /// If buffer size is set, the data will be buffered by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// Service could have their own minimum buffer size while perform write operations like
-    /// multipart uploads. So the buffer size may be larger than the given buffer size.
-    pub fn chunk(self, v: usize) -> Self {
-        self.map(|(args, options, bs)| (args, options.with_chunk(v), bs))
-    }
-
-    /// Set the maximum concurrent write task amount.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|(args, options, bs)| (args.with_concurrent(v), options, bs))
-    }
-
-    /// Set the content type of option
-    pub fn cache_control(self, v: &str) -> Self {
-        self.map(|(args, options, bs)| (args.with_cache_control(v), options, bs))
-    }
-
-    /// Set the content type of option
-    pub fn content_type(self, v: &str) -> Self {
-        self.map(|(args, options, bs)| (args.with_content_type(v), options, bs))
-    }
-
-    /// Set the content disposition of option
-    pub fn content_disposition(self, v: &str) -> Self {
-        self.map(|(args, options, bs)| (args.with_content_disposition(v), options, bs))
-    }
-
-    /// Set the content encoding of option
-    pub fn content_encoding(self, v: &str) -> Self {
-        self.map(|(args, options, bs)| (args.with_content_encoding(v), options, bs))
-    }
-
     /// Set the executor for this operation.
     pub fn executor(self, executor: Executor) -> Self {
         self.map(|(args, options, bs)| (args.with_executor(executor), options, bs))
     }
 
-    /// Set the If-Match for this operation.
+    /// Sets append mode for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_can_append`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - By default, write operations overwrite existing files
+    /// - When append is set to true:
+    ///   - New data will be appended to the end of existing file
+    ///   - If file doesn't exist, it will be created
+    /// - If not supported, will return an error
+    ///
+    /// This operation allows adding data to existing files instead of overwriting them.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op.write_with("path/to/file", vec![0; 4096]).append(true).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn append(self, v: bool) -> Self {
+        self.map(|(args, options, bs)| (args.with_append(v), options, bs))
+    }
+
+    /// Sets chunk size for buffered writes.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_multi_min_size`] and [`Capability::write_multi_max_size`] for size limits.
+    ///
+    /// ### Behavior
+    ///
+    /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - When chunk size is set:
+    ///   - Data will be buffered until reaching chunk size
+    ///   - One API call will be made per chunk
+    ///   - Last chunk may be smaller than chunk size
+    /// - Important considerations:
+    ///   - Some services require minimum chunk sizes (e.g. S3's EntityTooSmall error)
+    ///   - Smaller chunks increase API calls and costs
+    ///   - Larger chunks increase memory usage, but improve performance and reduce costs
+    ///
+    /// ### Performance Impact
+    ///
+    /// Setting appropriate chunk size can:
+    /// - Reduce number of API calls
+    /// - Improve overall throughput
+    /// - Lower operation costs
+    /// - Better utilize network bandwidth
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set 8MiB chunk size - data will be sent in one API call at close
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .chunk(8 * 1024 * 1024)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn chunk(self, v: usize) -> Self {
+        self.map(|(args, options, bs)| (args, options.with_chunk(v), bs))
+    }
+
+    /// Sets concurrent write operations for this writer.
+    ///
+    /// ## Behavior
+    ///
+    /// - By default, OpenDAL writes files sequentially
+    /// - When concurrent is set:
+    ///   - Multiple write operations can execute in parallel
+    ///   - Write operations return immediately without waiting if tasks space are available
+    ///   - Close operation ensures all writes complete in order
+    ///   - Memory usage increases with concurrency level
+    /// - If not supported, falls back to sequential writes
+    ///
+    /// This feature significantly improves performance when:
+    /// - Writing large files
+    /// - Network latency is high
+    /// - Storage service supports concurrent uploads like multipart uploads
+    ///
+    /// ## Performance Impact
+    ///
+    /// Setting appropriate concurrency can:
+    /// - Increase write throughput
+    /// - Reduce total write time
+    /// - Better utilize available bandwidth
+    /// - Trade memory for performance
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Enable concurrent writes with 8 parallel operations at 128B chunk.
+    /// let _ = op.write_with("path/to/file", vec![0; 4096]).chunk(128).concurrent(8).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn concurrent(self, v: usize) -> Self {
+        self.map(|(args, options, bs)| (args.with_concurrent(v), options, bs))
+    }
+
+    /// Sets Cache-Control header for this write operation.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_cache_control`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Cache-Control as system metadata on the target file
+    /// - The value should follow HTTP Cache-Control header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling caching behavior for the written content.
+    ///
+    /// ### Use Cases
+    ///
+    /// - Setting browser cache duration
+    /// - Configuring CDN behavior
+    /// - Optimizing content delivery
+    /// - Managing cache invalidation
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Cache content for 7 days (604800 seconds)
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .cache_control("max-age=604800")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ### References
+    ///
+    /// - [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control)
+    /// - [RFC 7234 Section 5.2](https://tools.ietf.org/html/rfc7234#section-5.2)
+    pub fn cache_control(self, v: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_cache_control(v), options, bs))
+    }
+
+    /// Sets `Content-Type` header for this write operation.
+    ///
+    /// ## Capability
+    ///
+    /// Check [`Capability::write_with_content_type`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Type as system metadata on the target file
+    /// - The value should follow MIME type format (e.g. "text/plain", "image/jpeg")
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the media type of the content being written.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set content type for plain text file
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .content_type("text/plain")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_type(self, v: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_content_type(v), options, bs))
+    }
+
+    /// ## `content_disposition`
+    ///
+    /// Sets Content-Disposition header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_disposition`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Disposition as system metadata on the target file
+    /// - The value should follow HTTP Content-Disposition header format
+    /// - Common values include:
+    ///   - `inline` - Content displayed within browser
+    ///   - `attachment` - Content downloaded as file
+    ///   - `attachment; filename="example.jpg"` - Downloaded with specified filename
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling how the content should be displayed or downloaded.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .content_disposition("attachment; filename=\"filename.jpg\"")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_disposition(self, v: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_content_disposition(v), options, bs))
+    }
+
+    /// Sets Content-Encoding header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_encoding`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Encoding as system metadata on the target file
+    /// - The value should follow HTTP Content-Encoding header format
+    /// - Common values include:
+    ///   - `gzip` - Content encoded using gzip compression
+    ///   - `deflate` - Content encoded using deflate compression
+    ///   - `br` - Content encoded using Brotli compression
+    ///   - `identity` - No encoding applied (default value)
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the encoding applied to the content being written.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .content_encoding("gzip")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_encoding(self, v: &str) -> Self {
+        self.map(|(args, options, bs)| (args.with_content_encoding(v), options, bs))
+    }
+
+    /// Sets If-Match header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target's ETag matches the specified value
+    /// - The value should be a valid ETag string
+    /// - Common values include:
+    ///   - A specific ETag value like `"686897696a7c876b7e"`
+    ///   - `*` - Matches any existing resource
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides conditional write functionality based on ETag matching,
+    /// helping prevent unintended overwrites in concurrent scenarios.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .if_match("\"686897696a7c876b7e\"")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn if_match(self, s: &str) -> Self {
         self.map(|(args, options, bs)| (args.with_if_match(s), options, bs))
     }
 
-    /// Set the If-None-Match for this operation.
+    /// Sets If-None-Match header for this write request.
+    ///
+    /// Note: Certain services, like `s3`, support `if_not_exists` but not `if_none_match`.
+    /// Use `if_not_exists` if you only want to check whether a file exists.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_none_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target's ETag does not match the specified value
+    /// - The value should be a valid ETag string
+    /// - Common values include:
+    ///   - A specific ETag value like `"686897696a7c876b7e"`
+    ///   - `*` - Matches if the resource does not exist
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides conditional write functionality based on ETag non-matching,
+    /// useful for preventing overwriting existing resources or ensuring unique writes.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .if_none_match("\"686897696a7c876b7e\"")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn if_none_match(self, s: &str) -> Self {
         self.map(|(args, options, bs)| (args.with_if_none_match(s), options, bs))
     }
 
-    /// Set the If-Not-Exist for this operation.
+    /// Sets the condition that write operation will succeed only if target does not exist.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_not_exists`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target path does not exist
+    /// - Will return error if target already exists
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides a way to ensure write operations only create new resources
+    /// without overwriting existing ones, useful for implementing "create if not exists" logic.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn if_not_exists(self, b: bool) -> Self {
         self.map(|(args, options, bs)| (args.with_if_not_exists(b), options, bs))
     }
 
-    /// Set the user defined metadata of the op
+    /// Sets user metadata for this write request.
     ///
-    /// ## Notes
+    /// ### Capability
     ///
-    /// we don't need to include the user defined metadata prefix in the key
-    /// every service will handle it internally
+    /// Check [`Capability::write_with_user_metadata`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the user metadata will be attached to the object during write
+    /// - Accepts key-value pairs where both key and value are strings
+    /// - Keys are case-insensitive in most services
+    /// - Services may have limitations for user metadata, for example:
+    ///   - Key length is typically limited (e.g., 1024 bytes)
+    ///   - Value length is typically limited (e.g., 4096 bytes)
+    ///   - Total metadata size might be limited
+    ///   - Some characters might be forbidden in keys
+    /// - If not supported, the metadata will be ignored
+    ///
+    /// User metadata provides a way to attach custom metadata to objects during write operations.
+    /// This metadata can be retrieved later when reading the object.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .user_metadata([
+    ///         ("language".to_string(), "rust".to_string()),
+    ///         ("author".to_string(), "OpenDAL".to_string()),
+    ///     ])
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn user_metadata(self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.map(|(args, options, bs)| {
             (
@@ -396,67 +1027,496 @@ impl<F: Future<Output = Result<()>>> FutureWrite<F> {
 pub type FutureWriter<F> = OperatorFuture<(OpWrite, OpWriter), Writer, F>;
 
 impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
-    /// Set the append mode of op.
-    ///
-    /// If the append mode is set, the data will be appended to the end of the file.
-    ///
-    /// ## Notes
-    ///
-    /// Service could return `Unsupported` if the underlying storage does not support append.
-    pub fn append(self, v: bool) -> Self {
-        self.map(|(args, options)| (args.with_append(v), options))
-    }
-
-    /// Set the chunk size of op.
-    ///
-    /// If chunk size is set, the data will be chunked by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// Service could have their own limitation for chunk size. It's possible that chunk size
-    /// is not equal to the given chunk size.
-    ///
-    /// For example:
-    ///
-    /// - AWS S3 requires the part size to be in [5MiB, 5GiB].
-    /// - GCS requires the part size to be aligned with 256 KiB.
-    ///
-    /// The services will alter the chunk size to meet their requirements.
-    pub fn chunk(self, v: usize) -> Self {
-        self.map(|(args, options)| (args, options.with_chunk(v)))
-    }
-
-    /// Set the maximum concurrent write task amount.
-    pub fn concurrent(self, v: usize) -> Self {
-        self.map(|(args, options)| (args.with_concurrent(v), options))
-    }
-
-    /// Set the content type of option
-    pub fn cache_control(self, v: &str) -> Self {
-        self.map(|(args, options)| (args.with_cache_control(v), options))
-    }
-
-    /// Set the content type of option
-    pub fn content_type(self, v: &str) -> Self {
-        self.map(|(args, options)| (args.with_content_type(v), options))
-    }
-
-    /// Set the content disposition of option
-    pub fn content_disposition(self, v: &str) -> Self {
-        self.map(|(args, options)| (args.with_content_disposition(v), options))
-    }
-
     /// Set the executor for this operation.
     pub fn executor(self, executor: Executor) -> Self {
         self.map(|(args, options)| (args.with_executor(executor), options))
     }
 
-    /// Set the user defined metadata of the op
+    /// Sets append mode for this write request.
     ///
-    /// ## Notes
+    /// ### Capability
     ///
-    /// we don't need to include the user defined metadata prefix in the key.
-    /// every service will handle it internally
+    /// Check [`Capability::write_can_append`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - By default, write operations overwrite existing files
+    /// - When append is set to true:
+    ///   - New data will be appended to the end of existing file
+    ///   - If file doesn't exist, it will be created
+    /// - If not supported, will return an error
+    ///
+    /// This operation allows adding data to existing files instead of overwriting them.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file").append(true).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn append(self, v: bool) -> Self {
+        self.map(|(args, options)| (args.with_append(v), options))
+    }
+
+    /// Sets chunk size for buffered writes.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_multi_min_size`] and [`Capability::write_multi_max_size`] for size limits.
+    ///
+    /// ### Behavior
+    ///
+    /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - When chunk size is set:
+    ///   - Data will be buffered until reaching chunk size
+    ///   - One API call will be made per chunk
+    ///   - Last chunk may be smaller than chunk size
+    /// - Important considerations:
+    ///   - Some services require minimum chunk sizes (e.g. S3's EntityTooSmall error)
+    ///   - Smaller chunks increase API calls and costs
+    ///   - Larger chunks increase memory usage, but improve performance and reduce costs
+    ///
+    /// ### Performance Impact
+    ///
+    /// Setting appropriate chunk size can:
+    /// - Reduce number of API calls
+    /// - Improve overall throughput
+    /// - Lower operation costs
+    /// - Better utilize network bandwidth
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set 8MiB chunk size - data will be sent in one API call at close
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .chunk(8 * 1024 * 1024)
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn chunk(self, v: usize) -> Self {
+        self.map(|(args, options)| (args, options.with_chunk(v)))
+    }
+
+    /// Sets concurrent write operations for this writer.
+    ///
+    /// ## Behavior
+    ///
+    /// - By default, OpenDAL writes files sequentially
+    /// - When concurrent is set:
+    ///   - Multiple write operations can execute in parallel
+    ///   - Write operations return immediately without waiting if tasks space are available
+    ///   - Close operation ensures all writes complete in order
+    ///   - Memory usage increases with concurrency level
+    /// - If not supported, falls back to sequential writes
+    ///
+    /// This feature significantly improves performance when:
+    /// - Writing large files
+    /// - Network latency is high
+    /// - Storage service supports concurrent uploads like multipart uploads
+    ///
+    /// ## Performance Impact
+    ///
+    /// Setting appropriate concurrency can:
+    /// - Increase write throughput
+    /// - Reduce total write time
+    /// - Better utilize available bandwidth
+    /// - Trade memory for performance
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Enable concurrent writes with 8 parallel operations
+    /// let mut w = op.writer_with("path/to/file").concurrent(8).await?;
+    ///
+    /// // First write starts immediately
+    /// w.write(vec![0; 4096]).await?;
+    ///
+    /// // Second write runs concurrently with first
+    /// w.write(vec![1; 4096]).await?;
+    ///
+    /// // Ensures all writes complete successfully and in order
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn concurrent(self, v: usize) -> Self {
+        self.map(|(args, options)| (args.with_concurrent(v), options))
+    }
+
+    /// Sets Cache-Control header for this write operation.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_cache_control`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Cache-Control as system metadata on the target file
+    /// - The value should follow HTTP Cache-Control header format
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling caching behavior for the written content.
+    ///
+    /// ### Use Cases
+    ///
+    /// - Setting browser cache duration
+    /// - Configuring CDN behavior
+    /// - Optimizing content delivery
+    /// - Managing cache invalidation
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Cache content for 7 days (604800 seconds)
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .cache_control("max-age=604800")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ### References
+    ///
+    /// - [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control)
+    /// - [RFC 7234 Section 5.2](https://tools.ietf.org/html/rfc7234#section-5.2)
+    pub fn cache_control(self, v: &str) -> Self {
+        self.map(|(args, options)| (args.with_cache_control(v), options))
+    }
+
+    /// Sets `Content-Type` header for this write operation.
+    ///
+    /// ## Capability
+    ///
+    /// Check [`Capability::write_with_content_type`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Type as system metadata on the target file
+    /// - The value should follow MIME type format (e.g. "text/plain", "image/jpeg")
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the media type of the content being written.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Set content type for plain text file
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_type("text/plain")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_type(self, v: &str) -> Self {
+        self.map(|(args, options)| (args.with_content_type(v), options))
+    }
+
+    /// ## `content_disposition`
+    ///
+    /// Sets Content-Disposition header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_disposition`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Disposition as system metadata on the target file
+    /// - The value should follow HTTP Content-Disposition header format
+    /// - Common values include:
+    ///   - `inline` - Content displayed within browser
+    ///   - `attachment` - Content downloaded as file
+    ///   - `attachment; filename="example.jpg"` - Downloaded with specified filename
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows controlling how the content should be displayed or downloaded.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_disposition("attachment; filename=\"filename.jpg\"")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_disposition(self, v: &str) -> Self {
+        self.map(|(args, options)| (args.with_content_disposition(v), options))
+    }
+
+    /// Sets Content-Encoding header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_encoding`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Encoding as system metadata on the target file
+    /// - The value should follow HTTP Content-Encoding header format
+    /// - Common values include:
+    ///   - `gzip` - Content encoded using gzip compression
+    ///   - `deflate` - Content encoded using deflate compression
+    ///   - `br` - Content encoded using Brotli compression
+    ///   - `identity` - No encoding applied (default value)
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the encoding applied to the content being written.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_encoding("gzip")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_encoding(self, v: &str) -> Self {
+        self.map(|(args, options)| (args.with_content_encoding(v), options))
+    }
+
+    /// Sets If-Match header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target's ETag matches the specified value
+    /// - The value should be a valid ETag string
+    /// - Common values include:
+    ///   - A specific ETag value like `"686897696a7c876b7e"`
+    ///   - `*` - Matches any existing resource
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides conditional write functionality based on ETag matching,
+    /// helping prevent unintended overwrites in concurrent scenarios.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .if_match("\"686897696a7c876b7e\"")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_match(self, s: &str) -> Self {
+        self.map(|(args, options)| (args.with_if_match(s), options))
+    }
+
+    /// Sets If-None-Match header for this write request.
+    ///
+    /// Note: Certain services, like `s3`, support `if_not_exists` but not `if_none_match`.
+    /// Use `if_not_exists` if you only want to check whether a file exists.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_none_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target's ETag does not match the specified value
+    /// - The value should be a valid ETag string
+    /// - Common values include:
+    ///   - A specific ETag value like `"686897696a7c876b7e"`
+    ///   - `*` - Matches if the resource does not exist
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides conditional write functionality based on ETag non-matching,
+    /// useful for preventing overwriting existing resources or ensuring unique writes.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .if_none_match("\"686897696a7c876b7e\"")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_none_match(self, s: &str) -> Self {
+        self.map(|(args, options)| (args.with_if_none_match(s), options))
+    }
+
+    /// Sets the condition that write operation will succeed only if target does not exist.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_if_not_exists`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the write operation will only succeed if the target path does not exist
+    /// - Will return error if target already exists
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides a way to ensure write operations only create new resources
+    /// without overwriting existing ones, useful for implementing "create if not exists" logic.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn if_not_exists(self, b: bool) -> Self {
+        self.map(|(args, options)| (args.with_if_not_exists(b), options))
+    }
+
+    /// Sets user metadata for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_user_metadata`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the user metadata will be attached to the object during write
+    /// - Accepts key-value pairs where both key and value are strings
+    /// - Keys are case-insensitive in most services
+    /// - Services may have limitations for user metadata, for example:
+    ///   - Key length is typically limited (e.g., 1024 bytes)
+    ///   - Value length is typically limited (e.g., 4096 bytes)
+    ///   - Total metadata size might be limited
+    ///   - Some characters might be forbidden in keys
+    /// - If not supported, the metadata will be ignored
+    ///
+    /// User metadata provides a way to attach custom metadata to objects during write operations.
+    /// This metadata can be retrieved later when reading the object.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .user_metadata([
+    ///         ("content-type".to_string(), "text/plain".to_string()),
+    ///         ("author".to_string(), "OpenDAL".to_string()),
+    ///     ])
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn user_metadata(self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.map(|(args, options)| (args.with_user_metadata(HashMap::from_iter(data)), options))
     }

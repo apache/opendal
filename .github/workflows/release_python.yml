@@ -63,7 +63,7 @@ jobs:
           - { os: ubuntu-latest, target: "armv7l" }
     env:
       # Workaround ring 0.17 build issue
-      CC_aarch64_unknown_linux_gnu: "aarch64-linux-gnu-gcc"
+      CC_aarch64_unknown_linux_gnu: "cc"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain

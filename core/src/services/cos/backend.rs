@@ -317,7 +317,7 @@ impl Access for CosBackend {
                 let meta = parse_into_metadata(path, headers)?;
                 let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
                 if !user_meta.is_empty() {
-                    m.with_user_metadata(user_meta);
+                    meta.with_user_metadata(user_meta);
                 }
                 Ok(RpStat::new(meta))
             }

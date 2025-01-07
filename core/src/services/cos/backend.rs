@@ -314,6 +314,7 @@ impl Access for CosBackend {
 
         match status {
             StatusCode::OK => {
+                let header = resp.headers();
                 let meta = parse_into_metadata(path, headers)?;
                 let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
                 if !user_meta.is_empty() {

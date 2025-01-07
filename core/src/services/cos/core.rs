@@ -188,13 +188,6 @@ impl CosCore {
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
-                // before insert user defined metadata header, add prefix to the header name
-                if !self.check_user_metadata_key(key) {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "the format of the user metadata key is invalid, please refer the document",
-                    ));
-                }
                 req = req.header(format!("x-cos-meta-{key}"), value)
             }
         }
@@ -462,32 +455,6 @@ impl CosCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
-    }
-
-    // According to https://www.tencentcloud.com/document/product/436/7746
-    // there are some limits in user defined metadata key
-    fn check_user_metadata_key(&self, key: &str) -> bool {
-        key.chars().all(|c| c != '_')
-    }
-
-    /// parse_metadata will parse http headers(including standards http headers
-    /// and user defined metadata header) into Metadata.
-    ///
-    /// # Arguments
-    ///
-    /// * `user_metadata_prefix` is the prefix of user defined metadata key
-    ///
-    /// # Notes
-    ///
-    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
-    pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
-        let mut m = parse_into_metadata(path, headers)?;
-        let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
-        if !user_meta.is_empty() {
-            m.with_user_metadata(user_meta);
-        }
-
-        Ok(m)
     }
 }
 

@@ -223,7 +223,10 @@ impl oio::PageList for S3ObjectVersionsLister {
         }
 
         for version_object in output.version {
-            // Skip if users are neither requesting all versions, nor the object is the latest version.
+            // `list` must be additive, so we need to include the latest version object
+            // even if `versions` is not enabled.
+            //
+            // Here we skip all non-latest version objects if `versions` is not enabled.
             if !(self.args.versions() || version_object.is_latest) {
                 continue;
             }

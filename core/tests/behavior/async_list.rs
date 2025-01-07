@@ -616,7 +616,7 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     assert_eq!(
         ds.len(),
         1,
-        "list with deleted should current active and only have one"
+        "list with deleted should contain current active file version"
     );
 
     op.write(file_path.as_str(), "2").await?;

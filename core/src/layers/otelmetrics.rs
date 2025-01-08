@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::time::Duration;
 
 use opentelemetry::global;
@@ -27,44 +26,6 @@ use opentelemetry::KeyValue;
 use crate::layers::observe;
 use crate::raw::*;
 use crate::*;
-
-/// OpenTelemetry metrics for OpenDAL operations
-#[derive(Debug)]
-struct Metrics {
-    /// Duration of operations
-    duration_seconds: Histogram<f64>,
-    /// Size of operations
-    bytes: Histogram<u64>,
-    /// Number of operation errors
-    errors: Counter<u64>,
-}
-
-static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
-    let meter = global::meter("opendal.operation");
-
-    let duration_seconds = meter
-        .f64_histogram("duration")
-        .with_description("Duration of operations")
-        .with_unit("second")
-        .with_boundaries(exponential_boundary(0.01, 2.0, 16))
-        .build();
-    let bytes = meter
-        .u64_histogram("size")
-        .with_description("Size of operations")
-        .with_unit("byte")
-        .with_boundaries(exponential_boundary(1.0, 2.0, 16))
-        .build();
-    let errors = meter
-        .u64_counter("errors")
-        .with_description("Number of operation errors")
-        .build();
-
-    Metrics {
-        duration_seconds,
-        bytes,
-        errors,
-    }
-});
 
 /// Add [opentelemetry::metrics](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/index.html) for every operation.
 ///
@@ -104,7 +65,27 @@ impl<A: Access> Layer<A> for OtelMetricsLayer {
     type LayeredAccess = observe::MetricsAccessor<A, OtelMetricsInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let meter = global::meter("opendal.operation");
+        let duration_seconds = meter
+            .f64_histogram("duration")
+            .with_description("Duration of operations")
+            .with_unit("second")
+            .with_boundaries(exponential_boundary(0.01, 2.0, 16))
+            .build();
+        let bytes = meter
+            .u64_histogram("size")
+            .with_description("Size of operations")
+            .with_unit("byte")
+            .with_boundaries(exponential_boundary(1.0, 2.0, 16))
+            .build();
+        let errors = meter
+            .u64_counter("errors")
+            .with_description("Number of operation errors")
+            .build();
         let interceptor = OtelMetricsInterceptor {
+            duration_seconds,
+            bytes,
+            errors,
             path_label_level: self.path_label_level,
         };
         observe::MetricsLayer::new(interceptor).layer(inner)
@@ -113,6 +94,9 @@ impl<A: Access> Layer<A> for OtelMetricsLayer {
 
 #[derive(Clone, Debug)]
 pub struct OtelMetricsInterceptor {
+    duration_seconds: Histogram<f64>,
+    bytes: Histogram<u64>,
+    errors: Counter<u64>,
     path_label_level: usize,
 }
 
@@ -127,10 +111,8 @@ impl observe::MetricsIntercept for OtelMetricsInterceptor {
         duration: Duration,
     ) {
         let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
-        METRICS.duration_seconds.record(
-            duration.as_secs_f64(),
-            &attributes,
-        );
+        self.duration_seconds
+            .record(duration.as_secs_f64(), &attributes);
     }
 
     fn observe_operation_bytes(
@@ -143,7 +125,7 @@ impl observe::MetricsIntercept for OtelMetricsInterceptor {
         bytes: usize,
     ) {
         let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
-        METRICS.bytes.record(bytes as u64, &attributes);
+        self.bytes.record(bytes as u64, &attributes);
     }
 
     fn observe_operation_errors_total(
@@ -156,7 +138,7 @@ impl observe::MetricsIntercept for OtelMetricsInterceptor {
         error: ErrorKind,
     ) {
         let attributes = self.create_attributes(scheme, namespace, root, path, op, Some(error));
-        METRICS.errors.add(1, &attributes);
+        self.errors.add(1, &attributes);
     }
 }
 

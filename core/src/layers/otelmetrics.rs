@@ -44,20 +44,200 @@ use crate::*;
 /// Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct OtelMetricsLayer {
-    path_label_level: usize,
+    interceptor: OtelMetricsInterceptor,
 }
 
 impl OtelMetricsLayer {
+    /// Create a [`OtelMetricsLayerBuilder`] to set the configuration of metrics.
+    ///
+    /// # Default Configuration
+    ///
+    /// - `path_label`: `0`
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(OtelMetricsLayer::builder().path_label(1))
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn builder() -> OtelMetricsLayerBuilder {
+        OtelMetricsLayerBuilder::new()
+    }
+}
+
+/// [`OtelMetricsLayerBuilder`] is a config builder to build a [`OtelMetricsLayer`].
+pub struct OtelMetricsLayerBuilder {
+    operation_duration_seconds_boundaries: Vec<f64>,
+    operation_bytes_boundaries: Vec<f64>,
+    path_label_level: usize,
+}
+
+impl OtelMetricsLayerBuilder {
+    fn new() -> Self {
+        Self { 
+            operation_duration_seconds_boundaries: exponential_boundary(0.01, 2.0, 16),
+            operation_bytes_boundaries: exponential_boundary(1.0, 2.0, 16),
+            path_label_level: 0,
+        }
+    }
+
     /// Set the level of path label.
     ///
     /// - level = 0: we will ignore the path label.
     /// - level > 0: the path label will be the path split by "/" and get the last n level,
     ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(OtelMetricsLayer::builder().path_label(1))
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
     pub fn path_label(mut self, level: usize) -> Self {
         self.path_label_level = level;
         self
+    }
+
+    /// Set boundaries for `operation_duration_seconds` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(
+    ///         OtelMetricsLayer::builder()
+    ///             .operation_duration_seconds_boundaries(vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
+    ///             .register()
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn operation_duration_seconds_boundaries(mut self, boundaries: Vec<f64>) -> Self {
+        if !boundaries.is_empty() {
+            self.operation_duration_seconds_boundaries = boundaries;
+        }
+        self
+    }
+
+    /// Set boundaries for `operation_bytes` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(
+    ///         OtelMetricsLayer::builder()
+    ///             .operation_bytes_boundaries(vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0])
+    ///             .register()
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn operation_bytes_boundaries(mut self, boundaries: Vec<f64>) -> Self {
+        if !boundaries.is_empty() {
+            self.operation_bytes_boundaries = boundaries;
+        }
+        self
+    }
+
+    /// Register the metrics and return a [`OtelMetricsLayer`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(OtelMetricsLayer::builder())
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn register(self) -> OtelMetricsLayer {
+        let meter = global::meter("opendal.operation");
+        let duration_seconds = meter
+            .f64_histogram("duration")
+            .with_description("Duration of operations")
+            .with_unit("second")
+            .with_boundaries(self.operation_duration_seconds_boundaries)
+            .build();
+        let bytes = meter
+            .u64_histogram("size")
+            .with_description("Size of operations")
+            .with_unit("byte")
+            .with_boundaries(self.operation_bytes_boundaries)
+            .build();
+        let errors = meter
+            .u64_counter("errors")
+            .with_description("Number of operation errors")
+            .build();
+
+        OtelMetricsLayer {
+            interceptor: OtelMetricsInterceptor {
+                duration_seconds,
+                bytes,
+                errors,
+                path_label_level: self.path_label_level,
+            },
+        }
     }
 }
 
@@ -65,30 +245,7 @@ impl<A: Access> Layer<A> for OtelMetricsLayer {
     type LayeredAccess = observe::MetricsAccessor<A, OtelMetricsInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let meter = global::meter("opendal.operation");
-        let duration_seconds = meter
-            .f64_histogram("duration")
-            .with_description("Duration of operations")
-            .with_unit("second")
-            .with_boundaries(exponential_boundary(0.01, 2.0, 16))
-            .build();
-        let bytes = meter
-            .u64_histogram("size")
-            .with_description("Size of operations")
-            .with_unit("byte")
-            .with_boundaries(exponential_boundary(1.0, 2.0, 16))
-            .build();
-        let errors = meter
-            .u64_counter("errors")
-            .with_description("Number of operation errors")
-            .build();
-        let interceptor = OtelMetricsInterceptor {
-            duration_seconds,
-            bytes,
-            errors,
-            path_label_level: self.path_label_level,
-        };
-        observe::MetricsLayer::new(interceptor).layer(inner)
+        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
     }
 }
 

@@ -400,14 +400,14 @@ libtest-mimic = "0.8"
 opentelemetry = { version = "0.27", default-features = false, features = [
     "trace",
 ] }
-opentelemetry-otlp = "0.26"
-opentelemetry_sdk = "0.26"
+opentelemetry-otlp = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.27.0"
+tracing-opentelemetry = "0.28.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

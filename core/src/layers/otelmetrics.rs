@@ -39,7 +39,7 @@ use crate::*;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(OtelMetricsLayer::default())
+///     .layer(OtelMetricsLayer::builder().register())
 ///     .finish();
 /// Ok(())
 /// # }
@@ -68,7 +68,7 @@ impl OtelMetricsLayer {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1))
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register())
     ///     .finish();
     /// debug!("operator: {op:?}");
     ///
@@ -114,7 +114,7 @@ impl OtelMetricsLayerBuilder {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1))
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register())
     ///     .finish();
     /// debug!("operator: {op:?}");
     ///
@@ -204,7 +204,7 @@ impl OtelMetricsLayerBuilder {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder())
+    ///     .layer(OtelMetricsLayer::builder().register())
     ///     .finish();
     /// debug!("operator: {op:?}");
     ///
@@ -212,21 +212,21 @@ impl OtelMetricsLayerBuilder {
     /// # }
     /// ```
     pub fn register(self) -> OtelMetricsLayer {
-        let meter = global::meter("opendal.operation");
+        let meter = global::meter("opendal");
         let duration_seconds = meter
-            .f64_histogram("duration")
+            .f64_histogram("operation.operation.duration")
             .with_description("Duration of operations")
             .with_unit("second")
             .with_boundaries(self.operation_duration_seconds_boundaries)
             .build();
         let bytes = meter
-            .u64_histogram("size")
+            .u64_histogram("operation.operation.size")
             .with_description("Size of operations")
             .with_unit("byte")
             .with_boundaries(self.operation_bytes_boundaries)
             .build();
         let errors = meter
-            .u64_counter("errors")
+            .u64_counter("operation.operation.errors")
             .with_description("Number of operation errors")
             .build();
 

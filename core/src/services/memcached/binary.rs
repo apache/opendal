@@ -15,14 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::io::{self};
-use tokio::net::TcpStream;
-
 use crate::raw::*;
 use crate::*;
+
+use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
+use tokio_rustls::client::TlsStream;
 
 pub(super) mod constants {
     pub const OK_STATUS: u16 = 0x0;
@@ -61,7 +59,7 @@ pub struct PacketHeader {
 }
 
 impl PacketHeader {
-    pub async fn write(self, writer: &mut TcpStream) -> io::Result<()> {
+    pub async fn write<T: AsyncWrite + std::marker::Unpin>(self, writer: &mut T) -> io::Result<()> {
         writer.write_u8(self.magic).await?;
         writer.write_u8(self.opcode).await?;
         writer.write_u16(self.key_length).await?;
@@ -74,7 +72,9 @@ impl PacketHeader {
         Ok(())
     }
 
-    pub async fn read(reader: &mut TcpStream) -> Result<PacketHeader, io::Error> {
+    pub async fn read<T: AsyncRead + std::marker::Unpin>(
+        reader: &mut T,
+    ) -> Result<PacketHeader, io::Error> {
         let header = PacketHeader {
             magic: reader.read_u8().await?,
             opcode: reader.read_u8().await?,
@@ -98,11 +98,11 @@ pub struct Response {
 }
 
 pub struct Connection {
-    io: BufReader<TcpStream>,
+    io: BufReader<Box<dyn Connect>>,
 }
 
 impl Connection {
-    pub fn new(io: TcpStream) -> Self {
+    pub fn new(io: Box<dyn Connect>) -> Self {
         Self {
             io: BufReader::new(io),
         }
@@ -246,8 +246,12 @@ impl Connection {
     }
 }
 
-pub async fn parse_response(reader: &mut TcpStream) -> Result<Response> {
-    let header = PacketHeader::read(reader).await.map_err(new_std_io_error)?;
+pub async fn parse_response<T: AsyncWrite + std::marker::Unpin + tokio::io::AsyncRead>(
+    reader: &mut T,
+) -> Result<Response> {
+    let header = PacketHeader::read::<T>(reader)
+        .await
+        .map_err(new_std_io_error)?;
 
     if header.vbucket_id_or_status != constants::OK_STATUS
         && header.vbucket_id_or_status != constants::KEY_NOT_FOUND
@@ -287,3 +291,12 @@ pub async fn parse_response(reader: &mut TcpStream) -> Result<Response> {
         value,
     })
 }
+
+#[async_trait::async_trait]
+pub trait Connect:
+    AsyncWrite + std::marker::Unpin + tokio::io::AsyncRead + std::marker::Send
+{
+}
+
+impl Connect for TcpStream {}
+impl Connect for TlsStream<TcpStream> {}

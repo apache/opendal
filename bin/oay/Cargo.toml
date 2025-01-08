@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.14"
+version = "0.41.15"
 
 [features]
 default = ["frontends-webdav", "frontends-s3"]
@@ -44,7 +44,7 @@ anyhow = "1"
 axum = "0.7"
 chrono = "0.4.31"
 dav-server = { version = "0.7", optional = true }
-dav-server-opendalfs = { version = "0.2.1", path = "../../integrations/dav-server", optional = true }
+dav-server-opendalfs = { version = "0.3.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
 opendal = { version = "0.51.0", path = "../../core", features = [
   "services-fs",

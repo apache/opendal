@@ -89,7 +89,7 @@ pub struct OtelMetricsLayerBuilder {
 
 impl OtelMetricsLayerBuilder {
     fn new() -> Self {
-        Self { 
+        Self {
             operation_duration_seconds_boundaries: exponential_boundary(0.01, 2.0, 16),
             operation_bytes_boundaries: exponential_boundary(1.0, 2.0, 16),
             path_label_level: 0,

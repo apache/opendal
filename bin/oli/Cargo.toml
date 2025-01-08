@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.14"
+version = "0.41.15"
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -54,13 +54,13 @@ opendal = { version = "0.51.0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
+parse-size = { version = "1.1" }
 pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
 uuid = { version = "1.11" }
-parse-size = { version = "1.1" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }

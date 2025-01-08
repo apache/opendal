@@ -35,6 +35,8 @@ pub struct CosConfig {
     pub secret_key: Option<String>,
     /// Bucket of this backend.
     pub bucket: Option<String>,
+    /// is bucket versioning enabled for this bucket
+    pub enable_versioning: bool,
     /// Disable config load so that opendal will not load config from
     pub disable_config_load: bool,
 }

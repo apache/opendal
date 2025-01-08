@@ -29,9 +29,10 @@ use reqsign::TencentCosSigner;
 use super::core::*;
 use super::delete::CosDeleter;
 use super::error::parse_error;
-use super::lister::CosLister;
+use super::lister::{CosLister, CosListers, CosObjectVersionsLister};
 use super::writer::CosWriter;
 use super::writer::CosWriters;
+use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
@@ -119,6 +120,13 @@ impl CosBuilder {
         if !bucket.is_empty() {
             self.config.bucket = Some(bucket.to_string());
         }
+
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
 
         self
     }
@@ -215,6 +223,7 @@ impl Builder for CosBuilder {
                 bucket: bucket.clone(),
                 root,
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader: cred_loader,
                 client,
@@ -232,7 +241,7 @@ pub struct CosBackend {
 impl Access for CosBackend {
     type Reader = HttpBody;
     type Writer = CosWriters;
-    type Lister = oio::PageLister<CosLister>;
+    type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -253,15 +262,18 @@ impl Access for CosBackend {
                 stat_has_content_type: true,
                 stat_has_content_encoding: true,
                 stat_has_content_range: true,
+                stat_with_version: self.core.enable_versioning,
                 stat_has_etag: true,
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
+                stat_has_version: true,
 
                 read: true,
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,
+                read_with_version: self.core.enable_versioning,
 
                 write: true,
                 write_can_empty: true,
@@ -270,8 +282,8 @@ impl Access for CosBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
-                // TODO: set this to false while version has been enabled.
-                write_with_if_not_exists: true,
+                // Cos doesn't support forbid overwrite while version has been enabled.
+                write_with_if_not_exists: !self.core.enable_versioning,
                 // The min multipart size of COS is 1 MiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -286,10 +298,13 @@ impl Access for CosBackend {
                 },
 
                 delete: true,
+                delete_with_version: self.core.enable_versioning,
                 copy: true,
 
                 list: true,
                 list_with_recursive: true,
+                list_with_versions: self.core.enable_versioning,
+                list_with_deleted: self.core.enable_versioning,
                 list_has_content_length: true,
 
                 presign: true,
@@ -311,7 +326,16 @@ impl Access for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+
+                if let Some(v) = parse_header_to_str(headers, "x-cos-version-id")? {
+                    meta.set_version(v);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -357,8 +381,22 @@ impl Access for CosBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = CosLister::new(self.core.clone(), path, args.recursive(), args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        let l = if args.versions() || args.deleted() {
+            TwoWays::Two(PageLister::new(CosObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(PageLister::new(CosLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

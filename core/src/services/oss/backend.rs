@@ -30,7 +30,7 @@ use reqsign::AliyunOssSigner;
 use super::core::*;
 use super::delete::OssDeleter;
 use super::error::parse_error;
-use super::lister::OssLister;
+use super::lister::{OssLister, OssListers, OssObjectVersionsLister};
 use super::writer::OssWriter;
 use super::writer::OssWriters;
 use crate::raw::*;
@@ -93,6 +93,13 @@ impl OssBuilder {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
+
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
 
         self
     }
@@ -408,6 +415,7 @@ impl Builder for OssBuilder {
                 host,
                 presign_endpoint,
                 allow_anonymous: self.config.allow_anonymous,
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader,
                 client,
@@ -428,7 +436,7 @@ pub struct OssBackend {
 impl Access for OssBackend {
     type Reader = HttpBody;
     type Writer = OssWriters;
-    type Lister = oio::PageLister<OssLister>;
+    type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
@@ -449,16 +457,19 @@ impl Access for OssBackend {
                 stat_has_content_type: true,
                 stat_has_content_encoding: true,
                 stat_has_content_range: true,
+                stat_with_version: self.core.enable_versioning,
                 stat_has_etag: true,
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
                 stat_has_user_metadata: true,
+                stat_has_version: true,
 
                 read: true,
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,
+                read_with_version: self.core.enable_versioning,
                 read_with_if_modified_since: true,
                 read_with_if_unmodified_since: true,
 
@@ -470,7 +481,7 @@ impl Access for OssBackend {
                 write_with_content_type: true,
                 write_with_content_disposition: true,
                 // TODO: set this to false while version has been enabled.
-                write_with_if_not_exists: true,
+                write_with_if_not_exists: !self.core.enable_versioning,
 
                 // The min multipart size of OSS is 100 KiB.
                 //
@@ -487,6 +498,7 @@ impl Access for OssBackend {
                 write_with_user_metadata: true,
 
                 delete: true,
+                delete_with_version: self.core.enable_versioning,
                 delete_max_size: Some(self.core.delete_max_size),
 
                 copy: true,
@@ -497,6 +509,8 @@ impl Access for OssBackend {
                 list_with_recursive: true,
                 list_has_etag: true,
                 list_has_content_md5: true,
+                list_with_versions: self.core.enable_versioning,
+                list_with_deleted: self.core.enable_versioning,
                 list_has_content_length: true,
                 list_has_last_modified: true,
 
@@ -574,14 +588,23 @@ impl Access for OssBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = OssLister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        let l = if args.versions() || args.deleted() {
+            TwoWays::Two(oio::PageLister::new(OssObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(oio::PageLister::new(OssLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -511,6 +511,8 @@ impl OpReader {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -543,6 +545,28 @@ impl OpStat {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(v);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
     }
 
     /// Sets the content-disposition header that should be sent back by the remote read operation.

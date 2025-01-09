@@ -78,6 +78,14 @@ async fn main() {
 }
 ```
 
+## WASM support
+
+To build with `wasm32-unknown-unknown` target, you need to enable the `send_wrapper` feature:
+
+```sh
+cargo build --target wasm32-unknown-unknown --features send_wrapper
+```
+
 ## Branding
 
 The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.

@@ -91,8 +91,10 @@ layers-prometheus-client = ["dep:prometheus-client"]
 layers-fastrace = ["dep:fastrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
+# Enable layers otelmetrics support.
+layers-otel-metrics = ["opentelemetry/metrics"]
 # Enable layers oteltrace support.
-layers-otel-trace = ["dep:opentelemetry"]
+layers-otel-trace = ["opentelemetry/trace"]
 # Enable layers throttle support.
 layers-throttle = ["dep:governor"]
 # Enable layers await-tree support.
@@ -374,7 +376,7 @@ mime_guess = { version = "2.0.5", optional = true }
 # for layers-fastrace
 fastrace = { version = "0.7.1", optional = true }
 # for layers-opentelemetry
-opentelemetry = { version = "0.26", optional = true }
+opentelemetry = { version = "0.27", optional = true }
 # for layers-prometheus
 prometheus = { version = "0.13", features = ["process"], optional = true }
 # for layers-prometheus-client
@@ -395,17 +397,17 @@ dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
 libtest-mimic = "0.8"
-opentelemetry = { version = "0.26", default-features = false, features = [
-  "trace",
+opentelemetry = { version = "0.27", default-features = false, features = [
+    "trace",
 ] }
-opentelemetry-otlp = "0.26"
-opentelemetry_sdk = "0.26"
+opentelemetry-otlp = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.27.0"
+tracing-opentelemetry = "0.28.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

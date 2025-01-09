@@ -59,13 +59,12 @@ use crate::*;
 ///
 /// # fn main() -> Result<()> {
 /// use opentelemetry::trace::TracerProvider;
-/// let tracer_provider = opentelemetry_otlp::new_pipeline()
-///     .tracing()
-///     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-///     .with_trace_config(trace::Config::default().with_resource(Resource::new(vec![
+/// let tracer_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+///     .with_simple_exporter(opentelemetry_otlp::SpanExporter::builder().with_tonic().build()?)
+///     .with_resource(Resource::new(vec![
 ///         KeyValue::new("service.name", "opendal_example"),
-///     ])))
-///     .install_simple()?;
+///     ]))
+///     .build();
 /// let tracer = tracer_provider.tracer("opendal_tracer");
 /// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 ///

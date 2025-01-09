@@ -926,6 +926,8 @@ impl Access for S3Backend {
                 stat_has_content_encoding: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_with_if_modified_since: true,
+                stat_with_if_unmodified_since: true,
                 stat_with_override_cache_control: !self.core.disable_stat_with_override,
                 stat_with_override_content_disposition: !self.core.disable_stat_with_override,
                 stat_with_override_content_type: !self.core.disable_stat_with_override,

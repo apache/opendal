@@ -257,7 +257,7 @@ impl Operator {
     ///
     /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
     ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists, and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
     /// will be returned.
     ///
     /// ```
@@ -276,7 +276,7 @@ impl Operator {
     ///
     /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
     ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists, and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
     /// will be returned.
     ///
     /// ```
@@ -285,6 +285,46 @@ impl Operator {
     ///
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.stat_with("path/to/file").if_none_match(etag).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_modified_since`
+    ///
+    /// set `if_modified_since` for this `stat` request.
+    ///
+    /// This feature can be used to check if the file has been modified since the given time.
+    ///
+    /// If file exists, and it's not modified after the given time, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::Utc;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").if_modified_since(Utc::now()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## `if_unmodified_since`
+    ///
+    /// set `if_unmodified_since` for this `stat` request.
+    ///
+    /// This feature can be used to check if the file has NOT been modified since the given time.
+    ///
+    /// If file exists, and it's modified after the given time, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// use opendal::Operator;
+    /// use chrono::Utc;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut metadata = op.stat_with("path/to/file").if_unmodified_since(Utc::now()).await?;
     /// # Ok(())
     /// # }
     /// ```

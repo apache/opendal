@@ -104,6 +104,16 @@ impl<F: Future<Output = Result<Metadata>>> FutureStat<F> {
         self.map(|args| args.with_if_none_match(v))
     }
 
+    /// Set the If-Modified-Since for this operation.
+    pub fn if_modified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|args| args.with_if_modified_since(v))
+    }
+
+    /// Set the If-Unmodified-Since for this operation.
+    pub fn if_unmodified_since(self, v: DateTime<Utc>) -> Self {
+        self.map(|args| args.with_if_unmodified_since(v))
+    }
+
     /// Set the version for this operation.
     pub fn version(self, v: &str) -> Self {
         self.map(|args| args.with_version(v))

@@ -351,7 +351,7 @@ impl OssCore {
                 format_datetime_into_http_date(if_modified_since),
             );
         }
-        
+
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
             req = req.header(
                 IF_UNMODIFIED_SINCE,

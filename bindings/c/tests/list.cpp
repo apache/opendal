@@ -47,7 +47,7 @@ protected:
     void TearDown() override { opendal_operator_free(this->p); }
 };
 
-// Basic usecase of list
+// Basic use case of list
 TEST_F(OpendalListTest, ListDirTest)
 {
     std::string dname = "some_random_dir_name_152312";
@@ -65,7 +65,7 @@ TEST_F(OpendalListTest, ListDirTest)
     };
 
     // write must succeed
-    EXPECT_EQ(opendal_operator_write(this->p, path.c_str(), data),
+    EXPECT_EQ(opendal_operator_write(this->p, path.c_str(), &data),
         nullptr);
 
     // list must succeed since the write succeeded
@@ -119,9 +119,3 @@ TEST_F(OpendalListTest, ListEmptyDirTest) { }
 
 // todo: Try list a directory that does not exist
 TEST_F(OpendalListTest, ListNotExistDirTest) { }
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

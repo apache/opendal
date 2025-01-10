@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -45,16 +44,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::ChaosLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::ChaosLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct ChaosLayer {
@@ -104,6 +105,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
     type BlockingLister = A::BlockingLister;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -112,8 +115,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio))))
             .await
+            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -136,6 +139,14 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 
@@ -171,9 +182,9 @@ impl<R> ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read_at(offset, size).await
+            self.inner.read().await
         } else {
             Err(Self::unexpected_eof())
         }
@@ -181,9 +192,9 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
-            self.inner.read_at(offset, size)
+            self.inner.read()
         } else {
             Err(Self::unexpected_eof())
         }

@@ -58,7 +58,11 @@ impl ChainsafeCore {
 }
 
 impl ChainsafeCore {
-    pub async fn download_object(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -81,7 +85,7 @@ impl ChainsafeCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn object_info(&self, path: &str) -> Result<Response<Buffer>> {
@@ -96,33 +100,6 @@ impl ChainsafeCore {
             "path": path,
         });
 
-        let body = Buffer::from(Bytes::from(req_body.to_string()));
-
-        let req = Request::post(url)
-            .header(
-                header::AUTHORIZATION,
-                format_authorization_by_bearer(&self.api_key)?,
-            )
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        self.send(req).await
-    }
-
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let url = format!(
-            "https://api.chainsafe.io/api/v1/bucket/{}/mv",
-            self.bucket_id
-        );
-
-        let req_body = &json!({
-            "path": from,
-            "new_path": to,
-        });
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
         let req = Request::post(url)
@@ -243,11 +220,8 @@ impl ChainsafeCore {
 #[derive(Debug, Deserialize)]
 pub struct Info {
     pub name: String,
-    pub cid: String,
     pub content_type: String,
     pub size: u64,
-    pub version: i64,
-    pub created_at: i64,
 }
 
 #[derive(Deserialize)]

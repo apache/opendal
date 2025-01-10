@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use bytes::Buf;
 
-use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
 
@@ -37,16 +38,50 @@ use crate::*;
 /// support write multiple chunks will return [`ErrorKind::Unsupported`] error when calling `write`
 /// at the second time.
 ///
-/// ```no_build
-/// let mut w = op.writer("path/to/file").await?;
-/// w.write(bs).await?;
-/// w.write(bs).await?;
-/// w.close().await?
+/// ```
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?;
+///     w.write(vec![1; 1024]).await?;
+///     w.write(vec![2; 1024]).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
 /// ```
 ///
-/// Our writer also provides [`Writer::sink`] and [`Writer::copy`] support.
+/// ### Write like `Sink`
 ///
-/// Besides, our writer implements [`AsyncWrite`] and [`tokio::io::AsyncWrite`].
+/// ```
+/// use anyhow::Result;
+/// use futures::SinkExt;
+/// use opendal::Operator;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?.into_bytes_sink();
+///     w.send(vec![1; 1024].into()).await?;
+///     w.send(vec![2; 1024].into()).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ### Write like `AsyncWrite`
+///
+/// ```
+/// use anyhow::Result;
+/// use futures::AsyncWriteExt;
+/// use opendal::Operator;
+///
+/// async fn test(op: Operator) -> Result<()> {
+///     let mut w = op.writer("path/to/file").await?.into_futures_async_write();
+///     w.write(&vec![1; 1024]).await?;
+///     w.write(&vec![2; 1024]).await?;
+///     w.close().await?;
+///     Ok(())
+/// }
+/// ```
 ///
 /// ### Write with append enabled
 ///
@@ -63,26 +98,18 @@ use crate::*;
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
-    inner: oio::Writer,
+    /// Keep a reference to write context in writer.
+    _ctx: Arc<WriteContext>,
+    inner: WriteGenerator<oio::Writer>,
 }
 
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
-    pub(crate) fn new(w: oio::Writer) -> Self {
-        Writer { inner: w }
-    }
+    pub(crate) async fn new(ctx: WriteContext) -> Result<Self> {
+        let ctx = Arc::new(ctx);
+        let inner = WriteGenerator::create(ctx.clone()).await?;
 
-    /// Create a new writer.
-    ///
-    /// Create will use internal information to decide the most suitable
-    /// implementation for users.
-    ///
-    /// We don't want to expose those details to users so keep this function
-    /// in crate only.
-    pub(crate) async fn create(acc: Accessor, path: &str, op: OpWrite) -> Result<Self> {
-        let (_, w) = acc.write(path, op).await?;
-
-        Ok(Writer { inner: w })
+        Ok(Self { _ctx: ctx, inner })
     }
 
     /// Write [`Buffer`] into writer.
@@ -92,18 +119,17 @@ impl Writer {
     /// ## Examples
     ///
     /// ```
+    /// use bytes::Bytes;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?;
+    ///     let mut w = op.writer("hello.txt").await?;
     ///     // Buffer can be created from continues bytes.
     ///     w.write("hello, world").await?;
     ///     // Buffer can also be created from non-continues bytes.
-    ///     w.write(vec![Bytes::from("hello,"), Bytes::from("world!")]).await?;
+    ///     w.write(vec![Bytes::from("hello,"), Bytes::from("world!")])
+    ///         .await?;
     ///
     ///     // Make sure file has been written completely.
     ///     w.close().await?;
@@ -113,9 +139,10 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
         let mut bs = bs.into();
         while !bs.is_empty() {
-            let n = self.inner.write_dyn(bs.clone()).await?;
+            let n = self.inner.write(bs.clone()).await?;
             bs.advance(n);
         }
+
         Ok(())
     }
 
@@ -128,12 +155,8 @@ impl Writer {
     /// Optimize this function to avoid unnecessary copy.
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
-        let mut bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
-        while !bs.is_empty() {
-            let n = self.inner.write_dyn(bs.clone()).await?;
-            bs.advance(n);
-        }
-        Ok(())
+        let bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
+        self.write(bs).await
     }
 
     /// Abort the writer and clean up all written data.
@@ -163,9 +186,8 @@ impl Writer {
     /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
     /// requires an owned [`Buffer`], which involves an extra copy operation.
     ///
-    /// FuturesAsyncWriters are automatically closed when they go out of scope. Errors detected on
-    /// closing are ignored by the implementation of Drop. Use the method `close` if these errors
-    /// must be manually handled.
+    /// FuturesAsyncWriter is required to call `close()` to make sure all
+    /// data have been written to the storage.
     ///
     /// # Examples
     ///
@@ -179,10 +201,7 @@ impl Writer {
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?
-    ///         .into_futures_async_write();
+    ///     let mut w = op.writer("hello.txt").await?.into_futures_async_write();
     ///     let bs = "Hello, World!".as_bytes();
     ///     w.write_all(bs).await?;
     ///     w.close().await?;
@@ -202,7 +221,9 @@ impl Writer {
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
-    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .writer_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
     ///         .await?
     ///         .into_futures_async_write();
     ///     let bs = "Hello, World!".as_bytes();
@@ -230,16 +251,13 @@ impl Writer {
     /// ```
     /// use std::io;
     ///
+    /// use bytes::Bytes;
     /// use futures::SinkExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
-    ///     let mut w = op
-    ///         .writer("hello.txt")
-    ///         .await?
-    ///         .into_bytes_sink();
+    ///     let mut w = op.writer("hello.txt").await?.into_bytes_sink();
     ///     let bs = "Hello, World!".as_bytes();
     ///     w.send(Bytes::from(bs)).await?;
     ///     w.close().await?;
@@ -253,14 +271,16 @@ impl Writer {
     /// ```
     /// use std::io;
     ///
+    /// use bytes::Bytes;
     /// use futures::SinkExt;
     /// use opendal::Operator;
     /// use opendal::Result;
-    /// use bytes::Bytes;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
-    ///         .writer_with("hello.txt").concurrent(8).chunk(256)
+    ///         .writer_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
     ///         .await?
     ///         .into_bytes_sink();
     ///     let bs = "Hello, World!".as_bytes();

@@ -32,7 +32,7 @@ import org.junit.jupiter.api.TestInstance;
 class BlockingCreateDirTest extends BehaviorTestBase {
     @BeforeAll
     public void precondition() {
-        final Capability capability = blockingOp().info.fullCapability;
+        final Capability capability = op().info.fullCapability;
         assumeTrue(capability.createDir);
     }
 
@@ -42,12 +42,12 @@ class BlockingCreateDirTest extends BehaviorTestBase {
     @Test
     public void testBlockingCreateDir() {
         final String path = UUID.randomUUID() + "/";
-        blockingOp().createDir(path);
+        op().createDir(path);
 
-        final Metadata meta = blockingOp().stat(path);
+        final Metadata meta = op().stat(path);
         assertThat(meta.isFile()).isFalse();
 
-        blockingOp().delete(path);
+        op().delete(path);
     }
 
     /**
@@ -56,12 +56,12 @@ class BlockingCreateDirTest extends BehaviorTestBase {
     @Test
     public void testBlockingDirExisting() {
         final String path = UUID.randomUUID() + "/";
-        blockingOp().createDir(path);
-        blockingOp().createDir(path);
+        op().createDir(path);
+        op().createDir(path);
 
-        final Metadata meta = blockingOp().stat(path);
+        final Metadata meta = op().stat(path);
         assertThat(meta.isFile()).isFalse();
 
-        blockingOp().delete(path);
+        op().delete(path);
     }
 }

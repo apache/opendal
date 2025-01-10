@@ -28,8 +28,7 @@ fn main() {
 }
 
 fn bench_vs_fs(c: &mut Criterion) {
-    let mut cfg = services::Fs::default();
-    cfg.root("/tmp/opendal/");
+    let cfg = services::Fs::default().root("/tmp/opendal/");
     let op = Operator::new(cfg).unwrap().finish().blocking();
 
     let mut group = c.benchmark_group("read");

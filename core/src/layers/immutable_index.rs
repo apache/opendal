@@ -17,6 +17,7 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::vec::IntoIter;
 
 use crate::raw::*;
@@ -29,22 +30,25 @@ use crate::*;
 /// # Examples
 ///
 /// ```rust, no_run
-/// use std::collections::HashMap;
+/// # use std::collections::HashMap;
 ///
-/// use opendal::layers::ImmutableIndexLayer;
-/// use opendal::services;
-/// use opendal::Operator;
+/// # use opendal::layers::ImmutableIndexLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
+/// # fn main() -> Result<()> {
 /// let mut iil = ImmutableIndexLayer::default();
 ///
 /// for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_map::<services::Http>(HashMap::default())
-///     .unwrap()
+/// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
 ///     .layer(iil)
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {
@@ -134,29 +138,35 @@ impl<A: Access> ImmutableIndexAccessor<A> {
 impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = ImmutableDir;
+    type Deleter = A::Deleter;
+    type BlockingReader = A::BlockingReader;
+    type BlockingWriter = A::BlockingWriter;
     type BlockingLister = ImmutableDir;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     /// Add list capabilities for underlying storage services.
-    fn metadata(&self) -> AccessorInfo {
-        let mut meta = self.inner.info();
+    fn info(&self) -> Arc<AccessorInfo> {
+        let mut meta = (*self.inner.info()).clone();
 
         let cap = meta.full_capability_mut();
         cap.list = true;
         cap.list_with_recursive = true;
 
-        meta
+        meta.into()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner.read(path, args).await
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -174,12 +184,12 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
         Ok((RpList::default(), ImmutableDir::new(idx)))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -199,6 +209,10 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 
@@ -250,7 +264,7 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
-    use crate::services::Http;
+    use crate::services::HttpConfig;
     use crate::EntryMode;
     use crate::Operator;
 
@@ -263,12 +277,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -301,12 +315,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -345,12 +359,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -403,12 +417,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_map({
+        let op = HttpConfig::from_iter({
             let mut map = HashMap::new();
             map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-
             map
-        }))?
+        })
+        .and_then(Operator::from_config)?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();

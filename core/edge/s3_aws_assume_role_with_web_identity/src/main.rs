@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     assert_eq!(op.info().scheme(), Scheme::S3);
 
     let result = op
-        .is_exist(&uuid::Uuid::new_v4().to_string())
+        .exists(&uuid::Uuid::new_v4().to_string())
         .await
         .expect("this operation should never return error");
     assert!(!result, "the file must be not exist");

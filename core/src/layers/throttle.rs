@@ -50,17 +50,20 @@ use crate::*;
 ///
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 ///
-/// ```no_build
-/// use anyhow::Result;
-/// use opendal::layers::ThrottleLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// ```no_run
+/// # use opendal::layers::ThrottleLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
+/// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
@@ -111,11 +114,13 @@ pub struct ThrottleAccessor<A: Access> {
 impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
-    type BlockingReader = ThrottleWrapper<A::BlockingReader>;
     type Writer = ThrottleWrapper<A::Writer>;
-    type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
     type Lister = A::Lister;
+    type Deleter = A::Deleter;
+    type BlockingReader = ThrottleWrapper<A::BlockingReader>;
+    type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
     type BlockingLister = A::BlockingLister;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -139,6 +144,10 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
     }
 
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
@@ -157,6 +166,10 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -179,19 +192,19 @@ impl<R> ThrottleWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, size).await
+    async fn read(&mut self) -> Result<Buffer> {
+        self.inner.read().await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, size)
+    fn read(&mut self) -> Result<Buffer> {
+        self.inner.read()
     }
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
@@ -226,7 +239,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {

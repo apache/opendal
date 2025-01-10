@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.2"
+version = "0.41.15"
 
 [features]
 default = ["frontends-webdav", "frontends-s3"]
@@ -36,34 +36,28 @@ frontends-s3 = []
 frontends-webdav = [
   "dep:dav-server",
   "dep:dav-server-opendalfs",
-  "dep:bytes",
   "dep:futures-util",
 ]
 
 [dependencies]
 anyhow = "1"
-axum = "0.6"
-bytes = { version = "1.5.0", optional = true }
+axum = "0.7"
 chrono = "0.4.31"
-clap = { version = "4", features = ["cargo", "string"] }
-dav-server = { version = "0.5.8", optional = true }
-dav-server-opendalfs = { version = "0.0.2", path = "../../integrations/dav-server", optional = true }
-dirs = "5.0.1"
-futures = "0.3"
+dav-server = { version = "0.7", optional = true }
+dav-server-opendalfs = { version = "0.3.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
-opendal = { version = "0.46.0", path = "../../core" }
-quick-xml = { version = "0.31", features = ["serialize", "overlapped-lists"] }
+opendal = { version = "0.51.0", path = "../../core", features = [
+  "services-fs",
+] }
+quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.34", features = [
+tokio = { version = "1.39", features = [
   "fs",
   "macros",
   "rt-multi-thread",
   "io-std",
 ] }
 toml = "0.8.12"
-tower = "0.4"
-tower-http = { version = "0.4", features = ["trace"] }
+tower = { version = "0.4", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-url = "2.5.0"
-uuid = { version = "1", features = ["v4", "fast-rng"] }

@@ -15,21 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
 use crate::raw::*;
-use crate::services::swift::reader::SwiftReader;
+use crate::services::SwiftConfig;
 use crate::*;
+
+impl Configurator for SwiftConfig {
+    type Builder = SwiftBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SwiftBuilder { config: self }
+    }
+}
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
@@ -37,25 +45,14 @@ use crate::*;
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
-    endpoint: Option<String>,
-    container: Option<String>,
-    root: Option<String>,
-    token: Option<String>,
+    config: SwiftConfig,
 }
 
 impl Debug for SwiftBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("container", &self.container);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+        let mut d = f.debug_struct("SwiftBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -70,8 +67,8 @@ impl SwiftBuilder {
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `https://` to it.
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
@@ -82,8 +79,8 @@ impl SwiftBuilder {
     /// Set container of this backend.
     ///
     /// All operations will happen under this container. It is required. e.g. `snapshots`
-    pub fn container(&mut self, container: &str) -> &mut Self {
-        self.container = if container.is_empty() {
+    pub fn container(mut self, container: &str) -> Self {
+        self.config.container = if container.is_empty() {
             None
         } else {
             Some(container.trim_end_matches('/').to_string())
@@ -94,10 +91,12 @@ impl SwiftBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -105,9 +104,9 @@ impl SwiftBuilder {
     /// Set the token of this backend.
     ///
     /// Default to empty string.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
-            self.token = Some(token.to_string());
+            self.config.token = Some(token.to_string());
         }
         self
     }
@@ -115,26 +114,16 @@ impl SwiftBuilder {
 
 impl Builder for SwiftBuilder {
     const SCHEME: Scheme = Scheme::Swift;
-    type Accessor = SwiftBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = SwiftBuilder::default();
-
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("container").map(|v| builder.container(v));
-        map.get("token").map(|v| builder.token(v));
-
-        builder
-    }
+    type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let endpoint = match self.endpoint.take() {
+        let endpoint = match self.config.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint
@@ -151,7 +140,7 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        let container = match self.container.take() {
+        let container = match self.config.container {
             Some(container) => container,
             None => {
                 return Err(Error::new(
@@ -162,14 +151,10 @@ impl Builder for SwiftBuilder {
         };
         debug!("backend use container: {}", &container);
 
-        let token = match self.token.take() {
-            Some(token) => token,
-            None => String::new(),
-        };
+        let token = self.config.token.unwrap_or_default();
 
         let client = HttpClient::new()?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
                 root,
@@ -189,19 +174,30 @@ pub struct SwiftBackend {
 }
 
 impl Access for SwiftBackend {
-    type Reader = SwiftReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
+    type Deleter = oio::OneShotDeleter<SwfitDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Swift)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
@@ -211,10 +207,16 @@ impl Access for SwiftBackend {
 
                 list: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -227,15 +229,23 @@ impl Access for SwiftBackend {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            SwiftReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.swift_read(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -246,16 +256,11 @@ impl Access for SwiftBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.swift_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::OK => Ok(RpDelete::default()),
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(SwfitDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -278,7 +283,7 @@ impl Access for SwiftBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

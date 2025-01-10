@@ -45,7 +45,7 @@ pub fn new_json_deserialize_error(e: serde_json::Error) -> Error {
 
 /// ConfigDeserializer is used to deserialize given configs from `HashMap<String, String>`.
 ///
-/// This is only used by our services config.
+/// This is only used by our services' config.
 pub struct ConfigDeserializer(MapDeserializer<'static, Pairs, de::value::Error>);
 
 impl ConfigDeserializer {
@@ -95,7 +95,7 @@ impl Iterator for Pairs {
 /// Pair is used to hold both key and value of a config for better error output.
 struct Pair(String, String);
 
-impl<'de> IntoDeserializer<'de, de::value::Error> for Pair {
+impl IntoDeserializer<'_, de::value::Error> for Pair {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

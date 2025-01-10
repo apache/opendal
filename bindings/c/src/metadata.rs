@@ -16,6 +16,7 @@
 // under the License.
 
 use ::opendal as core;
+use std::ffi::c_void;
 
 /// \brief Carries all metadata associated with a **path**.
 ///
@@ -30,7 +31,15 @@ use ::opendal as core;
 pub struct opendal_metadata {
     /// The pointer to the opendal::Metadata in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    pub inner: *mut core::Metadata,
+    inner: *mut c_void,
+}
+
+impl opendal_metadata {
+    fn deref(&self) -> &core::Metadata {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &*(self.inner as *mut core::Metadata) }
+    }
 }
 
 impl opendal_metadata {
@@ -38,16 +47,16 @@ impl opendal_metadata {
     /// [`opendal_metadata`]
     pub(crate) fn new(m: core::Metadata) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(m)),
+            inner: Box::into_raw(Box::new(m)) as _,
         }
     }
 
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
     pub unsafe extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
-        unsafe {
-            let _ = Box::from_raw((*ptr).inner);
-            let _ = Box::from_raw(ptr);
+        if !ptr.is_null() {
+            drop(Box::from_raw((*ptr).inner as *mut core::Metadata));
+            drop(Box::from_raw(ptr));
         }
     }
 
@@ -64,9 +73,7 @@ impl opendal_metadata {
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
-        // Safety: the inner should never be null once constructed
-        // The use-after-free is undefined behavior
-        unsafe { (*self.inner).content_length() }
+        self.deref().content_length()
     }
 
     /// \brief Return whether the path represents a file
@@ -82,11 +89,7 @@ impl opendal_metadata {
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
-        // Safety: the inner should never be null once constructed
-        // The use-after-free is undefined behavior
-        let m = unsafe { &*self.inner };
-
-        m.is_file()
+        self.deref().is_file()
     }
 
     /// \brief Return whether the path represents a directory
@@ -107,9 +110,7 @@ impl opendal_metadata {
     /// after we support opendal_operator_mkdir()
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_dir(&self) -> bool {
-        // Safety: the inner should never be null once constructed
-        // The use-after-free is undefined behavior
-        unsafe { (*self.inner).is_dir() }
+        self.deref().is_dir()
     }
 
     /// \brief Return the last_modified of the metadata, in milliseconds
@@ -125,7 +126,7 @@ impl opendal_metadata {
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_last_modified_ms(&self) -> i64 {
-        let mtime = unsafe { (*self.inner).last_modified() };
+        let mtime = self.deref().last_modified();
         match mtime {
             None => -1,
             Some(time) => time.timestamp_millis(),

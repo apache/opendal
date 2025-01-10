@@ -71,6 +71,16 @@ impl BytesRange {
         self.1
     }
 
+    /// Advance the range by `n` bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panic if input `n` is larger than the size of the range.
+    pub fn advance(&mut self, n: u64) {
+        self.0 += n;
+        self.1 = self.1.map(|size| size - n);
+    }
+
     /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.
@@ -89,6 +99,17 @@ impl BytesRange {
             Bound::Included(self.0),
             match self.1 {
                 Some(size) => Bound::Excluded(self.0 + size),
+                None => Bound::Unbounded,
+            },
+        )
+    }
+
+    /// Convert bytes range into rust range with usize.
+    pub(crate) fn to_range_as_usize(self) -> impl RangeBounds<usize> {
+        (
+            Bound::Included(self.0 as usize),
+            match self.1 {
+                Some(size) => Bound::Excluded((self.0 + size) as usize),
                 None => Bound::Unbounded,
             },
         )

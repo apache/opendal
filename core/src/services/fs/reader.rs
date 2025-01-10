@@ -15,75 +15,47 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Read;
 use std::sync::Arc;
+
+use tokio::io::AsyncReadExt;
 use tokio::io::ReadBuf;
 
 use super::core::*;
 use crate::raw::*;
 use crate::*;
 
-pub struct FsReader {
+pub struct FsReader<F> {
     core: Arc<FsCore>,
-    f: std::fs::File,
+    f: F,
+    read: usize,
+    size: usize,
+    buf_size: usize,
 }
 
-impl FsReader {
-    pub fn new(core: Arc<FsCore>, f: std::fs::File) -> Self {
-        Self { core, f }
-    }
-
-    fn try_clone(&self) -> Result<Self> {
-        let f = self.f.try_clone().map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "tokio fs clone file description failed",
-            )
-            .set_source(err)
-        })?;
-
-        Ok(Self {
-            core: self.core.clone(),
+impl<F> FsReader<F> {
+    pub fn new(core: Arc<FsCore>, f: F, size: usize) -> Self {
+        Self {
+            core,
             f,
-        })
-    }
-
-    #[cfg(target_family = "unix")]
-    pub fn read_at_inner(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        use std::os::unix::fs::FileExt;
-        self.f.read_at(buf, offset).map_err(new_std_io_error)
-    }
-
-    #[cfg(target_family = "windows")]
-    pub fn read_at_inner(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        use std::os::windows::fs::FileExt;
-        self.f.seek_read(buf, offset).map_err(new_std_io_error)
-    }
-}
-
-impl oio::Read for FsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        let handle = self.try_clone()?;
-
-        match tokio::runtime::Handle::try_current() {
-            Ok(runtime) => runtime
-                .spawn_blocking(move || oio::BlockingRead::read_at(&handle, offset, size))
-                .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "tokio spawn io task failed").set_source(err)
-                })?,
-            Err(_) => Err(Error::new(
-                ErrorKind::Unexpected,
-                "no tokio runtime found, failed to run io task",
-            )),
+            read: 0,
+            size,
+            // Use 2 MiB as default value.
+            buf_size: 2 * 1024 * 1024,
         }
     }
 }
 
-impl oio::BlockingRead for FsReader {
-    fn read_at(&self, mut offset: u64, size: usize) -> Result<Buffer> {
-        let mut bs = self.core.buf_pool.get();
-        bs.reserve(size);
+impl oio::Read for FsReader<tokio::fs::File> {
+    async fn read(&mut self) -> Result<Buffer> {
+        if self.read >= self.size {
+            return Ok(Buffer::new());
+        }
 
+        let mut bs = self.core.buf_pool.get();
+        bs.reserve(self.buf_size);
+
+        let size = (self.size - self.read).min(self.buf_size);
         let buf = &mut bs.spare_capacity_mut()[..size];
         let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
 
@@ -92,18 +64,49 @@ impl oio::BlockingRead for FsReader {
             read_buf.assume_init(size);
         }
 
-        loop {
-            // If the buffer is full, we are done.
-            if read_buf.initialize_unfilled().is_empty() {
-                break;
-            }
-            let n = self.read_at_inner(read_buf.initialize_unfilled(), offset)?;
-            if n == 0 {
-                break;
-            }
-            read_buf.advance(n);
-            offset += n as u64;
+        let n = self
+            .f
+            .read_buf(&mut read_buf)
+            .await
+            .map_err(new_std_io_error)?;
+        self.read += n;
+
+        // Safety: We make sure that bs contains `n` more bytes.
+        let filled = read_buf.filled().len();
+        unsafe { bs.set_len(filled) }
+
+        let frozen = bs.split().freeze();
+        // Return the buffer to the pool.
+        self.core.buf_pool.put(bs);
+
+        Ok(Buffer::from(frozen))
+    }
+}
+
+impl oio::BlockingRead for FsReader<std::fs::File> {
+    fn read(&mut self) -> Result<Buffer> {
+        if self.read >= self.size {
+            return Ok(Buffer::new());
         }
+
+        let mut bs = self.core.buf_pool.get();
+        bs.reserve(self.buf_size);
+
+        let size = (self.size - self.read).min(self.buf_size);
+        let buf = &mut bs.spare_capacity_mut()[..size];
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
+
+        // SAFETY: Read at most `limit` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(size);
+        }
+
+        let n = self
+            .f
+            .read(read_buf.initialize_unfilled())
+            .map_err(new_std_io_error)?;
+        read_buf.advance(n);
+        self.read += n;
 
         // Safety: We make sure that bs contains `n` more bytes.
         let filled = read_buf.filled().len();

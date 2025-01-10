@@ -15,74 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
-use crate::services::huggingface::reader::HuggingfaceReader;
+use crate::services::HuggingfaceConfig;
 use crate::*;
 
-/// Configuration for Huggingface service support.
-#[derive(Default, Deserialize, Clone)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct HuggingfaceConfig {
-    /// Repo type of this backend. Default is model.
-    ///
-    /// Available values:
-    /// - model
-    /// - dataset
-    pub repo_type: Option<String>,
-    /// Repo id of this backend.
-    ///
-    /// This is required.
-    pub repo_id: Option<String>,
-    /// Revision of this backend.
-    ///
-    /// Default is main.
-    pub revision: Option<String>,
-    /// Root of this backend. Can be "/path/to/dir".
-    ///
-    /// Default is "/".
-    pub root: Option<String>,
-    /// Token of this backend.
-    ///
-    /// This is optional.
-    pub token: Option<String>,
-}
-
-impl Debug for HuggingfaceConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("HuggingfaceConfig");
-
-        if let Some(repo_type) = &self.repo_type {
-            ds.field("repo_type", &repo_type);
-        }
-        if let Some(repo_id) = &self.repo_id {
-            ds.field("repo_id", &repo_id);
-        }
-        if let Some(revision) = &self.revision {
-            ds.field("revision", &revision);
-        }
-        if let Some(root) = &self.root {
-            ds.field("root", &root);
-        }
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+impl Configurator for HuggingfaceConfig {
+    type Builder = HuggingfaceBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HuggingfaceBuilder { config: self }
     }
 }
 
@@ -111,7 +64,7 @@ impl HuggingfaceBuilder {
     ///
     /// Currently, only models and datasets are supported.
     /// [Reference](https://huggingface.co/docs/hub/repositories)
-    pub fn repo_type(&mut self, repo_type: &str) -> &mut Self {
+    pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
             self.config.repo_type = Some(repo_type.to_string());
         }
@@ -127,7 +80,7 @@ impl HuggingfaceBuilder {
     ///
     /// Dataset's repo id looks like:
     /// - databricks/databricks-dolly-15k
-    pub fn repo_id(&mut self, repo_id: &str) -> &mut Self {
+    pub fn repo_id(mut self, repo_id: &str) -> Self {
         if !repo_id.is_empty() {
             self.config.repo_id = Some(repo_id.to_string());
         }
@@ -141,7 +94,7 @@ impl HuggingfaceBuilder {
     /// For example, revision can be:
     /// - main
     /// - 1d0c4eb
-    pub fn revision(&mut self, revision: &str) -> &mut Self {
+    pub fn revision(mut self, revision: &str) -> Self {
         if !revision.is_empty() {
             self.config.revision = Some(revision.to_string());
         }
@@ -151,17 +104,20 @@ impl HuggingfaceBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string());
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
     /// Set the token of this backend.
     ///
     /// This is optional.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }
@@ -171,17 +127,10 @@ impl HuggingfaceBuilder {
 
 impl Builder for HuggingfaceBuilder {
     const SCHEME: Scheme = Scheme::Huggingface;
-    type Accessor = HuggingfaceBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = HuggingfaceConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        HuggingfaceBuilder { config }
-    }
+    type Config = HuggingfaceConfig;
 
     /// Build a HuggingfaceBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let repo_type = match self.config.repo_type.as_deref() {
@@ -215,14 +164,13 @@ impl Builder for HuggingfaceBuilder {
         };
         debug!("backend use revision: {}", &revision);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root: {}", &root);
 
         let token = self.config.token.as_ref().cloned();
 
         let client = HttpClient::new()?;
 
-        debug!("backend build finished: {:?}", &self);
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
                 repo_type,
@@ -243,27 +191,35 @@ pub struct HuggingfaceBackend {
 }
 
 impl Access for HuggingfaceBackend {
-    type Reader = HuggingfaceReader;
+    type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
                 list: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
+                shared: true,
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -305,15 +261,25 @@ impl Access for HuggingfaceBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            HuggingfaceReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.hf_resolve(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

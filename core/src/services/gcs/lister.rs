@@ -78,7 +78,7 @@ impl oio::PageList for GcsLister {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
         let bytes = resp.into_body();
 
@@ -102,9 +102,9 @@ impl oio::PageList for GcsLister {
 
         for object in output.items {
             // exclude the inclusive start_after itself
-            let path = build_rel_path(&self.core.root, &object.name);
-            if path == self.path || path.is_empty() {
-                continue;
+            let mut path = build_rel_path(&self.core.root, &object.name);
+            if path.is_empty() {
+                path = "/".to_string();
             }
             if self.start_after.as_ref() == Some(&path) {
                 continue;

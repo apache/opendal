@@ -21,21 +21,20 @@ package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncExecutor;
-import org.apache.opendal.Operator;
+import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.ServiceConfig;
 import org.junit.jupiter.api.Test;
 
 public class AsyncExecutorTest {
     @Test
     void testDedicatedTokioExecutor() {
-        final Map<String, String> conf = new HashMap<>();
-        conf.put("root", "/opendal/");
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
         final int cores = Runtime.getRuntime().availableProcessors();
         @Cleanup final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(cores);
-        @Cleanup final Operator op = Operator.of("memory", conf, executor);
+        @Cleanup final AsyncOperator op = AsyncOperator.of(memory, executor);
         assertThat(op.info).isNotNull();
 
         final String key = "key";

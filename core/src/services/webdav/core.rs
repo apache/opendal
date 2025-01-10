@@ -113,7 +113,7 @@ impl WebdavCore {
 
         let resp = self.client.send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -135,7 +135,7 @@ impl WebdavCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -151,7 +151,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn webdav_put(
@@ -292,7 +292,7 @@ impl WebdavCore {
 
         loop {
             match self.webdav_stat_rooted_abs_path(path).await {
-                // Dir is exist, break the loop.
+                // Dir exists, break the loop.
                 Ok(_) => {
                     break;
                 }
@@ -346,7 +346,7 @@ impl WebdavCore {
 
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
@@ -384,7 +384,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         if code >= 400 {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                &format!("propfind response is unexpected: {} {}", code, text),
+                format!("propfind response is unexpected: {} {}", code, text),
             ));
         }
     }
@@ -412,7 +412,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
-    Ok(m.with_metakey(Metakey::Complete))
+    Ok(m)
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]

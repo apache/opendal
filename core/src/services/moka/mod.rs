@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-moka")]
 mod backend;
+#[cfg(feature = "services-moka")]
 pub use backend::MokaBuilder as Moka;
-pub use backend::MokaConfig;
+
+mod config;
+pub use config::MokaConfig;

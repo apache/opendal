@@ -22,14 +22,15 @@ use bytes::Buf;
 use bytes::Bytes;
 use chrono::Utc;
 use http::Request;
+use http::Response;
 use http::StatusCode;
 use serde_json::json;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::delete::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
-use super::reader::GdriveReader;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::*;
@@ -40,23 +41,31 @@ pub struct GdriveBackend {
 }
 
 impl Access for GdriveBackend {
-    type Reader = GdriveReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
+    type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_last_modified: true,
 
                 read: true,
 
                 list: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_etag: true,
 
                 write: true,
 
@@ -64,10 +73,13 @@ impl Access for GdriveBackend {
                 delete: true,
                 rename: true,
                 copy: true,
+
+                shared: true,
+
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -81,18 +93,19 @@ impl Access for GdriveBackend {
         let resp = self.core.gdrive_stat(path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
         let gdrive_file: GdriveFile =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        let file_type = if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
         };
-
-        let mut meta = Metadata::new(EntryMode::FILE);
+        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
         if let Some(v) = gdrive_file.size {
             meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
@@ -107,10 +120,17 @@ impl Access for GdriveBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            GdriveReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.gdrive_get(path, args.range()).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -126,24 +146,11 @@ impl Access for GdriveBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = build_abs_path(&self.core.root, path);
-        let file_id = self.core.path_cache.get(&path).await?;
-        let file_id = if let Some(id) = file_id {
-            id
-        } else {
-            return Ok(RpDelete::default());
-        };
-
-        let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
-        if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        self.core.path_cache.remove(&path).await;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -173,7 +180,7 @@ impl Access for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
 
             self.core.path_cache.remove(&to_path).await;
@@ -199,7 +206,7 @@ impl Access for GdriveBackend {
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -212,7 +219,7 @@ impl Access for GdriveBackend {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
 
             self.core.path_cache.remove(&target).await;
@@ -240,7 +247,7 @@ impl Access for GdriveBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

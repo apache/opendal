@@ -32,7 +32,7 @@ struct B2Error {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -55,7 +55,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         (kind, retryable) = parse_b2_error_code(b2_err.code.as_str()).unwrap_or((kind, retryable));
     };
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -63,11 +63,11 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 /// Returns the `Error kind` of this code and whether the error is retryable.
-pub fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
         "already_hidden" => Some((ErrorKind::AlreadyExists, false)),
         "no_such_file" => Some((ErrorKind::NotFound, false)),
@@ -124,10 +124,9 @@ mod test {
             let body = Buffer::from(bs);
             let resp = Response::builder().status(res.2).body(body).unwrap();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(resp);
 
-            assert!(err.is_ok());
-            assert_eq!(err.unwrap().kind(), res.1);
+            assert_eq!(err.kind(), res.1);
         }
     }
 }

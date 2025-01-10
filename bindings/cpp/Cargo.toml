@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.44.3"
+version = "0.45.15"
 
 [lib]
 crate-type = ["staticlib"]
@@ -34,7 +34,9 @@ crate-type = ["staticlib"]
 anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
-opendal = { version = "0.46.0", path = "../../core", features = [
+cxx-async = { version = "0.1.2", optional = true }
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",
@@ -55,3 +57,6 @@ opendal = { version = "0.46.0", path = "../../core", features = [
 
 [build-dependencies]
 cxx-build = "1.0"
+
+[features]
+async = ["cxx-async", "cxx/c++20"]

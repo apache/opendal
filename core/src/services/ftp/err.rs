@@ -21,7 +21,7 @@ use suppaftp::Status;
 use crate::Error;
 use crate::ErrorKind;
 
-pub fn parse_error(err: FtpError) -> Error {
+pub(super) fn parse_error(err: FtpError) -> Error {
     let (kind, retryable) = match err {
         // Allow retry for error
         //

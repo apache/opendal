@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use futures::TryStreamExt;
 use pyo3::exceptions::PyStopAsyncIteration;
-use pyo3::prelude::*;
-use pyo3_asyncio::tokio::future_into_py;
+use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 
 use crate::*;
@@ -42,7 +42,7 @@ impl BlockingLister {
     }
     fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
         match slf.0.next() {
-            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py(slf.py()))),
+            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(slf.py())?)),
             Some(Err(err)) => {
                 let pyerr = format_pyerr(err);
                 Err(pyerr)
@@ -72,10 +72,17 @@ impl AsyncLister {
             let mut lister = lister.lock().await;
             let entry = lister.try_next().await.map_err(format_pyerr)?;
             match entry {
-                Some(entry) => Ok(Python::with_gil(|py| Entry::new(entry).into_py(py))),
+                Some(entry) => Python::with_gil(|py| {
+                    let py_obj = Entry::new(entry).into_py_any(py)?;
+                    Ok(Some(py_obj))
+                }),
                 None => Err(PyStopAsyncIteration::new_err("stream exhausted")),
             }
-        })?;
-        Ok(Some(fut.into()))
+        });
+
+        match fut {
+            Ok(fut) => Ok(Some(fut.into())),
+            Err(e) => Err(e),
+        }
     }
 }

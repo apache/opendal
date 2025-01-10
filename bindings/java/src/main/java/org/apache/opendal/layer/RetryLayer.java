@@ -23,6 +23,12 @@ import java.time.Duration;
 import lombok.Builder;
 import org.apache.opendal.Layer;
 
+/**
+ * This layer will retry failed operations when {@code Error::is_temporary} returns {@code true}.
+ * If operation still failed, this layer will set error to Persistent which means error has been retried.
+ *
+ * @see <a href="https://docs.rs/opendal/latest/opendal/layers/struct.RetryLayer.html">RetryLayer's rustdoc</a>
+ */
 @Builder
 public class RetryLayer extends Layer {
 

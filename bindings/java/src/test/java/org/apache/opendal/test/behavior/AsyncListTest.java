@@ -33,6 +33,7 @@ import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
+import org.assertj.core.util.Lists;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -42,7 +43,7 @@ class AsyncListTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = asyncOp().info.fullCapability;
         assumeTrue(capability.read && capability.write && capability.list && capability.createDir);
     }
 
@@ -55,13 +56,13 @@ class AsyncListTest extends BehaviorTestBase {
         final String path = String.format("%s/%s", parent, UUID.randomUUID());
         final byte[] content = generateBytes();
 
-        op().write(path, content).join();
+        asyncOp().write(path, content).join();
 
-        final List<Entry> entries = op().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parent + "/").join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
-                Metadata meta = op().stat(path).join();
+                Metadata meta = asyncOp().stat(path).join();
                 assertTrue(meta.isFile());
                 assertThat(meta.getContentLength()).isEqualTo(content.length);
 
@@ -69,7 +70,7 @@ class AsyncListTest extends BehaviorTestBase {
             }
         }
         assertTrue(found);
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -77,24 +78,25 @@ class AsyncListTest extends BehaviorTestBase {
      */
     @Test
     public void testListRichDir() {
-        final String parent = "test_list_rich_dir";
-        op().createDir(parent + "/").join();
+        final String parentPath = "test_list_rich_dir/";
+        asyncOp().createDir(parentPath).join();
         final List<String> expected = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            expected.add(String.format("%s/file-%d", parent, i));
+            expected.add(String.format("%sfile-%d", parentPath, i));
         }
 
         for (String path : expected) {
-            op().write(path, parent).join();
+            asyncOp().write(path, parentPath).join();
         }
 
-        final List<Entry> entries = op().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parentPath).join();
         final List<String> actual =
                 entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
 
+        expected.add(parentPath);
         Collections.sort(expected);
         assertThat(actual).isEqualTo(expected);
-        op().removeAll(parent + "/").join();
+        asyncOp().removeAll(parentPath).join();
     }
 
     /**
@@ -103,12 +105,14 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testListEmptyDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
-        op().createDir(dir).join();
+        asyncOp().createDir(dir).join();
 
-        final List<Entry> entries = op().list(dir).join();
-        assertThat(entries).isEmpty();
+        final List<Entry> entries = asyncOp().list(dir).join();
+        final List<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toList());
+        assertThat(actual).hasSize(1);
+        assertThat(actual.get(0)).isEqualTo(dir);
 
-        op().delete(dir).join();
+        asyncOp().delete(dir).join();
     }
 
     /**
@@ -118,7 +122,7 @@ class AsyncListTest extends BehaviorTestBase {
     public void testListNotExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
-        final List<Entry> entries = op().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir).join();
         assertThat(entries).isEmpty();
     }
 
@@ -128,9 +132,9 @@ class AsyncListTest extends BehaviorTestBase {
     @Test
     public void testListSubDir() {
         final String path = String.format("%s/", UUID.randomUUID());
-        op().createDir(path).join();
+        asyncOp().createDir(path).join();
 
-        final List<Entry> entries = op().list("/").join();
+        final List<Entry> entries = asyncOp().list("/").join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -141,7 +145,7 @@ class AsyncListTest extends BehaviorTestBase {
         }
         assertTrue(found);
 
-        op().delete(path).join();
+        asyncOp().delete(path).join();
     }
 
     /**
@@ -151,32 +155,41 @@ class AsyncListTest extends BehaviorTestBase {
     public void testListNestedDir() {
         final String dir = String.format("%s/%s/", UUID.randomUUID(), UUID.randomUUID());
         final String fileName = UUID.randomUUID().toString();
-        final String filePath = String.format("%s/%s", dir, fileName);
+        final String filePath = String.format("%s%s", dir, fileName);
         final String dirName = String.format("%s/", UUID.randomUUID());
-        final String dirPath = String.format("%s/%s", dir, dirName);
+        final String dirPath = String.format("%s%s", dir, dirName);
         final String content = "test_list_nested_dir";
 
-        op().createDir(dir).join();
-        op().write(filePath, content).join();
-        op().createDir(dirPath).join();
+        asyncOp().createDir(dir).join();
+        asyncOp().write(filePath, content).join();
+        asyncOp().createDir(dirPath).join();
 
-        final List<Entry> entries = op().list(dir).join();
-        assertThat(entries).hasSize(2);
+        final List<Entry> entries = asyncOp().list(dir).join();
+        assertThat(entries).hasSize(3);
+
+        final List<String> expectedPaths = Lists.newArrayList(dir, dirPath, filePath);
+        Collections.sort(expectedPaths);
+        final List<String> actualPaths =
+                entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+        assertThat(actualPaths).isEqualTo(expectedPaths);
 
         for (Entry entry : entries) {
             // check file
             if (entry.getPath().equals(filePath)) {
-                Metadata metadata = entry.getMetadata();
+                Metadata metadata = asyncOp().stat(filePath).join();
                 assertTrue(metadata.isFile());
                 assertThat(metadata.getContentLength()).isEqualTo(content.length());
                 // check dir
             } else if (entry.getPath().equals(dirPath)) {
                 Metadata metadata = entry.getMetadata();
                 assertTrue(metadata.isDir());
+            } else {
+                assertThat(entry.getPath()).isEqualTo(dir);
+                assertTrue(entry.metadata.isDir());
             }
         }
 
-        op().removeAll(dir).join();
+        asyncOp().removeAll(dir).join();
     }
 
     /**
@@ -190,23 +203,25 @@ class AsyncListTest extends BehaviorTestBase {
         };
         for (String path : expected) {
             if (path.endsWith("/")) {
-                op().createDir(String.format("%s/%s", parent, path)).join();
+                asyncOp().createDir(String.format("%s/%s", parent, path)).join();
             } else {
-                op().write(String.format("%s/%s", parent, path), "test_scan").join();
+                asyncOp()
+                        .write(String.format("%s/%s", parent, path), "test_scan")
+                        .join();
             }
         }
 
-        op().removeAll(parent + "/x/").join();
+        asyncOp().removeAll(parent + "/x/").join();
 
         for (String path : expected) {
             if (path.endsWith("/")) {
                 continue;
             }
             assertThatThrownBy(() ->
-                            op().stat(String.format("%s/%s", parent, path)).join())
+                            asyncOp().stat(String.format("%s/%s", parent, path)).join())
                     .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
         }
 
-        op().removeAll(parent + "/").join();
+        asyncOp().removeAll(parent + "/").join();
     }
 }

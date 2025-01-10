@@ -42,4 +42,8 @@ impl oio::Read for HdfsNativeReader {
 
         Ok(Buffer::from(bytes))
     }
+
+    async fn read(&mut self) -> Result<Buffer> {
+        todo!()
+    }
 }

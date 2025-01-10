@@ -38,9 +38,10 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Sftp::default();
-
-    builder.endpoint("127.0.0.1").user("test").key("test_key");
+    let mut builder = Sftp::default()
+        .endpoint("127.0.0.1")
+        .user("test")
+        .key("test_key");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

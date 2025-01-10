@@ -39,7 +39,7 @@ pub fn new_std_io_error(err: std::io::Error) -> Error {
         _ => (ErrorKind::Unexpected, true),
     };
 
-    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
+    let mut err = Error::new(kind, err.kind().to_string()).set_source(err);
 
     if retryable {
         err = err.set_temporary();

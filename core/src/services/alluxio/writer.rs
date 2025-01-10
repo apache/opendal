@@ -43,7 +43,7 @@ impl AlluxioWriter {
 }
 
 impl oio::Write for AlluxioWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let stream_id = match self.stream_id {
             Some(stream_id) => stream_id,
             None => {
@@ -52,9 +52,8 @@ impl oio::Write for AlluxioWriter {
                 stream_id
             }
         };
-        self.core
-            .write(stream_id, Buffer::from(bs.to_bytes()))
-            .await
+        self.core.write(stream_id, bs).await?;
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::*;
+use crate::*;
 use std::collections::VecDeque;
 use std::future::Future;
 
-use crate::raw::*;
-use crate::*;
-
-/// PageList is used to implement [`List`] based on API supporting pagination. By implementing
+/// PageList is used to implement [`oio::List`] based on API supporting pagination. By implementing
 /// PageList, services don't need to care about the details of page list.
 ///
 /// # Architecture
@@ -54,15 +53,15 @@ pub struct PageContext {
     pub done: bool,
     /// token is used by underlying storage services to fetch next page.
     pub token: String,
-    /// entries is used to store entries fetched from underlying storage.
+    /// entries are used to store entries fetched from underlying storage.
     ///
     /// Please always reuse the same `VecDeque` to avoid unnecessary memory allocation.
     /// PageLister makes sure that entries is reset before calling `next_page`. Implementer
-    /// can calling `push_back` on `entries` directly.
+    /// can call `push_back` on `entries` directly.
     pub entries: VecDeque<oio::Entry>,
 }
 
-/// PageLister implements [`List`] based on [`PageList`].
+/// PageLister implements [`oio::List`] based on [`PageList`].
 pub struct PageLister<L: PageList> {
     inner: L,
     ctx: PageContext,

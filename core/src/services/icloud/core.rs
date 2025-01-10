@@ -164,13 +164,13 @@ impl IcloudSigner {
 
         let resp = self.client.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         if let Some(rscd) = resp.headers().get(APPLE_RESPONSE_HEADER) {
             let status_code = StatusCode::from_bytes(rscd.as_bytes()).unwrap();
             if status_code != StatusCode::CONFLICT {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
 
@@ -191,10 +191,10 @@ impl IcloudSigner {
 
         let resp = self.client.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
-        // Updata SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
+        // Update SessionData cookies.We need obtain `X-APPLE-WEBAUTH-USER` cookie to get file.
         self.update(&resp)?;
 
         let bs = resp.into_body();
@@ -358,7 +358,7 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -373,7 +373,7 @@ impl IcloudCore {
         zone: &str,
         range: BytesRange,
         args: OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut signer = self.signer.lock().await;
 
         let uri = format!(
@@ -389,7 +389,7 @@ impl IcloudCore {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -413,7 +413,7 @@ impl IcloudCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = signer.client.send(req).await?;
+        let resp = signer.client.fetch(req).await?;
 
         Ok(resp)
     }
@@ -423,13 +423,13 @@ impl IcloudCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let base = get_basename(&path);
 
         let path_id = self.path_cache.get(base).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("read path not found: {}", base),
+            format!("read path not found: {}", base),
         ))?;
 
         if let Some(docwsid) = path_id.strip_prefix("FILE::com.apple.CloudDocs::") {
@@ -456,12 +456,12 @@ impl IcloudCore {
 
         let file_id = self.path_cache.get(base).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", base),
+            format!("stat path not found: {}", base),
         ))?;
 
         let folder_id = self.path_cache.get(parent).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("stat path not found: {}", parent),
+            format!("stat path not found: {}", parent),
         ))?;
 
         let node = self.get_root(&folder_id).await?;
@@ -517,7 +517,7 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -526,11 +526,11 @@ impl PathQuery for IcloudPathQuery {
 
         let node = &root[0];
 
-        let id = match node.items.iter().find(|it| it.name == name) {
-            Some(it) => Ok(Some(it.drivewsid.clone())),
-            None => Ok(None),
-        }?;
-        Ok(id)
+        Ok(node
+            .items
+            .iter()
+            .find(|it| it.name == name)
+            .map(|it| it.drivewsid.clone()))
     }
 
     async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
@@ -558,7 +558,7 @@ impl PathQuery for IcloudPathQuery {
 
         let resp = signer.send(req).await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();
@@ -568,7 +568,7 @@ impl PathQuery for IcloudPathQuery {
     }
 }
 
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -590,11 +590,11 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         }
     }
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
-    Ok(err)
+    err
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -623,16 +623,12 @@ pub struct Webservices {
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Drivews {
-    pub pcs_required: bool,
-    pub status: String,
     pub url: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Docws {
-    pub pcs_required: bool,
-    pub status: String,
     pub url: Option<String>,
 }
 

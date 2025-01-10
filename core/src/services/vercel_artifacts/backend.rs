@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use http::header;
 use http::Request;
@@ -25,7 +26,6 @@ use http::StatusCode;
 use super::error::parse_error;
 use super::writer::VercelArtifactsWriter;
 use crate::raw::*;
-use crate::services::vercel_artifacts::reader::VercelArtifactsReader;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
@@ -44,27 +44,40 @@ impl Debug for VercelArtifactsBackend {
 }
 
 impl Access for VercelArtifactsBackend {
-    type Reader = VercelArtifactsReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
                 write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -78,15 +91,23 @@ impl Access for VercelArtifactsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(res).await?),
+            _ => Err(parse_error(res)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            VercelArtifactsReader::new(self.clone(), path, args),
-        ))
+        let resp = self.vercel_artifacts_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -107,7 +128,7 @@ impl VercelArtifactsBackend {
         hash: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let url: String = format!(
             "https://api.vercel.com/v8/artifacts/{}",
             percent_encode_path(hash)
@@ -124,7 +145,7 @@ impl VercelArtifactsBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn vercel_artifacts_put(

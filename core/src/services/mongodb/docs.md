@@ -33,15 +33,15 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Mongodb::default();
-    builder.root("/");
-    builder.connection_string("mongodb://myUser:myPassword@localhost:27017/myAuthDB");
-    builder.database("your_database");
-    builder.collection("your_collection");
-    // key field type in the table should be compatible with Rust's &str like text
-    builder.key_field("key");
-    // value field type in the table should be compatible with Rust's Vec<u8> like bytea
-    builder.value_field("value");
+    let mut builder = Mongodb::default()
+        .root("/")
+        .connection_string("mongodb://myUser:myPassword@localhost:27017/myAuthDB")
+        .database("your_database")
+        .collection("your_collection")
+        // key field type in the table should be compatible with Rust's &str like text
+        .key_field("key")
+        // value field type in the table should be compatible with Rust's Vec<u8> like bytea
+        .value_field("value");
 
     let op = Operator::new(builder)?.finish();
     Ok(())

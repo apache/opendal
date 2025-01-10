@@ -22,8 +22,8 @@ use bytes::Buf;
 use super::core::parse_file_info;
 use super::core::B2Core;
 use super::core::ListFileNamesResponse;
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::b2::error::parse_error;
 use crate::*;
 
 pub struct B2Lister {
@@ -76,7 +76,7 @@ impl oio::PageList for B2Lister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -95,9 +95,6 @@ impl oio::PageList for B2Lister {
                 if build_abs_path(&self.core.root, &start_after) == file.file_name {
                     continue;
                 }
-            }
-            if file.file_name == build_abs_path(&self.core.root, &self.path) {
-                continue;
             }
             let file_name = file.file_name.clone();
             let metadata = parse_file_info(&file);

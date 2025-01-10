@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, AsyncIterable, Iterable, Optional, final, Union, Type
+from typing import AsyncIterable, Iterable, Optional, final, Union, Type
 from types import TracebackType
 
 from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.layers import Layer
+from opendal.__base import _Base
 
 @final
-class Operator:
-    def __init__(self, scheme: str, **kwargs: Any) -> None: ...
+class Operator(_Base):
     def layer(self, layer: Layer) -> "Operator": ...
     def open(self, path: str, mode: str) -> File: ...
     def read(self, path: str) -> bytes: ...
@@ -51,8 +51,7 @@ class Operator:
     def to_async_operator(self) -> AsyncOperator: ...
 
 @final
-class AsyncOperator:
-    def __init__(self, scheme: str, **kwargs: Any) -> None: ...
+class AsyncOperator(_Base):
     def layer(self, layer: Layer) -> "AsyncOperator": ...
     async def open(self, path: str, mode: str) -> AsyncFile: ...
     async def read(self, path: str) -> bytes: ...
@@ -86,6 +85,7 @@ class AsyncOperator:
 @final
 class File:
     def read(self, size: Optional[int] = None) -> bytes: ...
+    def readline(self, size: Optional[int] = None) -> bytes: ...
     def write(self, bs: bytes) -> None: ...
     def seek(self, pos: int, whence: int = 0) -> int: ...
     def tell(self) -> int: ...
@@ -181,7 +181,6 @@ class Capability:
     write_with_cache_control: bool
     write_multi_max_size: Optional[int]
     write_multi_min_size: Optional[int]
-    write_multi_align_size: Optional[int]
     write_total_max_size: Optional[int]
 
     create_dir: bool
@@ -200,8 +199,5 @@ class Capability:
     presign_stat: bool
     presign_write: bool
 
-    batch: bool
-    batch_delete: bool
-    batch_max_operations: Optional[int]
-
+    shared: bool
     blocking: bool

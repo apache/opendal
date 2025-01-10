@@ -41,10 +41,7 @@ impl UpyunWriter {
 
 impl oio::MultipartWrite for UpyunWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
-        let req = self
-            .core
-            .upload(&self.path, Some(size), &self.op, body)
-            .await?;
+        let req = self.core.upload(&self.path, Some(size), &self.op, body)?;
 
         let resp = self.core.send(req).await?;
 
@@ -52,7 +49,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -69,12 +66,12 @@ impl oio::MultipartWrite for UpyunWriter {
                 let id =
                     parse_header_to_str(resp.headers(), X_UPYUN_MULTI_UUID)?.ok_or(Error::new(
                         ErrorKind::Unexpected,
-                        &format!("{} header is missing", X_UPYUN_MULTI_UUID),
+                        format!("{} header is missing", X_UPYUN_MULTI_UUID),
                     ))?;
 
                 Ok(id.to_string())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -87,8 +84,7 @@ impl oio::MultipartWrite for UpyunWriter {
     ) -> Result<oio::MultipartPart> {
         let req = self
             .core
-            .upload_part(&self.path, upload_id, part_number, size, body)
-            .await?;
+            .upload_part(&self.path, upload_id, part_number, size, body)?;
 
         let resp = self.core.send(req).await?;
 
@@ -100,7 +96,7 @@ impl oio::MultipartWrite for UpyunWriter {
                 etag: "".to_string(),
                 checksum: None,
             }),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -114,7 +110,7 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

@@ -109,20 +109,6 @@ impl SupabaseCore {
         Ok(req)
     }
 
-    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/storage/v1/object/{}/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        Request::delete(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)
-    }
-
     pub fn supabase_get_object_public_request(
         &self,
         path: &str,
@@ -226,14 +212,14 @@ impl SupabaseCore {
         &self,
         path: &str,
         range: BytesRange,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = if self.key.is_some() {
             self.supabase_get_object_auth_request(path, range)?
         } else {
             self.supabase_get_object_public_request(path, range)?
         };
         self.sign(&mut req)?;
-        self.send(req).await
+        self.http_client.fetch(req).await
     }
 
     pub async fn supabase_head_object(&self, path: &str) -> Result<Response<Buffer>> {
@@ -252,12 +238,6 @@ impl SupabaseCore {
         } else {
             self.supabase_get_object_info_public_request(path)?
         };
-        self.sign(&mut req)?;
-        self.send(req).await
-    }
-
-    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
         self.send(req).await
     }

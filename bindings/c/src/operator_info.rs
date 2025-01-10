@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::c_char;
 use std::ffi::CString;
+use std::ffi::{c_char, c_void};
 
 use ::opendal as core;
 
@@ -26,7 +26,17 @@ use crate::opendal_operator;
 /// of operator.
 #[repr(C)]
 pub struct opendal_operator_info {
-    pub inner: *mut core::OperatorInfo,
+    /// The pointer to the opendal::OperatorInfo in the Rust code.
+    /// Only touch this on judging whether it is NULL.
+    inner: *mut c_void,
+}
+
+impl opendal_operator_info {
+    fn deref(&self) -> &core::OperatorInfo {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &*(self.inner as *mut core::OperatorInfo) }
+    }
 }
 
 /// \brief Capability is used to describe what operations are supported
@@ -79,12 +89,6 @@ pub struct opendal_capability {
     ///
     /// If it is not set, this will be zero
     pub write_multi_min_size: usize,
-    /// write_multi_align_size is the align size that services required in write_multi.
-    ///
-    /// For example, Google GCS requires align size to 256KiB in write_multi.
-    ///
-    /// If it is not set, this will be zero
-    pub write_multi_align_size: usize,
     /// write_total_max_size is the max size that services support in write_total.
     ///
     /// For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -122,14 +126,8 @@ pub struct opendal_capability {
     /// If operator supports presign write.
     pub presign_write: bool,
 
-    /// If operator supports batch.
-    pub batch: bool,
-    /// If operator supports batch delete.
-    pub batch_delete: bool,
-    /// The max operations that operator supports in batch.
-    ///
-    /// If it is not set, this will be zero
-    pub batch_max_operations: usize,
+    /// If operator supports shared.
+    pub shared: bool,
 
     /// If operator supports blocking.
     pub blocking: bool,
@@ -153,21 +151,19 @@ impl opendal_operator_info {
     /// opendal_operator_info_free(info);
     /// ```
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info_new(op: *const opendal_operator) -> *mut Self {
-        let op = (*op).as_ref();
-        let info = op.info();
-
+    pub unsafe extern "C" fn opendal_operator_info_new(op: &opendal_operator) -> *mut Self {
+        let info = op.deref().info();
         Box::into_raw(Box::new(Self {
-            inner: Box::into_raw(Box::new(info)),
+            inner: Box::into_raw(Box::new(info)) as _,
         }))
     }
 
     /// \brief Free the heap-allocated opendal_operator_info
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_free(ptr: *mut Self) {
-        unsafe {
-            let _ = Box::from_raw((*ptr).inner);
-            let _ = Box::from_raw(ptr);
+        if !ptr.is_null() {
+            drop(Box::from_raw((*ptr).inner as *mut core::OperatorInfo));
+            drop(Box::from_raw(ptr));
         }
     }
 
@@ -176,7 +172,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_scheme(&self) -> *mut c_char {
-        let scheme = (*self.inner).scheme().to_string();
+        let scheme = self.deref().scheme().to_string();
         CString::new(scheme)
             .expect("CString::new failed in opendal_operator_info_get_root")
             .into_raw()
@@ -187,7 +183,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_root(&self) -> *mut c_char {
-        let root = (*self.inner).root();
+        let root = self.deref().root();
         CString::new(root)
             .expect("CString::new failed in opendal_operator_info_get_root")
             .into_raw()
@@ -199,7 +195,7 @@ impl opendal_operator_info {
     /// \note: The string is on heap, remember to free it
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_name(&self) -> *mut c_char {
-        let name = (*self.inner).name();
+        let name = self.deref().name();
         CString::new(name)
             .expect("CString::new failed in opendal_operator_info_get_name")
             .into_raw()
@@ -210,7 +206,7 @@ impl opendal_operator_info {
     pub unsafe extern "C" fn opendal_operator_info_get_full_capability(
         &self,
     ) -> opendal_capability {
-        let cap = (*self.inner).full_capability();
+        let cap = self.deref().full_capability();
         cap.into()
     }
 
@@ -219,7 +215,7 @@ impl opendal_operator_info {
     pub unsafe extern "C" fn opendal_operator_info_get_native_capability(
         &self,
     ) -> opendal_capability {
-        let cap = (*self.inner).native_capability();
+        let cap = self.deref().native_capability();
         cap.into()
     }
 }
@@ -245,7 +241,6 @@ impl From<core::Capability> for opendal_capability {
             write_with_cache_control: value.write_with_cache_control,
             write_multi_max_size: value.write_multi_max_size.unwrap_or(0),
             write_multi_min_size: value.write_multi_min_size.unwrap_or(0),
-            write_multi_align_size: value.write_multi_align_size.unwrap_or(0),
             write_total_max_size: value.write_total_max_size.unwrap_or(0),
             create_dir: value.create_dir,
             delete: value.delete,
@@ -259,9 +254,7 @@ impl From<core::Capability> for opendal_capability {
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,
             presign_write: value.presign_write,
-            batch: value.batch,
-            batch_delete: value.batch_delete,
-            batch_max_operations: value.batch_max_operations.unwrap_or(0),
+            shared: value.shared,
             blocking: value.blocking,
         }
     }

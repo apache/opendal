@@ -59,8 +59,6 @@ pub struct UpyunCore {
     pub root: String,
     /// The endpoint of this backend.
     pub operator: String,
-    /// The password id of this backend.
-    pub password: String,
     /// The bucket of this backend.
     pub bucket: String,
 
@@ -86,7 +84,7 @@ impl UpyunCore {
         self.client.send(req).await
     }
 
-    pub async fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
+    pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
         // get rfc1123 date
         let date = chrono::Utc::now()
             .format("%a, %d %b %Y %H:%M:%S GMT")
@@ -104,7 +102,7 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -120,9 +118,9 @@ impl UpyunCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {
@@ -138,12 +136,12 @@ impl UpyunCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
 
-    pub async fn upload(
+    pub fn upload(
         &self,
         path: &str,
         size: Option<u64>,
@@ -179,7 +177,7 @@ impl UpyunCore {
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         Ok(req)
     }
@@ -197,7 +195,7 @@ impl UpyunCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
@@ -223,7 +221,7 @@ impl UpyunCore {
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
@@ -249,7 +247,7 @@ impl UpyunCore {
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
@@ -272,7 +270,7 @@ impl UpyunCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
@@ -310,12 +308,12 @@ impl UpyunCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
 
-    pub async fn upload_part(
+    pub fn upload_part(
         &self,
         path: &str,
         upload_id: &str,
@@ -344,7 +342,7 @@ impl UpyunCore {
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         Ok(req)
     }
@@ -370,7 +368,7 @@ impl UpyunCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }
@@ -407,7 +405,7 @@ impl UpyunCore {
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(&mut req)?;
 
         self.send(req).await
     }

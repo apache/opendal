@@ -22,7 +22,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - main
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: korandoru/setup-zig@v1
         with:
-          zig-version: 0.11.0
+          zig-version: 0.13.0
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

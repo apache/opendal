@@ -15,12 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::WebdavBuilder as Webdav;
-pub use backend::WebdavConfig;
-
+#[cfg(feature = "services-webdav")]
 mod core;
+#[cfg(feature = "services-webdav")]
+mod delete;
+#[cfg(feature = "services-webdav")]
 mod error;
+#[cfg(feature = "services-webdav")]
 mod lister;
-mod reader;
+#[cfg(feature = "services-webdav")]
 mod writer;
+
+#[cfg(feature = "services-webdav")]
+mod backend;
+#[cfg(feature = "services-webdav")]
+pub use backend::WebdavBuilder as Webdav;
+
+mod config;
+pub use config::WebdavConfig;

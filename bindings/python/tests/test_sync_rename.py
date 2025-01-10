@@ -29,7 +29,7 @@ def test_sync_rename_file(service_name, operator, async_operator):
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}"
     operator.rename(source_path, target_path)
-    with pytest.raises(NotFound) :
+    with pytest.raises(NotFound):
         operator.read(source_path)
     assert operator.read(target_path) == content
     operator.delete(target_path)
@@ -40,7 +40,7 @@ def test_sync_rename_file(service_name, operator, async_operator):
 def test_sync_rename_non_exists_file(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(NotFound) :
+    with pytest.raises(NotFound):
         operator.rename(source_path, target_path)
 
 
@@ -49,7 +49,7 @@ def test_sync_rename_directory(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
     target_path = f"random_file_{str(uuid4())}"
-    with pytest.raises(IsADirectory) :
+    with pytest.raises(IsADirectory):
         operator.rename(source_path, target_path)
 
 
@@ -59,7 +59,7 @@ def test_sync_rename_file_to_directory(service_name, operator, async_operator):
     content = os.urandom(1024)
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/"
-    with pytest.raises(IsADirectory) :
+    with pytest.raises(IsADirectory):
         operator.rename(source_path, target_path)
     operator.delete(source_path)
 
@@ -69,7 +69,7 @@ def test_sync_rename_self(service_name, operator, async_operator):
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    with pytest.raises(IsSameFile) :
+    with pytest.raises(IsSameFile):
         operator.rename(source_path, source_path)
     operator.delete(source_path)
 
@@ -81,7 +81,7 @@ def test_sync_rename_nested(service_name, operator, async_operator):
     operator.write(source_path, content)
     target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     operator.rename(source_path, target_path)
-    with pytest.raises(NotFound) :
+    with pytest.raises(NotFound):
         operator.read(source_path)
     assert operator.read(target_path) == content
     operator.delete(target_path)
@@ -98,7 +98,7 @@ def test_sync_rename_overwrite(service_name, operator, async_operator):
     operator.write(source_path, source_content)
     operator.write(target_path, target_content)
     operator.rename(source_path, target_path)
-    with pytest.raises(NotFound) :
+    with pytest.raises(NotFound):
         operator.read(source_path)
     assert operator.read(target_path) == source_content
     operator.delete(target_path)

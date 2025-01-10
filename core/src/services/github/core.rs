@@ -83,7 +83,7 @@ impl GithubCore {
 
 impl GithubCore {
     pub async fn get_file_sha(&self, path: &str) -> Result<Option<String>> {
-        // if the token is not set, we shhould not try to get the sha of the file.
+        // if the token is not set, we should not try to get the sha of the file.
         if self.token.is_none() {
             return Err(Error::new(
                 ErrorKind::PermissionDenied,
@@ -102,7 +102,7 @@ impl GithubCore {
                 Ok(Some(resp.sha))
             }
             StatusCode::NOT_FOUND => Ok(None),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -128,7 +128,7 @@ impl GithubCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -148,7 +148,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
@@ -169,7 +169,7 @@ impl GithubCore {
 
         let mut req_body = CreateOrUpdateContentsRequest {
             message: format!("Write {} at {} via opendal", path, chrono::Local::now()),
-            content: base64::engine::general_purpose::STANDARD.encode(&bs.to_bytes()),
+            content: base64::engine::general_purpose::STANDARD.encode(bs.to_bytes()),
             sha: None,
         };
 
@@ -230,7 +230,7 @@ impl GithubCore {
         match resp.status() {
             StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -264,7 +264,7 @@ impl GithubCore {
                 Ok(resp)
             }
             StatusCode::NOT_FOUND => Ok(ListResponse::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -291,7 +291,7 @@ impl GithubCore {
 
                 Ok(resp.tree)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }
@@ -325,36 +325,15 @@ pub struct Tree {
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct ListResponse {
-    pub size: u64,
-    pub sha: String,
-    #[serde(rename = "type")]
-    pub type_field: String,
     pub git_url: String,
     pub entries: Vec<Entry>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct Entry {
-    pub name: String,
     pub path: String,
     pub sha: String,
     pub size: u64,
-    pub url: String,
-    pub html_url: String,
-    pub git_url: String,
-    pub download_url: Option<String>,
     #[serde(rename = "type")]
     pub type_field: String,
-    pub content: Option<String>,
-    pub encoding: Option<String>,
-    #[serde(rename = "_links")]
-    pub links: Links,
-}
-
-#[derive(Default, Debug, Clone, Deserialize)]
-pub struct Links {
-    #[serde(rename = "self")]
-    pub self_field: String,
-    pub git: String,
-    pub html: String,
 }

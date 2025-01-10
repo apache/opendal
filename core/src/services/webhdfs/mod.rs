@@ -15,11 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-webhdfs")]
+mod delete;
+#[cfg(feature = "services-webhdfs")]
+mod error;
+#[cfg(feature = "services-webhdfs")]
+mod lister;
+#[cfg(feature = "services-webhdfs")]
+mod message;
+#[cfg(feature = "services-webhdfs")]
+mod writer;
+
+#[cfg(feature = "services-webhdfs")]
 mod backend;
+#[cfg(feature = "services-webhdfs")]
 pub use backend::WebhdfsBuilder as Webhdfs;
 
-mod error;
-mod lister;
-mod message;
-mod reader;
-mod writer;
+mod config;
+pub use config::WebhdfsConfig;

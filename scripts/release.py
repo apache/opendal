@@ -17,6 +17,7 @@
 # under the License.
 
 import subprocess
+import tarfile
 from pathlib import Path
 from constants import get_package_version, get_package_dependence, PACKAGES
 
@@ -45,22 +46,11 @@ def archive_package(path):
     ls_result = subprocess.run(
         ls_command, cwd=ROOT_DIR, capture_output=True, check=True, text=True
     )
+    files = list(filter(lambda x: len(x) > 0, ls_result.stdout.split("\n")))
 
-    tar_command = [
-        "tar",
-        "-zcf",
-        f"{ROOT_DIR}/dist/{name}.tar.gz",
-        "--transform",
-        f"s,^,apache-opendal-{core_version}-src/,",
-        "-T",
-        "-",
-    ]
-    subprocess.run(
-        tar_command,
-        cwd=ROOT_DIR,
-        input=ls_result.stdout.encode("utf-8"),
-        check=True,
-    )
+    with tarfile.open(f"{ROOT_DIR}/dist/{name}.tar.gz", "w:gz") as tar:
+        for file in files:
+            tar.add(f"{ROOT_DIR}/{file}", arcname=f"{name}/{file}")
 
     print(f"Archive package {path} to dist/{name}.tar.gz")
 
@@ -85,7 +75,7 @@ def generate_checksum():
     for i in Path(ROOT_DIR / "dist").glob("*.tar.gz"):
         print(f"Generate checksum for {i}")
         subprocess.run(
-            ["sha512sum", str(i.relative_to(ROOT_DIR / "dist"))],
+            ["shasum", "-a", "512", str(i.relative_to(ROOT_DIR / "dist"))],
             stdout=open(f"{i}.sha512", "w"),
             cwd=ROOT_DIR / "dist",
             check=True,
@@ -94,7 +84,13 @@ def generate_checksum():
     for i in Path(ROOT_DIR / "dist").glob("*.tar.gz"):
         print(f"Check checksum for {i}")
         subprocess.run(
-            ["sha512sum", "--check", f"{str(i.relative_to(ROOT_DIR / 'dist'))}.sha512"],
+            [
+                "shasum",
+                "-a",
+                "512",
+                "-c",
+                f"{str(i.relative_to(ROOT_DIR / 'dist'))}.sha512",
+            ],
             cwd=ROOT_DIR / "dist",
             check=True,
         )

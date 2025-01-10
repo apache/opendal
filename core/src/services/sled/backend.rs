@@ -15,16 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use serde::Deserialize;
 use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::SledConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -34,24 +33,10 @@ use crate::*;
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
-/// Config for Sled services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SledConfig {
-    /// That path to the sled data directory.
-    datadir: Option<String>,
-    root: Option<String>,
-    tree: Option<String>,
-}
-
-impl Debug for SledConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SledConfig")
-            .field("datadir", &self.datadir)
-            .field("root", &self.root)
-            .field("tree", &self.tree)
-            .finish()
+impl Configurator for SledConfig {
+    type Builder = SledBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SledBuilder { config: self }
     }
 }
 
@@ -72,19 +57,24 @@ impl Debug for SledBuilder {
 
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
-    pub fn datadir(&mut self, path: &str) -> &mut Self {
+    pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the root for sled.
-    pub fn root(&mut self, path: &str) -> &mut Self {
-        self.config.root = Some(path.into());
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
     /// Set the tree for sled.
-    pub fn tree(&mut self, tree: &str) -> &mut Self {
+    pub fn tree(mut self, tree: &str) -> Self {
         self.config.tree = Some(tree.into());
         self
     }
@@ -92,17 +82,10 @@ impl SledBuilder {
 
 impl Builder for SledBuilder {
     const SCHEME: Scheme = Scheme::Sled;
-    type Accessor = SledBackend;
+    type Config = SledConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        SledBuilder {
-            config: SledConfig::deserialize(ConfigDeserializer::new(map))
-                .expect("config deserialize must succeed"),
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let datadir_path = self.config.datadir.take().ok_or_else(|| {
+    fn build(self) -> Result<impl Access> {
+        let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Sled)
         })?;
@@ -118,7 +101,6 @@ impl Builder for SledBuilder {
         let tree_name = self
             .config
             .tree
-            .take()
             .unwrap_or_else(|| DEFAULT_TREE_ID.to_string());
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
@@ -133,7 +115,7 @@ impl Builder for SledBuilder {
             datadir: datadir_path,
             tree,
         })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        .with_root(self.config.root.as_deref().unwrap_or("/")))
     }
 }
 
@@ -155,8 +137,10 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = kv::Scanner;
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Sled,
             &self.datadir,
             Capability {
@@ -164,6 +148,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 list: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )
@@ -217,13 +202,15 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
+        let res = task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)?
+            .map_err(new_task_join_error)??;
+
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
@@ -236,9 +223,6 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            if v == path {
-                continue;
-            }
 
             res.push(v);
         }

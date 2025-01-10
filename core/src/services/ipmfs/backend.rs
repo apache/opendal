@@ -26,11 +26,11 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::delete::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
 use crate::raw::*;
-use crate::services::ipmfs::reader::IpmfsReader;
 use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
@@ -62,19 +62,22 @@ impl IpmfsBackend {
 }
 
 impl Access for IpmfsBackend {
-    type Reader = IpmfsReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
+    type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
 
                 read: true,
 
@@ -82,11 +85,14 @@ impl Access for IpmfsBackend {
                 delete: true,
 
                 list: true,
+                list_has_content_length: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -96,7 +102,7 @@ impl Access for IpmfsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -128,15 +134,25 @@ impl Access for IpmfsBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            IpmfsReader::new(self.clone(), path, args),
-        ))
+        let resp = self.ipmfs_read(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -146,15 +162,11 @@ impl Access for IpmfsBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.ipmfs_rm(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(IpmfsDeleter::new(Arc::new(self.clone()))),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -179,7 +191,7 @@ impl IpmfsBackend {
         self.client.send(req).await
     }
 
-    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -196,10 +208,10 @@ impl IpmfsBackend {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

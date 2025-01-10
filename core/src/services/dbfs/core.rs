@@ -155,47 +155,6 @@ impl DbfsCore {
         req.body(body).map_err(new_request_build_error)
     }
 
-    pub async fn dbfs_read(
-        &self,
-        path: &str,
-        offset: u64,
-        length: u64,
-    ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let mut url = format!(
-            "{}/api/2.0/dbfs/read?path={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
-
-        if offset > 0 {
-            url.push_str(&format!("&offset={}", offset));
-        }
-
-        if length > 0 {
-            url.push_str(&format!("&length={}", length));
-        }
-
-        let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(resp),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -225,7 +184,7 @@ impl DbfsCore {
             StatusCode::NOT_FOUND => {
                 self.dbfs_create_dir(path).await?;
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => return Err(parse_error(resp)),
         }
         Ok(())
     }

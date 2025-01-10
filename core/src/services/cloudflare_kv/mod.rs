@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
+#[cfg(feature = "services-cloudflare-kv")]
 mod error;
 
+#[cfg(feature = "services-cloudflare-kv")]
+mod backend;
+#[cfg(feature = "services-cloudflare-kv")]
 pub use backend::CloudflareKvBuilder as CloudflareKv;
+
+mod config;
+pub use config::CloudflareKvConfig;

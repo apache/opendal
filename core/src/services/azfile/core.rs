@@ -33,8 +33,8 @@ use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::azfile::error::parse_error;
 use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
@@ -97,7 +97,7 @@ impl AzfileCore {
         self.client.send(req).await
     }
 
-    pub async fn azfile_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn azfile_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -115,7 +115,7 @@ impl AzfileCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn azfile_create_file(
@@ -402,7 +402,7 @@ impl AzfileCore {
                 continue;
             }
 
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         Ok(())

@@ -18,14 +18,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use backon::Retryable;
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 
 use super::core::*;
+use super::delete::DropboxDeleter;
 use super::error::*;
 use super::lister::DropboxLister;
-use super::reader::DropboxReader;
 use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::*;
@@ -36,19 +36,23 @@ pub struct DropboxBackend {
 }
 
 impl Access for DropboxBackend {
-    type Reader = DropboxReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
+    type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
+                stat_has_content_length: true,
 
                 read: true,
 
@@ -60,17 +64,18 @@ impl Access for DropboxBackend {
 
                 list: true,
                 list_with_recursive: true,
+                list_has_last_modified: true,
+                list_has_content_length: true,
 
                 copy: true,
 
                 rename: true,
 
-                batch: true,
-                batch_delete: true,
+                shared: true,
 
                 ..Default::default()
             });
-        ma
+        ma.into()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -86,21 +91,12 @@ impl Access for DropboxBackend {
             if "file" == decoded_response.tag {
                 return Err(Error::new(
                     ErrorKind::NotADirectory,
-                    &format!("it's not a directory {}", path),
+                    format!("it's not a directory {}", path),
                 ));
             }
         }
 
-        // Dropbox has very, very, very strong limitation on the create_folder requests.
-        //
-        // Let's try our best to make sure it won't failed for rate limited issues.
-        let res = { || self.core.dropbox_create_folder(path) }
-            .retry(&*BACKOFF)
-            .when(|e| e.is_temporary())
-            .await
-            // Set this error to permanent to avoid retrying.
-            .map_err(|e| e.set_permanent())?;
-
+        let res = self.core.dropbox_create_folder(path).await?;
         Ok(res)
     }
 
@@ -132,21 +128,30 @@ impl Access for DropboxBackend {
                     } else {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
-                            &format!("no size found for file {}", path),
+                            format!("no size found for file {}", path),
                         ));
                     }
                 }
                 Ok(RpStat::new(metadata))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            DropboxReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.dropbox_get(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -160,21 +165,11 @@ impl Access for DropboxBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dropbox_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => {
-                let err = parse_error(resp).await?;
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpDelete::default()),
-                    _ => Err(err),
-                }
-            }
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -197,7 +192,7 @@ impl Access for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpCopy::default()),
                     _ => Err(err),
@@ -214,60 +209,12 @@ impl Access for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpRename::default()),
                     _ => Err(err),
                 }
             }
-        }
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "dropbox services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-
-        let resp = self.core.dropbox_delete_batch(paths).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let bs = resp.into_body();
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        match decoded_response.tag.as_str() {
-            "complete" => {
-                let entries = decoded_response.entries.unwrap_or_default();
-                let results = self.core.handle_batch_delete_complete_result(entries);
-                Ok(RpBatch::new(results))
-            }
-            "async_job_id" => {
-                let job_id = decoded_response
-                    .async_job_id
-                    .expect("async_job_id should be present");
-                let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
-                    .retry(&*BACKOFF)
-                    .when(|e| e.is_temporary())
-                    .await?;
-
-                Ok(res)
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                &format!(
-                    "delete batch failed with unexpected tag {}",
-                    decoded_response.tag
-                ),
-            )),
         }
     }
 }

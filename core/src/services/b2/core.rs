@@ -33,9 +33,9 @@ use tokio::sync::RwLock;
 
 use self::constants::X_BZ_CONTENT_SHA1;
 use self::constants::X_BZ_FILE_NAME;
+use super::core::constants::X_BZ_PART_NUMBER;
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::b2::core::constants::X_BZ_PART_NUMBER;
-use crate::services::b2::error::parse_error;
 use crate::*;
 
 pub(super) mod constants {
@@ -120,7 +120,7 @@ impl B2Core {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
             Ok(signer.auth_info.clone())
@@ -134,7 +134,7 @@ impl B2Core {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let auth_info = self.get_auth_info().await?;
@@ -157,7 +157,7 @@ impl B2Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
@@ -184,7 +184,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -228,7 +228,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -328,7 +328,7 @@ impl B2Core {
                     .map_err(new_json_deserialize_error)?;
                 Ok(resp)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -629,7 +629,6 @@ pub struct File {
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
     pub file_name: String,
-    pub action: String,
 }
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {

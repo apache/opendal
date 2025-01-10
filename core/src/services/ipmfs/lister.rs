@@ -49,7 +49,7 @@ impl oio::PageList for IpmfsLister {
         let resp = self.backend.ipmfs_ls(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

@@ -15,38 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::time::Duration;
 
 use bb8::RunError;
-use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::MemcachedConfig;
 use crate::*;
 
-/// Config for MemCached services support
-#[derive(Default, Deserialize, Clone)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct MemcachedConfig {
-    /// network address of the memcached service.
-    ///
-    /// For example: "tcp://localhost:11211"
-    endpoint: Option<String>,
-    /// the working directory of the service. Can be "/path/to/dir"
-    ///
-    /// default is "/"
-    root: Option<String>,
-    /// Memcached username, optional.
-    username: Option<String>,
-    /// Memcached password, optional.
-    password: Option<String>,
-    /// The default ttl for put operations.
-    default_ttl: Option<Duration>,
+impl Configurator for MemcachedConfig {
+    type Builder = MemcachedBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MemcachedBuilder { config: self }
+    }
 }
 
 /// [Memcached](https://memcached.org/) service support.
@@ -60,7 +45,7 @@ impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_owned());
         }
@@ -70,27 +55,30 @@ impl MemcachedBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_owned());
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
     /// set the username.
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         self.config.username = Some(username.to_string());
         self
     }
 
     /// set the password.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         self.config.password = Some(password.to_string());
         self
     }
 
     /// Set the default ttl for memcached services.
-    pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = Some(ttl);
         self
     }
@@ -98,15 +86,9 @@ impl MemcachedBuilder {
 
 impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
-    type Accessor = MemcachedBackend;
+    type Config = MemcachedConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = MemcachedConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-        MemcachedBuilder { config }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let endpoint = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
@@ -171,7 +153,7 @@ impl Builder for MemcachedBuilder {
             conn,
             default_ttl: self.config.default_ttl,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -215,13 +197,16 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Memcached,
             "memcached",
             Capability {
                 read: true,
                 write: true,
+                shared: true,
 
                 ..Default::default()
             },

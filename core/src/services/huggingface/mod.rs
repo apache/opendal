@@ -15,11 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::HuggingfaceBuilder as Huggingface;
-pub use backend::HuggingfaceConfig;
-
+#[cfg(feature = "services-huggingface")]
 mod core;
+#[cfg(feature = "services-huggingface")]
 mod error;
+#[cfg(feature = "services-huggingface")]
 mod lister;
-mod reader;
+
+#[cfg(feature = "services-huggingface")]
+mod backend;
+#[cfg(feature = "services-huggingface")]
+pub use backend::HuggingfaceBuilder as Huggingface;
+
+mod config;
+pub use config::HuggingfaceConfig;

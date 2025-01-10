@@ -21,12 +21,12 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub async fn hello_world() -> String {
-    let mut cfg = S3::default();
-    cfg.endpoint("http://127.0.0.1:9000");
-    cfg.access_key_id("minioadmin");
-    cfg.secret_access_key("minioadmin");
-    cfg.bucket("test");
-    cfg.region("us-east-1");
+    let cfg = S3::default()
+        .endpoint("http://127.0.0.1:9000")
+        .access_key_id("minioadmin")
+        .secret_access_key("minioadmin")
+        .bucket("test")
+        .region("us-east-1");
 
     let op = Operator::new(cfg).unwrap().finish();
     op.write(
@@ -50,6 +50,8 @@ mod tests {
 
     wasm_bindgen_test_configure!(run_in_browser);
 
+    /// This test is executed in the wasm target but rustc reports `dead_code` in wrong.
+    #[allow(dead_code)]
     #[wasm_bindgen_test]
     async fn test_hello_world() {
         let s = hello_world().await;

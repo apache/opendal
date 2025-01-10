@@ -15,14 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use std::time::Duration;
 
-use backon::ExponentialBuilder;
 use bytes::Buf;
 use bytes::Bytes;
 use chrono::DateTime;
@@ -33,7 +30,6 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -41,14 +37,6 @@ use tokio::sync::Mutex;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-
-/// BACKOFF is the backoff used inside dropbox to make sure dropbox async task succeed.
-pub static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
-    ExponentialBuilder::default()
-        .with_max_delay(Duration::from_secs(10))
-        .with_max_times(10)
-        .with_jitter()
-});
 
 pub struct DropboxCore {
     pub root: String,
@@ -129,7 +117,7 @@ impl DropboxCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
@@ -148,7 +136,7 @@ impl DropboxCore {
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.client.fetch(request).await
     }
 
     pub async fn dropbox_update(
@@ -202,73 +190,6 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_delete_batch(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
-        let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
-        let args = DropboxDeleteBatchArgs {
-            entries: paths
-                .into_iter()
-                .map(|path| DropboxDeleteBatchEntry {
-                    path: self.build_path(&path),
-                })
-                .collect(),
-        };
-
-        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
-
-        let mut request = Request::post(&url)
-            .header(CONTENT_TYPE, "application/json")
-            .header(CONTENT_LENGTH, bs.len())
-            .body(Buffer::from(bs))
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut request).await?;
-        self.client.send(request).await
-    }
-
-    pub async fn dropbox_delete_batch_check(&self, async_job_id: String) -> Result<RpBatch> {
-        let url = "https://api.dropboxapi.com/2/files/delete_batch/check".to_string();
-        let args = DropboxDeleteBatchCheckArgs { async_job_id };
-
-        let bs = Bytes::from(serde_json::to_vec(&args).map_err(new_json_serialize_error)?);
-
-        let mut request = Request::post(&url)
-            .header(CONTENT_TYPE, "application/json")
-            .header(CONTENT_LENGTH, bs.len())
-            .body(Buffer::from(bs))
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut request).await?;
-
-        let resp = self.client.send(request).await?;
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
-        }
-
-        let bs = resp.into_body();
-
-        let decoded_response: DropboxDeleteBatchResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-        match decoded_response.tag.as_str() {
-            "in_progress" => Err(Error::new(
-                ErrorKind::Unexpected,
-                "delete batch job still in progress",
-            )
-            .set_temporary()),
-            "complete" => {
-                let entries = decoded_response.entries.unwrap_or_default();
-                let results = self.handle_batch_delete_complete_result(entries);
-                Ok(RpBatch::new(results))
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                &format!(
-                    "delete batch check failed with unexpected tag {}",
-                    decoded_response.tag
-                ),
-            )),
-        }
-    }
-
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<RpCreateDir> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
         let args = DropboxCreateFolderArgs {
@@ -289,7 +210,7 @@ impl DropboxCore {
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 match err.kind() {
                     ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
                     _ => Err(err),
@@ -403,53 +324,6 @@ impl DropboxCore {
         self.sign(&mut request).await?;
 
         self.client.send(request).await
-    }
-
-    pub fn handle_batch_delete_complete_result(
-        &self,
-        entries: Vec<DropboxDeleteBatchResponseEntry>,
-    ) -> Vec<(String, Result<BatchedReply>)> {
-        let mut results = Vec::with_capacity(entries.len());
-        for entry in entries {
-            let result = match entry.tag.as_str() {
-                // Only success response has metadata and then path,
-                // so we cannot tell which path failed.
-                "success" => {
-                    let path = entry
-                        .metadata
-                        .expect("metadata should be present")
-                        .path_display;
-                    (path, Ok(RpDelete::default().into()))
-                }
-                "failure" => {
-                    let error = entry.failure.expect("error should be present");
-                    let error_cause = &error
-                        .failure_cause_map
-                        .get(&error.tag)
-                        .expect("error should be present")
-                        .tag;
-                    // Ignore errors about path lookup not found and report others.
-                    if error.tag == "path_lookup" && error_cause == "not_found" {
-                        ("".to_string(), Ok(RpDelete::default().into()))
-                    } else {
-                        let err = Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("delete failed with error {} {}", error.tag, error_cause),
-                        );
-                        ("".to_string(), Err(err))
-                    }
-                }
-                _ => (
-                    "".to_string(),
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("delete failed with unexpected tag {}", entry.tag),
-                    )),
-                ),
-            };
-            results.push(result);
-        }
-        results
     }
 }
 
@@ -642,21 +516,6 @@ pub struct DropboxDeleteBatchResponseEntry {
     #[serde(rename(deserialize = ".tag"))]
     pub tag: String,
     pub metadata: Option<DropboxMetadataResponse>,
-    pub failure: Option<DropboxDeleteBatchFailureResponse>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchFailureResponse {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    // During the batch deletion process, Dropbox returns
-    // part of the error information in the form of a JSON key.
-    // Since it is impossible to determine the JSON key in advance,
-    // the error information is parsed into a HashMap here.
-    // The key of the HashMap is equal to the value of the tag above.
-    #[serde(flatten)]
-    pub failure_cause_map: HashMap<String, DropboxDeleteBatchFailureResponseCause>,
 }
 
 #[derive(Default, Debug, Deserialize)]

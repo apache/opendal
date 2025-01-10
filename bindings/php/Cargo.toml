@@ -18,7 +18,7 @@
 [package]
 name = "opendal-php"
 publish = false
-version = "0.1.1"
+version = "0.1.12"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -32,7 +32,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ext-php-rs = "0.11.2"
-opendal = { version = "0.46.0", path = "../../core", features = [
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",

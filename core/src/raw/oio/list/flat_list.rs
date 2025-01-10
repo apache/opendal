@@ -56,7 +56,6 @@ use crate::*;
 /// always output directly while listing.
 pub struct FlatLister<A: Access, L> {
     acc: A,
-    root: String,
 
     next_dir: Option<oio::Entry>,
     active_lister: Vec<(Option<oio::Entry>, L)>,
@@ -79,7 +78,6 @@ where
     pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
         FlatLister {
             acc,
-            root: path.to_string(),
             next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
             active_lister: vec![],
         }
@@ -105,25 +103,22 @@ where
 
             match lister.next().await? {
                 Some(v) if v.mode().is_dir() => {
-                    self.next_dir = Some(v);
-                    continue;
-                }
-                Some(v) => return Ok(Some(v)),
-                None => {
-                    match de.take() {
-                        Some(de) => {
-                            // Only push entry if it's not root dir
-                            if de.path() != self.root {
-                                return Ok(Some(de));
-                            }
-                            continue;
-                        }
-                        None => {
-                            let _ = self.active_lister.pop();
-                            continue;
-                        }
+                    // should not loop itself again
+                    if v.path() != de.as_ref().expect("de should not be none here").path() {
+                        self.next_dir = Some(v);
+                        continue;
                     }
                 }
+                Some(v) => return Ok(Some(v)),
+                None => match de.take() {
+                    Some(de) => {
+                        return Ok(Some(de));
+                    }
+                    None => {
+                        let _ = self.active_lister.pop();
+                        continue;
+                    }
+                },
             }
         }
     }
@@ -149,25 +144,21 @@ where
 
             match lister.next()? {
                 Some(v) if v.mode().is_dir() => {
-                    self.next_dir = Some(v);
-                    continue;
-                }
-                Some(v) => return Ok(Some(v)),
-                None => {
-                    match de.take() {
-                        Some(de) => {
-                            // Only push entry if it's not root dir
-                            if de.path() != self.root {
-                                return Ok(Some(de));
-                            }
-                            continue;
-                        }
-                        None => {
-                            let _ = self.active_lister.pop();
-                            continue;
-                        }
+                    if v.path() != de.as_ref().expect("de should not be none here").path() {
+                        self.next_dir = Some(v);
+                        continue;
                     }
                 }
+                Some(v) => return Ok(Some(v)),
+                None => match de.take() {
+                    Some(de) => {
+                        return Ok(Some(de));
+                    }
+                    None => {
+                        let _ = self.active_lister.pop();
+                        continue;
+                    }
+                },
             }
         }
     }
@@ -176,6 +167,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
     use std::vec;
     use std::vec::IntoIter;
 
@@ -215,12 +207,14 @@ mod tests {
         type BlockingWriter = ();
         type Lister = ();
         type BlockingLister = MockLister;
+        type Deleter = ();
+        type BlockingDeleter = ();
 
-        fn info(&self) -> AccessorInfo {
+        fn info(&self) -> Arc<AccessorInfo> {
             let mut am = AccessorInfo::default();
             am.full_capability_mut().list = true;
 
-            am
+            am.into()
         }
 
         fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {

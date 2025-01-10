@@ -15,45 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::header;
+use http::Request;
+use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::*;
+use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
-use crate::services::yandex_disk::reader::YandexDiskReader;
+use crate::services::YandexDiskConfig;
 use crate::*;
 
-/// Config for backblaze YandexDisk services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct YandexDiskConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// yandex disk oauth access_token.
-    pub access_token: String,
-}
-
-impl Debug for YandexDiskConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
+impl Configurator for YandexDiskConfig {
+    type Builder = YandexDiskBuilder;
+    fn into_builder(self) -> Self::Builder {
+        YandexDiskBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -79,7 +68,7 @@ impl YandexDiskBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -93,7 +82,7 @@ impl YandexDiskBuilder {
     /// The valid token will looks like `y0_XXXXXXqihqIWAADLWwAAAAD3IXXXXXX0gtVeSPeIKM0oITMGhXXXXXX`.
     /// We can fetch the debug token from <https://yandex.com/dev/disk/poligon>.
     /// To use it in production, please register an app at <https://oauth.yandex.com> instead.
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = access_token.to_string();
 
         self
@@ -105,7 +94,7 @@ impl YandexDiskBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -113,31 +102,10 @@ impl YandexDiskBuilder {
 
 impl Builder for YandexDiskBuilder {
     const SCHEME: Scheme = Scheme::YandexDisk;
-    type Accessor = YandexDiskBackend;
-
-    /// Converts a HashMap into an YandexDiskBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of YandexDiskBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = YandexDiskConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an YandexDiskBuilder instance with the deserialized config.
-        YandexDiskBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = YandexDiskConfig;
 
     /// Builds the backend and returns the result of YandexDiskBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -152,7 +120,7 @@ impl Builder for YandexDiskBuilder {
             );
         }
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -178,19 +146,25 @@ pub struct YandexDiskBackend {
 }
 
 impl Access for YandexDiskBackend {
-    type Reader = YandexDiskReader;
+    type Reader = HttpBody;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
+    type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::YandexDisk)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_last_modified: true,
+                stat_has_content_md5: true,
+                stat_has_content_type: true,
+                stat_has_content_length: true,
 
                 create_dir: true,
 
@@ -205,11 +179,17 @@ impl Access for YandexDiskBackend {
 
                 list: true,
                 list_with_limit: true,
+                list_has_last_modified: true,
+                list_has_content_md5: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -227,7 +207,7 @@ impl Access for YandexDiskBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -240,15 +220,29 @@ impl Access for YandexDiskBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            YandexDiskReader::new(self.core.clone(), path, args),
-        ))
+        // TODO: move this out of reader.
+        let download_url = self.core.get_download_url(path).await?;
+
+        let req = Request::get(download_url)
+            .header(header::RANGE, args.range().to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let resp = self.core.client.fetch(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -265,7 +259,7 @@ impl Access for YandexDiskBackend {
 
                 parse_info(mf).map(RpStat::new)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -277,21 +271,11 @@ impl Access for YandexDiskBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Yandex Disk deleting a non-empty folder can take an unknown amount of time,
-            // So the API responds with the code 202 Accepted (the deletion process has started).
-            StatusCode::ACCEPTED => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(YandexDiskDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

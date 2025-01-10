@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -29,15 +28,24 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
-use crate::services::ipfs::reader::IpfsReader;
+use crate::services::IpfsConfig;
 use crate::*;
+
+impl Configurator for IpfsConfig {
+    type Builder = IpfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        IpfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
-    endpoint: Option<String>,
-    root: Option<String>,
+    config: IpfsConfig,
     http_client: Option<HttpClient>,
 }
 
@@ -49,10 +57,12 @@ impl IpfsBuilder {
     /// - `/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/` (IPFS with CID v0)
     /// - `/ipfs/bafybeibozpulxtpv5nhfa2ue3dcjx23ndh3gwr5vwllk7ptoyfwnfjjr4q/` (IPFS with  CID v1)
     /// - `/ipns/opendal.apache.org/` (IPNS)
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -68,10 +78,10 @@ impl IpfsBuilder {
     /// - `https://dweb.link`
     /// - `https://cloudflare-ipfs.com`
     /// - `http://127.0.0.1:8080` (ipfs daemon in local)
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -83,7 +93,7 @@ impl IpfsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -91,20 +101,12 @@ impl IpfsBuilder {
 
 impl Builder for IpfsBuilder {
     const SCHEME: Scheme = Scheme::Ipfs;
-    type Accessor = IpfsBackend;
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = IpfsBuilder::default();
+    type Config = IpfsConfig;
 
-        map.get("root").map(|v| builder.root(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -115,7 +117,7 @@ impl Builder for IpfsBuilder {
         }
         debug!("backend use root {}", root);
 
-        let endpoint = match &self.endpoint {
+        let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Ipfs)
@@ -123,7 +125,7 @@ impl Builder for IpfsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -132,7 +134,6 @@ impl Builder for IpfsBuilder {
             })?
         };
 
-        debug!("backend build finished: {:?}", &self);
         Ok(IpfsBackend {
             root,
             endpoint,
@@ -160,28 +161,36 @@ impl Debug for IpfsBackend {
 }
 
 impl Access for IpfsBackend {
-    type Reader = IpfsReader;
+    type Reader = HttpBody;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_etag: true,
+                stat_has_content_disposition: true,
 
                 read: true,
 
                 list: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
-        ma
+        ma.into()
     }
 
     /// IPFS's stat behavior highly depends on its implementation.
@@ -331,12 +340,25 @@ impl Access for IpfsBackend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
+        let resp = self.ipfs_get(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
@@ -346,7 +368,7 @@ impl Access for IpfsBackend {
 }
 
 impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -359,7 +381,7 @@ impl IpfsBackend {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
@@ -412,7 +434,7 @@ impl oio::PageList for DirStream {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();

@@ -29,6 +29,7 @@ pub struct HdfsWriter<F> {
     tmp_path: Option<String>,
     f: Option<F>,
     client: Arc<hdrs::Client>,
+    target_path_exists: bool,
 }
 
 /// # Safety
@@ -42,21 +43,28 @@ impl<F> HdfsWriter<F> {
         tmp_path: Option<String>,
         f: F,
         client: Arc<hdrs::Client>,
+        target_path_exists: bool,
     ) -> Self {
         Self {
             target_path,
             tmp_path,
             f: Some(f),
             client,
+            target_path_exists,
         }
     }
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
-        f.write(bs.chunk()).await.map_err(new_std_io_error)
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -65,6 +73,12 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
         // TODO: we need to make rename async.
         if let Some(tmp_path) = &self.tmp_path {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            if self.target_path_exists {
+                self.client
+                    .remove_file(&self.target_path)
+                    .map_err(new_std_io_error)?;
+            }
             self.client
                 .rename_file(tmp_path, &self.target_path)
                 .map_err(new_std_io_error)?
@@ -82,9 +96,14 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, mut bs: Buffer) -> Result<()> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        f.write(bs.chunk()).map_err(new_std_io_error)
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
@@ -92,6 +111,12 @@ impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
         f.flush().map_err(new_std_io_error)?;
 
         if let Some(tmp_path) = &self.tmp_path {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            if self.target_path_exists {
+                self.client
+                    .remove_file(&self.target_path)
+                    .map_err(new_std_io_error)?;
+            }
             self.client
                 .rename_file(tmp_path, &self.target_path)
                 .map_err(new_std_io_error)?;

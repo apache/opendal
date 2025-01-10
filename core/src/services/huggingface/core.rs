@@ -124,7 +124,7 @@ impl HuggingfaceCore {
         path: &str,
         range: BytesRange,
         _args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -157,7 +157,7 @@ impl HuggingfaceCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 }
 
@@ -198,7 +198,6 @@ pub(super) struct HuggingfaceLastCommit {
 #[allow(dead_code)]
 pub(super) struct HuggingfaceSecurity {
     pub blob_id: String,
-    pub name: String,
     pub safe: bool,
     pub av_scan: Option<HuggingfaceAvScan>,
     pub pickle_import_scan: Option<HuggingfacePickleImportScan>,
@@ -363,7 +362,6 @@ mod tests {
             }),
             security: Some(HuggingfaceSecurity {
                 blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
-                name: "maelstrom/lib/maelstrom.jar".to_string(),
                 safe: true,
                 av_scan: Some(HuggingfaceAvScan {
                     virus_found: false,

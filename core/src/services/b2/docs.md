@@ -35,18 +35,17 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = B2::default();
-
-    // set the storage bucket for OpenDAL
-    builder.root("/");
-    // set the key_id for OpenDAL
-    builder.application_key_id("xxxxxxxxxx");
-    // set the key_id for OpenDAL
-    builder.application_key("xxxxxxxxxx");
-    // set the     bucket name for OpenDAL
-    builder.bucket("opendal");
-    // set the bucket_id for OpenDAL
-    builder.bucket_id("xxxxxxxxxxxxx");
+    let mut builder = B2::default()
+        // set the storage bucket for OpenDAL
+        .root("/")
+        // set the key_id for OpenDAL
+        .application_key_id("xxxxxxxxxx")
+        // set the key_id for OpenDAL
+        .application_key("xxxxxxxxxx")
+        // set the     bucket name for OpenDAL
+        .bucket("opendal")
+        // set the bucket_id for OpenDAL
+        .bucket_id("xxxxxxxxxxxxx");
 
     let op: Operator = Operator::new(builder)?.finish();
 

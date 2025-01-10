@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::DateTime;
@@ -108,6 +110,11 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
     parse_header_to_str(headers, CONTENT_DISPOSITION)
 }
 
+/// Parse multipart boundary from header map.
+pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
+    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+}
+
 /// Parse header value to string according to name.
 #[inline]
 pub fn parse_header_to_str<K>(headers: &HeaderMap, name: K) -> Result<Option<&str>>
@@ -166,6 +173,10 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
         m.set_content_type(v);
     }
 
+    if let Some(v) = parse_content_encoding(headers)? {
+        m.set_content_encoding(v);
+    }
+
     if let Some(v) = parse_content_range(headers)? {
         m.set_content_range(v);
     }
@@ -187,6 +198,21 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     }
 
     Ok(m)
+}
+
+/// Parse prefixed headers and return a map with the prefix of each header removed.
+pub fn parse_prefixed_headers(headers: &HeaderMap, prefix: &str) -> HashMap<String, String> {
+    headers
+        .iter()
+        .filter_map(|(name, value)| {
+            name.as_str().strip_prefix(prefix).and_then(|stripped_key| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|parsed_value| (stripped_key.to_string(), parsed_value.to_string()))
+            })
+        })
+        .collect()
 }
 
 /// format content md5 header by given input.
@@ -303,6 +329,26 @@ mod tests {
 
         for (token, expected) in cases {
             let actual = format_authorization_by_bearer(token).expect("format must success");
+
+            assert_eq!(actual, expected)
+        }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary() {
+        let cases = vec![
+            (
+                "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            ("multipart/mixed", None),
+        ];
+
+        for (input, expected) in cases {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_TYPE, HeaderValue::from_str(input).unwrap());
+
+            let actual = parse_multipart_boundary(&headers).expect("parse must success");
 
             assert_eq!(actual, expected)
         }

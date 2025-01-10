@@ -35,14 +35,14 @@ struct OssError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::INTERNAL_SERVER_ERROR
@@ -57,7 +57,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -65,7 +65,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]

@@ -27,41 +27,18 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.2"
-
-[features]
-# Enable services dashmap support
-services-dashmap = ["opendal/services-dashmap"]
-# Enable services etcd support
-services-etcd = ["opendal/services-etcd"]
-# Enable services ftp support
-services-ftp = ["opendal/services-ftp"]
-# Enable services hdfs support
-services-hdfs = ["opendal/services-hdfs"]
-# Enable services ipfs support
-services-ipfs = ["opendal/services-ipfs"]
-# Enable services memcached support
-services-memcached = ["opendal/services-memcached"]
-# Enable services mini-moka support
-services-mini-moka = ["opendal/services-mini-moka"]
-# Enable services moka support
-services-moka = ["opendal/services-moka"]
-# Enable services redis support
-services-redis = ["opendal/services-redis"]
-# Enable services rocksdb support
-services-rocksdb = ["opendal/services-rocksdb"]
-# Enable services sled support
-services-sled = ["opendal/services-sled"]
+version = "0.41.15"
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["cargo", "string"] }
-dirs = "5.0.1"
-env_logger = "0.11"
-futures = "0.3"
-log = "0.4"
-opendal = { version = "0.46.0", path = "../../core", features = [
-  # These are default features before v0.46. TODO: change to optional features
+anyhow = { version = "1.0" }
+clap = { version = "4.5", features = ["cargo", "string", "derive"] }
+dirs = { version = "5.0" }
+futures = { version = "0.3" }
+humansize = { version = "2.1" }
+humantime = { version = "2.1" }
+humantime-serde = { version = "1.1" }
+indicatif = { version = "0.17" }
+opendal = { version = "0.51.0", path = "../../core", features = [
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -70,7 +47,6 @@ opendal = { version = "0.46.0", path = "../../core", features = [
   "services-ghac",
   "services-http",
   "services-ipmfs",
-  "services-memory",
   "services-obs",
   "services-oss",
   "services-s3",
@@ -78,17 +54,14 @@ opendal = { version = "0.46.0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
-serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.34", features = [
-  "fs",
-  "macros",
-  "rt-multi-thread",
-  "io-std",
-] }
-toml = "0.8.12"
-url = "2.5.0"
+parse-size = { version = "1.1" }
+pollster = { version = "0.4" }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.42", features = ["full"] }
+toml = { version = "0.8" }
+url = { version = "2.5" }
+uuid = { version = "1.11" }
 
 [dev-dependencies]
-assert_cmd = "2"
-predicates = "3"
-tempfile = "3.10.1"
+assert_cmd = { version = "2.0" }
+tempfile = { version = "3.14" }

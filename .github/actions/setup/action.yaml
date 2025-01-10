@@ -72,12 +72,12 @@ runs:
         path: |
           ~/.cargo/bin/cargo-nextest
           ~/.cargo/bin/cargo-nextest.exe
-        key: r0-${{runner.os}}-nextest-0.9.59
+        key: r0-${{runner.os}}-nextest-0.9.72
 
     - name: Build nextest if not cached
       if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
       shell: bash
-      run: cargo install cargo-nextest@0.9.59 --locked
+      run: cargo install cargo-nextest@0.9.72 --locked
 
     - name: Cache cargo-deny on linux
       id: cache-deny

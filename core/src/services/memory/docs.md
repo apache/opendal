@@ -27,8 +27,7 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Memory::default();
-    builder.root("/tmp");
+    let mut builder = Memory::default().root("/tmp");
 
     let op: Operator = Operator::new(builder)?.finish();
 

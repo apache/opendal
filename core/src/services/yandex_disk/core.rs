@@ -93,7 +93,7 @@ impl YandexDiskCore {
 
                 Ok(resp.href)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -125,7 +125,7 @@ impl YandexDiskCore {
 
                 Ok(resp.href)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -142,7 +142,7 @@ impl YandexDiskCore {
 
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
         Ok(())
@@ -289,7 +289,6 @@ pub struct GetUploadUrlResponse {
 pub struct MetainformationResponse {
     #[serde(rename = "type")]
     pub ty: String,
-    pub name: String,
     pub path: String,
     pub modified: String,
     pub md5: Option<String>,

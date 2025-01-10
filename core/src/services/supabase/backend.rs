@@ -16,8 +16,10 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use log::debug;
 
@@ -25,33 +27,32 @@ use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
 use crate::raw::*;
-use crate::services::supabase::reader::SupabaseReader;
+use crate::services::SupabaseConfig;
 use crate::*;
+
+impl Configurator for SupabaseConfig {
+    type Builder = SupabaseBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SupabaseBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
 
 /// [Supabase](https://supabase.com/) service support
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SupabaseBuilder {
-    root: Option<String>,
-
-    bucket: String,
-    endpoint: Option<String>,
-
-    key: Option<String>,
-
-    // todo: optional public, currently true always
-    // todo: optional file_size_limit, currently 0
-    // todo: optional allowed_mime_types, currently only string
+    config: SupabaseConfig,
     http_client: Option<HttpClient>,
 }
 
 impl Debug for SupabaseBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SupabaseBuilder")
-            .field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .finish_non_exhaustive()
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("SupabaseBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -59,8 +60,8 @@ impl SupabaseBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
@@ -70,16 +71,16 @@ impl SupabaseBuilder {
     }
 
     /// Set bucket name of this backend.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
-        self.bucket = bucket.to_string();
+    pub fn bucket(mut self, bucket: &str) -> Self {
+        self.config.bucket = bucket.to_string();
         self
     }
 
     /// Set endpoint of this backend.
     ///
     /// Endpoint must be full uri
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
             Some(endpoint.trim_end_matches('/').to_string())
@@ -90,8 +91,8 @@ impl SupabaseBuilder {
 
     /// Set the authorization key for this backend
     /// Do not set this key if you want to read public bucket
-    pub fn key(&mut self, key: &str) -> &mut Self {
-        self.key = Some(key.to_string());
+    pub fn key(mut self, key: &str) -> Self {
+        self.config.key = Some(key.to_string());
         self
     }
 
@@ -101,7 +102,7 @@ impl SupabaseBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -109,28 +110,17 @@ impl SupabaseBuilder {
 
 impl Builder for SupabaseBuilder {
     const SCHEME: Scheme = Scheme::Supabase;
-    type Accessor = SupabaseBackend;
+    type Config = SupabaseConfig;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let mut builder = SupabaseBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("key").map(|v| builder.key(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+    fn build(self) -> Result<impl Access> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        let bucket = &self.bucket;
+        let bucket = &self.config.bucket;
 
-        let endpoint = self.endpoint.take().unwrap_or_default();
+        let endpoint = self.config.endpoint.unwrap_or_default();
 
-        let http_client = if let Some(client) = self.http_client.take() {
+        let http_client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -139,7 +129,7 @@ impl Builder for SupabaseBuilder {
             })?
         };
 
-        let key = self.key.as_ref().map(|k| k.to_owned());
+        let key = self.config.key.as_ref().map(|k| k.to_owned());
 
         let core = SupabaseCore::new(&root, bucket, &endpoint, key, http_client);
 
@@ -155,15 +145,17 @@ pub struct SupabaseBackend {
 }
 
 impl Access for SupabaseBackend {
-    type Reader = SupabaseReader;
+    type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SupabaseWriter>;
     // todo: implement Lister to support list
     type Lister = ();
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
@@ -174,12 +166,13 @@ impl Access for SupabaseBackend {
                 read: true,
 
                 write: true,
-                delete: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -196,17 +189,25 @@ impl Access for SupabaseBackend {
                     StatusCode::NOT_FOUND if path.ends_with('/') => {
                         Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                     }
-                    _ => Err(parse_error(resp).await?),
+                    _ => Err(parse_error(resp)),
                 }
             }
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            SupabaseReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -214,21 +215,5 @@ impl Access for SupabaseBackend {
             RpWrite::default(),
             oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
         ))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.supabase_delete_object(path).await?;
-
-        if resp.status().is_success() {
-            Ok(RpDelete::default())
-        } else {
-            // deleting not existing objects is ok
-            let e = parse_error(resp).await?;
-            if e.kind() == ErrorKind::NotFound {
-                Ok(RpDelete::default())
-            } else {
-                Err(e)
-            }
-        }
     }
 }

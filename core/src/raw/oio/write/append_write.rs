@@ -20,7 +20,7 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// AppendWrite is used to implement [`Write`] based on append
+/// AppendWrite is used to implement [`oio::Write`] based on append
 /// object. By implementing AppendWrite, services don't need to
 /// care about the details of buffering and uploading parts.
 ///
@@ -51,7 +51,7 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
-/// AppendWriter will implements [`Write`] based on append object.
+/// AppendWriter will implements [`oio::Write`] based on append object.
 ///
 /// ## TODO
 ///
@@ -65,7 +65,6 @@ pub struct AppendWriter<W: AppendWrite> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-
 impl<W: AppendWrite> AppendWriter<W> {
     /// Create a new AppendWriter.
     pub fn new(inner: W) -> Self {
@@ -80,7 +79,7 @@ impl<W> oio::Write for AppendWriter<W>
 where
     W: AppendWrite,
 {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         let offset = match self.offset {
             Some(offset) => offset,
             None => {
@@ -91,12 +90,10 @@ where
         };
 
         let size = bs.len();
-        self.inner
-            .append(offset, size as u64, Buffer::from(bs.to_bytes()))
-            .await?;
+        self.inner.append(offset, size as u64, bs).await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);
-        Ok(size)
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

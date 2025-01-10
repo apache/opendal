@@ -34,16 +34,18 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use anyhow::Result;
-/// use opendal::layers::ConcurrentLimitLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Scheme;
+/// # use opendal::layers::ConcurrentLimitLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use opendal::Scheme;
 ///
-/// let _ = Operator::new(services::Memory::default())
-///     .expect("must init")
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ConcurrentLimitLayer::new(1024))
 ///     .finish();
+/// Ok(())
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer {
@@ -82,6 +84,8 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     type BlockingWriter = ConcurrentLimitWrapper<A::BlockingWriter>;
     type Lister = ConcurrentLimitWrapper<A::Lister>;
     type BlockingLister = ConcurrentLimitWrapper<A::BlockingLister>;
+    type Deleter = ConcurrentLimitWrapper<A::Deleter>;
+    type BlockingDeleter = ConcurrentLimitWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -135,14 +139,18 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let _permit = self
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let permit = self
             .semaphore
-            .acquire()
+            .clone()
+            .acquire_owned()
             .await
             .expect("semaphore must be valid");
 
-        self.inner.delete(path, args).await
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -157,16 +165,6 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
             .list(path, args)
             .await
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.batch(args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -211,13 +209,16 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
         self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let _permit = self
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        let permit = self
             .semaphore
-            .try_acquire()
+            .clone()
+            .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner.blocking_delete(path, args)
+        self.inner
+            .blocking_delete()
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -250,19 +251,19 @@ impl<R> ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, size).await
+    async fn read(&mut self) -> Result<Buffer> {
+        self.inner.read().await
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
-    fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        self.inner.read_at(offset, size)
+    fn read(&mut self) -> Result<Buffer> {
+        self.inner.read()
     }
 }
 
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<usize> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).await
     }
 
@@ -276,7 +277,7 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<usize> {
+    fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs)
     }
 
@@ -294,5 +295,25 @@ impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for ConcurrentLimitWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for ConcurrentLimitWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner.flush().await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for ConcurrentLimitWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }

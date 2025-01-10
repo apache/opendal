@@ -23,8 +23,8 @@ use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
+use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
@@ -38,11 +38,18 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
-use serde_json::json;
+use serde::Serialize;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
 use crate::*;
+use constants::*;
+
+pub mod constants {
+    pub const X_GOOG_ACL: &str = "x-goog-acl";
+    pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
+    pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+}
 
 pub struct GcsCore {
     pub endpoint: String,
@@ -52,10 +59,14 @@ pub struct GcsCore {
     pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
+    pub token: Option<String>,
+    pub scope: String,
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub allow_anonymous: bool,
 }
 
 impl Debug for GcsCore {
@@ -72,44 +83,58 @@ static BACKOFF: Lazy<ExponentialBuilder> =
     Lazy::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
-    async fn load_token(&self) -> Result<GoogleToken> {
+    async fn load_token(&self) -> Result<Option<GoogleToken>> {
+        if let Some(token) = &self.token {
+            return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
+        }
+
         let cred = { || self.token_loader.load() }
-            .retry(&*BACKOFF)
+            .retry(*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
-    fn load_credential(&self) -> Result<GoogleCredential> {
+    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
         let cred = self
             .credential_loader
             .load()
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            return Ok(Some(cred));
         }
+
+        if self.allow_anonymous {
+            return Ok(None);
+        }
+
+        Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "no valid credential found",
+        ))
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_token().await?;
-
-        self.signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)?;
+        if let Some(cred) = self.load_token().await? {
+            self.signer
+                .sign(req, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -122,12 +147,14 @@ impl GcsCore {
         Ok(())
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential()?;
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)?;
+    pub fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        if let Some(cred) = self.load_credential()? {
+            self.signer
+                .sign_query(req, duration, &cred)
+                .map_err(new_request_sign_error)?;
+        } else {
+            return Ok(());
+        }
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -204,11 +231,11 @@ impl GcsCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn gcs_insert_object_request(
@@ -220,19 +247,18 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut metadata = HashMap::new();
-        if let Some(storage_class) = &self.default_storage_class {
-            metadata.insert("storageClass", storage_class.as_str());
-        }
-        if let Some(cache_control) = op.cache_control() {
-            metadata.insert("cacheControl", cache_control);
-        }
+        let request_metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            metadata: op.user_metadata(),
+        };
 
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
             self.endpoint,
             self.bucket,
-            if metadata.is_empty() {
+            if request_metadata.is_empty() {
                 "media"
             } else {
                 "multipart"
@@ -244,41 +270,39 @@ impl GcsCore {
             write!(&mut url, "&predefinedAcl={}", acl).unwrap();
         }
 
+        // Makes the operation conditional on whether the object's current generation
+        // matches the given value. Setting to 0 makes the operation succeed only if
+        // there are no live versions of the object.
+        if op.if_not_exists() {
+            write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        }
+
         let mut req = Request::post(&url);
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if metadata.is_empty() {
-            if let Some(content_type) = op.content_type() {
-                req = req.header(CONTENT_TYPE, content_type);
-            }
-
+        if request_metadata.is_empty() {
+            // If the metadata is empty, we do not set any `Content-Type` header,
+            // since if we had it in the `op.content_type()`, it would be already set in the
+            // `multipart` metadata body and this branch won't be executed.
             let req = req.body(body).map_err(new_request_build_error)?;
             Ok(req)
         } else {
             let mut multipart = Multipart::new();
-
-            multipart = multipart.part(
-                FormDataPart::new("metadata")
-                    .header(
-                        CONTENT_TYPE,
-                        "application/json; charset=UTF-8".parse().unwrap(),
-                    )
-                    .content(json!(metadata).to_string()),
-            );
-
-            let mut media_part = FormDataPart::new("media").content(body);
-
-            if let Some(content_type) = op.content_type() {
-                media_part = media_part.header(
+            let metadata_part = FormDataPart::new("metadata")
+                .header(
                     CONTENT_TYPE,
-                    content_type
-                        .parse()
-                        .map_err(|_| Error::new(ErrorKind::Unexpected, "invalid header value"))?,
+                    "application/json; charset=UTF-8".parse().unwrap(),
+                )
+                .content(
+                    serde_json::to_vec(&request_metadata)
+                        .expect("metadata serialization should success"),
                 );
-            }
+            multipart = multipart.part(metadata_part);
 
+            let media_part = FormDataPart::new("media").content(body);
             multipart = multipart.part(media_part);
+
             let req = multipart.apply(Request::post(url))?;
             Ok(req)
         }
@@ -297,16 +321,22 @@ impl GcsCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_GOOG_META_PREFIX}{key}"), value)
+            }
+        }
+
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
         if let Some(acl) = &self.predefined_acl {
-            req = req.header("x-goog-acl", acl);
+            req = req.header(X_GOOG_ACL, acl);
         }
 
         if let Some(storage_class) = &self.default_storage_class {
-            req = req.header("x-goog-storage-class", storage_class);
+            req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -488,12 +518,10 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_initiate_resumable_upload(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn gcs_initiate_multipart_upload(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
-            self.endpoint, self.bucket, p
-        );
+
+        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
 
         let mut req = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
@@ -504,65 +532,112 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub fn gcs_upload_in_resumable_upload(
+    pub async fn gcs_upload_part(
         &self,
-        location: &str,
-        size: u64,
-        written: u64,
-        body: Buffer,
-    ) -> Result<Request<Buffer>> {
-        let mut req = Request::put(location);
-
-        let range_header = format!("bytes {}-{}/*", written, written + size - 1);
-
-        req = req
-            .header(CONTENT_LENGTH, size)
-            .header(CONTENT_RANGE, range_header);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn gcs_complete_resumable_upload(
-        &self,
-        location: &str,
-        written: u64,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let mut req = Request::post(location)
-            .header(CONTENT_LENGTH, size)
-            .header(
-                CONTENT_RANGE,
-                format!(
-                    "bytes {}-{}/{}",
-                    written,
-                    written + size - 1,
-                    written + size
-                ),
-            )
-            .body(body)
-            .map_err(new_request_build_error)?;
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 
-    pub async fn gcs_abort_resumable_upload(&self, location: &str) -> Result<Response<Buffer>> {
-        let mut req = Request::delete(location)
-            .header(CONTENT_LENGTH, 0)
-            .body(Buffer::new())
+    pub async fn gcs_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
+        self.send(req).await
+    }
 
+    pub async fn gcs_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
         self.send(req).await
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct InsertRequestMetadata<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_class: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<&'a HashMap<String, String>>,
+}
+
+impl InsertRequestMetadata<'_> {
+    pub fn is_empty(&self) -> bool {
+        self.content_type.is_none()
+            && self.storage_class.is_none()
+            && self.cache_control.is_none()
+            && self.metadata.is_none()
+    }
+}
 /// Response JSON from GCS list objects API.
 ///
 /// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
@@ -590,6 +665,29 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+}
+
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    pub upload_id: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String,
 }
 
 #[cfg(test)]

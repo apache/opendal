@@ -33,6 +33,7 @@ mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
 mod logging;
+pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
 
 mod timeout;
@@ -53,15 +54,24 @@ mod metrics;
 #[cfg(feature = "layers-metrics")]
 pub use self::metrics::MetricsLayer;
 
+#[cfg(feature = "layers-mime-guess")]
+mod mime_guess;
+#[cfg(feature = "layers-mime-guess")]
+pub use self::mime_guess::MimeGuessLayer;
+
 #[cfg(feature = "layers-prometheus")]
 mod prometheus;
 #[cfg(feature = "layers-prometheus")]
 pub use self::prometheus::PrometheusLayer;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayerBuilder;
 
 #[cfg(feature = "layers-prometheus-client")]
 mod prometheus_client;
 #[cfg(feature = "layers-prometheus-client")]
 pub use self::prometheus_client::PrometheusClientLayer;
+#[cfg(feature = "layers-prometheus-client")]
+pub use self::prometheus_client::PrometheusClientLayerBuilder;
 
 mod retry;
 pub use self::retry::RetryInterceptor;
@@ -72,17 +82,15 @@ mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
 
-#[cfg(feature = "layers-minitrace")]
-mod minitrace;
-#[cfg(feature = "layers-minitrace")]
-pub use self::minitrace::MinitraceLayer;
+#[cfg(feature = "layers-fastrace")]
+mod fastrace;
+#[cfg(feature = "layers-fastrace")]
+pub use self::fastrace::FastraceLayer;
 
-#[cfg(feature = "layers-madsim")]
-mod madsim;
-#[cfg(feature = "layers-madsim")]
-pub use self::madsim::MadsimLayer;
-#[cfg(feature = "layers-madsim")]
-pub use self::madsim::MadsimServer;
+#[cfg(feature = "layers-otel-metrics")]
+mod otelmetrics;
+#[cfg(feature = "layers-otel-metrics")]
+pub use self::otelmetrics::OtelMetricsLayer;
 
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
@@ -108,3 +116,10 @@ pub use self::async_backtrace::AsyncBacktraceLayer;
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
+
+pub mod observe;
+
+mod correctness_check;
+pub(crate) use correctness_check::CorrectnessCheckLayer;
+mod capability_check;
+pub use capability_check::CapabilityCheckLayer;

@@ -24,6 +24,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
+use constants::X_MS_META_PREFIX;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -42,13 +43,14 @@ use uuid::Uuid;
 use crate::raw::*;
 use crate::*;
 
-mod constants {
+pub mod constants {
     pub const X_MS_VERSION: &str = "x-ms-version";
 
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
+    pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
@@ -66,7 +68,6 @@ pub struct AzblobCore {
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
-    pub batch_max_operations: usize,
 }
 
 impl Debug for AzblobCore {
@@ -217,12 +218,12 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         args: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let mut req = self.azblob_get_blob_request(path, range, args)?;
 
         self.sign(&mut req).await?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub fn azblob_put_blob_request(
@@ -243,12 +244,11 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
 
-        // Set SSE headers.
-        req = self.insert_sse_headers(req);
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "BlockBlob",
+        );
 
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
-        }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
@@ -257,10 +257,28 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        req = req.header(
-            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
-            "BlockBlob",
-        );
+        // Specify the wildcard character (*) to perform the operation only if
+        // the resource does not exist, and fail the operation if it does exist.
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value)
+            }
+        }
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -421,7 +439,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_complete_put_block_list_request(
+    pub fn azblob_complete_put_block_list_request(
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
@@ -469,9 +487,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let mut req = self
-            .azblob_complete_put_block_list_request(path, block_ids, args)
-            .await?;
+        let mut req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
 
         self.sign(&mut req).await?;
 

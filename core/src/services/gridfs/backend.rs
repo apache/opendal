@@ -18,41 +18,41 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
-use futures::StreamExt;
 use mongodb::bson::doc;
+use mongodb::gridfs::GridFsBucket;
 use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
-use mongodb::options::GridFsFindOptions;
-use mongodb::GridFsBucket;
 use tokio::sync::OnceCell;
 
+use super::config::GridfsConfig;
 use crate::raw::adapters::kv;
-use crate::raw::new_std_io_error;
+use crate::raw::*;
 use crate::*;
 
-#[doc = include_str!("docs.md")]
-#[derive(Default)]
-pub struct GridFsBuilder {
-    connection_string: Option<String>,
-    database: Option<String>,
-    bucket: Option<String>,
-    chunk_size: Option<u32>,
-    root: Option<String>,
-}
-
-impl Debug for GridFsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GridFsBuilder")
-            .field("database", &self.database)
-            .field("bucket", &self.bucket)
-            .field("chunk_size", &self.chunk_size)
-            .field("root", &self.root)
-            .finish()
+impl Configurator for GridfsConfig {
+    type Builder = GridfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        GridfsBuilder { config: self }
     }
 }
 
-impl GridFsBuilder {
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct GridfsBuilder {
+    config: GridfsConfig,
+}
+
+impl Debug for GridfsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("GridFsBuilder");
+        d.field("config", &self.config);
+        d.finish_non_exhaustive()
+    }
+}
+
+impl GridfsBuilder {
     /// Set the connection_string of the MongoDB service.
     ///
     /// This connection string is used to connect to the MongoDB service. It typically follows the format:
@@ -73,9 +73,9 @@ impl GridFsBuilder {
     /// - ... (any other options you wish to highlight)
     ///
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
-    pub fn connection_string(&mut self, v: &str) -> &mut Self {
+    pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
-            self.connection_string = Some(v.to_string());
+            self.config.connection_string = Some(v.to_string());
         }
         self
     }
@@ -83,27 +83,30 @@ impl GridFsBuilder {
     /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_owned());
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
     /// Set the database name of the MongoDB GridFs service to read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
-            self.database = Some(database.to_string());
+            self.config.database = Some(database.to_string());
         }
         self
     }
 
-    /// Set the buctet name of the MongoDB GridFs service to read/write.
+    /// Set the bucket name of the MongoDB GridFs service to read/write.
     ///
     /// Default to `fs` if not specified.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
-            self.bucket = Some(bucket.to_string());
+            self.config.bucket = Some(bucket.to_string());
         }
         self
     }
@@ -111,35 +114,20 @@ impl GridFsBuilder {
     /// Set the chunk size of the MongoDB GridFs service used to break the user file into chunks.
     ///
     /// Default to `255 KiB` if not specified.
-    pub fn chunk_size(&mut self, chunk_size: u32) -> &mut Self {
+    pub fn chunk_size(mut self, chunk_size: u32) -> Self {
         if chunk_size > 0 {
-            self.chunk_size = Some(chunk_size);
+            self.config.chunk_size = Some(chunk_size);
         }
         self
     }
 }
 
-impl Builder for GridFsBuilder {
-    const SCHEME: Scheme = Scheme::Mongodb;
+impl Builder for GridfsBuilder {
+    const SCHEME: Scheme = Scheme::Gridfs;
+    type Config = GridfsConfig;
 
-    type Accessor = GridFsBackend;
-
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("connection_string")
-            .map(|v| builder.connection_string(v));
-        map.get("database").map(|v| builder.database(v));
-        map.get("bucket").map(|v| builder.bucket(v));
-        map.get("chunk_size")
-            .map(|v| builder.chunk_size(v.parse::<u32>().unwrap_or_default()));
-        map.get("root").map(|v| builder.root(v));
-
-        builder
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
-        let conn = match &self.connection_string.clone() {
+    fn build(self) -> Result<impl Access> {
+        let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(
@@ -148,18 +136,26 @@ impl Builder for GridFsBuilder {
                 )
             }
         };
-        let database = match &self.database.clone() {
+        let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", Scheme::Gridfs))
             }
         };
-        let bucket = match &self.bucket.clone() {
+        let bucket = match &self.config.bucket.clone() {
             Some(v) => v.clone(),
             None => "fs".to_string(),
         };
-        let chunk_size = self.chunk_size.unwrap_or(255);
+        let chunk_size = self.config.chunk_size.unwrap_or(255);
+
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
 
         Ok(GridFsBackend::new(Adapter {
             connection_string: conn,
@@ -167,7 +163,8 @@ impl Builder for GridFsBuilder {
             bucket,
             chunk_size,
             bucket_instance: OnceCell::new(),
-        }))
+        })
+        .with_normalized_root(root))
     }
 }
 
@@ -215,13 +212,16 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Gridfs,
             &format!("{}/{}", self.database, self.bucket),
             Capability {
                 read: true,
                 write: true,
+                shared: true,
                 ..Default::default()
             },
         )
@@ -230,41 +230,38 @@ impl kv::Adapter for Adapter {
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
-        let options = GridFsFindOptions::builder().limit(Some(1)).build();
-        let mut cursor = bucket
-            .find(filter, options)
+        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
+            return Ok(None);
+        };
+
+        let mut destination = Vec::new();
+        let file_id = doc.id;
+        let mut stream = bucket
+            .open_download_stream(file_id)
             .await
             .map_err(parse_mongodb_error)?;
-
-        match cursor.next().await {
-            Some(doc) => {
-                let mut destination = Vec::new();
-                let file_id = doc.map_err(parse_mongodb_error)?.id;
-                bucket
-                    .download_to_futures_0_3_writer(file_id, &mut destination)
-                    .await
-                    .map_err(parse_mongodb_error)?;
-                Ok(Some(Buffer::from(destination)))
-            }
-            None => Ok(None),
-        }
+        stream
+            .read_to_end(&mut destination)
+            .await
+            .map_err(new_std_io_error)?;
+        Ok(Some(Buffer::from(destination)))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
+
         // delete old file if exists
         let filter = doc! { "filename": path };
-        let options = GridFsFindOptions::builder().limit(Some(1)).build();
-        let mut cursor = bucket
-            .find(filter, options)
+        if let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? {
+            let file_id = doc.id;
+            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
+        };
+
+        // set new file
+        let mut upload_stream = bucket
+            .open_upload_stream(path)
             .await
             .map_err(parse_mongodb_error)?;
-        if let Some(doc) = cursor.next().await {
-            let file_id = doc.map_err(parse_mongodb_error)?.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        }
-        // set new file
-        let mut upload_stream = bucket.open_upload_stream(path, None);
         upload_stream
             .write_all(&value.to_vec())
             .await
@@ -277,14 +274,12 @@ impl kv::Adapter for Adapter {
     async fn delete(&self, path: &str) -> Result<()> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
-        let mut cursor = bucket
-            .find(filter, None)
-            .await
-            .map_err(parse_mongodb_error)?;
-        while let Some(doc) = cursor.next().await {
-            let file_id = doc.map_err(parse_mongodb_error)?.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        }
+        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
+            return Ok(());
+        };
+
+        let file_id = doc.id;
+        bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
         Ok(())
     }
 }

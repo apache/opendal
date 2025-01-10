@@ -1,0 +1,19 @@
+.{
+    .name = "opendal",
+    .version = "0.0.1",
+    .dependencies = .{
+        .zigcoro = .{
+            .url = "git+https://github.com/rsepassi/zigcoro#ca58a912c3c0957d6aab0405f4c78f68e1dababb",
+            .hash = "12204959321c5e16a70944b8cdf423f0fa2bdf7db1f72bacc89b8af85acc4c054d9c",
+        },
+        .test_runner = .{
+            .url = "git+https://gist.github.com/karlseguin/c6bea5b35e4e8d26af6f81c22cb5d76b/#f303e77231e14b405e4e800072e7deacac4a4881",
+            .hash = "12208ab39744c8c0909d53b8c9889aff0690930d20e98e4f650f9690310e9a860b14",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

@@ -15,12 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-mod error;
-mod lister;
-mod reader;
-mod writer;
-pub use backend::AliyunDriveBuilder as AliyunDrive;
-pub use backend::AliyunDriveConfig;
-
+#[cfg(feature = "services-aliyun-drive")]
 mod core;
+
+#[cfg(feature = "services-aliyun-drive")]
+mod backend;
+#[cfg(feature = "services-aliyun-drive")]
+mod delete;
+#[cfg(feature = "services-aliyun-drive")]
+mod error;
+#[cfg(feature = "services-aliyun-drive")]
+mod lister;
+#[cfg(feature = "services-aliyun-drive")]
+mod writer;
+#[cfg(feature = "services-aliyun-drive")]
+pub use backend::AliyunDriveBuilder as AliyunDrive;
+
+mod config;
+
+pub use config::AliyunDriveConfig;

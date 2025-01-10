@@ -137,7 +137,16 @@ class Operator {
    * @param path The path to check
    * @return true if the path exists, false otherwise
    */
+  [[deprecated("Use exists() instead.")]]
   bool is_exist(std::string_view path);
+
+  /**
+   * @brief Check if the path exists
+   *
+   * @param path The path to check
+   * @return true if the path exists, false otherwise
+   */
+  bool exists(std::string_view path);
 
   /**
    * @brief Create a directory

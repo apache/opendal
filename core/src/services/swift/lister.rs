@@ -53,7 +53,7 @@ impl oio::PageList for SwiftLister {
         let status_code = response.status();
 
         if !status_code.is_success() {
-            let error = parse_error(response).await?;
+            let error = parse_error(response);
             return Err(error);
         }
 
@@ -75,8 +75,12 @@ impl oio::PageList for SwiftLister {
         for status in decoded_response {
             let entry: oio::Entry = match status {
                 ListOpResponse::Subdir { subdir } => {
+                    let mut path = build_rel_path(self.core.root.as_str(), subdir.as_str());
+                    if path.is_empty() {
+                        path = "/".to_string();
+                    }
                     let meta = Metadata::new(EntryMode::DIR);
-                    oio::Entry::new(&subdir, meta)
+                    oio::Entry::with(path, meta)
                 }
                 ListOpResponse::FileInfo {
                     bytes,
@@ -85,12 +89,11 @@ impl oio::PageList for SwiftLister {
                     content_type,
                     mut last_modified,
                 } => {
-                    // this is the pseudo directory itself; we'll skip it.
-                    if name == self.path {
-                        continue;
+                    let mut path = build_rel_path(self.core.root.as_str(), name.as_str());
+                    if path.is_empty() {
+                        path = "/".to_string();
                     }
-
-                    let mut meta = Metadata::new(EntryMode::from_path(&name));
+                    let mut meta = Metadata::new(EntryMode::from_path(path.as_str()));
                     meta.set_content_length(bytes);
                     meta.set_content_md5(hash.as_str());
 
@@ -106,7 +109,7 @@ impl oio::PageList for SwiftLister {
                         meta.set_content_type(content_type.as_str());
                     }
 
-                    oio::Entry::with(name, meta)
+                    oio::Entry::with(path, meta)
                 }
             };
             ctx.entries.push_back(entry);

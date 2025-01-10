@@ -15,17 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg(any(target_os = "linux", target_os = "freebsd"))]
+
 mod common;
 
-use std::{
-    fs::{self, File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
-    thread,
-    time::Duration,
-};
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::fs::{self};
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
+use std::thread;
+use std::time::Duration;
 
 use common::OfsTestContext;
-
 use test_context::test_context;
 
 static TEST_TEXT: &str = include_str!("../Cargo.toml");

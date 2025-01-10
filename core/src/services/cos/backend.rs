@@ -15,48 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
 use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
-use serde::Deserialize;
 
 use super::core::*;
+use super::delete::CosDeleter;
 use super::error::parse_error;
-use super::lister::CosLister;
+use super::lister::{CosLister, CosListers, CosObjectVersionsLister};
 use super::writer::CosWriter;
+use super::writer::CosWriters;
+use crate::raw::oio::PageLister;
 use crate::raw::*;
-use crate::services::cos::reader::CosReader;
-use crate::services::cos::writer::CosWriters;
+use crate::services::CosConfig;
 use crate::*;
 
-/// Tencent-Cloud COS services support.
-#[derive(Default, Deserialize, Clone)]
-#[serde(default)]
-pub struct CosConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    secret_id: Option<String>,
-    secret_key: Option<String>,
-    bucket: Option<String>,
-    disable_config_load: bool,
-}
-
-impl Debug for CosConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CosConfig")
-            .field("root", &self.root)
-            .field("endpoint", &self.endpoint)
-            .field("secret_id", &"<redacted>")
-            .field("secret_key", &"<redacted>")
-            .field("bucket", &self.bucket)
-            .finish_non_exhaustive()
+impl Configurator for CosConfig {
+    type Builder = CosBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CosBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -80,10 +67,12 @@ impl CosBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -95,7 +84,7 @@ impl CosBuilder {
     /// # Examples
     ///
     /// - `https://cos.ap-singapore.myqcloud.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
@@ -106,7 +95,7 @@ impl CosBuilder {
     /// Set secret_id of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_id(&mut self, secret_id: &str) -> &mut Self {
+    pub fn secret_id(mut self, secret_id: &str) -> Self {
         if !secret_id.is_empty() {
             self.config.secret_id = Some(secret_id.to_string());
         }
@@ -117,7 +106,7 @@ impl CosBuilder {
     /// Set secret_key of this backend.
     /// - If it is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_key(&mut self, secret_key: &str) -> &mut Self {
+    pub fn secret_key(mut self, secret_key: &str) -> Self {
         if !secret_key.is_empty() {
             self.config.secret_key = Some(secret_key.to_string());
         }
@@ -127,10 +116,17 @@ impl CosBuilder {
 
     /// Set bucket of this backend.
     /// The param is required.
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+    pub fn bucket(mut self, bucket: &str) -> Self {
         if !bucket.is_empty() {
             self.config.bucket = Some(bucket.to_string());
         }
+
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
 
         self
     }
@@ -141,7 +137,7 @@ impl CosBuilder {
     /// For examples:
     ///
     /// - envs like `TENCENTCLOUD_SECRET_ID`
-    pub fn disable_config_load(&mut self) -> &mut Self {
+    pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
     }
@@ -152,7 +148,7 @@ impl CosBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -160,22 +156,12 @@ impl CosBuilder {
 
 impl Builder for CosBuilder {
     const SCHEME: Scheme = Scheme::Cos;
-    type Accessor = CosBackend;
+    type Config = CosConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = CosConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self {
-            config,
-            http_client: None,
-        }
-    }
-
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let bucket = match &self.config.bucket {
@@ -207,7 +193,7 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -221,23 +207,23 @@ impl Builder for CosBuilder {
             cfg = cfg.from_env();
         }
 
-        if let Some(v) = self.config.secret_id.take() {
+        if let Some(v) = self.config.secret_id {
             cfg.secret_id = Some(v);
         }
-        if let Some(v) = self.config.secret_key.take() {
+        if let Some(v) = self.config.secret_key {
             cfg.secret_key = Some(v);
         }
 
-        let cred_loader = TencentCosCredentialLoader::new(client.client(), cfg);
+        let cred_loader = TencentCosCredentialLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
 
         let signer = TencentCosSigner::new();
 
-        debug!("backend build finished");
         Ok(CosBackend {
             core: Arc::new(CosCore {
                 bucket: bucket.clone(),
                 root,
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
+                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader: cred_loader,
                 client,
@@ -253,14 +239,16 @@ pub struct CosBackend {
 }
 
 impl Access for CosBackend {
-    type Reader = CosReader;
+    type Reader = HttpBody;
     type Writer = CosWriters;
-    type Lister = oio::PageLister<CosLister>;
+    type Lister = CosListers;
+    type Deleter = oio::OneShotDeleter<CosDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Cos)
             .set_root(&self.core.root)
@@ -269,11 +257,23 @@ impl Access for CosBackend {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_with_version: self.core.enable_versioning,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
+                stat_has_version: true,
 
                 read: true,
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,
+                read_with_version: self.core.enable_versioning,
 
                 write: true,
                 write_can_empty: true,
@@ -282,6 +282,8 @@ impl Access for CosBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
+                // Cos doesn't support forbid overwrite while version has been enabled.
+                write_with_if_not_exists: !self.core.enable_versioning,
                 // The min multipart size of COS is 1 MiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -296,20 +298,26 @@ impl Access for CosBackend {
                 },
 
                 delete: true,
+                delete_with_version: self.core.enable_versioning,
                 copy: true,
 
                 list: true,
                 list_with_recursive: true,
+                list_with_versions: self.core.enable_versioning,
+                list_with_deleted: self.core.enable_versioning,
+                list_has_content_length: true,
 
                 presign: true,
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
 
+                shared: true,
+
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -318,16 +326,35 @@ impl Access for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp).await?),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+
+                if let Some(v) = parse_header_to_str(headers, "x-cos-version-id")? {
+                    meta.set_version(v);
+                }
+
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            CosReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.cos_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -336,28 +363,40 @@ impl Access for CosBackend {
         let w = if args.append() {
             CosWriters::Two(oio::AppendWriter::new(writer))
         } else {
-            CosWriters::One(oio::MultipartWriter::new(writer, args.concurrent()))
+            CosWriters::One(oio::MultipartWriter::new(
+                writer,
+                args.executor().cloned(),
+                args.concurrent(),
+            ))
         };
 
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.cos_delete_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(CosDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = CosLister::new(self.core.clone(), path, args.recursive(), args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        let l = if args.versions() || args.deleted() {
+            TwoWays::Two(PageLister::new(CosObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(PageLister::new(CosLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -367,7 +406,7 @@ impl Access for CosBackend {
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 

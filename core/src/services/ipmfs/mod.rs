@@ -15,11 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-ipmfs")]
 mod backend;
+#[cfg(feature = "services-ipmfs")]
+mod delete;
+#[cfg(feature = "services-ipmfs")]
+mod error;
+#[cfg(feature = "services-ipmfs")]
+mod lister;
+#[cfg(feature = "services-ipmfs")]
+mod writer;
+
+#[cfg(feature = "services-ipmfs")]
 mod builder;
+#[cfg(feature = "services-ipmfs")]
 pub use builder::IpmfsBuilder as Ipmfs;
 
-mod error;
-mod lister;
-mod reader;
-mod writer;
+mod config;
+pub use config::IpmfsConfig;

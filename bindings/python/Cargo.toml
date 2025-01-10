@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.45.2"
+version = "0.45.14"
 
 [features]
 default = [
@@ -45,8 +45,12 @@ default = [
   "services-webhdfs",
 ]
 
+# NOTE: this is the feature we used to build pypi wheels.
+# When enable or disable some features,
+# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
 services-all = [
   "default",
+  "services-aliyun-drive",
   "services-azfile",
   "services-cacache",
   "services-chainsafe",
@@ -93,6 +97,7 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-chainsafe = ["opendal/services-chainsafe"]
@@ -131,6 +136,7 @@ services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
 services-mongodb = ["opendal/services-mongodb"]
+services-monoiofs = ["opendal/services-monoiofs"]
 services-mysql = ["opendal/services-mysql"]
 services-onedrive = ["opendal/services-onedrive"]
 services-persy = ["opendal/services-persy"]
@@ -148,6 +154,8 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
+# we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
+abi3 = ["pyo3/abi3-py311"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -155,12 +163,14 @@ doc = false
 
 [dependencies]
 bytes = "1.5.0"
+dict_derive = "0.6.0"
 futures = "0.3.28"
-opendal = { version = "0.46.0", path = "../../core", features = [
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.20.1", features = ["abi3", "abi3-py311"] }
-pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+pyo3 = { version = "0.23.3", features = ["generate-import-lib"] }
+pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
@@ -170,4 +180,4 @@ features = [
   "services-sftp",
 ]
 path = "../../core"
-version = "0.46.0"
+version = ">=0"

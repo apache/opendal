@@ -19,11 +19,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
-use pyo3_asyncio::tokio::future_into_py;
+use pyo3::types::PyTuple;
+use pyo3::IntoPyObjectExt;
+use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
 
@@ -31,9 +32,9 @@ fn build_operator(
     scheme: ocore::Scheme,
     map: HashMap<String, String>,
 ) -> PyResult<ocore::Operator> {
-    let mut op = ocore::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    let mut op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
     if !op.info().full_capability().blocking {
-        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
         let _guard = runtime.enter();
         op = op
             .layer(ocore::layers::BlockingLayer::create().expect("blocking layer must be created"));
@@ -46,13 +47,17 @@ fn build_operator(
 ///
 /// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
-pub struct Operator(ocore::BlockingOperator);
+pub struct Operator {
+    core: ocore::BlockingOperator,
+    __scheme: ocore::Scheme,
+    __map: HashMap<String, String>,
+}
 
 #[pymethods]
 impl Operator {
     #[new]
     #[pyo3(signature = (scheme, *, **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -66,57 +71,67 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map)?.blocking()))
+        Ok(Operator {
+            core: build_operator(scheme.clone(), map.clone())?.blocking(),
+            __scheme: scheme,
+            __map: map,
+        })
     }
 
     /// Add new layers upon existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
-        let op = layer.0.layer(self.0.clone().into());
-        Ok(Self(op.blocking()))
+        let op = layer.0.layer(self.core.clone().into());
+        Ok(Self {
+            core: op.blocking(),
+            __scheme: self.__scheme.clone(),
+            __map: self.__map.clone(),
+        })
     }
 
     /// Open a file-like reader for the given path.
     pub fn open(&self, path: String, mode: String) -> PyResult<File> {
-        let this = self.0.clone();
-        let capability = self.capability()?;
+        let this = self.core.clone();
         if mode == "rb" {
             let r = this
                 .reader(&path)
                 .map_err(format_pyerr)?
                 .into_std_read(..)
                 .map_err(format_pyerr)?;
-            Ok(File::new_reader(r, capability))
+            Ok(File::new_reader(r))
         } else if mode == "wb" {
             let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w, capability))
+            Ok(File::new_writer(w))
         } else {
-            Err(UnsupportedError::new_err(format!(
+            Err(Unsupported::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
             )))
         }
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        let buffer = self.0.read(path).map_err(format_pyerr)?.to_vec();
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<'p, PyAny>> {
+        let buffer = self.core.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
-        let opwrite = build_opwrite(kwargs)?;
-        let mut write = self.0.write_with(path, bs).append(opwrite.append());
-        if let Some(chunk) = opwrite.chunk() {
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+        let kwargs = kwargs.unwrap_or_default();
+        let mut write = self
+            .core
+            .write_with(path, bs)
+            .append(kwargs.append.unwrap_or(false));
+        if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
         }
-        if let Some(content_type) = opwrite.content_type() {
+        if let Some(content_type) = &kwargs.content_type {
             write = write.content_type(content_type);
         }
-        if let Some(content_disposition) = opwrite.content_disposition() {
+        if let Some(content_disposition) = &kwargs.content_disposition {
             write = write.content_disposition(content_disposition);
         }
-        if let Some(cache_control) = opwrite.cache_control() {
+        if let Some(cache_control) = &kwargs.cache_control {
             write = write.cache_control(cache_control);
         }
 
@@ -125,22 +140,25 @@ impl Operator {
 
     /// Get current path's metadata **without cache** directly.
     pub fn stat(&self, path: &str) -> PyResult<Metadata> {
-        self.0.stat(path).map_err(format_pyerr).map(Metadata::new)
+        self.core
+            .stat(path)
+            .map_err(format_pyerr)
+            .map(Metadata::new)
     }
 
     /// Copy source to target.
     pub fn copy(&self, source: &str, target: &str) -> PyResult<()> {
-        self.0.copy(source, target).map_err(format_pyerr)
+        self.core.copy(source, target).map_err(format_pyerr)
     }
 
     /// Rename filename.
     pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
-        self.0.rename(source, target).map_err(format_pyerr)
+        self.core.rename(source, target).map_err(format_pyerr)
     }
 
     /// Remove all file
     pub fn remove_all(&self, path: &str) -> PyResult<()> {
-        self.0.remove_all(path).map_err(format_pyerr)
+        self.core.remove_all(path).map_err(format_pyerr)
     }
 
     /// Create a dir at given path.
@@ -156,7 +174,7 @@ impl Operator {
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
     pub fn create_dir(&self, path: &str) -> PyResult<()> {
-        self.0.create_dir(path).map_err(format_pyerr)
+        self.core.create_dir(path).map_err(format_pyerr)
     }
 
     /// Delete given path.
@@ -165,19 +183,19 @@ impl Operator {
     ///
     /// - Delete not existing error won't return errors.
     pub fn delete(&self, path: &str) -> PyResult<()> {
-        self.0.delete(path).map_err(format_pyerr)
+        self.core.delete(path).map_err(format_pyerr)
     }
 
     /// List current dir path.
     pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
-        let l = self.0.lister(path).map_err(format_pyerr)?;
+        let l = self.core.lister(path).map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
     /// List dir in flat way.
     pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
         let l = self
-            .0
+            .core
             .lister_with(path)
             .recursive(true)
             .call()
@@ -186,15 +204,21 @@ impl Operator {
     }
 
     pub fn capability(&self) -> PyResult<capability::Capability> {
-        Ok(capability::Capability::new(self.0.info().full_capability()))
+        Ok(capability::Capability::new(
+            self.core.info().full_capability(),
+        ))
     }
 
     pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
-        Ok(AsyncOperator(self.0.clone().into()))
+        Ok(AsyncOperator {
+            core: self.core.clone().into(),
+            __scheme: self.__scheme.clone(),
+            __map: self.__map.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
-        let info = self.0.info();
+        let info = self.core.info();
         let name = info.name();
         if name.is_empty() {
             format!("Operator(\"{}\", root=\"{}\")", info.scheme(), info.root())
@@ -206,19 +230,30 @@ impl Operator {
             )
         }
     }
+
+    fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
+        let kwargs = self.__map.clone().into_py_any(py)?;
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
+    }
 }
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///
 /// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
-pub struct AsyncOperator(ocore::Operator);
+pub struct AsyncOperator {
+    core: ocore::Operator,
+    __scheme: ocore::Scheme,
+    __map: HashMap<String, String>,
+}
 
 #[pymethods]
 impl AsyncOperator {
     #[new]
     #[pyo3(signature = (scheme, *,  **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
@@ -232,19 +267,31 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map)?))
+        Ok(AsyncOperator {
+            core: build_operator(scheme.clone(), map.clone())?.into(),
+            __scheme: scheme,
+            __map: map,
+        })
     }
 
     /// Add new layers upon existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
-        let op = layer.0.layer(self.0.clone());
-        Ok(Self(op))
+        let op = layer.0.layer(self.core.clone());
+        Ok(Self {
+            core: op,
+            __scheme: self.__scheme.clone(),
+            __map: self.__map.clone(),
+        })
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open<'p>(&'p self, py: Python<'p>, path: String, mode: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let capability = self.capability()?;
+    pub fn open<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        mode: String,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
 
         future_into_py(py, async move {
             if mode == "rb" {
@@ -255,12 +302,12 @@ impl AsyncOperator {
                     .into_futures_async_read(..)
                     .await
                     .map_err(format_pyerr)?;
-                Ok(AsyncFile::new_reader(r, capability))
+                Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
                 let w = this.writer(&path).await.map_err(format_pyerr)?;
-                Ok(AsyncFile::new_writer(w, capability))
+                Ok(AsyncFile::new_writer(w))
             } else {
-                Err(UnsupportedError::new_err(format!(
+                Err(Unsupported::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"
                 )))
             }
@@ -268,8 +315,8 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
@@ -282,24 +329,26 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: String,
-        bs: &PyBytes,
-        kwargs: Option<&PyDict>,
-    ) -> PyResult<&'p PyAny> {
-        let opwrite = build_opwrite(kwargs)?;
-        let this = self.0.clone();
+        bs: &Bound<PyBytes>,
+        kwargs: Option<WriteOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let kwargs = kwargs.unwrap_or_default();
+        let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs).append(opwrite.append());
-            if let Some(buffer) = opwrite.chunk() {
+            let mut write = this
+                .write_with(&path, bs)
+                .append(kwargs.append.unwrap_or(false));
+            if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }
-            if let Some(content_type) = opwrite.content_type() {
+            if let Some(content_type) = &kwargs.content_type {
                 write = write.content_type(content_type);
             }
-            if let Some(content_disposition) = opwrite.content_disposition() {
+            if let Some(content_disposition) = &kwargs.content_disposition {
                 write = write.content_disposition(content_disposition);
             }
-            if let Some(cache_control) = opwrite.cache_control() {
+            if let Some(cache_control) = &kwargs.cache_control {
                 write = write.cache_control(cache_control);
             }
             write.await.map_err(format_pyerr)
@@ -307,8 +356,8 @@ impl AsyncOperator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let res: Metadata = this
                 .stat(&path)
@@ -326,8 +375,8 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
         })
@@ -339,16 +388,16 @@ impl AsyncOperator {
         py: Python<'p>,
         source: String,
         target: String,
-    ) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
         })
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             this.remove_all(&path).await.map_err(format_pyerr)
         })
@@ -366,8 +415,8 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
         })
@@ -378,8 +427,8 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },
@@ -387,25 +436,27 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this.lister(&path).await.map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
+
             Ok(pylister)
         })
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let lister = this
                 .lister_with(&path)
                 .recursive(true)
                 .await
                 .map_err(format_pyerr)?;
-            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            let pylister: PyObject =
+                Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
             Ok(pylister)
         })
     }
@@ -416,8 +467,8 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let res = this
                 .presign_stat(&path, Duration::from_secs(expire_second))
@@ -435,8 +486,8 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let res = this
                 .presign_read(&path, Duration::from_secs(expire_second))
@@ -454,8 +505,8 @@ impl AsyncOperator {
         py: Python<'p>,
         path: String,
         expire_second: u64,
-    ) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
         future_into_py(py, async move {
             let res = this
                 .presign_write(&path, Duration::from_secs(expire_second))
@@ -468,15 +519,21 @@ impl AsyncOperator {
     }
 
     pub fn capability(&self) -> PyResult<capability::Capability> {
-        Ok(capability::Capability::new(self.0.info().full_capability()))
+        Ok(capability::Capability::new(
+            self.core.info().full_capability(),
+        ))
     }
 
     pub fn to_operator(&self) -> PyResult<Operator> {
-        Ok(Operator(self.0.clone().blocking()))
+        Ok(Operator {
+            core: self.core.clone().blocking(),
+            __scheme: self.__scheme.clone(),
+            __map: self.__map.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
-        let info = self.0.info();
+        let info = self.core.info();
         let name = info.name();
         if name.is_empty() {
             format!(
@@ -492,55 +549,13 @@ impl AsyncOperator {
             )
         }
     }
-}
 
-/// recognize OpWrite-equivalent options passed as python dict
-pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<ocore::raw::OpWrite> {
-    use ocore::raw::OpWrite;
-    let mut op = OpWrite::new();
-
-    let dict = if let Some(kwargs) = kwargs {
-        kwargs
-    } else {
-        return Ok(op);
-    };
-
-    if let Some(append) = dict.get_item("append")? {
-        let v = append
-            .extract::<bool>()
-            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
-        op = op.with_append(v);
+    fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
+        let args = vec![self.__scheme.to_string()];
+        let args = PyTuple::new(py, args)?.into_py_any(py)?;
+        let kwargs = self.__map.clone().into_py_any(py)?;
+        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
     }
-
-    if let Some(chunk) = dict.get_item("chunk")? {
-        let v = chunk
-            .extract::<usize>()
-            .map_err(|err| PyValueError::new_err(format!("chunk must be usize, got {}", err)))?;
-        op = op.with_chunk(v);
-    }
-
-    if let Some(content_type) = dict.get_item("content_type")? {
-        let v = content_type.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_type must be str, got {}", err))
-        })?;
-        op = op.with_content_type(v.as_str());
-    }
-
-    if let Some(content_disposition) = dict.get_item("content_disposition")? {
-        let v = content_disposition.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
-        })?;
-        op = op.with_content_disposition(v.as_str());
-    }
-
-    if let Some(cache_control) = dict.get_item("cache_control")? {
-        let v = cache_control.extract::<String>().map_err(|err| {
-            PyValueError::new_err(format!("cache_control must be str, got {}", err))
-        })?;
-        op = op.with_cache_control(v.as_str());
-    }
-
-    Ok(op)
 }
 
 #[pyclass(module = "opendal")]
@@ -568,9 +583,9 @@ impl PresignedRequest {
             let k = k.as_str();
             let v = v
                 .to_str()
-                .map_err(|err| UnexpectedError::new_err(err.to_string()))?;
+                .map_err(|err| Unexpected::new_err(err.to_string()))?;
             if headers.insert(k, v).is_some() {
-                return Err(UnexpectedError::new_err("duplicate header"));
+                return Err(Unexpected::new_err("duplicate header"));
             }
         }
         Ok(headers)

@@ -15,19 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::future::ready;
 use std::future::Future;
 use std::mem::size_of;
-use std::{fmt::Debug, future::ready};
 
 use chrono::Utc;
 
+use crate::raw::MaybeSend;
+use crate::Buffer;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
-use crate::{raw::MaybeSend, Buffer};
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -37,13 +39,13 @@ use crate::{raw::MaybeSend, Buffer};
 ///
 /// `typed_kv::Adapter` is the typed version of `kv::Adapter`. It's more
 /// efficient if the underlying kv service can store data with its type. For
-/// example, we can store `Bytes` along with it's metadata so that we don't
+/// example, we can store `Bytes` along with its metadata so that we don't
 /// need to serialize/deserialize it when we get it from the service.
 ///
 /// Ideally, we should use `typed_kv::Adapter` instead of `kv::Adapter` for
 /// in-memory rust libs like moka and dashmap.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// Get the scheme and name of current adapter.
+    /// Return the info of this key value accessor.
     fn info(&self) -> Info;
 
     /// Get a value from adapter.
@@ -128,6 +130,8 @@ pub struct Capability {
     pub delete: bool,
     /// If typed_kv operator supports scan natively.
     pub scan: bool,
+    /// If typed_kv operator supports shared access.
+    pub shared: bool,
 }
 
 impl Debug for Capability {
@@ -145,6 +149,9 @@ impl Debug for Capability {
         }
         if self.scan {
             s.push("Scan");
+        }
+        if self.shared {
+            s.push("Shared");
         }
 
         write!(f, "{{ {} }}", s.join(" | "))

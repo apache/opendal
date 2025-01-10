@@ -89,7 +89,7 @@ impl VercelBlobCore {
         path: &str,
         range: BytesRange,
         _: &OpRead,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
@@ -111,10 +111,10 @@ impl VercelBlobCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
-    pub async fn get_put_request(
+    pub fn get_put_request(
         &self,
         path: &str,
         size: Option<u64>,
@@ -146,40 +146,6 @@ impl VercelBlobCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
-    }
-
-    pub async fn delete(&self, path: &str) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.list(&p, Some(1)).await?;
-
-        let url = resolve_blob(resp.blobs, p);
-
-        if url.is_empty() {
-            return Ok(());
-        }
-
-        let req = Request::post("https://blob.vercel-storage.com/delete");
-
-        let req = self.sign(req);
-
-        let req_body = &json!({
-            "urls": vec![url]
-        });
-
-        let req = req
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(Bytes::from(req_body.to_string())))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     pub async fn head(&self, path: &str) -> Result<Response<Buffer>> {
@@ -259,7 +225,7 @@ impl VercelBlobCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();

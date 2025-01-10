@@ -18,7 +18,7 @@
 # All configurations could be found here: https://github.com/apache/infrastructure-asfyaml/
 
 github:
-  description: "Apache OpenDAL: access data freely."
+  description: "Apache OpenDAL: One Layer, All Storage."
   homepage: https://opendal.apache.org
   labels:
     - rust
@@ -36,14 +36,21 @@ github:
     main:
       required_pull_request_reviews:
         required_approving_review_count: 1
-    gh-pages:
-      whatever: Just a placeholder to make it take effects
+  custom_subjects:
+    new_discussion: "{title}"
+    edit_discussion: "Re: {title}"
+    close_discussion: "Re: {title}"
+    close_discussion_with_comment: "Re: {title}"
+    reopen_discussion: "Re: {title}"
+    new_comment_discussion: "Re: {title}"
+    edit_comment_discussion: "Re: {title}"
+    delete_comment_discussion: "Re: {title}"
 
 notifications:
   commits: commits@opendal.apache.org
   issues: commits@opendal.apache.org
   pullrequests: commits@opendal.apache.org
-  discussions: commits@opendal.apache.org
+  discussions: dev@opendal.apache.org
 
 staging:
   profile: ~

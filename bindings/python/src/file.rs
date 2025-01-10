@@ -18,6 +18,7 @@
 // Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
 #![allow(clippy::unnecessary_fallible_conversions)]
 
+use std::io::BufRead;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -25,11 +26,14 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use futures::{AsyncReadExt, AsyncSeekExt};
+use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
 use pyo3::buffer::PyBuffer;
-use pyo3::exceptions::{PyIOError, PyValueError};
+use pyo3::exceptions::PyIOError;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3_asyncio::tokio::future_into_py;
+use pyo3::IntoPyObjectExt;
+use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::Mutex;
 
 use crate::*;
@@ -37,7 +41,7 @@ use crate::*;
 /// A file-like object.
 /// Can be used as a context manager.
 #[pyclass(module = "opendal")]
-pub struct File(FileState, Capability);
+pub struct File(FileState);
 
 enum FileState {
     Reader(ocore::StdReader),
@@ -46,12 +50,12 @@ enum FileState {
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::StdReader, capability: Capability) -> Self {
-        Self(FileState::Reader(reader), capability)
+    pub fn new_reader(reader: ocore::StdReader) -> Self {
+        Self(FileState::Reader(reader))
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter, capability: Capability) -> Self {
-        Self(FileState::Writer(writer.into_std_write()), capability)
+    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
+        Self(FileState::Writer(writer.into_std_write()))
     }
 }
 
@@ -59,7 +63,11 @@ impl File {
 impl File {
     /// Read and return at most size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None,))]
-    pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        size: Option<usize>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -89,6 +97,51 @@ impl File {
                     .read_to_end(&mut buffer)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 buffer
+            }
+        };
+
+        Buffer::new(buffer).into_bytes_ref(py)
+    }
+
+    /// Read a single line from the file.
+    /// A newline character (`\n`) is left at the end of the string, and is only omitted on the last line of the file if the file doesn’t end in a newline.
+    /// If size is specified, at most size bytes will be read.
+    #[pyo3(signature = (size=None,))]
+    pub fn readline<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        size: Option<usize>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let reader = match &mut self.0 {
+            FileState::Reader(r) => r,
+            FileState::Writer(_) => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on write only file.",
+                ));
+            }
+            FileState::Closed => {
+                return Err(PyIOError::new_err(
+                    "I/O operation failed for reading on closed file.",
+                ));
+            }
+        };
+
+        let buffer = match size {
+            None => {
+                let mut buffer = Vec::new();
+                reader
+                    .read_until(b'\n', &mut buffer)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                buffer
+            }
+            Some(size) => {
+                let mut bs = vec![0; size];
+                let mut reader = reader.take(size as u64);
+                let n = reader
+                    .read_until(b'\n', &mut bs)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                bs.truncate(n);
+                bs
             }
         };
 
@@ -241,15 +294,13 @@ impl File {
     pub fn flush(&mut self) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
-        } else {
-            if let FileState::Writer(w) = &mut self.0 {
-                match w.flush() {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
-                }
-            } else {
-                Ok(())
+        } else if let FileState::Writer(w) = &mut self.0 {
+            match w.flush() {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into()),
             }
+        } else {
+            Ok(())
         }
     }
 
@@ -283,7 +334,7 @@ impl File {
 /// A file-like async reader.
 /// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
-pub struct AsyncFile(Arc<Mutex<AsyncFileState>>, Capability);
+pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::FuturesAsyncReader),
@@ -292,25 +343,20 @@ enum AsyncFileState {
 }
 
 impl AsyncFile {
-    pub fn new_reader(reader: ocore::FuturesAsyncReader, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Reader(reader))),
-            capability,
-        )
+    pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
     }
 
-    pub fn new_writer(writer: ocore::Writer, capability: Capability) -> Self {
-        Self(
-            Arc::new(Mutex::new(AsyncFileState::Writer(writer))),
-            capability,
-        )
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
 
 #[pymethods]
 impl AsyncFile {
     /// Read and return at most size bytes, or if size is not given, until EOF.
-    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
+    #[pyo3(signature = (size=None))]
+    pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -355,7 +401,7 @@ impl AsyncFile {
     }
 
     /// Write bytes into the file.
-    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<&'p PyAny> {
+    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         // FIXME: can we avoid this clone?
@@ -396,7 +442,12 @@ impl AsyncFile {
     ///
     /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
-    pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<&'p PyAny> {
+    pub fn seek<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        pos: i64,
+        whence: u8,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         let whence = match whence {
@@ -422,16 +473,17 @@ impl AsyncFile {
                 }
             };
 
-            let ret = reader
+            let pos = reader
                 .seek(whence)
                 .await
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| ret.into_py(py)))
+            Ok(pos)
         })
+        .and_then(|pos| pos.into_bound_py_any(py))
     }
 
     /// Return the current stream position.
-    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -454,11 +506,12 @@ impl AsyncFile {
                 .stream_position()
                 .await
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(Python::with_gil(|py| pos.into_py(py)))
+            Ok(pos)
         })
+        .and_then(|pos| pos.into_bound_py_any(py))
     }
 
-    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
@@ -472,23 +525,23 @@ impl AsyncFile {
         })
     }
 
-    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let slf = slf.into_py(py);
+    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+        let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })
     }
 
     fn __aexit__<'a>(
         &'a mut self,
         py: Python<'a>,
-        _exc_type: &'a PyAny,
-        _exc_value: &'a PyAny,
-        _traceback: &'a PyAny,
-    ) -> PyResult<&'a PyAny> {
+        _exc_type: &Bound<'a, PyAny>,
+        _exc_value: &Bound<'a, PyAny>,
+        _traceback: &Bound<'a, PyAny>,
+    ) -> PyResult<Bound<'a, PyAny>> {
         self.close(py)
     }
 
     /// Check if the stream may be read from.
-    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -497,7 +550,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream may be written to.
-    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;
@@ -506,7 +559,7 @@ impl AsyncFile {
     }
 
     /// Check if the stream reader may be re-located.
-    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         if true {
             self.readable(py)
         } else {
@@ -516,7 +569,7 @@ impl AsyncFile {
 
     /// Check if the stream is closed.
     #[getter]
-    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let state = state.lock().await;

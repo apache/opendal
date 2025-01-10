@@ -71,7 +71,7 @@ impl oio::OneShotWrite for GdriveWriter {
                 }
                 Ok(())
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -47,7 +47,7 @@ impl oio::PageList for HuggingfaceLister {
 
         let status_code = response.status();
         if !status_code.is_success() {
-            let error = parse_error(response).await?;
+            let error = parse_error(response);
             return Err(error);
         }
 

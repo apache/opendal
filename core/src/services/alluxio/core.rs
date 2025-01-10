@@ -125,7 +125,7 @@ impl AlluxioCore {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -160,7 +160,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -184,7 +184,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -204,7 +204,7 @@ impl AlluxioCore {
         match status {
             StatusCode::OK => Ok(()),
             _ => {
-                let err = parse_error(resp).await?;
+                let err = parse_error(resp);
                 if err.kind() == ErrorKind::NotFound {
                     return Ok(());
                 }
@@ -232,7 +232,7 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -258,7 +258,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(file_info)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -284,14 +284,14 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
                 Ok(file_infos)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     /// TODO: we should implement range support correctly.
     ///
     /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<HttpBody>> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,
@@ -299,7 +299,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub(super) async fn write(&self, stream_id: u64, body: Buffer) -> Result<usize> {
@@ -320,7 +320,7 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(size)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -337,7 +337,7 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

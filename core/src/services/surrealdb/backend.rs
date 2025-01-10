@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use serde::Deserialize;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::Surreal;
@@ -28,46 +26,17 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
-use crate::raw::ConfigDeserializer;
-use crate::Buffer;
-use crate::Builder;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
+use crate::raw::Access;
+use crate::services::SurrealdbConfig;
+use crate::*;
 
-/// Config for Surrealdb services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct SurrealdbConfig {
-    connection_string: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    namespace: Option<String>,
-    database: Option<String>,
-    table: Option<String>,
-    key_field: Option<String>,
-    value_field: Option<String>,
-    root: Option<String>,
-}
-
-impl Debug for SurrealdbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SurrealdbConfig");
-
-        d.field("connection_string", &self.connection_string)
-            .field("username", &self.username)
-            .field("password", &"<redacted>")
-            .field("namespace", &self.namespace)
-            .field("database", &self.database)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .field("root", &self.root)
-            .finish()
+impl Configurator for SurrealdbConfig {
+    type Builder = SurrealdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SurrealdbBuilder { config: self }
     }
 }
+
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SurrealdbBuilder {
@@ -93,7 +62,7 @@ impl SurrealdbBuilder {
     /// - `wss://ip:port`
     /// - `http://ip:port`
     /// - `https://ip:port`
-    pub fn connection_string(&mut self, connection_string: &str) -> &mut Self {
+    pub fn connection_string(mut self, connection_string: &str) -> Self {
         if !connection_string.is_empty() {
             self.config.connection_string = Some(connection_string.to_string());
         }
@@ -103,15 +72,18 @@ impl SurrealdbBuilder {
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string());
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
     /// Set the table name of the surrealdb service for read/write.
-    pub fn table(&mut self, table: &str) -> &mut Self {
+    pub fn table(mut self, table: &str) -> Self {
         if !table.is_empty() {
             self.config.table = Some(table.to_string());
         }
@@ -119,7 +91,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the username of the surrealdb service for signin.
-    pub fn username(&mut self, username: &str) -> &mut Self {
+    pub fn username(mut self, username: &str) -> Self {
         if !username.is_empty() {
             self.config.username = Some(username.to_string());
         }
@@ -127,7 +99,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the password of the surrealdb service for signin.
-    pub fn password(&mut self, password: &str) -> &mut Self {
+    pub fn password(mut self, password: &str) -> Self {
         if !password.is_empty() {
             self.config.password = Some(password.to_string());
         }
@@ -135,7 +107,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the namespace of the surrealdb service for read/write.
-    pub fn namespace(&mut self, namespace: &str) -> &mut Self {
+    pub fn namespace(mut self, namespace: &str) -> Self {
         if !namespace.is_empty() {
             self.config.namespace = Some(namespace.to_string());
         }
@@ -143,7 +115,7 @@ impl SurrealdbBuilder {
     }
 
     /// Set the database of the surrealdb service for read/write.
-    pub fn database(&mut self, database: &str) -> &mut Self {
+    pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
         }
@@ -153,7 +125,7 @@ impl SurrealdbBuilder {
     /// Set the key field name of the surrealdb service for read/write.
     ///
     /// Default to `key` if not specified.
-    pub fn key_field(&mut self, key_field: &str) -> &mut Self {
+    pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
         }
@@ -163,7 +135,7 @@ impl SurrealdbBuilder {
     /// Set the value field name of the surrealdb service for read/write.
     ///
     /// Default to `value` if not specified.
-    pub fn value_field(&mut self, value_field: &str) -> &mut Self {
+    pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
         }
@@ -173,16 +145,9 @@ impl SurrealdbBuilder {
 
 impl Builder for SurrealdbBuilder {
     const SCHEME: Scheme = Scheme::Surrealdb;
-    type Accessor = SurrealdbBackend;
+    type Config = SurrealdbConfig;
 
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = SurrealdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        SurrealdbBuilder { config }
-    }
-
-    fn build(&mut self) -> crate::Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         let connection_string = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {
@@ -246,7 +211,7 @@ impl Builder for SurrealdbBuilder {
             key_field,
             value_field,
         })
-        .with_root(&root))
+        .with_normalized_root(root))
     }
 }
 
@@ -318,13 +283,16 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Surrealdb,
             &self.table,
             Capability {
                 read: true,
                 write: true,
+                shared: true,
                 ..Default::default()
             },
         )
@@ -342,9 +310,9 @@ impl kv::Adapter for Adapter {
             .await?
             .query(query)
             .bind(("namespace", "opendal"))
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
-            .bind(("value_field", self.value_field.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
+            .bind(("value_field", self.value_field.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
 
@@ -365,7 +333,7 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query)
-            .bind(("path", path))
+            .bind(("path", path.to_string()))
             .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?;
@@ -385,8 +353,8 @@ impl kv::Adapter for Adapter {
         self.get_connection()
             .await?
             .query(query.as_str())
-            .bind(("path", path))
-            .bind(("table", self.table.as_str()))
+            .bind(("path", path.to_string()))
+            .bind(("table", self.table.to_string()))
             .await
             .map_err(parse_surrealdb_error)?;
         Ok(())

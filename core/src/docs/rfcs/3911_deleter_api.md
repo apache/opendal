@@ -42,21 +42,14 @@ impl Operator {
 ```
 
 - `delete` is the existing API, which deletes a single file or an empty dir.
-- `delete_with` is an extension of the existing `delete` API, which supports additional options, such as `recursive`.
+- `delete_with` is an extension of the existing `delete` API, which supports additional options, such as `version`.
 - `deleter` is a new API that returns a `Deleter` instance.
-- `deleter_with` is an extension of the existing `deleter` API, which supports additional options, such as `recursive`.
+- `deleter_with` is an extension of the existing `deleter` API, which supports additional options, such as `concurrent`.
 
 The following new options will be available for `delete_with` and `deleter_with`:
 
-- `recursive`: Enable recursive deletion.
 - `concurrent`: How many delete tasks can be performed concurrently?
 - `buffer`: How many files can be buffered for send in a single batch?
-
-Users can delete a file recursively in this way:
-
-```rust
-let _ = op.delete_with("path/to/file").recursive(true).await?;
-```
 
 Users can delete multiple files in this way:
 
@@ -135,8 +128,8 @@ And the `delete` API will be changed to return a `oio::Delete` instead:
 
 ```diff
 trait Accessor {
--  async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete>;
-+  async fn delete(&self, path: &str, args: OpDelete) -> Result<(RpDelete, Self::Deleter)>;
+-  async fn delete(&self) -> Result<(RpDelete, Self::Deleter)>;
++  async fn delete(&self, args: OpDelete) -> Result<(RpDelete, Self::Deleter)>;
 }
 ```
 

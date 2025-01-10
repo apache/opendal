@@ -40,6 +40,8 @@ jobs:
   ghac:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain

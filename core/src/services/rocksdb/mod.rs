@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-rocksdb")]
 mod backend;
+#[cfg(feature = "services-rocksdb")]
 pub use backend::RocksdbBuilder as Rocksdb;
-pub use backend::RocksdbConfig;
+
+mod config;
+pub use config::RocksdbConfig;

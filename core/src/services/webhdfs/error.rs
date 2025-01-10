@@ -40,14 +40,14 @@ struct WebHdfsError {
     java_class_name: String,
 }
 
-pub(super) async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }
 
-pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
+pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Error {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
@@ -66,7 +66,7 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         Err(_) => body.to_owned(),
     };
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -74,7 +74,7 @@ pub(super) fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]
@@ -105,7 +105,7 @@ mod tests {
             .body(body)
             .unwrap();
 
-        let err = parse_error(resp).await?;
+        let err = parse_error(resp);
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 

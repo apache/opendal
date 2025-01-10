@@ -26,7 +26,7 @@ This service can be used to:
 - `ds_web_auth_token`: set the ds_web_auth_token for icloud drive api
   Get web trust the session.
 - `is_china_mainland`: set the is_china_mainland for icloud drive api
-  China region must true to use "https://www.icloud.com.cn"
+  China region must true to use <https://www.icloud.com.cn>
   Otherwise Apple server will return 302.
   More information you can get [apple.com](https://support.apple.com/en-us/111754)
 
@@ -53,13 +53,13 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Icloud::default();
-    builder.root("/");
-    builder.apple_id("<apple_id>");
-    builder.password("<password>");
-    builder.trust_token("<trust_token>");
-    builder.ds_web_auth_token("<ds_web_auth_token>");
-    builder.is_china_mainland(true);
+    let mut builder = Icloud::default()
+      .root("/")
+      .apple_id("<apple_id>")
+      .password("<password>")
+      .trust_token("<trust_token>")
+      .ds_web_auth_token("<ds_web_auth_token>")
+      .is_china_mainland(true);
 
     Ok(())
 }

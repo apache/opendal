@@ -86,7 +86,7 @@ impl KoofrCore {
                 let status = resp.status();
 
                 if status != StatusCode::OK {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
 
                 let bs = resp.into_body();
@@ -133,7 +133,7 @@ impl KoofrCore {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let bs = resp.into_body();
@@ -211,11 +211,11 @@ impl KoofrCore {
                     // When the directory already exists, Koofr returns 400 Bad Request.
                     // We should treat it as success.
                     StatusCode::OK | StatusCode::CREATED | StatusCode::BAD_REQUEST => Ok(()),
-                    _ => Err(parse_error(resp).await?),
+                    _ => Err(parse_error(resp)),
                 }
             }
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -238,7 +238,7 @@ impl KoofrCore {
         self.send(req).await
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mount_id = self.get_mount_id().await?;
@@ -256,7 +256,7 @@ impl KoofrCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn put(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {

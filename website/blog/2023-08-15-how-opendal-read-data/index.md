@@ -4,21 +4,20 @@ date: 2023-08-15
 slug: how-opendal-read-data
 tags: [internal]
 description: "The first article will discuss OpenDAL's most commonly used data reading function. I will start from the outermost interface and then gradually unfold according to the calling sequence of OpenDAL."
-authors:
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: xuanwo
 ---
 
 As the Apache OpenDAL™ community continues to grow, new abstractions are constantly being added, which has brought some burdens to new contributors participating in development. Many maintainers hope to have a deeper understanding of OpenDAL's internal implementation. At the same time, OpenDAL's core design has not changed significantly for a long time, making it possible to write a series on internal implementation. I believe now is the time to write a series of articles on OpenDAL's internal implementation, to explain from the maintainer's perspective how OpenDAL is designed, implemented, and how it can be expanded. With the impending release of OpenDAL v0.40, I hope this series of articles will better help the community understand the past, master the present, and shape the future.
 
 The first article will discuss OpenDAL's most commonly used data reading function. I will start from the outermost interface and then gradually unfold according to the calling sequence of OpenDAL. Let's get started!
 
+<!--truncate-->
+
 ## Overall Framework
 
 Before starting to introduce the specific OpenDAL interface, let's first get familiar with the OpenDAL project.
 
-[OpenDAL](https://github.com/apache/opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/docs/vision) is "free access to data":
+[OpenDAL](https://github.com/apache/opendal) is an Apache Incubator project aimed at helping users access data from various storage services in a unified, convenient, and efficient way. Its project [vision](https://opendal.apache.org/vision) is "free access to data":
 
 - Free from services: Any service can be accessed freely through native interfaces
 - Free from implementations: No matter how the underlying implementation is, it can be called in a unified way

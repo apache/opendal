@@ -35,19 +35,18 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     // create backend builder
-    let mut builder = Cos::default();
-
-    // set the storage bucket for OpenDAL
-    builder.bucket("test");
-    // set the endpoint for OpenDAL
-    builder.endpoint("https://cos.ap-singapore.myqcloud.com");
-    // Set the access_key_id and secret_access_key.
-    //
-    // OpenDAL will try load credential from the env.
-    // If credential not set and no valid credential in env, OpenDAL will
-    // send request without signing like anonymous user.
-    builder.secret_id("secret_id");
-    builder.secret_key("secret_access_key");
+    let mut builder = Cos::default()
+        // set the storage bucket for OpenDAL
+        .bucket("test")
+        // set the endpoint for OpenDAL
+        .endpoint("https://cos.ap-singapore.myqcloud.com")
+        // Set the access_key_id and secret_access_key.
+        //
+        // OpenDAL will try load credential from the env.
+        // If credential not set and no valid credential in env, OpenDAL will
+        // send request without signing like anonymous user.
+        .secret_id("secret_id")
+        .secret_key("secret_access_key");
 
     let op: Operator = Operator::new(builder)?.finish();
 

@@ -26,13 +26,16 @@ use crate::Result;
 pub struct FsLister<P> {
     root: PathBuf,
 
+    current_path: Option<String>,
+
     rd: P,
 }
 
 impl<P> FsLister<P> {
-    pub fn new(root: &Path, rd: P) -> Self {
+    pub fn new(root: &Path, path: &str, rd: P) -> Self {
         Self {
             root: root.to_owned(),
+            current_path: Some(path.to_string()),
             rd,
         }
     }
@@ -45,11 +48,15 @@ unsafe impl<P> Sync for FsLister<P> {}
 
 impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        // since list should return path itself, we return it first
+        if let Some(path) = self.current_path.take() {
+            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+            return Ok(Some(e));
+        }
+
         let Some(de) = self.rd.next_entry().await.map_err(new_std_io_error)? else {
             return Ok(None);
         };
-
-        let ft = de.file_type().await.map_err(new_std_io_error)?;
 
         let entry_path = de.path();
         let rel_path = normalize_path(
@@ -60,21 +67,27 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        let d = if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if ft.is_dir() {
+        let ft = de.file_type().await.map_err(new_std_io_error)?;
+        let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
             oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else if ft.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
         } else {
             oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
-
-        Ok(Some(d))
+        Ok(Some(entry))
     }
 }
 
 impl oio::BlockingList for FsLister<std::fs::ReadDir> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
+        // since list should return path itself, we return it first
+        if let Some(path) = self.current_path.take() {
+            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+            return Ok(Some(e));
+        }
+
         let de = match self.rd.next() {
             Some(de) => de.map_err(new_std_io_error)?,
             None => return Ok(None),
@@ -89,17 +102,12 @@ impl oio::BlockingList for FsLister<std::fs::ReadDir> {
                 .replace('\\', "/"),
         );
 
-        // On Windows and most Unix platforms this function is free
-        // (no extra system calls needed), but some Unix platforms may
-        // require the equivalent call to symlink_metadata to learn about
-        // the target file type.
-        let file_type = de.file_type().map_err(new_std_io_error)?;
-
-        let entry = if file_type.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else if file_type.is_dir() {
+        let ft = de.file_type().map_err(new_std_io_error)?;
+        let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
             oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+        } else if ft.is_file() {
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
         } else {
             oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };

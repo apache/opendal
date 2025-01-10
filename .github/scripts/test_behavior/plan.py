@@ -35,6 +35,7 @@ LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
 BIN = ["ofs"]
 
+
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
 
@@ -86,7 +87,7 @@ class Hint:
     # Is bin ofs affected?
     bin_ofs: bool = field(default=False, init=False)
 
-    # Should we run all services test?
+    # Should we run all services tests?
     all_service: bool = field(default=False, init=False)
     # affected services set.
     services: set = field(default_factory=set, init=False)
@@ -95,7 +96,7 @@ class Hint:
 def calculate_hint(changed_files: list[str]) -> Hint:
     hint = Hint()
 
-    # Remove all files that ends with `.md`
+    # Remove all files that end with `.md`
     changed_files = [f for f in changed_files if not f.endswith(".md")]
 
     for p in changed_files:
@@ -179,9 +180,9 @@ def calculate_hint(changed_files: list[str]) -> Hint:
     return hint
 
 
-# unique_cases is used to only one setup for each service.
+# `unique_cases` is used to only one setup for each service.
 #
-# We need this because we have multiple setup for each service and they have already been
+# We need this because we have multiple setups for each service, and they have already been
 # tested by `core` workflow. So we can only test unique setup for each service for bindings.
 #
 # We make sure that we return the first setup for each service in alphabet order.
@@ -221,7 +222,13 @@ def generate_language_binding_cases(
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
 
-    # Remove hdfs cases for java.
+    # Disable aliyun_drive case for every language.
+    #
+    # This is because aliyun_drive has a speed limit and tests may not be stable enough.
+    # Bindings may be treated as parallel requests, so we need to disable it for all languages.
+    cases = [v for v in cases if v["service"] != "aliyun_drive"]
+
+    # Remove hdfs cases for jav:a.
     if language == "java":
         cases = [v for v in cases if v["service"] != "hdfs"]
 
@@ -240,13 +247,14 @@ def generate_language_binding_cases(
     cases = [v for v in cases if v["service"] in hint.services]
     return cases
 
+
 def generate_bin_cases(
     cases: list[dict[str, str]], hint: Hint, bin: str
 ) -> list[dict[str, str]]:
     # Return empty if this bin is False
     if not getattr(hint, f"bin_{bin}"):
         return []
-    
+
     cases = unique_cases(cases)
 
     if bin == "ofs":
@@ -296,7 +304,9 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
         language_cases = generate_language_binding_cases(cases, hint, language)
         if len(language_cases) > 0:
             jobs["components"][f"binding_{language}"] = True
-            jobs[f"binding_{language}"].append({"os": "ubuntu-latest", "cases": language_cases})
+            jobs[f"binding_{language}"].append(
+                {"os": "ubuntu-latest", "cases": language_cases}
+            )
 
     for bin in BIN:
         jobs[f"bin_{bin}"] = []

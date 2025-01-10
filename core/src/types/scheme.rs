@@ -74,7 +74,7 @@ pub enum Scheme {
     Foundationdb,
     /// [dbfs][crate::services::Dbfs]: DBFS backend support.
     Dbfs,
-    /// [fs][crate::services::Fs]: POSIX alike file system.
+    /// [fs][crate::services::Fs]: POSIX-like file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
     Ftp,
@@ -88,7 +88,7 @@ pub enum Scheme {
     Http,
     /// [huggingface][crate::services::Huggingface]: Huggingface services.
     Huggingface,
-    /// [alluxio][created::services::Alluxio]: Alluxio services.
+    /// [alluxio][crate::services::Alluxio]: Alluxio services.
     Alluxio,
 
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
@@ -105,6 +105,8 @@ pub enum Scheme {
     MiniMoka,
     /// [moka][crate::services::Moka]: moka backend support.
     Moka,
+    /// [monoiofs][crate::services::Monoiofs]: monoio fs services.
+    Monoiofs,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
     /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
@@ -147,26 +149,30 @@ pub enum Scheme {
     Webhdfs,
     /// [redb][crate::services::Redb]: Redb Services
     Redb,
-    /// [tikv][crate::services::tikv]: Tikv Services
+    /// [tikv][crate::services::Tikv]: Tikv Services
     Tikv,
-    /// [azfile][crate::services::azfile]: Azfile Services
+    /// [azfile][crate::services::Azfile]: Azfile Services
     Azfile,
-    /// [mongodb](crate::services::mongodb): MongoDB Services
+    /// [mongodb](crate::services::Mongodb): MongoDB Services
     Mongodb,
-    /// [gridfs](crate::services::gridfs): MongoDB Gridfs Services
+    /// [gridfs](crate::services::Gridfs): MongoDB Gridfs Services
     Gridfs,
     /// [Github Contents][crate::services::Github]: Github contents support.
     Github,
-    /// [Native HDFS](crate::services::hdfs_native): Hdfs Native service, using rust hdfs-native client for hdfs
+    /// [Native HDFS](crate::services::HdfsNative): Hdfs Native service, using rust hdfs-native client for hdfs
     HdfsNative,
-    /// [surrealdb](crate::services::surrealdb): Surrealdb Services
+    /// [surrealdb](crate::services::Surrealdb): Surrealdb Services
     Surrealdb,
+    /// [lakefs](crate::services::Lakefs): LakeFS Services
+    Lakefs,
+    /// [NebulaGraph](crate::services::NebulaGraph): NebulaGraph Services
+    NebulaGraph,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
     ///
     /// - Custom must not overwrite any existing services name.
-    /// - Custom must be lowed cases.
+    /// - Custom must be in lower case.
     Custom(&'static str),
 }
 
@@ -251,6 +257,8 @@ impl Scheme {
             Scheme::MiniMoka,
             #[cfg(feature = "services-moka")]
             Scheme::Moka,
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs,
             #[cfg(feature = "services-mysql")]
             Scheme::Mysql,
             #[cfg(feature = "services-obs")]
@@ -307,6 +315,10 @@ impl Scheme {
             Scheme::HdfsNative,
             #[cfg(feature = "services-surrealdb")]
             Scheme::Surrealdb,
+            #[cfg(feature = "services-lakefs")]
+            Scheme::Lakefs,
+            #[cfg(feature = "services-nebula-graph")]
+            Scheme::NebulaGraph,
         ])
     }
 }
@@ -370,6 +382,7 @@ impl FromStr for Scheme {
             "sqlite" => Ok(Scheme::Sqlite),
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
+            "monoiofs" => Ok(Scheme::Monoiofs),
             "obs" => Ok(Scheme::Obs),
             "onedrive" => Ok(Scheme::Onedrive),
             "persy" => Ok(Scheme::Persy),
@@ -396,6 +409,8 @@ impl FromStr for Scheme {
             "mongodb" => Ok(Scheme::Mongodb),
             "hdfs_native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
+            "lakefs" => Ok(Scheme::Lakefs),
+            "nebula_graph" => Ok(Scheme::NebulaGraph),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -436,6 +451,7 @@ impl From<Scheme> for &'static str {
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",
             Scheme::Moka => "moka",
+            Scheme::Monoiofs => "monoiofs",
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",
@@ -468,6 +484,8 @@ impl From<Scheme> for &'static str {
             Scheme::Pcloud => "pcloud",
             Scheme::HdfsNative => "hdfs_native",
             Scheme::Surrealdb => "surrealdb",
+            Scheme::Lakefs => "lakefs",
+            Scheme::NebulaGraph => "nebula_graph",
             Scheme::Custom(v) => v,
         }
     }

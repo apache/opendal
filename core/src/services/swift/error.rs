@@ -32,7 +32,7 @@ struct ErrorResponse {
     p: String,
 }
 
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -49,7 +49,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
 
     let message = parse_error_response(&bs);
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -57,14 +57,14 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 fn parse_error_response(resp: &Bytes) -> String {
-    return match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
+    match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
         Ok(swift_err) => swift_err.p,
         Err(_) => String::from_utf8_lossy(resp).into_owned(),
-    };
+    }
 }
 
 #[cfg(test)]

@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::BlockingWrite;
+use std::io::Write;
+
 use crate::raw::*;
 use crate::*;
-use std::io::Write;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
 ///
@@ -29,14 +29,14 @@ use std::io::Write;
 /// Files are automatically closed when they go out of scope. Errors detected on closing are ignored
 /// by the implementation of Drop. Use the method `close` if these errors must be manually handled.
 pub struct StdWriter {
-    w: Option<oio::BlockingWriter>,
+    w: Option<WriteGenerator<oio::BlockingWriter>>,
     buf: oio::FlexBuf,
 }
 
 impl StdWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
-    pub(crate) fn new(w: oio::BlockingWriter) -> Self {
+    pub(crate) fn new(w: WriteGenerator<oio::BlockingWriter>) -> Self {
         StdWriter {
             w: Some(w),
             buf: oio::FlexBuf::new(256 * 1024),
@@ -103,10 +103,9 @@ impl Write for StdWriter {
                 return Ok(());
             };
 
-            let n = w
-                .write(Buffer::from(bs))
+            w.write(Buffer::from(bs))
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-            self.buf.advance(n);
+            self.buf.clean();
         }
     }
 }

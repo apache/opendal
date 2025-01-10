@@ -88,10 +88,10 @@ impl PcloudCore {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
                 if result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
                 }
                 if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
                 if let Some(hosts) = resp.hosts {
@@ -103,11 +103,11 @@ impl PcloudCore {
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
-    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let req = Request::get(url);
 
         // set body
@@ -116,7 +116,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
@@ -137,17 +137,17 @@ impl PcloudCore {
                         serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                     let result = resp.result;
                     if result == 2010 || result == 2055 || result == 2002 {
-                        return Err(Error::new(ErrorKind::NotFound, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
                     }
                     if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
 
                     if result != 0 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("{resp:?}")));
+                        return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
                 }
-                _ => return Err(parse_error(resp).await?),
+                _ => return Err(parse_error(resp)),
             }
         }
         Ok(())
@@ -369,10 +369,6 @@ pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
         md.set_content_length(size);
     }
 
-    if let Some(size) = content.size {
-        md.set_content_length(size);
-    }
-
     md.set_last_modified(parse_datetime_from_rfc2822(&content.modified)?);
 
     Ok(md)
@@ -384,10 +380,6 @@ pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
     } else {
         Metadata::new(EntryMode::FILE)
     };
-
-    if let Some(size) = content.size {
-        md.set_content_length(size);
-    }
 
     if let Some(size) = content.size {
         md.set_content_length(size);
@@ -413,11 +405,9 @@ pub struct StatResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct StatMetadata {
-    pub name: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -428,11 +418,9 @@ pub struct ListFolderResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListMetadata {
-    pub name: String,
     pub path: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
-    pub contenttype: Option<String>,
     pub contents: Option<Vec<ListMetadata>>,
 }

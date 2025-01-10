@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg(any(target_os = "linux", target_os = "freebsd"))]
+
 mod common;
 
 use std::fs;
 
 use common::OfsTestContext;
-
 use test_context::test_context;
 use walkdir::WalkDir;
 

@@ -23,13 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorOutputStream;
+import org.apache.opendal.ServiceConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -39,10 +38,10 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testReadWriteWithStream() throws Exception {
-        final Map<String, String> conf = new HashMap<>();
-        conf.put("root", tempDir.toString());
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
 
-        try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
+        try (final Operator op = Operator.of(fs)) {
             final String path = "OperatorInputOutputStreamTest.txt";
             final long multi = 1024 * 1024;
 

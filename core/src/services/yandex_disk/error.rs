@@ -33,7 +33,7 @@ struct YandexDiskError {
 }
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
+pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, mut body) = resp.into_parts();
     let bs = body.copy_to_bytes(body.remaining());
 
@@ -51,7 +51,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         .map(|yandex_disk_err| (format!("{yandex_disk_err:?}"), Some(yandex_disk_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    let mut err = Error::new(kind, &message);
+    let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
 
@@ -59,7 +59,7 @@ pub async fn parse_error(resp: Response<Buffer>) -> Result<Error> {
         err = err.set_temporary();
     }
 
-    Ok(err)
+    err
 }
 
 #[cfg(test)]
@@ -96,10 +96,9 @@ mod test {
             let body = Buffer::from(bs);
             let resp = Response::builder().status(res.2).body(body).unwrap();
 
-            let err = parse_error(resp).await;
+            let err = parse_error(resp);
 
-            assert!(err.is_ok());
-            assert_eq!(err.unwrap().kind(), res.1);
+            assert_eq!(err.kind(), res.1);
         }
     }
 }

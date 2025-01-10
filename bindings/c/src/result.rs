@@ -49,7 +49,7 @@ pub struct opendal_result_operator_new {
 #[repr(C)]
 pub struct opendal_result_read {
     /// The byte array with length returned by read operations
-    pub data: *mut opendal_bytes,
+    pub data: opendal_bytes,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
@@ -66,6 +66,22 @@ pub struct opendal_result_read {
 pub struct opendal_result_is_exist {
     /// Whether the path exists
     pub is_exist: bool,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_operator_exists().
+///
+/// The result type for opendal_operator_exists(), the field `exists`
+/// contains whether the path exists, and the field `error` contains the
+/// corresponding error. If successful, the `error` field is null.
+///
+/// \note If the opendal_operator_exists() fails, the `exists` field
+/// will be set to false.
+#[repr(C)]
+pub struct opendal_result_exists {
+    /// Whether the path exists
+    pub exists: bool,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
@@ -127,6 +143,28 @@ pub struct opendal_result_operator_reader {
 #[repr(C)]
 pub struct opendal_result_reader_read {
     /// The read size if succeed.
+    pub size: usize,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_operator_writer().
+/// The result type for opendal_operator_writer(), the field `writer` contains the writer
+/// of the path, which is an iterator of the objects under the path. the field `code` represents
+#[repr(C)]
+pub struct opendal_result_operator_writer {
+    /// The pointer for opendal_writer
+    pub writer: *mut opendal_writer,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_writer_write().
+/// The result type contains a size field, which is the size of the data written,
+/// which is zero on error. The error field is the error code and error message.
+#[repr(C)]
+pub struct opendal_result_writer_write {
+    /// The write size if succeed.
     pub size: usize,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,

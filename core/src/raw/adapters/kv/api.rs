@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fmt::Debug, future::ready};
+use std::fmt::Debug;
+use std::future::ready;
+use std::ops::DerefMut;
 
 use futures::Future;
 
@@ -24,12 +26,78 @@ use crate::Capability;
 use crate::Scheme;
 use crate::*;
 
+/// Scan is the async iterator returned by `Adapter::scan`.
+pub trait Scan: Send + Sync + Unpin {
+    /// Fetch the next key in the current key prefix
+    ///
+    /// `Ok(None)` means no further key will be returned
+    fn next(&mut self) -> impl Future<Output = Result<Option<String>>> + MaybeSend;
+}
+
+/// A noop implementation of Scan
+impl Scan for () {
+    async fn next(&mut self) -> Result<Option<String>> {
+        Ok(None)
+    }
+}
+
+/// A Scan implementation for all trivial non-async iterators
+pub struct ScanStdIter<I>(I);
+
+#[cfg(any(
+    feature = "services-cloudflare-kv",
+    feature = "services-etcd",
+    feature = "services-nebula-graph",
+    feature = "services-rocksdb",
+    feature = "services-sled"
+))]
+impl<I> ScanStdIter<I>
+where
+    I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
+{
+    /// Create a new ScanStdIter from an Iterator
+    pub(crate) fn new(inner: I) -> Self {
+        Self(inner)
+    }
+}
+
+impl<I> Scan for ScanStdIter<I>
+where
+    I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
+{
+    async fn next(&mut self) -> Result<Option<String>> {
+        self.0.next().transpose()
+    }
+}
+
+/// A type-erased wrapper of Scan
+pub type Scanner = Box<dyn ScanDyn>;
+
+pub trait ScanDyn: Unpin + Send + Sync {
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>>;
+}
+
+impl<T: Scan + ?Sized> ScanDyn for T {
+    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>> {
+        Box::pin(self.next())
+    }
+}
+
+impl<T: ScanDyn + ?Sized> Scan for Box<T> {
+    async fn next(&mut self) -> Result<Option<String>> {
+        self.deref_mut().next_dyn().await
+    }
+}
+
 /// KvAdapter is the adapter to underlying kv services.
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
-    /// Return the metadata of this key value accessor.
-    fn metadata(&self) -> Metadata;
+    /// TODO: use default associate type `= ()` after stabilized
+    type Scanner: Scan;
+
+    /// Return the info of this key value accessor.
+    fn info(&self) -> Info;
 
     /// Get a key from service.
     ///
@@ -80,7 +148,7 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Scan a key prefix to get all keys that start with this key.
-    fn scan(&self, path: &str) -> impl Future<Output = Result<Vec<String>>> + MaybeSend {
+    fn scan(&self, path: &str) -> impl Future<Output = Result<Self::Scanner>> + MaybeSend {
         let _ = path;
 
         ready(Err(Error::new(
@@ -128,14 +196,14 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
-/// Metadata for this key value accessor.
-pub struct Metadata {
+/// Info for this key value accessor.
+pub struct Info {
     scheme: Scheme,
     name: String,
     capabilities: Capability,
 }
 
-impl Metadata {
+impl Info {
     /// Create a new KeyValueAccessorInfo.
     pub fn new(scheme: Scheme, name: &str, capabilities: Capability) -> Self {
         Self {
@@ -158,16 +226,5 @@ impl Metadata {
     /// Get the capabilities.
     pub fn capabilities(&self) -> Capability {
         self.capabilities
-    }
-}
-
-impl From<Metadata> for AccessorInfo {
-    fn from(m: Metadata) -> AccessorInfo {
-        let mut am = AccessorInfo::default();
-        am.set_name(m.name());
-        am.set_scheme(m.scheme());
-        am.set_native_capability(m.capabilities());
-
-        am
     }
 }

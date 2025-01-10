@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-sled")]
 mod backend;
-
+#[cfg(feature = "services-sled")]
 pub use backend::SledBuilder as Sled;
-pub use backend::SledConfig;
+
+mod config;
+pub use config::SledConfig;

@@ -53,7 +53,13 @@ impl oio::PageList for AzfileLister {
                 ctx.done = true;
                 return Ok(());
             }
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
+        }
+
+        // Return self at the first page.
+        if ctx.token.is_empty() && !ctx.done {
+            let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
         }
 
         let bs = resp.into_body();

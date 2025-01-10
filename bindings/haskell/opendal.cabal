@@ -17,7 +17,7 @@ cabal-version:      3.0
 -- under the License.
 
 name:               opendal
-version:            0.1.0.0
+version:            0.44.15.0
 license:            Apache-2.0
 synopsis:           Apache OpenDAL™ Haskell Binding
 description:
@@ -41,7 +41,7 @@ source-repository head
 source-repository this
     type:     git
     location: https://github.com/apache/opendal
-    tag:      v0.45.2
+    tag:      v0.47.1
     subdir:   bindings/haskell
 
 common base
@@ -77,7 +77,7 @@ test-suite opendal-test
     main-is:          Spec.hs
     other-modules:    BasicTest
     hs-source-dirs:   test
-    build-depends:    
+    build-depends:
         opendal,
         tasty >= 1.5 && < 1.6,
         tasty-hunit >= 0.10.1 && < 0.11,

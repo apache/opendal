@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -26,33 +25,18 @@ use log::debug;
 use serde::Deserialize;
 
 use super::core::DbfsCore;
+use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
-use super::reader::DbfsReader;
 use super::writer::DbfsWriter;
 use crate::raw::*;
+use crate::services::DbfsConfig;
 use crate::*;
 
-/// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
-#[derive(Default, Deserialize, Clone)]
-pub struct DbfsConfig {
-    root: Option<String>,
-    endpoint: Option<String>,
-    token: Option<String>,
-}
-
-impl Debug for DbfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("DbfsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+impl Configurator for DbfsConfig {
+    type Builder = DbfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DbfsBuilder { config: self }
     }
 }
 
@@ -77,10 +61,12 @@ impl DbfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.config.root = Some(root.to_string())
-        }
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -91,7 +77,7 @@ impl DbfsBuilder {
     ///
     /// - Azure: `https://adb-1234567890123456.78.azuredatabricks.net`
     /// - Aws: `https://dbc-123a5678-90bc.cloud.databricks.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -101,7 +87,7 @@ impl DbfsBuilder {
     }
 
     /// Set the token of this backend.
-    pub fn token(&mut self, token: &str) -> &mut Self {
+    pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
         }
@@ -111,20 +97,13 @@ impl DbfsBuilder {
 
 impl Builder for DbfsBuilder {
     const SCHEME: Scheme = Scheme::Dbfs;
-    type Accessor = DbfsBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let config = DbfsConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        Self { config }
-    }
+    type Config = DbfsConfig;
 
     /// Build a DbfsBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.take().unwrap_or_default());
+        let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
         let endpoint = match &self.config.endpoint {
@@ -135,7 +114,7 @@ impl Builder for DbfsBuilder {
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 
-        let token = match self.config.token.take() {
+        let token = match self.config.token {
             Some(token) => token,
             None => {
                 return Err(Error::new(
@@ -146,8 +125,6 @@ impl Builder for DbfsBuilder {
         };
 
         let client = HttpClient::new()?;
-
-        debug!("backend build finished: {:?}", &self);
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,
@@ -166,21 +143,30 @@ pub struct DbfsBackend {
 }
 
 impl Access for DbfsBackend {
-    type Reader = DbfsReader;
+    type Reader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;
+    type Deleter = oio::OneShotDeleter<DbfsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Dbfs)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
-
-                read: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
                 write: true,
                 create_dir: true,
@@ -188,10 +174,14 @@ impl Access for DbfsBackend {
                 rename: true,
 
                 list: true,
+                list_has_last_modified: true,
+                list_has_content_length: true,
+
+                shared: true,
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -201,7 +191,7 @@ impl Access for DbfsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -236,14 +226,8 @@ impl Access for DbfsBackend {
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
-    }
-
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = DbfsReader::new(self.core.clone(), path.to_string());
-
-        Ok((RpRead::new(), op))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -253,16 +237,11 @@ impl Access for DbfsBackend {
         ))
     }
 
-    /// NOTE: Server will return 200 even if the path doesn't exist.
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.dbfs_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DbfsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -280,7 +259,7 @@ impl Access for DbfsBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

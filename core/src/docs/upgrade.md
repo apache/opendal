@@ -1,3 +1,285 @@
+# Upgrade to v0.51
+
+## Public API
+
+### New VISION: One Layer, All Storage
+
+OpenDAL has refined its vision to **One Layer, All Storage**, driven by the following core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**.
+
+Explore the detailed vision at [OpenDAL Vision](https://opendal.apache.org/vision).
+
+### RFC-5313: Remove Metakey
+
+OpenDAL v0.51 implements [RFC-5313](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_5314_remove_metakey/index.html), which removes the concept of metakey.
+
+The following structs have been removed:
+
+- `Metakey`
+
+The following APIs have been removed:
+
+- `list_with(path).metakey()`
+
+Users no longer need to pass the metakey into the list. Instead, services will make their best effort to return as much metadata as possible. Users can check items like `Capability::list_has_etag` before making a call.
+
+### Remove not used capability: `write_multi_align_size`
+
+The capability `write_multi_align_size` is not utilized by any services, and we have no plans to support it in the future; therefore, we have removed it.
+
+### CapabilityCheckLayer and CorrectnessCheckLayer
+
+OpenDAL used to perform capability checks for all services, but since v0.51, it only conducts checks that impact data correctness like `write_with_if_not_exists` or `delete_with_version` by default in the `CorrectnessCheckLayer`. If users wish to verify other non-critical capabilities like `write_with_content_type` or `write_with_cache_control`, they should manually enable the `CapabilityCheckLayer`.
+
+### RFC-3911: Deleter API
+
+OpenDAL v0.51 implements [RFC-3911](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_3911_deleter_api/index.html), which adds `Deleter` in OpenDAL to replace `batch` operation.
+
+The following new APIs have been added:
+
+- [`Operator::delete_iter`]
+- [`Operator::delete_try_iter`]
+- [`Operator::delete_stream`]
+- [`Operator::delete_try_stream`]
+- [`Operator::deleter`]
+- [`Deleter::delete`]
+- [`Deleter::delete_iter`]
+- [`Deleter::delete_try_iter`]
+- [`Deleter::delete_stream`]
+- [`Deleter::delete_try_stream`]
+- [`Deleter::flush`]
+- [`Deleter::close`]
+- [`Deleter::into_sink`]
+- [`DeleteInput`]
+- [`IntoDeleteInput`]
+- [`FuturesDeleteSink`]
+
+The following APIs have been deprecated and will be removed in the future releases:
+
+- `Operator::remove` (replace with [`Operator::delete_iter`])
+- `Operator::remove_via` (replace with [`Operator::delete_stream`])
+
+As a result of this change, the `limit` and `with_limit` APIs on `Operator` have also been deprecated; they are currently no-ops.
+
+## Raw API
+
+### `adapter::kv` now returns `Scanner` instead of `Vec<String>`
+
+To support returning key-value entries in a streaming manner instead of loading them all into memory, OpenDAL updated its adapter API to return a `Scanner` instead of a `Vec<String>`.
+
+```diff
+- async fn scan(&self, path: &str) -> Result<Vec<String>>
++ async fn scan(&self, path: &str) -> Result<Self::Scanner>
+```
+
+All services intending to implement `kv::Adapter` should adhere to this API change.
+
+## Align `metadata` API to `info`
+
+OpenDAL changes it's old `metadata` API to `info` to align with the new `AccessorInfo` struct.
+
+```diff
+- fn metadata(&self) -> Arc<AccessorInfo>
++ fn info(&self) -> Arc<AccessorInfo>
+```
+
+### Remove not used struct: `RangeWriter`
+
+The struct `RangeWriter` is not utilized by any services, and we have no plans to support it in the future; therefore, we have removed it.
+
+# Upgrade to v0.50
+
+## Public API
+
+### `services-postgresql`'s connect string now supports only URL format
+
+Previously, it supports both URL format and key-value format. After switching the implementation from `tokio-postgres` to `sqlx`, the service now supports only the URL format.
+
+### `list` now returns path itself
+
+Previously, `list("a/b")` would not return `a/b` even if it does exist. Since v0.50.0, this behavior has been changed. OpenDAL will now return the path itself if it exists. This change applies to all cases, whether the path is a directory or a file.
+
+### Refactoring of the metrics-related layer
+
+In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implementations. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
+
+# Upgrade to v0.49
+
+## Public API
+
+### `Configurator` now returns associated builder instead
+
+`Configurator` used to return `impl Builder`, but now it returns associated builder type directly. This will allow users to use the builder in a more flexible way.
+
+```diff
+impl Configurator for MemoryConfig {
+-    fn into_builder(self) -> impl Builder {
++    type Builder = MemoryBuilder;
++    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+```
+
+### `LoggingLayer` now accepts `LoggingInterceptor`
+
+`LoggingLayer` now accepts `LoggingInterceptor` trait instead of configuration. This change will allow users to customize the logging behavior more flexibly.
+
+```diff
+pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
+    fn log(
+        &self,
+        info: &AccessorInfo,
+        operation: Operation,
+        context: &[(&str, &str)],
+        message: &str,
+        err: Option<&Error>,
+    );
+}
+```
+
+Users can now implement the log in the way they want.
+
+# Upgrade to v0.48
+
+## Public API
+
+### Typo in `customized_credential_load`
+
+Since v0.48, the `customed_credential_load` function has been renamed to `customized_credential_load` to fix the typo of `customized`.
+
+```diff
+- builder.customed_credential_load(v);
++ builder.customized_credential_load(v);
+```
+
+### S3 service rename `security_token` to `session_token`
+
+[In 2014 Amazon switched](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/) from `AWS_SECURITY_TOKEN` to `AWS_SESSION_TOKEN`. To be consistent with the naming of AWS STS, we have renamed the `security_token` field to `session_token` in the S3 service.
+
+```diff
+- builder.security_token(v);
++ builder.session_token(v);
+```
+
+### Operator `from_iter` and `via_iter` replaces `from_map` and `via_map`
+
+Since v0.48, Operator's new APIs `from_iter` and `via_iter` methods have deprecated the `from_map` and `via_map` methods.
+
+```diff
+- Operator::from_map::<Fs>(map)?.finish();
++ Operator::from_iter::<Fs>(map)?.finish();
+```
+
+New API `from_iter` and `via_iter` should cover all use cases of `from_map` and `via_map`.
+
+### Service builder now takes ownership
+
+Since v0.48, all service builder now takes ownership `self` instead of `&mut self`. This change will allow users to configure the service in a more flexible way.
+
+```diff
+- let mut builder = S3::default();
+- builder.bucket("test");
+- builder.root("/path/to/root");
++ let builder = S3::default().bucket("test").root("/path/to/root");
+  let op = Operator::new(builder)?.finish();
+```
+
+## Raw API
+
+### `oio::Write::write` will write the whole buffer
+
+Starting from version 0.48, `oio::Write::write` now writes the entire buffer. This update aligns the API more closely with `oio::Read::read` and simplifies the implementation of concurrent writing.
+
+```diff
+  trait Write {
+-     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<usize>>;
++     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>>;
+  }
+```
+
+`write` will now return `Result<()>` instead of `Result<usize>`. The number of bytes written can be obtained from the buffer's length.
+
+### `Access::metadata()` will return `Arc<AccessInfo>`
+
+Starting from version 0.48, `Access::metadata()` will return `Arc<AccessInfo>` instead of `AccessInfo`. This change is intended to improve performance and reduce memory usage.
+
+```diff
+  trait Access {
+-     fn metadata(&self) -> AccessInfo;
++     fn metadata(&self) -> Arc<AccessInfo>;
+  }
+```
+
+### `MinitraceLayer` renamed to `FastraceLayer`
+
+The `MinitraceLayer` has been renamed to `FastraceLayer` to respond to the [transition from `minitrace` to `fastrace`](https://github.com/tikv/minitrace-rust/issues/229).
+
+```diff
+- use opendal::layers::MinitraceLayer;
++ use opendal::layers::FastraceLayer;
+```
+
+### Use `Configurator` to replace `Builder::from_config`
+
+Since v0.48, the `Builder::from_config` and `Builder::from_map` method has been replaced by the `Configurator` trait. The `Configurator` trait provides a more flexible and extensible way to configure OpenDAL.
+
+Service implementers should update their code to use the `Configurator` trait instead:
+
+```rust
+impl Configurator for MemoryConfig {
+    type Builder = MemoryBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+
+impl Builder for MemoryBuilder {
+    const SCHEME: Scheme = Scheme::Memory;
+    type Config = MemoryConfig;
+
+    fn build(self) -> Result<impl Access> {
+        ...
+    }
+}
+```
+
+# Upgrade to v0.47
+
+## Public API
+
+### Reader `into_xxx` APIs
+
+Since v0.47, `Reader`'s `into_xxx` APIs requires `async` and returns `Result` instead.
+
+```diff
+- let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048);
++ let r = op.reader("test.txt").await?.into_futures_async_read(1024..2048).await?;
+```
+
+Affected API includes:
+
+- `Reader::into_futures_async_read`
+- `Reader::into_bytes_stream`
+- `BlockingReader::into_std_read`
+- `BlockingReader::into_bytes_iterator`
+
+## Raw API
+
+### Bring Streaming Read Back
+
+As explained in [core: Bring Streaming Read Back](https://github.com/apache/opendal/issues/4672), we do need read streaming back for better performance and low memory usage.
+
+So our `oio::Read` changed back to streaming read instead:
+
+```diff
+trait Read {
+-  async fn read(&self, offset: u64, size: usize) -> Result<Buffer>;
++  async fn read(&mut self) -> Result<Buffer>;
+}
+```
+
+All services and layers should be updated to meet this change.
+
 # Upgrade to v0.46
 
 ## Public API
@@ -18,7 +300,7 @@ Additionally, we have removed all `reqwest`-related feature flags:
 
 ### Range Based Read
 
-Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO. 
+Since v0.46, OpenDAL transformed it's Read IO trait to range based instead of stateful poll based IO. This change will make the IO more efficient, easier for concurrency and ready for completion based IO.
 
 `opendal::Reader` now have APIs like:
 
@@ -205,7 +487,7 @@ There is no public API and raw API changes.
 
 ### RFC-2578 Merge Append Into Write
 
-[RFC-2578](crate::docs::rfcs::rfc_2578_merge_append_into_write) merges `append` into `write` and removes `append` API.
+[RFC-2578](crate::docs::rfcs::rfc_2758_merge_append_into_write) merges `append` into `write` and removes `append` API.
 
 - For writing a file at once, please use `op.write()` for convenience.
 - For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
@@ -229,7 +511,7 @@ Please use `op.list_with().metakey()` instead of `op.metadata(&entry)`, for exam
 ```rust
 // Before
 let entries: Vec<Entry> = op.list("dir/").await?;
-for entry in entris {
+for entry in entries {
   let meta = op.metadata(&entry, Metakey::ContentLength | Metakey::ContentType).await?;
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
@@ -238,7 +520,7 @@ for entry in entris {
 let entries: Vec<Entry> = op
   .list_with("dir/")
   .metakey(Metakey::ContentLength | Metakey::ContentType).await?;
-for entry in entris {
+for entry in entries {
   println!("{} {}", entry.name(), entry.metadata().content_length());
 }
 ```
@@ -291,7 +573,7 @@ OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, ple
 
 ### RFC-3017 Remove Write Copy From
 
-[RFC-3017](opendal::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
+[RFC-3017](crate::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
 
 # Upgrade to v0.39
 
@@ -321,7 +603,7 @@ There are no public API changes.
 
 OpenDAL add the `Write::sink` API to enable streaming writing. This is a breaking change for users who depend on the raw API.
 
-For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`. 
+For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`.
 
 More details could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
 

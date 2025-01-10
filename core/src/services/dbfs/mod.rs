@@ -15,11 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-dbfs")]
+mod core;
+#[cfg(feature = "services-dbfs")]
+mod delete;
+#[cfg(feature = "services-dbfs")]
+mod error;
+#[cfg(feature = "services-dbfs")]
+mod lister;
+#[cfg(feature = "services-dbfs")]
+mod writer;
+
+#[cfg(feature = "services-dbfs")]
 mod backend;
+#[cfg(feature = "services-dbfs")]
 pub use backend::DbfsBuilder as Dbfs;
 
-mod core;
-mod error;
-mod lister;
-mod reader;
-mod writer;
+mod config;
+pub use config::DbfsConfig;

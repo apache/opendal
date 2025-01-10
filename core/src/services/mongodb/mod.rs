@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-mongodb")]
 mod backend;
+#[cfg(feature = "services-mongodb")]
 pub use backend::MongodbBuilder as Mongodb;
-pub use backend::MongodbConfig;
+
+mod config;
+pub use config::MongodbConfig;

@@ -18,7 +18,7 @@
 [package]
 name = "opendal-ruby"
 publish = false
-version = "0.1.1"
+version = "0.1.13"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -33,8 +33,9 @@ doc = false
 name = "opendal_ruby"
 
 [dependencies]
-magnus = { version = "0.5", features = ["bytes-crate"] }
-opendal = { version = "0.46.0", path = "../../core", features = [
+magnus = { version = "0.7.1", features = ["bytes"] }
+# this crate won't be published, we always use the local version
+opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",
@@ -52,7 +53,9 @@ opendal = { version = "0.46.0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
-rb-sys = { version = "0.9.77", default-features = false }
+rb-sys = { version = "0.9.102", default-features = false }
+# should be in sync with opendal
+bytes = "1.6"
 
 [build-dependencies]
 rb-sys-env = "0.1.2"

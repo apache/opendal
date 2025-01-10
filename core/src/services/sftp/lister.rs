@@ -54,8 +54,14 @@ impl oio::List for SftpLister {
 
             match item {
                 Some(e) => {
-                    if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
+                    if e.filename().to_str() == Some("..") {
                         continue;
+                    } else if e.filename().to_str() == Some(".") {
+                        let mut path = self.prefix.as_str();
+                        if self.prefix.is_empty() {
+                            path = "/";
+                        }
+                        return Ok(Some(Entry::new(path, e.metadata().into())));
                     } else {
                         return Ok(Some(map_entry(self.prefix.as_str(), e)));
                     }
@@ -66,7 +72,7 @@ impl oio::List for SftpLister {
     }
 }
 
-fn map_entry(prefix: &str, value: DirEntry) -> oio::Entry {
+fn map_entry(prefix: &str, value: DirEntry) -> Entry {
     let path = format!(
         "{}{}{}",
         prefix,
@@ -78,5 +84,5 @@ fn map_entry(prefix: &str, value: DirEntry) -> oio::Entry {
         }
     );
 
-    oio::Entry::new(path.as_str(), value.metadata().into())
+    Entry::new(path.as_str(), value.metadata().into())
 }

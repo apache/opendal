@@ -15,12 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::ChainsafeBuilder as Chainsafe;
-pub use backend::ChainsafeConfig;
-
+#[cfg(feature = "services-chainsafe")]
 mod core;
+#[cfg(feature = "services-chainsafe")]
+mod delete;
+#[cfg(feature = "services-chainsafe")]
 mod error;
+#[cfg(feature = "services-chainsafe")]
 mod lister;
-mod reader;
+#[cfg(feature = "services-chainsafe")]
 mod writer;
+
+#[cfg(feature = "services-chainsafe")]
+mod backend;
+#[cfg(feature = "services-chainsafe")]
+pub use backend::ChainsafeBuilder as Chainsafe;
+
+mod config;
+pub use config::ChainsafeConfig;

@@ -15,12 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::KoofrBuilder as Koofr;
-pub use backend::KoofrConfig;
-
+#[cfg(feature = "services-koofr")]
 mod core;
+#[cfg(feature = "services-koofr")]
+mod delete;
+#[cfg(feature = "services-koofr")]
 mod error;
+#[cfg(feature = "services-koofr")]
 mod lister;
-mod reader;
+#[cfg(feature = "services-koofr")]
 mod writer;
+
+#[cfg(feature = "services-koofr")]
+mod backend;
+#[cfg(feature = "services-koofr")]
+pub use backend::KoofrBuilder as Koofr;
+
+mod config;
+pub use config::KoofrConfig;

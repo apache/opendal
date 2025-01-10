@@ -60,12 +60,12 @@ impl GdriveCore {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("path not found: {}", path),
+            format!("path not found: {}", path),
         ))?;
 
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
-        let mut req = Request::get(&format!(
+        let mut req = Request::get(format!(
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
             file_id
         ))
@@ -76,11 +76,11 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("path not found: {}", path),
+            format!("path not found: {}", path),
         ))?;
 
         let url: String = format!(
@@ -94,7 +94,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.client.fetch(req).await
     }
 
     pub async fn gdrive_list(
@@ -129,7 +129,7 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            &format!("source path not found: {}", source),
+            format!("source path not found: {}", source),
         ))?;
         let source_parent = get_parent(source);
         let source_parent_id = self
@@ -320,7 +320,7 @@ impl GdriveSigner {
                         - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
         }
@@ -389,7 +389,7 @@ impl PathQuery for GdrivePathQuery {
                     Ok(None)
                 }
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -413,7 +413,7 @@ impl PathQuery for GdrivePathQuery {
 
         let resp = self.client.send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         }
 
         let body = resp.into_body();

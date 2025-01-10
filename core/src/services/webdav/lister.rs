@@ -61,7 +61,7 @@ impl oio::PageList for WebdavLister {
             ctx.done = true;
             return Ok(());
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp));
         };
 
         let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
@@ -80,18 +80,14 @@ impl oio::PageList for WebdavLister {
                 path += "/"
             }
 
+            let decoded_path = percent_decode_path(&path);
+
             // Ignore the root path itself.
-            if self.core.root == path {
+            if self.core.root == decoded_path {
                 continue;
             }
 
-            let normalized_path = build_rel_path(&self.core.root, &path);
-            let decoded_path = percent_decode_path(&normalized_path);
-
-            if normalized_path == self.path || decoded_path == self.path {
-                // WebDAV server may return the current path as an entry.
-                continue;
-            }
+            let normalized_path = build_rel_path(&self.core.root, &decoded_path);
 
             // HACKS! HACKS! HACKS!
             //
@@ -102,7 +98,8 @@ impl oio::PageList for WebdavLister {
                 continue;
             }
 
-            ctx.entries.push_back(oio::Entry::new(&decoded_path, meta))
+            ctx.entries
+                .push_back(oio::Entry::new(&normalized_path, meta))
         }
         ctx.done = true;
 

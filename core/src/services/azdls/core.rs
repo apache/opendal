@@ -20,9 +20,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 
-use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_DISPOSITION, IF_NONE_MATCH};
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -97,7 +97,7 @@ impl AzdlsCore {
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -116,7 +116,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`
@@ -151,6 +151,14 @@ impl AzdlsCore {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*")
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v)
         }
 
         // Set body

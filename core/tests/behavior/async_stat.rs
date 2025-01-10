@@ -18,12 +18,12 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::*;
 use anyhow::Result;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
-
-use crate::*;
+use tokio::time::sleep;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -39,10 +39,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_not_exist,
             test_stat_with_if_match,
             test_stat_with_if_none_match,
+            test_stat_with_if_modified_since,
+            test_stat_with_if_unmodified_since,
             test_stat_with_override_cache_control,
             test_stat_with_override_content_disposition,
             test_stat_with_override_content_type,
-            test_stat_root
+            test_stat_root,
+            test_stat_with_version,
+            stat_with_not_existing_version
         ))
     }
 
@@ -166,12 +170,12 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    // Stat not exist file should returns NotFound.
+    // Stat not exist file should return NotFound.
     let meta = op.stat(&path).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
-    // Stat not exist dir should also returns NotFound.
+    // Stat not exist dir should also return NotFound.
     if op.info().full_capability().create_dir {
         let meta = op.stat(&format!("{path}/")).await;
         assert!(meta.is_err());
@@ -239,6 +243,66 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
         .await?;
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
+
+    Ok(())
+}
+
+/// Stat file with if_modified_since should succeed, otherwise get a ConditionNotMatch error.
+pub async fn test_stat_with_if_modified_since(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), content.len() as u64);
+
+    let since = meta.last_modified().unwrap() - Duration::from_secs(1);
+    let res = op.stat_with(&path).if_modified_since(since).await?;
+    assert_eq!(res.last_modified(), meta.last_modified());
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = meta.last_modified().unwrap() + Duration::from_secs(1);
+    let res = op.stat_with(&path).if_modified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.err().unwrap().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Stat file with if_unmodified_since should succeed, otherwise get a ConditionNotMatch error.
+pub async fn test_stat_with_if_unmodified_since(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), content.len() as u64);
+
+    let since = meta.last_modified().unwrap() - Duration::from_secs(1);
+    let res = op.stat_with(&path).if_unmodified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.err().unwrap().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = meta.last_modified().unwrap() + Duration::from_secs(1);
+    let res = op.stat_with(&path).if_unmodified_since(since).await?;
+    assert_eq!(res.last_modified(), meta.last_modified());
 
     Ok(())
 }
@@ -496,6 +560,73 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
     let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
+
+    Ok(())
+}
+
+pub async fn test_stat_with_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_version {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(path.as_str(), content.clone())
+        .await
+        .expect("write must success");
+    let first_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let first_version = first_meta.version().expect("must have version");
+
+    let first_versioning_meta = op
+        .stat_with(path.as_str())
+        .version(first_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(first_meta, first_versioning_meta);
+
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let second_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let second_version = second_meta.version().expect("must have version");
+    assert_ne!(first_version, second_version);
+
+    // we can still `stat` with first_version after writing new data
+    let meta = op
+        .stat_with(path.as_str())
+        .version(first_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(first_meta, meta);
+
+    Ok(())
+}
+
+pub async fn stat_with_not_existing_version(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_version {
+        return Ok(());
+    }
+
+    // retrieve a valid version
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content.clone())
+        .await
+        .expect("write must success");
+    let version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), content)
+        .await
+        .expect("write must success");
+    let ret = op.stat_with(path.as_str()).version(version.as_str()).await;
+    assert!(ret.is_err());
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }

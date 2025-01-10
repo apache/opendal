@@ -23,7 +23,7 @@
 //!   access raw APIs.
 //! - Raw APIs should only be accessed via `opendal::raw::Xxxx`, any public
 //!   API should never expose raw API directly.
-//! - Raw APIs are far more less stable than public API, please don't rely on
+//! - Raw APIs are far less stable than public API, please don't rely on
 //!   them whenever possible.
 
 mod accessor;
@@ -73,6 +73,7 @@ mod futures_util;
 pub use futures_util::BoxedFuture;
 pub use futures_util::BoxedStaticFuture;
 pub use futures_util::ConcurrentFutures;
+pub use futures_util::ConcurrentTasks;
 pub use futures_util::MaybeSend;
 
 mod enum_utils;

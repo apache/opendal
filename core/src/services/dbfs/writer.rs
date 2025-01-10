@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::DbfsCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::dbfs::core::DbfsCore;
 use crate::*;
 
 pub struct DbfsWriter {
@@ -58,7 +58,7 @@ impl oio::OneShotWrite for DbfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

@@ -107,7 +107,7 @@ impl SeafileCore {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
 
@@ -143,12 +143,12 @@ impl SeafileCore {
                     if signer.auth_info.repo_id.is_empty() {
                         return Err(Error::new(
                             ErrorKind::NotFound,
-                            &format!("repo {} not found", self.repo_name),
+                            format!("repo {} not found", self.repo_name),
                         ));
                     }
                 }
                 _ => {
-                    return Err(parse_error(resp).await?);
+                    return Err(parse_error(resp));
                 }
             }
             Ok(signer.auth_info.clone())
@@ -181,7 +181,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -213,12 +213,12 @@ impl SeafileCore {
 
                 Ok(download_url)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     /// download file
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<Buffer>> {
+    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let download_url = self.get_download_url(path).await?;
 
         let req = Request::get(download_url);
@@ -228,7 +228,7 @@ impl SeafileCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.client.fetch(req).await
     }
 
     /// file detail
@@ -258,7 +258,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -289,37 +289,7 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)
             }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    /// create dir
-    pub async fn create_dir(&self, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
-        let path = format!("/{}", &path[..path.len() - 1]);
-        let path = percent_encode_path(&path);
-
-        let auth_info = self.get_auth_info().await?;
-
-        let req = Request::post(format!(
-            "{}/api2/repos/{}/dir/?p={}",
-            self.endpoint, auth_info.repo_id, path,
-        ));
-
-        let body = "operation=mkdir".to_string();
-
-        let req = req
-            .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
-            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(Buffer::from(Bytes::from(body)))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(req).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -355,7 +325,7 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 }

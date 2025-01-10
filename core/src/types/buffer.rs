@@ -34,7 +34,9 @@ use bytes::Bytes;
 use bytes::BytesMut;
 use futures::Stream;
 
-/// Buffer is a wrapper of contiguous `Bytes` and non contiguous `[Bytes]`.
+use crate::*;
+
+/// Buffer is a wrapper of contiguous `Bytes` and non-contiguous `[Bytes]`.
 ///
 /// We designed buffer to allow underlying storage to return non-contiguous bytes. For example,
 /// http based storage like s3 could generate non-contiguous bytes by stream.
@@ -106,7 +108,6 @@ use futures::Stream;
 ///     buf.to_bytes()
 /// }
 /// ```
-///
 #[derive(Clone)]
 pub struct Buffer(Inner);
 
@@ -279,13 +280,28 @@ impl Buffer {
 
     /// Combine all bytes together into one single [`Bytes`].
     ///
-    /// This operation is not zero copy, it will copy all bytes into one single [`Bytes`].
+    /// This operation is zero copy if the underlying bytes are contiguous.
+    /// Otherwise, it will copy all bytes into one single [`Bytes`].
     /// Please use API from [`Buf`], [`Iterator`] or [`Stream`] whenever possible.
     #[inline]
     pub fn to_bytes(&self) -> Bytes {
-        let mut ret = BytesMut::with_capacity(self.len());
-        ret.put(self.clone());
-        ret.freeze()
+        match &self.0 {
+            Inner::Contiguous(bytes) => bytes.clone(),
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx: _,
+                offset,
+            } => {
+                if parts.len() == 1 {
+                    parts[0].slice(*offset..(*offset + *size))
+                } else {
+                    let mut ret = BytesMut::with_capacity(self.len());
+                    ret.put(self.clone());
+                    ret.freeze()
+                }
+            }
+        }
     }
 
     /// Combine all bytes together into one single [`Vec<u8>`].

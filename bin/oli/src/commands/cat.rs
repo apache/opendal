@@ -15,39 +15,44 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
-
-use anyhow::anyhow;
 use anyhow::Result;
-use clap::Arg;
-use clap::ArgMatches;
-use clap::Command;
 use futures::io;
 
 use crate::config::Config;
+use crate::make_tokio_runtime;
+use crate::params::config::ConfigParams;
 
-pub async fn main(args: &ArgMatches) -> Result<()> {
-    let config_path = args
-        .get_one::<PathBuf>("config")
-        .ok_or_else(|| anyhow!("missing config path"))?;
-    let cfg = Config::load(config_path)?;
-
-    let target = args
-        .get_one::<String>("target")
-        .ok_or_else(|| anyhow!("missing target"))?;
-    let (op, path) = cfg.parse_location(target)?;
-
-    let reader = op.reader(&path).await?;
-    let meta = op.stat(&path).await?;
-    let mut buf_reader = reader
-        .into_futures_async_read(0..meta.content_length())
-        .await?;
-    let mut stdout = io::AllowStdIo::new(std::io::stdout());
-    io::copy_buf(&mut buf_reader, &mut stdout).await?;
-    Ok(())
+#[derive(Debug, clap::Parser)]
+#[command(
+    name = "cat",
+    about = "Display object content",
+    disable_version_flag = true
+)]
+pub struct CatCmd {
+    #[command(flatten)]
+    pub config_params: ConfigParams,
+    /// In the form of `<profile>:/<path>`.
+    #[arg()]
+    pub target: String,
 }
 
-pub fn cli(cmd: Command) -> Command {
-    cmd.about("display object content")
-        .arg(Arg::new("target").required(true))
+impl CatCmd {
+    pub fn run(self) -> Result<()> {
+        make_tokio_runtime(1).block_on(self.do_run())
+    }
+
+    async fn do_run(self) -> Result<()> {
+        let cfg = Config::load(&self.config_params.config)?;
+
+        let (op, path) = cfg.parse_location(&self.target)?;
+
+        let reader = op.reader(&path).await?;
+        let meta = op.stat(&path).await?;
+        let mut buf_reader = reader
+            .into_futures_async_read(0..meta.content_length())
+            .await?;
+        let mut stdout = io::AllowStdIo::new(std::io::stdout());
+        io::copy_buf(&mut buf_reader, &mut stdout).await?;
+        Ok(())
+    }
 }

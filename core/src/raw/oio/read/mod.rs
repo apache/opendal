@@ -20,5 +20,4 @@ pub use api::BlockingRead;
 pub use api::BlockingReader;
 pub use api::Read;
 pub use api::ReadDyn;
-pub use api::ReadOperation;
 pub use api::Reader;

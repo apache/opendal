@@ -80,3 +80,26 @@ impl RetryLayer {
         Ok(class)
     }
 }
+
+#[pyclass(module = "opendal.layers", extends=Layer)]
+#[derive(Clone)]
+pub struct ConcurrentLimitLayer(ocore::layers::ConcurrentLimitLayer);
+
+impl PythonLayer for ConcurrentLimitLayer {
+    fn layer(&self, op: Operator) -> Operator {
+        op.layer(self.0.clone())
+    }
+}
+
+#[pymethods]
+impl ConcurrentLimitLayer {
+    #[new]
+    #[pyo3(signature = (limit))]
+    fn new(limit: usize) -> PyResult<PyClassInitializer<Self>> {
+        let concurrent_limit = Self(ocore::layers::ConcurrentLimitLayer::new(limit));
+        let class = PyClassInitializer::from(Layer(Box::new(concurrent_limit.clone())))
+            .add_subclass(concurrent_limit);
+
+        Ok(class)
+    }
+}

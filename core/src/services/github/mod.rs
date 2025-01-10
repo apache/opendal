@@ -15,12 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::GithubBuilder as Github;
-pub use backend::GithubConfig;
-
+#[cfg(feature = "services-github")]
 mod core;
+#[cfg(feature = "services-github")]
+mod delete;
+#[cfg(feature = "services-github")]
 mod error;
+#[cfg(feature = "services-github")]
 mod lister;
-mod reader;
+#[cfg(feature = "services-github")]
 mod writer;
+
+#[cfg(feature = "services-github")]
+mod backend;
+#[cfg(feature = "services-github")]
+pub use backend::GithubBuilder as Github;
+
+mod config;
+pub use config::GithubConfig;

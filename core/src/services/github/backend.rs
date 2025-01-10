@@ -15,60 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 
 use super::core::Entry;
 use super::core::GithubCore;
+use super::delete::GithubDeleter;
 use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
-use crate::services::github::reader::GithubReader;
+use crate::services::GithubConfig;
 use crate::*;
 
-/// Config for backblaze Github services support.
-#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-pub struct GithubConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// Github access_token.
-    ///
-    /// optional.
-    /// If not provided, the backend will only support read operations for public repositories.
-    /// And rate limit will be limited to 60 requests per hour.
-    pub token: Option<String>,
-    /// Github repo owner.
-    ///
-    /// required.
-    pub owner: String,
-    /// Github repo name.
-    ///
-    /// required.
-    pub repo: String,
-}
-
-impl Debug for GithubConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GithubConfig");
-
-        d.field("root", &self.root)
-            .field("owner", &self.owner)
-            .field("repo", &self.repo);
-
-        d.finish_non_exhaustive()
+impl Configurator for GithubConfig {
+    type Builder = GithubBuilder;
+    fn into_builder(self) -> Self::Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }
 
@@ -77,7 +50,6 @@ impl Debug for GithubConfig {
 #[derive(Default)]
 pub struct GithubBuilder {
     config: GithubConfig,
-
     http_client: Option<HttpClient>,
 }
 
@@ -94,7 +66,7 @@ impl GithubBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
@@ -107,21 +79,22 @@ impl GithubBuilder {
     /// Github access_token.
     ///
     /// required.
-    pub fn token(&mut self, token: &str) -> &mut Self {
-        self.config.token = Some(token.to_string());
-
+    pub fn token(mut self, token: &str) -> Self {
+        if !token.is_empty() {
+            self.config.token = Some(token.to_string());
+        }
         self
     }
 
     /// Set Github repo owner.
-    pub fn owner(&mut self, owner: &str) -> &mut Self {
+    pub fn owner(mut self, owner: &str) -> Self {
         self.config.owner = owner.to_string();
 
         self
     }
 
     /// Set Github repo name.
-    pub fn repo(&mut self, repo: &str) -> &mut Self {
+    pub fn repo(mut self, repo: &str) -> Self {
         self.config.repo = repo.to_string();
 
         self
@@ -133,7 +106,7 @@ impl GithubBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+    pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
     }
@@ -141,31 +114,10 @@ impl GithubBuilder {
 
 impl Builder for GithubBuilder {
     const SCHEME: Scheme = Scheme::Github;
-    type Accessor = GithubBackend;
-
-    /// Converts a HashMap into an GithubBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of GithubBuilder.
-    fn from_map(map: HashMap<String, String>) -> Self {
-        // Deserialize the configuration from the HashMap.
-        let config = GithubConfig::deserialize(ConfigDeserializer::new(map))
-            .expect("config deserialize must succeed");
-
-        // Create an GithubBuilder instance with the deserialized config.
-        GithubBuilder {
-            config,
-            http_client: None,
-        }
-    }
+    type Config = GithubConfig;
 
     /// Builds the backend and returns the result of GithubBackend.
-    fn build(&mut self) -> Result<Self::Accessor> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -189,7 +141,7 @@ impl Builder for GithubBuilder {
 
         debug!("backend use repo {}", &self.config.repo);
 
-        let client = if let Some(client) = self.http_client.take() {
+        let client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -217,24 +169,23 @@ pub struct GithubBackend {
 }
 
 impl Access for GithubBackend {
-    type Reader = GithubReader;
-
+    type Reader = HttpBody;
     type Writer = GithubWriters;
-
     type Lister = oio::PageLister<GithubLister>;
-
+    type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
-    fn info(&self) -> AccessorInfo {
+    fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Github)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
+                stat_has_content_length: true,
+                stat_has_etag: true,
 
                 read: true,
 
@@ -247,11 +198,15 @@ impl Access for GithubBackend {
 
                 list: true,
                 list_with_recursive: true,
+                list_has_content_length: true,
+                list_has_etag: true,
+
+                shared: true,
 
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -266,7 +221,7 @@ impl Access for GithubBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
@@ -291,15 +246,25 @@ impl Access for GithubBackend {
 
                 Ok(RpStat::new(m))
             }
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp)),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            GithubReader::new(self.core.clone(), path, args),
-        ))
+        let resp = self.core.get(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -310,11 +275,11 @@ impl Access for GithubBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        match self.core.delete(path).await {
-            Ok(_) => Ok(RpDelete::default()),
-            Err(err) => Err(err),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GithubDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

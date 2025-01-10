@@ -17,3 +17,12 @@
 
 pub mod commands;
 pub mod config;
+pub mod params;
+
+fn make_tokio_runtime(n_threads: usize) -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(n_threads)
+        .enable_all()
+        .build()
+        .expect("failed to create tokio runtime")
+}

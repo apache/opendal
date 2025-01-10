@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
 import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -40,8 +40,9 @@ import org.junit.jupiter.api.extension.TestWatcher;
 public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, TestWatcher {
     private String testName;
 
+    public String scheme;
+    public AsyncOperator asyncOperator;
     public Operator operator;
-    public BlockingOperator blockingOperator;
 
     @Override
     public void beforeAll(ExtensionContext context) {
@@ -63,31 +64,39 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
                 config.put("root", root);
             }
 
-            @Cleanup final Operator op = Operator.of(scheme, config);
-            this.operator = op.layer(RetryLayer.builder().build());
-            this.blockingOperator = this.operator.blocking();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(scheme, config);
+            this.asyncOperator = op.layer(RetryLayer.builder().build());
+            this.operator = this.asyncOperator.blocking();
 
+            this.scheme = scheme;
             this.testName = String.format("%s(%s)", context.getDisplayName(), scheme);
             log.info(
                     "\n================================================================================"
                             + "\nTest {} is running."
                             + "\n--------------------------------------------------------------------------------",
                     testName);
+        } else {
+            log.warn(
+                    "\n================================================================================"
+                            + "\nTest {} is skipped because OPENDAL_TEST is not set."
+                            + "\n--------------------------------------------------------------------------------",
+                    context.getDisplayName());
         }
     }
 
     @Override
     public void afterAll(ExtensionContext context) {
+        if (asyncOperator != null) {
+            asyncOperator.close();
+            asyncOperator = null;
+        }
+
         if (operator != null) {
             operator.close();
             operator = null;
         }
 
-        if (blockingOperator != null) {
-            blockingOperator.close();
-            blockingOperator = null;
-        }
-
+        this.scheme = null;
         this.testName = null;
     }
 

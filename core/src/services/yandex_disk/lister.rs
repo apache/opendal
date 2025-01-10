@@ -104,7 +104,7 @@ impl oio::PageList for YandexDiskLister {
                 return Ok(());
             }
             _ => {
-                return Err(parse_error(resp).await?);
+                return Err(parse_error(resp));
             }
         }
 

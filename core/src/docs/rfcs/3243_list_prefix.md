@@ -93,7 +93,7 @@ While create dir on a path:
 
 # Reference-level explanation
 
-For POSIX-alike services, we will:
+For POSIX-like services, we will:
 
 - Simulate the list prefix behavior by listing the parent dir and filter the children that matches the prefix.
 - Return `NotFound` while stat an existing file with `/`

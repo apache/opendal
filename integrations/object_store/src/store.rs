@@ -217,6 +217,7 @@ impl ObjectStore for OpendalStore {
 
         let stream = r
             .into_bytes_stream(0..meta.size as u64)
+            .into_send()
             .await
             .map_err(|err| object_store::Error::Generic {
                 store: "IoError",
@@ -400,6 +401,7 @@ impl ObjectStore for OpendalStore {
                 let meta = self
                     .inner
                     .stat(entry.path())
+                    .into_send()
                     .await
                     .map_err(|err| format_object_store_error(err, entry.path()))?;
                 objects.push(format_object_meta(entry.path(), &meta));

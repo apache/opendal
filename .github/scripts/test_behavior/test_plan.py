@@ -60,6 +60,16 @@ class BehaviorTestPlan(unittest.TestCase):
         # Should contain ofs
         self.assertTrue("fs" in cases)
 
+    def test_integration_object_store(self):
+        result = plan(["integrations/object_store/Cargo.toml"])
+        self.assertTrue(result["components"]["integration_object_store"])
+        self.assertTrue(len(result["integration_object_store"]) > 0)
+
+        result = plan(["core/src/services/fs/mod.rs"])
+        cases = [v["service"] for v in result["integration_object_store"][0]["cases"]]
+        # Should contain fs
+        self.assertTrue("fs" in cases)
+
 
 if __name__ == "__main__":
     unittest.main()

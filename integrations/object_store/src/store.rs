@@ -90,6 +90,7 @@ use tokio::sync::{Mutex, Notify};
 ///     assert_eq!(content, bytes);
 /// }
 /// ```
+#[derive(Clone)]
 pub struct OpendalStore {
     info: Arc<OperatorInfo>,
     inner: Operator,

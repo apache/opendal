@@ -35,6 +35,8 @@ LANGUAGE_BINDING = ["java", "python", "nodejs"]
 
 BIN = ["ofs"]
 
+INTEGRATIONS = ["object_store"]
+
 
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
@@ -86,6 +88,8 @@ class Hint:
     binding_nodejs: bool = field(default=False, init=False)
     # Is bin ofs affected?
     bin_ofs: bool = field(default=False, init=False)
+    # Is integration object_store affected ?
+    integration_object_store: bool = field(default=False, init=False)
 
     # Should we run all services tests?
     all_service: bool = field(default=False, init=False)
@@ -106,6 +110,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
             hint.all_service = True
+            hint.integration_object_store = True
 
         if p == ".github/workflows/test_behavior_core.yml":
             hint.core = True
@@ -115,9 +120,15 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             if p == f".github/workflows/test_behavior_binding_{language}.yml":
                 setattr(hint, f"binding_{language}", True)
                 hint.all_service = True
+
         for bin in BIN:
             if p == f".github/workflows/test_behavior_bin_{bin}.yml":
                 setattr(hint, f"bin_{bin}", True)
+                hint.all_service = True
+
+        for integration in INTEGRATIONS:
+            if p == f".github/workflows/test_behavior_integration_{integration}.yml":
+                setattr(hint, f"integration_{integration}", True)
                 hint.all_service = True
 
         # core affected
@@ -133,6 +144,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_python = True
             hint.binding_nodejs = True
             hint.bin_ofs = True
+            for integration in INTEGRATIONS:
+                setattr(hint, f"integration_{integration}", True)
             hint.all_service = True
 
         # language binding affected
@@ -147,6 +160,12 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"bin_{bin}", True)
                 hint.all_service = True
 
+        # integration affected
+        for integration in INTEGRATIONS:
+            if p.startswith(f"integrations/{integration}"):
+                setattr(hint, f"integration_{integration}", True)
+                hint.all_service = True
+
         # core service affected
         match = re.search(r"core/src/services/([^/]+)/", p)
         if match:
@@ -155,6 +174,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
+            for integration in INTEGRATIONS:
+                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
         # core test affected
@@ -165,6 +186,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
+            for integration in INTEGRATIONS:
+                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
         # fixture affected
@@ -175,6 +198,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
             for bin in BIN:
                 setattr(hint, f"bin_{bin}", True)
+            for integration in INTEGRATIONS:
+                setattr(hint, f"integration_{integration}", True)
             hint.services.add(match.group(1))
 
     return hint
@@ -243,7 +268,7 @@ def generate_language_binding_cases(
     if hint.all_service:
         return cases
 
-    # Filter all cases that not shown un in changed files
+    # Filter all cases that not shown up in changed files
     cases = [v for v in cases if v["service"] in hint.services]
     return cases
 
@@ -265,7 +290,30 @@ def generate_bin_cases(
     if hint.all_service:
         return cases
 
-    # Filter all cases that not shown un in changed files
+    # Filter all cases that not shown up in changed files
+    cases = [v for v in cases if v["service"] in hint.services]
+
+    return cases
+
+
+def generate_integration_cases(
+    cases: list[dict[str, str]], hint: Hint, integration: str
+ ) -> list[dict[str, str]]:
+    # Return empty if this integration is False
+    if not getattr(hint, f"integration_{integration}"):
+        return []
+
+    cases = unique_cases(cases)
+
+    if integration == "object_store":
+        supported_services = ["fs", "s3"]
+        cases = [v for v in cases if v["service"] in supported_services]
+
+    # Return all services if all_service is True
+    if hint.all_service:
+        return cases
+
+    # Filter all cases that not shown up in changed files
     cases = [v for v in cases if v["service"] in hint.services]
 
     return cases
@@ -315,6 +363,17 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
         if len(bin_cases) > 0:
             jobs["components"][f"bin_{bin}"] = True
             jobs[f"bin_{bin}"].append({"os": "ubuntu-latest", "cases": bin_cases})
+
+    for integration in INTEGRATIONS:
+        jobs[f"integration_{integration}"] = []
+        jobs["components"][f"integration_{integration}"] = False
+        integration_cases = generate_integration_cases(cases, hint, integration)
+        if len(integration_cases) > 0:
+            jobs["components"][f"integration_{integration}"] = True
+            jobs[f"integration_{integration}"].append(
+                {"os": "ubuntu-latest", "cases": integration_cases}
+            )
+
     return jobs
 
 

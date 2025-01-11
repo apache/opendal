@@ -145,3 +145,17 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
+  test_integration_object_store:
+    name: integration_object_store / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.integration_object_store
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).integration_object_store }}
+    uses: ./.github/workflows/test_behavior_integration_object_store.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

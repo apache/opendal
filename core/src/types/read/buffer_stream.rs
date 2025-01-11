@@ -85,7 +85,7 @@ impl ChunkedReader {
     ///
     /// # Notes
     ///
-    /// We don't need to handle `Executor::timeout` since we are outside of the layer.
+    /// We don't need to handle `Executor::timeout` since we are outside the layer.
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
         let tasks = ConcurrentTasks::new(
             ctx.args().executor().cloned().unwrap_or_default(),

@@ -109,8 +109,9 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.core = True
             for language in LANGUAGE_BINDING:
                 setattr(hint, f"binding_{language}", True)
+            for integration in INTEGRATIONS:
+                setattr(hint, f"integration_{integration}", True)
             hint.all_service = True
-            hint.integration_object_store = True
 
         if p == ".github/workflows/test_behavior_core.yml":
             hint.core = True

@@ -281,28 +281,25 @@ impl ObjectStore for OpendalStore {
                 .map_err(|err| format_object_store_error(err, location.as_ref()))?
         };
 
-        let mut read_range = 0..meta.size;
-        if let Some(range) = options.range {
-            match range {
-                GetRange::Bounded(r) => {
-                    read_range = r;
-                }
-                GetRange::Offset(r) => {
-                    if r >= meta.size {
-                        read_range = 0..0;
-                    } else {
-                        read_range = r..meta.size;
-                    }
-                }
-                GetRange::Suffix(r) => {
-                    if r >= meta.size {
-                        read_range = 0..meta.size;
-                    } else {
-                        read_range = (meta.size - r)..meta.size;
-                    }
+        let read_range = match options.range {
+            Some(GetRange::Bounded(r)) => {
+                if r.start >= r.end || r.start >= meta.size {
+                    0..0
+                } else {
+                    let end = r.end.min(meta.size);
+                    r.start..end
                 }
             }
-        }
+            Some(GetRange::Offset(r)) => {
+                if r < meta.size {
+                    r..meta.size
+                } else {
+                    0..0
+                }
+            }
+            Some(GetRange::Suffix(r)) if r < meta.size => (meta.size - r)..meta.size,
+            _ => 0..meta.size,
+        };
 
         let stream = reader
             .into_bytes_stream(read_range.start as u64..read_range.end as u64)

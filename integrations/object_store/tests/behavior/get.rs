@@ -32,6 +32,11 @@ pub fn tests(store: &OpendalStore, tests: &mut Vec<Trial>) {
         test_get_opts_with_range,
     ));
     tests.push(build_trail(
+        "test_get_opts_with_invalid_range",
+        store,
+        test_get_opts_with_invalid_range,
+    ));
+    tests.push(build_trail(
         "test_get_opts_with_version",
         store,
         test_get_opts_with_version,
@@ -143,6 +148,50 @@ pub async fn test_get_opts_with_range(store: OpendalStore) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_get_opts_with_invalid_range(store: OpendalStore) -> Result<()> {
+    let location = new_file_path("data").into();
+    let value = Bytes::from_static(b"Hello, world!");
+
+    store.put(&location, value.clone().into()).await?;
+
+    // the end of the range is greater than the size of the object
+    let opts = GetOptions {
+        range: Some((0..100).into()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
+    assert_eq!(ret.range, 0..value.len());
+    assert_eq!(ret.bytes().await?, value);
+
+    // the start of the range is greater than the end of the range
+    let opts = GetOptions {
+        range: Some((2..0).into()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
+    assert_eq!(ret.range, 0..0);
+
+    // the offset of the range is greater than the size of the object
+    let opts = GetOptions {
+        range: Some(GetRange::Offset(100)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
+    assert_eq!(ret.range, 0..0);
+
+    // the suffix of the range is greater than the size of the object
+    let opts = GetOptions {
+        range: Some(GetRange::Suffix(100)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
+    assert_eq!(ret.range, 0..value.len());
+    assert_eq!(ret.bytes().await?, value);
+
+    store.delete(&location).await?;
+    Ok(())
+}
+
 pub async fn test_get_opts_with_version(store: OpendalStore) -> Result<()> {
     if !store.info().full_capability().read_with_version {
         return Ok(());
@@ -152,15 +201,12 @@ pub async fn test_get_opts_with_version(store: OpendalStore) -> Result<()> {
     let value = Bytes::from_static(b"Hello, world!");
     store.put(&location, value.clone().into()).await?;
     let meta = store.head(&location).await?;
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                version: meta.version,
-                ..Default::default()
-            },
-        )
-        .await?;
+
+    let opts = GetOptions {
+        version: meta.version,
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
@@ -171,17 +217,13 @@ pub async fn test_get_opts_with_version(store: OpendalStore) -> Result<()> {
             Bytes::from_static(b"Hello, world!").into(),
         )
         .await?;
-    let version = store.head(&another_location).await?.version;
+    let another_version = store.head(&another_location).await?.version;
 
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                version,
-                ..Default::default()
-            },
-        )
-        .await;
+    let opts = GetOptions {
+        version: another_version,
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await;
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),
@@ -202,27 +244,20 @@ async fn test_get_ops_with_if_match(store: OpendalStore) -> Result<()> {
     let value = Bytes::from_static(b"Hello, world!");
     store.put(&location, value.clone().into()).await?;
     let meta = store.head(&location).await?;
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_match: Some(meta.e_tag.unwrap()),
-                ..Default::default()
-            },
-        )
-        .await?;
+
+    let opts = GetOptions {
+        if_match: Some(meta.e_tag.unwrap()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_match: Some("invalid etag".to_string()),
-                ..Default::default()
-            },
-        )
-        .await;
+    let opts = GetOptions {
+        if_match: Some("invalid etag".to_string()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await;
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),
@@ -242,27 +277,20 @@ async fn test_get_ops_with_if_none_match(store: OpendalStore) -> Result<()> {
     let value = Bytes::from_static(b"Hello, world!");
     store.put(&location, value.clone().into()).await?;
     let meta = store.head(&location).await?;
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_none_match: Some("invalid etag".to_string()),
-                ..Default::default()
-            },
-        )
-        .await?;
+
+    let opts = GetOptions {
+        if_none_match: Some("invalid etag".to_string()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_none_match: Some(meta.e_tag.unwrap()),
-                ..Default::default()
-            },
-        )
-        .await;
+    let opts = GetOptions {
+        if_none_match: Some(meta.e_tag.unwrap()),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await;
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),
@@ -282,27 +310,20 @@ async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()>
     let value = Bytes::from_static(b"Hello, world!");
     store.put(&location, value.clone().into()).await?;
     let meta = store.head(&location).await?;
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_modified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
-                ..Default::default()
-            },
-        )
-        .await?;
+
+    let opts = GetOptions {
+        if_modified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_modified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
-                ..Default::default()
-            },
-        )
-        .await;
+    let opts = GetOptions {
+        if_modified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await;
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),
@@ -322,27 +343,20 @@ async fn test_get_opts_with_if_unmodified_since(store: OpendalStore) -> Result<(
     let value = Bytes::from_static(b"Hello, world!");
     store.put(&location, value.clone().into()).await?;
     let meta = store.head(&location).await?;
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_unmodified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
-                ..Default::default()
-            },
-        )
-        .await?;
+
+    let opts = GetOptions {
+        if_unmodified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await?;
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
-    let ret = store
-        .get_opts(
-            &location,
-            GetOptions {
-                if_unmodified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
-                ..Default::default()
-            },
-        )
-        .await;
+    let opts = GetOptions {
+        if_unmodified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
+        ..Default::default()
+    };
+    let ret = store.get_opts(&location, opts).await;
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),

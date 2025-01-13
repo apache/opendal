@@ -203,20 +203,6 @@ impl GcsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
-        }
-
-        if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
-        }
-
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)

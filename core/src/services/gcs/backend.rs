@@ -369,8 +369,6 @@ impl Access for GcsBackend {
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,
-                read_with_if_modified_since: true,
-                read_with_if_unmodified_since: true,
 
                 write: true,
                 write_can_empty: true,

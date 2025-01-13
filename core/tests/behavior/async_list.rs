@@ -610,10 +610,19 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     let file_name = TEST_FIXTURE.new_file_path();
     let file_path = format!("{}{}", parent, file_name);
     op.write(file_path.as_str(), "1").await?;
+
+    // List with deleted should include self too.
+    let ds = op.list_with(&file_path).deleted(true).await?;
+    assert_eq!(
+        ds.len(),
+        1,
+        "list with deleted should contain current active file version"
+    );
+
     op.write(file_path.as_str(), "2").await?;
     op.delete(file_path.as_str()).await?;
 
-    // This file has been deleted
+    // This file has been deleted, list with deleted should contain its versions and delete marker.
     let mut ds = op.list_with(&file_path).deleted(true).await?;
     ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
 

@@ -23,6 +23,7 @@ use anyhow::Result;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
+use tokio::time::sleep;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -38,6 +39,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_not_exist,
             test_stat_with_if_match,
             test_stat_with_if_none_match,
+            test_stat_with_if_modified_since,
+            test_stat_with_if_unmodified_since,
             test_stat_with_override_cache_control,
             test_stat_with_override_content_disposition,
             test_stat_with_override_content_type,
@@ -240,6 +243,66 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
         .await?;
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
+
+    Ok(())
+}
+
+/// Stat file with if_modified_since should succeed, otherwise get a ConditionNotMatch error.
+pub async fn test_stat_with_if_modified_since(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_if_modified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), content.len() as u64);
+
+    let since = meta.last_modified().unwrap() - Duration::from_secs(1);
+    let res = op.stat_with(&path).if_modified_since(since).await?;
+    assert_eq!(res.last_modified(), meta.last_modified());
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = meta.last_modified().unwrap() + Duration::from_secs(1);
+    let res = op.stat_with(&path).if_modified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.err().unwrap().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Stat file with if_unmodified_since should succeed, otherwise get a ConditionNotMatch error.
+pub async fn test_stat_with_if_unmodified_since(op: Operator) -> Result<()> {
+    if !op.info().full_capability().stat_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), content.len() as u64);
+
+    let since = meta.last_modified().unwrap() - Duration::from_secs(1);
+    let res = op.stat_with(&path).if_unmodified_since(since).await;
+    assert!(res.is_err());
+    assert_eq!(res.err().unwrap().kind(), ErrorKind::ConditionNotMatch);
+
+    sleep(Duration::from_secs(1)).await;
+
+    let since = meta.last_modified().unwrap() + Duration::from_secs(1);
+    let res = op.stat_with(&path).if_unmodified_since(since).await?;
+    assert_eq!(res.last_modified(), meta.last_modified());
 
     Ok(())
 }

@@ -33,8 +33,8 @@ impl CosDeleter {
 }
 
 impl oio::OneShotDelete for CosDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.cos_delete_object(&path).await?;
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        let resp = self.core.cos_delete_object(&path, &args).await?;
 
         let status = resp.status();
 

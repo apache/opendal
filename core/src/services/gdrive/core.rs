@@ -65,7 +65,7 @@ impl GdriveCore {
 
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
-        let mut req = Request::get(&format!(
+        let mut req = Request::get(format!(
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
             file_id
         ))

@@ -66,20 +66,21 @@ pub use store::OpendalStore;
 mod utils;
 
 // Make sure `send_wrapper` works as expected
-#[cfg(all(feature = "send_wrapper", target_arch = "wasm32"))]
+#[cfg(all(feature = "send_wrapper", test))]
 mod assert_send {
-    use object_store::ObjectStore;
+    use object_store::{ObjectStore, PutPayload};
+    use opendal::Operator;
 
     #[allow(dead_code)]
     fn assert_send<T: Send>(_: T) {}
 
     #[allow(dead_code)]
     fn assertion() {
-        let op = super::Operator::new(opendal::services::Memory::default())
+        let op = Operator::new(opendal::services::Memory::default())
             .unwrap()
             .finish();
         let store = super::OpendalStore::new(op);
-        assert_send(store.put(&"test".into(), bytes::Bytes::new()));
+        assert_send(store.put(&"test".into(), PutPayload::new()));
         assert_send(store.get(&"test".into()));
         assert_send(store.get_range(&"test".into(), 0..1));
         assert_send(store.head(&"test".into()));

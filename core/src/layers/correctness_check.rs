@@ -56,7 +56,7 @@ pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &s
 
     Error::new(
         ErrorKind::Unsupported,
-        format!("service {scheme} doesn't support operation {op} with args {args}"),
+        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
     )
     .with_operation(op)
 }
@@ -102,6 +102,34 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "version",
             ));
         }
+        if !capability.read_with_if_match && args.if_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_match",
+            ));
+        }
+        if !capability.read_with_if_none_match && args.if_none_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_none_match",
+            ));
+        }
+        if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_modified_since",
+            ));
+        }
+        if !capability.read_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_unmodified_since",
+            ));
+        }
 
         self.inner.read(path, args).await
     }
@@ -144,6 +172,34 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 self.info.as_ref(),
                 Operation::Stat,
                 "version",
+            ));
+        }
+        if !capability.stat_with_if_match && args.if_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_match",
+            ));
+        }
+        if !capability.stat_with_if_none_match && args.if_none_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_none_match",
+            ));
+        }
+        if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_modified_since",
+            ));
+        }
+        if !capability.stat_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_unmodified_since",
             ));
         }
 
@@ -410,7 +466,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write => service memory doesn't support operation write with args if_none_match"
+            "Unsupported (permanent) at write => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         // Now try a wildcard if-none-match
@@ -421,8 +477,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => \
-            service memory doesn't support operation write with args if_none_match"
+             "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         let res = op

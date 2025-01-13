@@ -20,7 +20,7 @@ categories = ["filesystem"]
 description = "OpenDAL File System"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 name = "ofs"
-version = "0.0.15"
+version = "0.0.16"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -46,7 +46,7 @@ url = "2.5.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
 fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }
-fuse3_opendal = { version = "0.0.10", path = "../../integrations/fuse3" }
+fuse3_opendal = { version = "0.0.11", path = "../../integrations/fuse3" }
 libc = "0.2.154"
 nix = { version = "0.29.0", features = ["user"] }
 

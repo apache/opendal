@@ -222,28 +222,34 @@ impl oio::PageList for S3ObjectVersionsLister {
             ctx.entries.push_back(de);
         }
 
-        if self.args.versions() {
-            for version_object in output.version {
-                let mut path = build_rel_path(&self.core.root, &version_object.key);
-                if path.is_empty() {
-                    path = "/".to_owned();
-                }
-
-                let mut meta = Metadata::new(EntryMode::from_path(&path));
-                meta.set_version(&version_object.version_id);
-                meta.set_is_current(version_object.is_latest);
-                meta.set_content_length(version_object.size);
-                meta.set_last_modified(parse_datetime_from_rfc3339(
-                    version_object.last_modified.as_str(),
-                )?);
-                if let Some(etag) = version_object.etag {
-                    meta.set_etag(&etag);
-                    meta.set_content_md5(etag.trim_matches('"'));
-                }
-
-                let entry = oio::Entry::new(&path, meta);
-                ctx.entries.push_back(entry);
+        for version_object in output.version {
+            // `list` must be additive, so we need to include the latest version object
+            // even if `versions` is not enabled.
+            //
+            // Here we skip all non-latest version objects if `versions` is not enabled.
+            if !(self.args.versions() || version_object.is_latest) {
+                continue;
             }
+
+            let mut path = build_rel_path(&self.core.root, &version_object.key);
+            if path.is_empty() {
+                path = "/".to_owned();
+            }
+
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            meta.set_version(&version_object.version_id);
+            meta.set_is_current(version_object.is_latest);
+            meta.set_content_length(version_object.size);
+            meta.set_last_modified(parse_datetime_from_rfc3339(
+                version_object.last_modified.as_str(),
+            )?);
+            if let Some(etag) = version_object.etag {
+                meta.set_etag(&etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
+
+            let entry = oio::Entry::new(&path, meta);
+            ctx.entries.push_back(entry);
         }
 
         if self.args.deleted() {

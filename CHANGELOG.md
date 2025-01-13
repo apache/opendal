@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
+## [v0.51.1] - 2025-01-08
+
+### Added
+* feat(bin/oli): implement oli bench by @tisonkun in https://github.com/apache/opendal/pull/5443
+* feat(dev): Add config parse and generate support by @Xuanwo in https://github.com/apache/opendal/pull/5454
+* feat(bindings/python): generate python operator constructor types by @trim21 in https://github.com/apache/opendal/pull/5457
+* feat(dev): Parse comments from config by @Xuanwo in https://github.com/apache/opendal/pull/5467
+* feat(services/core): Implement stat_has_* and list_has_* correctly for services by @geetanshjuneja in https://github.com/apache/opendal/pull/5472
+* feat: Add if-match & if-none-match support for reader by @XmchxUp in https://github.com/apache/opendal/pull/5492
+* feat(core): Add is_current to metadata by @Wenbin1002 in https://github.com/apache/opendal/pull/5493
+* feat(core): Implement list with deleted for s3 service by @Xuanwo in https://github.com/apache/opendal/pull/5498
+* feat: generate java configs by @tisonkun in https://github.com/apache/opendal/pull/5503
+* feat: Return hinted error for S3 wildcard if-none-match by @gruuya in https://github.com/apache/opendal/pull/5506
+* feat(core): implement if_modified_since and if_unmodified_since for read_with and reader_with by @meteorgan in https://github.com/apache/opendal/pull/5500
+* feat(core): Implement list with deleted and versions for cos by @hoslo in https://github.com/apache/opendal/pull/5514
+### Changed
+* refactor: tidy up oli build by @tisonkun in https://github.com/apache/opendal/pull/5438
+* refactor(core): Deprecate OpList::version and add versions instead by @geetanshjuneja in https://github.com/apache/opendal/pull/5481
+* refactor(dev): use minijinja by @tisonkun in https://github.com/apache/opendal/pull/5494
+### Fixed
+* fix: exception name in python by @trim21 in https://github.com/apache/opendal/pull/5453
+* fix rust warning in python binding by @trim21 in https://github.com/apache/opendal/pull/5459
+* fix: python binding kwargs parsing by @trim21 in https://github.com/apache/opendal/pull/5458
+* fix(bindings/python): add py.typed marker file by @trim21 in https://github.com/apache/opendal/pull/5464
+* fix(services/ghac): Fix stat_with_if_none_match been set in wrong by @Xuanwo in https://github.com/apache/opendal/pull/5477
+* fix(ci): Correctly upgrade upload-artifact to v4 by @Xuanwo in https://github.com/apache/opendal/pull/5484
+* fix(integration/object_store): object_store requires metadata in list by @Xuanwo in https://github.com/apache/opendal/pull/5501
+* fix(services/s3): List with deleted should contain latest by @Xuanwo in https://github.com/apache/opendal/pull/5518
+### Docs
+* docs: Fix links to vision by @Xuanwo in https://github.com/apache/opendal/pull/5466
+* docs(golang): remove unused pkg by @fyqtian in https://github.com/apache/opendal/pull/5473
+* docs(core): Polish API docs for `Metadata` by @Xuanwo in https://github.com/apache/opendal/pull/5497
+* docs: Polish docs for Operator, Reader and Writer by @Xuanwo in https://github.com/apache/opendal/pull/5516
+* docs: Reorganize docs for xxx_with for better reading by @Xuanwo in https://github.com/apache/opendal/pull/5517
+### CI
+* ci: disable windows free-thread build by @trim21 in https://github.com/apache/opendal/pull/5449
+* ci: Upgrade and fix typos by @Xuanwo in https://github.com/apache/opendal/pull/5468
+### Chore
+* chore(dev): Try just instead of xtasks methods by @Xuanwo in https://github.com/apache/opendal/pull/5461
+* chore: pretty gen javadoc by @tisonkun in https://github.com/apache/opendal/pull/5508
+* chore(ci): upgrade to manylinux_2_28 for aarch64 Python wheels by @messense in https://github.com/apache/opendal/pull/5522
+
 ## [v0.51.0] - 2024-12-14
 
 ### Added
@@ -4174,6 +4216,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.51.1]: https://github.com/apache/opendal/compare/v0.51.0...v0.51.1
+[v0.51.0]: https://github.com/apache/opendal/compare/v0.50.2...v0.51.0
+[v0.50.2]: https://github.com/apache/opendal/compare/v0.50.1...v0.50.2
 [v0.50.1]: https://github.com/apache/opendal/compare/v0.50.0...v0.50.1
 [v0.50.0]: https://github.com/apache/opendal/compare/v0.49.2...v0.50.0
 [v0.49.2]: https://github.com/apache/opendal/compare/v0.49.1...v0.49.2

@@ -1,4 +1,4 @@
-# Apache OpenDAL™: *Access Data Freely*
+# Apache OpenDAL™: One Layer, All Storage.
 
 [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
@@ -10,7 +10,7 @@
 [chat]: https://img.shields.io/discord/1081052318650339399
 [discord]: https://opendal.apache.org/discord
 
-OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services.
+Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" width="61.8%" />
 

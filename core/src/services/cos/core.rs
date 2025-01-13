@@ -202,6 +202,13 @@ impl CosCore {
             req = req.header("x-cos-forbid-overwrite", "true")
         }
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("x-cos-meta-{key}"), value)
+            }
+        }
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -385,6 +392,13 @@ impl CosCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("x-cos-meta-{key}"), value)
+            }
         }
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;

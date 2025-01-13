@@ -268,6 +268,7 @@ impl Access for CosBackend {
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
                 stat_has_version: true,
+                stat_has_user_metadata: true,
 
                 read: true,
 
@@ -296,6 +297,7 @@ impl Access for CosBackend {
                 } else {
                     Some(usize::MAX)
                 },
+                write_with_user_metadata: true,
 
                 delete: true,
                 delete_with_version: self.core.enable_versioning,
@@ -329,6 +331,11 @@ impl Access for CosBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+
+                let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
 
                 if let Some(v) = parse_header_to_str(headers, "x-cos-version-id")? {
                     meta.set_version(v);

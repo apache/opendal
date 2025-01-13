@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     ctx.register_object_store(&s3_url, Arc::new(store));
 
     // Register CSV file as a table
-    let path = format!("s3://{bucket_name}/csv/aggregate_test_100.csv");
+    let path = format!("s3://{bucket_name}/csv/data.csv");
     ctx.register_csv("trips", &path, CsvReadOptions::default())
         .await?;
 

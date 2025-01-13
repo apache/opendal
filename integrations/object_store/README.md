@@ -21,6 +21,8 @@ This crate can help you to access 30 more storage services with the same object_
 
 ## Examples
 
+### 1. using `object_store` API to access S3 
+
 Add the following dependencies to your `Cargo.toml` with correct version:
 
 ```toml
@@ -77,6 +79,77 @@ async fn main() {
     assert_eq!(content, bytes);
 }
 ```
+
+### 2. querying data in a S3 bucket using DataFusion
+
+Add the following dependencies to your `Cargo.toml` with correct version:
+
+```toml
+[dependencies]
+object_store = "0.11.0"
+object_store_opendal = "0.49.0"
+opendal = { version = "0.51.0", features = ["services-s3"] }
+datafusion = "44.0.0"
+url = "2.5.2"
+```
+
+Build `OpendalStore` via `opendal::Operator` and register it to `DataFusion`:
+
+```rust
+use datafusion::error::DataFusionError;
+use datafusion::error::Result;
+use datafusion::prelude::*;
+use opendal::services::S3;
+use opendal::Operator;
+use std::sync::Arc;
+use url::Url;
+
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let ctx = SessionContext::new();
+
+    // Configure OpenDAL for S3
+    let region = "my_region";
+    let bucket_name = "my_bucket";
+    let builder = S3::default()
+        .endpoint("my_endpoint")
+        .bucket(bucket_name)
+        .region(region)
+        .access_key_id("my_access_key")
+        .secret_access_key("my_secret_key");
+    let op = Operator::new(builder)
+        .map_err(|err| DataFusionError::External(Box::new(err)))?
+        .finish();
+    let store = object_store_opendal::OpendalStore::new(op);
+
+    // Register the object store
+    let path = format!("s3://{bucket_name}");
+    let s3_url = Url::parse(&path).unwrap();
+    ctx.register_object_store(&s3_url, Arc::new(store));
+
+    // Register CSV file as a table
+    let path = format!("s3://{bucket_name}/csv/data.csv");
+    ctx.register_csv("trips", &path, CsvReadOptions::default())
+        .await?;
+
+    // Execute the query
+    let df = ctx.sql("SELECT * FROM trips LIMIT 10").await?;
+    // Print the results
+    df.show().await?;
+
+    // Dynamic query using the file path directly
+    let ctx = ctx.enable_url_table();
+    let df = ctx
+        .sql(format!(r#"SELECT * FROM '{}' LIMIT 10"#, &path).as_str())
+        .await?;
+    // Print the results
+    df.show().await?;
+
+    Ok(())
+}
+```
+
 
 ## WASM support
 

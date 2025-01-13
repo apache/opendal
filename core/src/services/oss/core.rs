@@ -70,6 +70,7 @@ pub struct OssCore {
     pub endpoint: String,
     pub presign_endpoint: String,
     pub allow_anonymous: bool,
+    pub enable_versioning: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
@@ -520,6 +521,50 @@ impl OssCore {
         self.send(req).await
     }
 
+    pub async fn oss_list_object_versions(
+        &self,
+        prefix: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        key_marker: &str,
+        version_id_marker: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, prefix);
+
+        let mut url = format!("{}?versions", self.endpoint);
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
+                .expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+        }
+
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+        }
+        if !key_marker.is_empty() {
+            write!(url, "&key-marker={}", percent_encode_path(key_marker))
+                .expect("write into string must succeed");
+        }
+        if !version_id_marker.is_empty() {
+            write!(
+                url,
+                "&version-id-marker={}",
+                percent_encode_path(version_id_marker)
+            )
+            .expect("write into string must succeed");
+        }
+
+        let mut req = Request::get(&url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
     pub async fn oss_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
         let mut req = self.oss_delete_object_request(path, args)?;
         self.sign(&mut req).await?;
@@ -766,6 +811,45 @@ pub struct ListObjectsOutputContent {
 #[serde(default, rename_all = "PascalCase")]
 pub struct CommonPrefix {
     pub prefix: String,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputCommonPrefix {
+    pub prefix: String,
+}
+
+/// Output of ListObjectVersions
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutput {
+    pub is_truncated: Option<bool>,
+    pub next_key_marker: Option<String>,
+    pub next_version_id_marker: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub version: Vec<ListObjectVersionsOutputVersion>,
+    pub delete_marker: Vec<ListObjectVersionsOutputDeleteMarker>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputVersion {
+    pub key: String,
+    pub version_id: String,
+    pub is_latest: bool,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputDeleteMarker {
+    pub key: String,
+    pub version_id: String,
+    pub is_latest: bool,
+    pub last_modified: String,
 }
 
 #[cfg(test)]

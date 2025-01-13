@@ -6,7 +6,7 @@ use opendal::Operator;
 use std::sync::Arc;
 use url::Url;
 
-/// This example demonstrates querying data in an S3 bucket using DataFusion and OpenDAL.
+/// This example demonstrates querying data in a S3 bucket using DataFusion and `object_store_opendal`
 #[tokio::main]
 async fn main() -> Result<()> {
     let ctx = SessionContext::new();

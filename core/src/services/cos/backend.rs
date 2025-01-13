@@ -331,7 +331,7 @@ impl Access for CosBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
-              
+
                 let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);

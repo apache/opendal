@@ -42,6 +42,10 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
             path: path.to_string(),
             source: Box::new(err),
         },
+        ErrorKind::ConditionNotMatch => object_store::Error::Precondition {
+            path: path.to_string(),
+            source: Box::new(err),
+        },
         kind => object_store::Error::Generic {
             store: kind.into_static(),
             source: Box::new(err),

@@ -466,7 +466,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write => service memory doesn't support operation write with args if_none_match"
+            "Unsupported (permanent) at write => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         // Now try a wildcard if-none-match
@@ -477,8 +477,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => \
-            service memory doesn't support operation write with args if_none_match"
+             "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         let res = op

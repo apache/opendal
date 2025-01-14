@@ -57,18 +57,20 @@ create_exception!(
     "Condition not match"
 );
 
+//made some dummy changes
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
     match err.kind() {
-        ocore::ErrorKind::Unexpected => Unexpected::new_err(err.to_string()),
-        ocore::ErrorKind::Unsupported => Unsupported::new_err(err.to_string()),
-        ocore::ErrorKind::ConfigInvalid => ConfigInvalid::new_err(err.to_string()),
-        ocore::ErrorKind::NotFound => NotFound::new_err(err.to_string()),
-        ocore::ErrorKind::PermissionDenied => PermissionDenied::new_err(err.to_string()),
-        ocore::ErrorKind::IsADirectory => IsADirectory::new_err(err.to_string()),
-        ocore::ErrorKind::NotADirectory => NotADirectory::new_err(err.to_string()),
-        ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(err.to_string()),
-        ocore::ErrorKind::IsSameFile => IsSameFile::new_err(err.to_string()),
-        ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(err.to_string()),
-        _ => Unexpected::new_err(err.to_string()),
+        ocore::ErrorKind::Unexpected => Unexpected::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::Unsupported => Unsupported::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::ConfigInvalid => ConfigInvalid::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::NotFound => NotFound::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::PermissionDenied => PermissionDenied::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::IsADirectory => IsADirectory::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::NotADirectory => NotADirectory::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::IsSameFile => IsSameFile::new_err(format!("{:?}", err)),
+        ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(format!("{:?}", err)),
+        _ => Unexpected::new_err(format!("{:?}", err)),
     }
 }
+

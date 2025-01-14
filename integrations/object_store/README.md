@@ -21,6 +21,12 @@ This crate can help you to access 30 more storage services with the same object_
 
 ## Examples
 
+`opendal_store_opendal` depends on the `opendal` crate. Please make sure to always use the latest versions of both.
+
+latest `object_store_opendal` ![Crate](https://img.shields.io/crates/v/object_store_opendal.svg)
+
+latest `opendal` ![Crate](https://img.shields.io/crates/v/opendal.svg)
+
 ### 1. using `object_store` API to access S3 
 
 Add the following dependencies to your `Cargo.toml` with correct version:
@@ -28,8 +34,8 @@ Add the following dependencies to your `Cargo.toml` with correct version:
 ```toml
 [dependencies]
 object_store = "0.11.0"
-object_store_opendal = "0.47.0"
-opendal = { version = "0.49.0", features = ["services-s3"] }
+object_store_opendal =  "xxx"   # see the latest version above
+opendal = { version = "xxx", features = ["services-s3"] }  # see the latest version above
 ```
 
 Build `OpendalStore` via `opendal::Operator`:
@@ -87,8 +93,8 @@ Add the following dependencies to your `Cargo.toml` with correct version:
 ```toml
 [dependencies]
 object_store = "0.11.0"
-object_store_opendal = "0.49.0"
-opendal = { version = "0.51.0", features = ["services-s3"] }
+object_store_opendal = "xxx" # see the latest version above
+opendal = { version = "xxx", features = ["services-s3"] } # see the latest version above
 datafusion = "44.0.0"
 url = "2.5.2"
 ```

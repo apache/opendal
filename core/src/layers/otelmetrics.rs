@@ -40,7 +40,7 @@ use crate::*;
 /// # fn main() -> Result<()> {
 /// let meter = opentelemetry::global::meter("opendal");
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(OtelMetricsLayer::builder().register(meter))
+///     .layer(OtelMetricsLayer::builder().register(&meter))
 ///     .finish();
 /// Ok(())
 /// # }
@@ -69,7 +69,7 @@ impl OtelMetricsLayer {
     /// # async fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(meter))
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(&meter))
     ///     .finish();
     ///
     /// Ok(())
@@ -115,7 +115,7 @@ impl OtelMetricsLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(meter))
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(&meter))
     ///     .finish();
     /// debug!("operator: {op:?}");
     ///
@@ -145,7 +145,7 @@ impl OtelMetricsLayerBuilder {
     ///     .layer(
     ///         OtelMetricsLayer::builder()
     ///             .operation_duration_seconds_boundaries(vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
-    ///             .register(meter)
+    ///             .register(&meter)
     ///     )
     ///     .finish();
     /// debug!("operator: {op:?}");
@@ -178,7 +178,7 @@ impl OtelMetricsLayerBuilder {
     ///     .layer(
     ///         OtelMetricsLayer::builder()
     ///             .operation_bytes_boundaries(vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0])
-    ///             .register(meter)
+    ///             .register(&meter)
     ///     )
     ///     .finish();
     /// debug!("operator: {op:?}");
@@ -207,13 +207,13 @@ impl OtelMetricsLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().register(meter))
+    ///     .layer(OtelMetricsLayer::builder().register(&meter))
     ///     .finish();
     ///
     /// Ok(())
     /// # }
     /// ```
-    pub fn register(self, meter: Meter) -> OtelMetricsLayer {
+    pub fn register(self, meter: &Meter) -> OtelMetricsLayer {
         let duration_seconds = meter
             .f64_histogram("opendal.operation.duration")
             .with_description("Duration of operations")

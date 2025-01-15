@@ -18,9 +18,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use opentelemetry::global;
 use opentelemetry::metrics::Counter;
 use opentelemetry::metrics::Histogram;
+use opentelemetry::metrics::Meter;
 use opentelemetry::KeyValue;
 
 use crate::layers::observe;
@@ -38,8 +38,9 @@ use crate::*;
 /// # use opendal::Result;
 ///
 /// # fn main() -> Result<()> {
+/// let meter = opentelemetry::global::meter("opendal");
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(OtelMetricsLayer::builder().register())
+///     .layer(OtelMetricsLayer::builder().register(meter))
 ///     .finish();
 /// Ok(())
 /// # }
@@ -59,7 +60,6 @@ impl OtelMetricsLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::OtelMetricsLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -67,10 +67,10 @@ impl OtelMetricsLayer {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1).register())
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(meter))
     ///     .finish();
-    /// debug!("operator: {op:?}");
     ///
     /// Ok(())
     /// # }
@@ -113,8 +113,9 @@ impl OtelMetricsLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().path_label(1).register())
+    ///     .layer(OtelMetricsLayer::builder().path_label(1).register(meter))
     ///     .finish();
     /// debug!("operator: {op:?}");
     ///
@@ -139,11 +140,12 @@ impl OtelMetricsLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
     ///     .layer(
     ///         OtelMetricsLayer::builder()
     ///             .operation_duration_seconds_boundaries(vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
-    ///             .register()
+    ///             .register(meter)
     ///     )
     ///     .finish();
     /// debug!("operator: {op:?}");
@@ -171,11 +173,12 @@ impl OtelMetricsLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
     ///     .layer(
     ///         OtelMetricsLayer::builder()
     ///             .operation_bytes_boundaries(vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0])
-    ///             .register()
+    ///             .register(meter)
     ///     )
     ///     .finish();
     /// debug!("operator: {op:?}");
@@ -195,7 +198,6 @@ impl OtelMetricsLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::OtelMetricsLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -203,16 +205,15 @@ impl OtelMetricsLayerBuilder {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().register())
+    ///     .layer(OtelMetricsLayer::builder().register(meter))
     ///     .finish();
-    /// debug!("operator: {op:?}");
     ///
     /// Ok(())
     /// # }
     /// ```
-    pub fn register(self) -> OtelMetricsLayer {
-        let meter = global::meter("opendal");
+    pub fn register(self, meter: Meter) -> OtelMetricsLayer {
         let duration_seconds = meter
             .f64_histogram("opendal.operation.duration")
             .with_description("Duration of operations")

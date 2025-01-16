@@ -76,7 +76,8 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzblobError>(bs.clone().reader()) {
+    let bs_content = bs.chunk();
+    let mut message = match de::from_reader::<_, AzblobError>(bs_content.reader()) {
         Ok(azblob_err) => format!("{azblob_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };

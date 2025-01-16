@@ -49,9 +49,10 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, s3_err) = de::from_reader::<_, S3Error>(body.clone().reader())
+    let body_content = body.chunk();
+    let (message, s3_err) = de::from_reader::<_, S3Error>(body_content.reader())
         .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(body.chunk()).into_owned(), None));
+        .unwrap_or_else(|_| (String::from_utf8_lossy(body_content).into_owned(), None));
 
     if let Some(s3_err) = s3_err {
         (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));

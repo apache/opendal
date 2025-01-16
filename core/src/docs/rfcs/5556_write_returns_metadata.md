@@ -69,7 +69,7 @@ The following functions will be modified to return `Result<Metadata>` instead of
 
 The `writer()` and `writer_with()` return types remain unchanged as they return `Result<Writer>`.
 
-## Changes to struct `types::write::writer::Writer`
+## Changes to struct `Writer`
 
 The `Writer` struct will be modified to return `Result<Metadata>` instead of `Result<()>` for the `close()` function.
 
@@ -78,7 +78,7 @@ The `Writer` struct will be modified to return `Result<Metadata>` instead of `Re
 The `Write` trait will be modified to return `Result<Metadata>` instead of `Result<()>` for the `close()` function.
 
 The `MultipartWrite` trait will be modified to return `Result<Metadata>` instead of `Result<()>` for the `complete_part()` 
-and `write_once` function.
+and `write_once` functions.
 
 ## Implementation Details
 
@@ -87,7 +87,9 @@ For services that return metadata in their write responses:
 - All available fields (etag, version_id, etc.) will be populated
 
 For services that don't return metadata in write responses:
-- A default metadata object will be returned
+- for `fs`: we can use `stat` to retrieve the metadata before returning. since the metadata is cached by the kernel, 
+this won't cause a performance issue.
+- for other services: A default metadata object will be returned.
 
 
 # Drawbacks

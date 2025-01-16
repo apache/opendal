@@ -1,7 +1,7 @@
 - Proposal Name: `write_returns_metadata`
 - Start Date: 2025-01-16
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5556](https://github.com/apache/opendal/pull/5556)
+- Tracking Issue: [apache/opendal#5557](https://github.com/apache/opendal/issues/5557)
 
 # Summary
 

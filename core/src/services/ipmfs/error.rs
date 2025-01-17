@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
@@ -45,8 +44,8 @@ struct IpfsError {
 ///
 /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
     let ipfs_error = de::from_slice::<IpfsError>(&bs).ok();
 

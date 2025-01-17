@@ -28,8 +28,8 @@ struct AliyunDriveError {
 }
 
 pub(super) fn parse_error(res: Response<Buffer>) -> Error {
-    let (parts, mut body) = res.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+    let (parts, body) = res.into_parts();
+    let bs = body.to_bytes();
     let (code, message) = serde_json::from_reader::<_, AliyunDriveError>(bs.clone().reader())
         .map(|err| (Some(err.code), err.message))
         .unwrap_or((None, String::from_utf8_lossy(&bs).into_owned()));

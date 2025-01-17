@@ -39,7 +39,7 @@ struct VercelBlobErrorDetail {
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
+    let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
     let (kind, retryable) = match parts.status.as_u16() {

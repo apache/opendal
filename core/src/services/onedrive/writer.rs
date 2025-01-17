@@ -122,7 +122,7 @@ impl OneDriveWriter {
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
-        let file_name_from_path = self.path.split('/').last().ok_or_else(|| {
+        let file_name_from_path = self.path.split('/').next_back().ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "connection string must have AccountName",

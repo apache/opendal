@@ -157,7 +157,7 @@ pub fn get_basename(path: &str) -> &str {
     if !path.ends_with('/') {
         return path
             .split('/')
-            .last()
+            .next_back()
             .expect("file path without name is invalid");
     }
 

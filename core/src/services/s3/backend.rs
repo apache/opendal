@@ -512,6 +512,7 @@ impl S3Builder {
 
         // Update with endpoint templates.
         endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
+            #[allow(clippy::literal_string_with_formatting_args)]
             template.replace("{region}", region)
         } else {
             // If we don't know where about this endpoint, just leave
@@ -751,10 +752,10 @@ impl Builder for S3Builder {
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
-            _ => {
+            v => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "{v} is not a supported checksum_algorithm.",
+                    format!("{:?} is not a supported checksum_algorithm.", v),
                 ))
             }
         };

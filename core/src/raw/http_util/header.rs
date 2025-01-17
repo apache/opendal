@@ -129,7 +129,7 @@ where
         .with_operation("http_util::parse_header_to_str")
     })?;
 
-    let value = if let Some(v) = headers.get(name.clone()) {
+    let value = if let Some(v) = headers.get(&name) {
         v
     } else {
         return Ok(None);

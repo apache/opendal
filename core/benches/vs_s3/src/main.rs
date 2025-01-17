@@ -69,7 +69,7 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
     let mut group = c.benchmark_group("read");
     group.throughput(criterion::Throughput::Bytes(16 * 1024 * 1024));
 
-    TEST_RUNTIME.block_on(prepare(op.clone()));
+    TEST_RUNTIME.block_on(prepare(&op));
 
     group.bench_function("opendal_s3_reader", |b| {
         b.to_async(&*TEST_RUNTIME).iter(|| async {
@@ -118,10 +118,10 @@ fn bench_read(c: &mut Criterion, op: Operator, s3_client: aws_sdk_s3::Client, bu
     group.finish()
 }
 
-async fn prepare(op: Operator) {
+async fn prepare(op: &Operator) {
     let mut rng = thread_rng();
     let mut content = vec![0; 16 * 1024 * 1024];
     rng.fill_bytes(&mut content);
 
-    op.write("file", content.clone()).await.unwrap();
+    op.write("file", content).await.unwrap();
 }

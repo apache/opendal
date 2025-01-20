@@ -522,6 +522,8 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
+        // we must return `Err` before setting inner to None; otherwise,
+        // we won't be able to retry `close` in `RetryLayer`.
         let ret = w.close().await?;
         self.inner = None;
 
@@ -557,9 +559,9 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        let ret = w.close();
+        let ret = w.close()?;
         self.inner = None;
 
-        ret
+        Ok(ret)
     }
 }

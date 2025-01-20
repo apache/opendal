@@ -617,7 +617,12 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
         );
     }
     if let Some(etag) = meta.etag() {
-        assert_eq!(stat_meta.etag().expect("etag must exist"), etag);
+        // workaround for Ceph RADOS Gateway
+        let mut etag = etag.to_string();
+        if !etag.starts_with("\"") {
+            etag = format!("\"{}\"", etag);
+        }
+        assert_eq!(stat_meta.etag().expect("etag must exist"), &etag);
     }
     if let Some(version) = meta.version() {
         assert_eq!(stat_meta.version().expect("version must exist"), version);

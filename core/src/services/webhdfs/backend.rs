@@ -104,9 +104,9 @@ impl WebhdfsBuilder {
     /// Set the username of this backend,
     /// used for authentication
     ///
-    pub fn username(mut self, username: &str) -> Self {
-        if !username.is_empty() {
-            self.config.user_name = Some(username.to_string());
+    pub fn user_name(mut self, user_name: &str) -> Self {
+        if !user_name.is_empty() {
+            self.config.user_name = Some(user_name.to_string());
         }
         self
     }

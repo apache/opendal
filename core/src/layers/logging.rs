@@ -232,7 +232,7 @@ struct LoggingContext<'a>(&'a [(&'a str, &'a str)]);
 
 impl Display for LoggingContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, (k, v)) in self.0.iter().enumerate() {
+        for (k, v) in self.0.iter() {
             write!(f, " {}={}", k, v)?;
         }
         Ok(())

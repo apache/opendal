@@ -33,6 +33,7 @@ pub struct GcsLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
+    args: OpList,
 
     /// Filter results to objects whose names are lexicographically
     /// **equal to or after** startOffset
@@ -41,21 +42,17 @@ pub struct GcsLister {
 
 impl GcsLister {
     /// Generate a new directory walker
-    pub fn new(
-        core: Arc<GcsCore>,
-        path: &str,
-        recursive: bool,
-        limit: Option<usize>,
-        start_after: Option<&str>,
-    ) -> Self {
-        let delimiter = if recursive { "" } else { "/" };
+    pub fn new(core: Arc<GcsCore>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let start_after = args.start_after().map(String::from);
         Self {
             core,
 
             path: path.to_string(),
             delimiter,
-            limit,
-            start_after: start_after.map(String::from),
+            limit: args.limit(),
+            args,
+            start_after,
         }
     }
 }
@@ -74,6 +71,7 @@ impl oio::PageList for GcsLister {
                 } else {
                     None
                 },
+                self.args.versions() || self.args.deleted(),
             )
             .await?;
 
@@ -100,7 +98,7 @@ impl oio::PageList for GcsLister {
             ctx.entries.push_back(de);
         }
 
-        for object in output.items {
+        for (index, object) in output.items.iter().enumerate() {
             // exclude the inclusive start_after itself
             let mut path = build_rel_path(&self.core.root, &object.name);
             if path.is_empty() {
@@ -115,6 +113,7 @@ impl oio::PageList for GcsLister {
             // set metadata fields
             meta.set_content_md5(object.md5_hash.as_str());
             meta.set_etag(object.etag.as_str());
+            meta.set_version(object.generation.as_str());
 
             let size = object.size.parse().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
@@ -126,9 +125,31 @@ impl oio::PageList for GcsLister {
 
             meta.set_last_modified(parse_datetime_from_rfc3339(object.updated.as_str())?);
 
+            let (mut is_latest, mut is_deleted) = (false, false);
+            // ref: https://cloud.google.com/storage/docs/json_api/v1/objects/list
+            // if versions is true, lists all versions of an object as distinct results in order of increasing generation number.
+            // so we need to check if the next item is not the same object, and the object is not deleted.
+            // then it is the current version.
+            if (index == output.items.len() - 1 || output.items[index + 1].name != object.name)
+                && object.time_deleted.is_none()
+            {
+                meta.set_is_current(true);
+                is_latest = true;
+            }
+            if object.time_deleted.is_some() {
+                meta.set_is_deleted(true);
+                is_deleted = true;
+            }
+
             let de = oio::Entry::with(path, meta);
 
-            ctx.entries.push_back(de);
+            // if deleted is true, we need to include all deleted versions of an object.
+            //
+            // if versions is true, we need to include all versions of an object.
+            // if versions is false, we only include the latest version of an object.
+            if (self.args.deleted() && is_deleted) || (self.args.versions() || is_latest) {
+                ctx.entries.push_back(de);
+            }
         }
 
         Ok(())

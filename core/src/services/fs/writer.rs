@@ -77,8 +77,10 @@ impl oio::Write for FsWriter<tokio::fs::File> {
         let file_meta = f.metadata().await.map_err(new_std_io_error)?;
         let mode = if file_meta.is_file() {
             EntryMode::FILE
-        } else {
+        } else if file_meta.is_dir() {
             EntryMode::DIR
+        } else {
+            EntryMode::Unknown
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())
@@ -123,8 +125,10 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
         let file_meta = f.metadata().map_err(new_std_io_error)?;
         let mode = if file_meta.is_file() {
             EntryMode::FILE
-        } else {
+        } else if file_meta.is_dir() {
             EntryMode::DIR
+        } else {
+            EntryMode::Unknown
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())
@@ -184,8 +188,10 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
         let file_meta = f.metadata().map_err(new_std_io_error)?;
         let mode = if file_meta.is_file() {
             EntryMode::FILE
-        } else {
+        } else if file_meta.is_dir() {
             EntryMode::DIR
+        } else {
+            EntryMode::Unknown
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())

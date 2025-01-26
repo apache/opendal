@@ -77,7 +77,7 @@ impl oio::AppendWrite for AzfileWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self
             .core
             .azfile_update(&self.path, size, offset, body)
@@ -85,7 +85,7 @@ impl oio::AppendWrite for AzfileWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(()),
+            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
             _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
         }
     }

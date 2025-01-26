@@ -110,6 +110,8 @@ pub struct BlockWriter<W: BlockWrite> {
     block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
+
+    write_bytes_count: u64,
 }
 
 impl<W: BlockWrite> BlockWriter<W> {
@@ -156,6 +158,7 @@ impl<W: BlockWrite> BlockWriter<W> {
                     }
                 })
             }),
+            write_bytes_count: 0,
         }
     }
 
@@ -172,6 +175,8 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
+
         if !self.started && self.cache.is_none() {
             self.fill_cache(bs);
             return Ok(());
@@ -202,7 +207,8 @@ where
             };
 
             self.cache = None;
-            return self.w.write_once(size as u64, body).await;
+            let meta = self.w.write_once(size as u64, body).await?;
+            return Ok(meta.with_content_length(self.write_bytes_count));
         }
 
         if let Some(cache) = self.cache.clone() {
@@ -225,7 +231,8 @@ where
         }
 
         let block_ids = self.block_ids.clone();
-        self.w.complete_block(block_ids).await
+        let meta = self.w.complete_block(block_ids).await?;
+        Ok(meta.with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -68,7 +68,7 @@ impl oio::Write for GhacWriter {
         let resp = self.backend.client.send(req).await?;
 
         if resp.status().is_success() {
-            Ok(Metadata::default())
+            Ok(Metadata::default().with_content_length(self.size))
         } else {
             Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
         }

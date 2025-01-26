@@ -140,6 +140,8 @@ pub struct MultipartWriter<W: MultipartWrite> {
     next_part_number: usize,
 
     tasks: ConcurrentTasks<WriteInput<W>, MultipartPart>,
+
+    write_bytes_count: u64,
 }
 
 /// # Safety
@@ -191,6 +193,7 @@ impl<W: MultipartWrite> MultipartWriter<W> {
                     }
                 })
             }),
+            write_bytes_count: 0,
         }
     }
 
@@ -207,6 +210,7 @@ where
     W: MultipartWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
@@ -252,7 +256,9 @@ where
 
                 self.cache = None;
                 // Call write_once if there is no upload_id.
-                return self.w.write_once(size as u64, body).await;
+                let mut meta = self.w.write_once(size as u64, body).await?;
+                meta.set_content_length(self.write_bytes_count);
+                return Ok(meta);
             }
         };
 
@@ -288,7 +294,9 @@ where
             .with_context("actual", self.parts.len())
             .with_context("upload_id", upload_id));
         }
-        self.w.complete_part(&upload_id, &self.parts).await
+        let mut meta = self.w.complete_part(&upload_id, &self.parts).await?;
+        meta.set_content_length(self.write_bytes_count);
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -339,7 +347,7 @@ mod tests {
     impl MultipartWrite for Arc<Mutex<TestWrite>> {
         async fn write_once(&self, size: u64, _: Buffer) -> Result<Metadata> {
             self.lock().await.length += size;
-            Ok(Metadata::default())
+            Ok(Metadata::default().with_content_length(size))
         }
 
         async fn initiate_part(&self) -> Result<String> {
@@ -391,7 +399,7 @@ mod tests {
             assert_eq!(upload_id, test.upload_id);
             assert_eq!(parts.len(), test.part_numbers.len());
 
-            Ok(Metadata::default())
+            Ok(Metadata::default().with_content_length(test.length))
         }
 
         async fn abort_part(&self, upload_id: &str) -> Result<()> {

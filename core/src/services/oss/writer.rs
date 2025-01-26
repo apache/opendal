@@ -189,7 +189,7 @@ impl oio::AppendWrite for OssWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .oss_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -201,7 +201,7 @@ impl oio::AppendWrite for OssWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

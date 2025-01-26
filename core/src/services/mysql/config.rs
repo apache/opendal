@@ -26,11 +26,10 @@ use serde::Serialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct MysqlConfig {
-    /// This connection string is used to connect to the mysql service. There are url based formats:
+    /// This connection string is used to connect to the mysql service. There are url based formats.
     ///
-    /// ## Url
-    ///
-    /// This format resembles the url format of the mysql client. The format is: `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`
+    /// The format of connect string resembles the url format of the mysql client.
+    /// The format is: `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`
     ///
     /// - `mysql://user@localhost`
     /// - `mysql://user:password@localhost`

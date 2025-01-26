@@ -95,7 +95,7 @@ fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error>
 
     writeln!(
         w,
-        "private final {} {};",
+        "public final {} {};",
         field_type,
         case_java_field_name(&field.name)
     )?;

@@ -63,34 +63,34 @@ public interface ServiceConfig {
          * <p>Available values are <code>default</code>, <code>backup</code> and <code>resource</code>.</p>
          * <p>Fallback to default if not set or no other drives can be found.</p>
          */
-        private final @NonNull String driveType;
+        public final @NonNull String driveType;
         /**
          * <p>The Root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          * <p>Default to <code>/</code> if not set.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The access_token of this backend.</p>
          * <p>Solution for client-only purpose. #4733</p>
          * <p>Required if no client_id, client_secret and refresh_token are provided.</p>
          */
-        private final String accessToken;
+        public final String accessToken;
         /**
          * <p>The client_id of this backend.</p>
          * <p>Required if no access_token is provided.</p>
          */
-        private final String clientId;
+        public final String clientId;
         /**
          * <p>The client_secret of this backend.</p>
          * <p>Required if no access_token is provided.</p>
          */
-        private final String clientSecret;
+        public final String clientSecret;
         /**
          * <p>The refresh_token of this backend.</p>
          * <p>Required if no access_token is provided.</p>
          */
-        private final String refreshToken;
+        public final String refreshToken;
 
         @Override
         public String scheme() {
@@ -132,12 +132,12 @@ public interface ServiceConfig {
          * <p>All operations will happen under this root.</p>
          * <p>default to <code>/</code> if not set.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>endpoint of this backend.</p>
          * <p>Endpoint must be full uri, mostly like <code>http://127.0.0.1:39999</code>.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
 
         @Override
         public String scheme() {
@@ -167,23 +167,23 @@ public interface ServiceConfig {
         /**
          * <p>work dir of this backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>endpoint of this backend</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>private_key of this backend</p>
          */
-        private final String privateKey;
+        public final String privateKey;
         /**
          * <p>public_key of this backend</p>
          */
-        private final String publicKey;
+        public final String publicKey;
         /**
          * <p>parent_resource_id of this backend</p>
          */
-        private final String parentResourceId;
+        public final String parentResourceId;
 
         @Override
         public String scheme() {
@@ -222,12 +222,12 @@ public interface ServiceConfig {
         /**
          * <p>The container name of Azblob service backend.</p>
          */
-        private final @NonNull String container;
+        public final @NonNull String container;
         /**
          * <p>The root of Azblob service backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The endpoint of Azblob service backend.</p>
          * <p>Endpoint must be full uri, e.g.</p>
@@ -236,35 +236,35 @@ public interface ServiceConfig {
          * <li>Azurite: <code>http://127.0.0.1:10000/devstoreaccount1</code></li>
          * </ul>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The account name of Azblob service backend.</p>
          */
-        private final String accountName;
+        public final String accountName;
         /**
          * <p>The account key of Azblob service backend.</p>
          */
-        private final String accountKey;
+        public final String accountKey;
         /**
          * <p>The encryption key of Azblob service backend.</p>
          */
-        private final String encryptionKey;
+        public final String encryptionKey;
         /**
          * <p>The encryption key sha256 of Azblob service backend.</p>
          */
-        private final String encryptionKeySha256;
+        public final String encryptionKeySha256;
         /**
          * <p>The encryption algorithm of Azblob service backend.</p>
          */
-        private final String encryptionAlgorithm;
+        public final String encryptionAlgorithm;
         /**
          * <p>The sas token of Azblob service backend.</p>
          */
-        private final String sasToken;
+        public final String sasToken;
         /**
          * <p>The maximum batch operations of Azblob service backend.</p>
          */
-        private final Long batchMaxOperations;
+        public final Long batchMaxOperations;
 
         @Override
         public String scheme() {
@@ -316,23 +316,23 @@ public interface ServiceConfig {
         /**
          * <p>Filesystem name of this backend.</p>
          */
-        private final @NonNull String filesystem;
+        public final @NonNull String filesystem;
         /**
          * <p>Root of this backend.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint of this backend.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Account name of this backend.</p>
          */
-        private final String accountName;
+        public final String accountName;
         /**
          * <p>Account key of this backend.</p>
          */
-        private final String accountKey;
+        public final String accountKey;
 
         @Override
         public String scheme() {
@@ -369,27 +369,27 @@ public interface ServiceConfig {
         /**
          * <p>The share name for azfile.</p>
          */
-        private final @NonNull String shareName;
+        public final @NonNull String shareName;
         /**
          * <p>The root path for azfile.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The endpoint for azfile.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The account name for azfile.</p>
          */
-        private final String accountName;
+        public final String accountName;
         /**
          * <p>The account key for azfile.</p>
          */
-        private final String accountKey;
+        public final String accountKey;
         /**
          * <p>The sas token for azfile.</p>
          */
-        private final String sasToken;
+        public final String sasToken;
 
         @Override
         public String scheme() {
@@ -430,17 +430,17 @@ public interface ServiceConfig {
          * <p>bucket of this backend.</p>
          * <p>required.</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>bucket id of this backend.</p>
          * <p>required.</p>
          */
-        private final @NonNull String bucketId;
+        public final @NonNull String bucketId;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>keyID of this backend.</p>
          * <ul>
@@ -448,7 +448,7 @@ public interface ServiceConfig {
          * <li>If not, we will try to load it from environment.</li>
          * </ul>
          */
-        private final String applicationKeyId;
+        public final String applicationKeyId;
         /**
          * <p>applicationKey of this backend.</p>
          * <ul>
@@ -456,7 +456,7 @@ public interface ServiceConfig {
          * <li>If not, we will try to load it from environment.</li>
          * </ul>
          */
-        private final String applicationKey;
+        public final String applicationKey;
 
         @Override
         public String scheme() {
@@ -491,7 +491,7 @@ public interface ServiceConfig {
         /**
          * <p>That path to the cacache data directory.</p>
          */
-        private final String datadir;
+        public final String datadir;
 
         @Override
         public String scheme() {
@@ -519,16 +519,16 @@ public interface ServiceConfig {
          * <p>bucket_id of this backend.</p>
          * <p>required.</p>
          */
-        private final @NonNull String bucketId;
+        public final @NonNull String bucketId;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>api_key of this backend.</p>
          */
-        private final String apiKey;
+        public final String apiKey;
 
         @Override
         public String scheme() {
@@ -559,19 +559,19 @@ public interface ServiceConfig {
         /**
          * <p>The token used to authenticate with CloudFlare.</p>
          */
-        private final String token;
+        public final String token;
         /**
          * <p>The account ID used to authenticate with CloudFlare. Used as URI path parameter.</p>
          */
-        private final String accountId;
+        public final String accountId;
         /**
          * <p>The namespace ID. Used as URI path parameter.</p>
          */
-        private final String namespaceId;
+        public final String namespaceId;
         /**
          * <p>Root within this backend.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -608,7 +608,7 @@ public interface ServiceConfig {
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -635,27 +635,31 @@ public interface ServiceConfig {
         /**
          * <p>Root of this backend.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint of this backend.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Secret ID of this backend.</p>
          */
-        private final String secretId;
+        public final String secretId;
         /**
          * <p>Secret key of this backend.</p>
          */
-        private final String secretKey;
+        public final String secretKey;
         /**
          * <p>Bucket of this backend.</p>
          */
-        private final String bucket;
+        public final String bucket;
+        /**
+         * <p>is bucket versioning enabled for this bucket</p>
+         */
+        public final Boolean enableVersioning;
         /**
          * <p>Disable config load so that opendal will not load config from</p>
          */
-        private final Boolean disableConfigLoad;
+        public final Boolean disableConfigLoad;
 
         @Override
         public String scheme() {
@@ -680,6 +684,9 @@ public interface ServiceConfig {
             if (bucket != null) {
                 map.put("bucket", bucket);
             }
+            if (enableVersioning != null) {
+                map.put("enable_versioning", String.valueOf(enableVersioning));
+            }
             if (disableConfigLoad != null) {
                 map.put("disable_config_load", String.valueOf(disableConfigLoad));
             }
@@ -697,31 +704,31 @@ public interface ServiceConfig {
         /**
          * <p>Set the token of cloudflare api.</p>
          */
-        private final String token;
+        public final String token;
         /**
          * <p>Set the account id of cloudflare api.</p>
          */
-        private final String accountId;
+        public final String accountId;
         /**
          * <p>Set the database id of cloudflare api.</p>
          */
-        private final String databaseId;
+        public final String databaseId;
         /**
          * <p>Set the working directory of OpenDAL.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Set the table of D1 Database.</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>Set the key field of D1 Database.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>Set the value field of D1 Database.</p>
          */
-        private final String valueField;
+        public final String valueField;
 
         @Override
         public String scheme() {
@@ -766,7 +773,7 @@ public interface ServiceConfig {
         /**
          * <p>The root path for dashmap.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -793,15 +800,15 @@ public interface ServiceConfig {
         /**
          * <p>The root for dbfs.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The endpoint for dbfs.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The token for dbfs.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -834,23 +841,23 @@ public interface ServiceConfig {
         /**
          * <p>root path for dropbox.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>access token for dropbox.</p>
          */
-        private final String accessToken;
+        public final String accessToken;
         /**
          * <p>refresh_token for dropbox.</p>
          */
-        private final String refreshToken;
+        public final String refreshToken;
         /**
          * <p>client_id for dropbox.</p>
          */
-        private final String clientId;
+        public final String clientId;
         /**
          * <p>client_secret for dropbox.</p>
          */
-        private final String clientSecret;
+        public final String clientSecret;
 
         @Override
         public String scheme() {
@@ -892,37 +899,37 @@ public interface ServiceConfig {
          * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
          * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
-        private final String endpoints;
+        public final String endpoints;
         /**
          * <p>the username to connect etcd service.</p>
          * <p>default is None</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>the working directory of the etcd service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>certificate authority file path</p>
          * <p>default is None</p>
          */
-        private final String caPath;
+        public final String caPath;
         /**
          * <p>cert path</p>
          * <p>default is None</p>
          */
-        private final String certPath;
+        public final String certPath;
         /**
          * <p>key path</p>
          * <p>default is None</p>
          */
-        private final String keyPath;
+        public final String keyPath;
 
         @Override
         public String scheme() {
@@ -967,11 +974,11 @@ public interface ServiceConfig {
         /**
          * <p>root dir for backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>tmp dir for atomic write</p>
          */
-        private final String atomicWriteDir;
+        public final String atomicWriteDir;
 
         @Override
         public String scheme() {
@@ -1001,59 +1008,59 @@ public interface ServiceConfig {
         /**
          * <p>bucket name</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>root URI, all operations happens under <code>root</code></p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>endpoint URI of GCS service,
          * default is <code>https://storage.googleapis.com</code></p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Scope for gcs.</p>
          */
-        private final String scope;
+        public final String scope;
         /**
          * <p>Service Account for gcs.</p>
          */
-        private final String serviceAccount;
+        public final String serviceAccount;
         /**
          * <p>Credentials string for GCS service OAuth2 authentication.</p>
          */
-        private final String credential;
+        public final String credential;
         /**
          * <p>Local path to credentials file for GCS service OAuth2 authentication.</p>
          */
-        private final String credentialPath;
+        public final String credentialPath;
         /**
          * <p>The predefined acl for GCS.</p>
          */
-        private final String predefinedAcl;
+        public final String predefinedAcl;
         /**
          * <p>The default storage class used by gcs.</p>
          */
-        private final String defaultStorageClass;
+        public final String defaultStorageClass;
         /**
          * <p>Allow opendal to send requests without signing when credentials are not
          * loaded.</p>
          */
-        private final Boolean allowAnonymous;
+        public final Boolean allowAnonymous;
         /**
          * <p>Disable attempting to load credentials from the GCE metadata server when
          * running within Google Cloud.</p>
          */
-        private final Boolean disableVmMetadata;
+        public final Boolean disableVmMetadata;
         /**
          * <p>Disable loading configuration from the environment.</p>
          */
-        private final Boolean disableConfigLoad;
+        public final Boolean disableConfigLoad;
         /**
          * <p>A Google Cloud OAuth2 token.</p>
          * <p>Takes precedence over <code>credential</code> and <code>credential_path</code>.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -1114,23 +1121,23 @@ public interface ServiceConfig {
         /**
          * <p>The root for gdrive</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Access token for gdrive.</p>
          */
-        private final String accessToken;
+        public final String accessToken;
         /**
          * <p>Refresh token for gdrive.</p>
          */
-        private final String refreshToken;
+        public final String refreshToken;
         /**
          * <p>Client id for gdrive.</p>
          */
-        private final String clientId;
+        public final String clientId;
         /**
          * <p>Client secret for gdrive.</p>
          */
-        private final String clientSecret;
+        public final String clientSecret;
 
         @Override
         public String scheme() {
@@ -1169,19 +1176,19 @@ public interface ServiceConfig {
         /**
          * <p>The root path for ghac.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The version that used by cache.</p>
          */
-        private final String version;
+        public final String version;
         /**
          * <p>The endpoint for ghac service.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The runtime token for ghac service.</p>
          */
-        private final String runtimeToken;
+        public final String runtimeToken;
 
         @Override
         public String scheme() {
@@ -1218,24 +1225,24 @@ public interface ServiceConfig {
          * <p>GitHub repo owner.</p>
          * <p>required.</p>
          */
-        private final @NonNull String owner;
+        public final @NonNull String owner;
         /**
          * <p>GitHub repo name.</p>
          * <p>required.</p>
          */
-        private final @NonNull String repo;
+        public final @NonNull String repo;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>GitHub access_token.</p>
          * <p>optional.
          * If not provided, the backend will only support read operations for public repositories.
          * And rate limit will be limited to 60 requests per hour.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -1267,23 +1274,23 @@ public interface ServiceConfig {
         /**
          * <p>The connection string of the MongoDB service.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>The database name of the MongoDB GridFs service to read/write.</p>
          */
-        private final String database;
+        public final String database;
         /**
          * <p>The bucket name of the MongoDB GridFs service to read/write.</p>
          */
-        private final String bucket;
+        public final String bucket;
         /**
          * <p>The chunk size of the MongoDB GridFs service used to break the user file into chunks.</p>
          */
-        private final Integer chunkSize;
+        public final Integer chunkSize;
         /**
          * <p>The working directory, all operations will be performed under it.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1322,15 +1329,15 @@ public interface ServiceConfig {
         /**
          * <p>work dir of this backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>url of this backend</p>
          */
-        private final String url;
+        public final String url;
         /**
          * <p>enable the append capacity</p>
          */
-        private final Boolean enableAppend;
+        public final Boolean enableAppend;
 
         @Override
         public String scheme() {
@@ -1363,23 +1370,23 @@ public interface ServiceConfig {
         /**
          * <p>endpoint of this backend</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>username of this backend</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>password of this backend</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>token of this backend</p>
          */
-        private final String token;
+        public final String token;
         /**
          * <p>root of this backend</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1423,27 +1430,27 @@ public interface ServiceConfig {
          * <li>dataset</li>
          * </ul>
          */
-        private final String repoType;
+        public final String repoType;
         /**
          * <p>Repo id of this backend.</p>
          * <p>This is required.</p>
          */
-        private final String repoId;
+        public final String repoId;
         /**
          * <p>Revision of this backend.</p>
          * <p>Default is main.</p>
          */
-        private final String revision;
+        public final String revision;
         /**
          * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
          * <p>Default is &quot;/&quot;.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Token of this backend.</p>
          * <p>This is optional.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -1484,32 +1491,32 @@ public interface ServiceConfig {
          * <p>All operations will happen under this root.</p>
          * <p>default to <code>/</code> if not set.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>apple_id of this backend.</p>
          * <p>apple_id must be full, mostly like <code>example@gmail.com</code>.</p>
          */
-        private final String appleId;
+        public final String appleId;
         /**
          * <p>password of this backend.</p>
          * <p>password must be full.</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>Session</p>
          * <p>token must be valid.</p>
          */
-        private final String trustToken;
+        public final String trustToken;
         /**
          * <p>ds_web_auth_token must be set in Session</p>
          */
-        private final String dsWebAuthToken;
+        public final String dsWebAuthToken;
         /**
          * <p>enable the china origin
          * China region <code>origin</code> Header needs to be set to &quot;https://www.icloud.com.cn&quot;.</p>
          * <p>otherwise Apple server will return 302.</p>
          */
-        private final Boolean isChinaMainland;
+        public final Boolean isChinaMainland;
 
         @Override
         public String scheme() {
@@ -1551,11 +1558,11 @@ public interface ServiceConfig {
         /**
          * <p>IPFS gateway endpoint.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>IPFS root.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1585,11 +1592,11 @@ public interface ServiceConfig {
         /**
          * <p>Root for ipfs.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint for ipfs.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
 
         @Override
         public String scheme() {
@@ -1619,20 +1626,20 @@ public interface ServiceConfig {
         /**
          * <p>Koofr endpoint.</p>
          */
-        private final @NonNull String endpoint;
+        public final @NonNull String endpoint;
         /**
          * <p>Koofr email.</p>
          */
-        private final @NonNull String email;
+        public final @NonNull String email;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>password of this backend. (Must be the application password)</p>
          */
-        private final String password;
+        public final String password;
 
         @Override
         public String scheme() {
@@ -1665,32 +1672,32 @@ public interface ServiceConfig {
          * <p>Base url.</p>
          * <p>This is required.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Username for Lakefs basic authentication.</p>
          * <p>This is required.</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>Password for Lakefs basic authentication.</p>
          * <p>This is required.</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
          * <p>Default is &quot;/&quot;.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The repository name</p>
          * <p>This is required.</p>
          */
-        private final String repository;
+        public final String repository;
         /**
          * <p>Name of the branch or a commit ID. Default is main.</p>
          * <p>This is optional.</p>
          */
-        private final String branch;
+        public final String branch;
 
         @Override
         public String scheme() {
@@ -1732,27 +1739,27 @@ public interface ServiceConfig {
         /**
          * <p>Connection string for libsql service.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>Authentication token for libsql service.</p>
          */
-        private final String authToken;
+        public final String authToken;
         /**
          * <p>Table name for libsql service.</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>Key field name for libsql service.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>Value field name for libsql service.</p>
          */
-        private final String valueField;
+        public final String valueField;
         /**
          * <p>Root for libsql service.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1795,24 +1802,24 @@ public interface ServiceConfig {
          * <p>network address of the memcached service.</p>
          * <p>For example: &quot;tcp://localhost:11211&quot;</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>the working directory of the service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Memcached username, optional.</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>Memcached password, optional.</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>The default ttl for put operations.</p>
          */
-        private final Duration defaultTtl;
+        public final Duration defaultTtl;
 
         @Override
         public String scheme() {
@@ -1851,7 +1858,7 @@ public interface ServiceConfig {
         /**
          * <p>root of the backend.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1879,21 +1886,21 @@ public interface ServiceConfig {
          * <p>Sets the max capacity of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity"><code>mini-moka::sync::CacheBuilder::max_capacity</code></a></p>
          */
-        private final Long maxCapacity;
+        public final Long maxCapacity;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        private final Duration timeToLive;
+        public final Duration timeToLive;
         /**
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        private final Duration timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>root path of this backend</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1929,31 +1936,31 @@ public interface ServiceConfig {
         /**
          * <p>Name for this cache instance.</p>
          */
-        private final String name;
+        public final String name;
         /**
          * <p>Sets the max capacity of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity"><code>moka::sync::CacheBuilder::max_capacity</code></a></p>
          */
-        private final Long maxCapacity;
+        public final Long maxCapacity;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        private final Duration timeToLive;
+        public final Duration timeToLive;
         /**
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        private final Duration timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the segments number of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments"><code>moka::sync::CacheBuilder::segments</code></a></p>
          */
-        private final Long numSegments;
+        public final Long numSegments;
         /**
          * <p>root path of this backend</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -1995,27 +2002,27 @@ public interface ServiceConfig {
         /**
          * <p>connection string of this backend</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>database of this backend</p>
          */
-        private final String database;
+        public final String database;
         /**
          * <p>collection of this backend</p>
          */
-        private final String collection;
+        public final String collection;
         /**
          * <p>root of this backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>key field of this backend</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>value field of this backend</p>
          */
-        private final String valueField;
+        public final String valueField;
 
         @Override
         public String scheme() {
@@ -2059,7 +2066,7 @@ public interface ServiceConfig {
          * <p>All operations will happen under this root.</p>
          * <p>Builder::build will return error if not set.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -2084,9 +2091,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Mysql implements ServiceConfig {
         /**
-         * <p>This connection string is used to connect to the mysql service. There are url based formats:</p>
-         * <h2>Url</h2>
-         * <p>This format resembles the url format of the mysql client. The format is: <code>[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&amp;attribute2=value2...</code></p>
+         * <p>This connection string is used to connect to the mysql service. There are url based formats.</p>
+         * <p>The format of connect string resembles the url format of the mysql client.
+         * The format is: <code>[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&amp;attribute2=value2...</code></p>
          * <ul>
          * <li><code>mysql://user@localhost</code></li>
          * <li><code>mysql://user:password@localhost</code></li>
@@ -2095,23 +2102,23 @@ public interface ServiceConfig {
          * </ul>
          * <p>For more information, please refer to <a href="https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html</a>.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>The table name for mysql.</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>The key field name for mysql.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>The value field name for mysql.</p>
          */
-        private final String valueField;
+        public final String valueField;
         /**
          * <p>The root for mysql.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -2150,39 +2157,39 @@ public interface ServiceConfig {
         /**
          * <p>The host addr of nebulagraph's graphd server</p>
          */
-        private final String host;
+        public final String host;
         /**
          * <p>The host port of nebulagraph's graphd server</p>
          */
-        private final Integer port;
+        public final Integer port;
         /**
          * <p>The username of nebulagraph's graphd server</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>The password of nebulagraph's graphd server</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>The space name of nebulagraph's graphd server</p>
          */
-        private final String space;
+        public final String space;
         /**
          * <p>The tag name of nebulagraph's graphd server</p>
          */
-        private final String tag;
+        public final String tag;
         /**
          * <p>The key field name of the NebulaGraph service to read/write.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>The value field name of the NebulaGraph service to read/write.</p>
          */
-        private final String valueField;
+        public final String valueField;
         /**
          * <p>The root for NebulaGraph</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -2233,23 +2240,23 @@ public interface ServiceConfig {
         /**
          * <p>Root for obs.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint for obs.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Access key id for obs.</p>
          */
-        private final String accessKeyId;
+        public final String accessKeyId;
         /**
          * <p>Secret access key for obs.</p>
          */
-        private final String secretAccessKey;
+        public final String secretAccessKey;
         /**
          * <p>Bucket for obs.</p>
          */
-        private final String bucket;
+        public final String bucket;
 
         @Override
         public String scheme() {
@@ -2288,11 +2295,11 @@ public interface ServiceConfig {
         /**
          * <p>bearer access token for OneDrive</p>
          */
-        private final String accessToken;
+        public final String accessToken;
         /**
          * <p>root path of OneDrive folder.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -2322,58 +2329,62 @@ public interface ServiceConfig {
         /**
          * <p>Bucket for oss.</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>Root for oss.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint for oss.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Presign endpoint for oss.</p>
          */
-        private final String presignEndpoint;
+        public final String presignEndpoint;
+        /**
+         * <p>is bucket versioning enabled for this bucket</p>
+         */
+        public final Boolean enableVersioning;
         /**
          * <p>Server side encryption for oss.</p>
          */
-        private final String serverSideEncryption;
+        public final String serverSideEncryption;
         /**
          * <p>Server side encryption key id for oss.</p>
          */
-        private final String serverSideEncryptionKeyId;
+        public final String serverSideEncryptionKeyId;
         /**
          * <p>Allow anonymous for oss.</p>
          */
-        private final Boolean allowAnonymous;
+        public final Boolean allowAnonymous;
         /**
          * <p>Access key id for oss.</p>
          */
-        private final String accessKeyId;
+        public final String accessKeyId;
         /**
          * <p>Access key secret for oss.</p>
          */
-        private final String accessKeySecret;
+        public final String accessKeySecret;
         /**
          * <p>The size of max batch operations.</p>
          *
          * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
          */
-        private final Long batchMaxOperations;
+        public final Long batchMaxOperations;
         /**
          * <p>The size of max delete operations.</p>
          */
-        private final Long deleteMaxSize;
+        public final Long deleteMaxSize;
         /**
          * <p>If <code>role_arn</code> is set, we will use already known config as source
          * credential to assume role with <code>role_arn</code>.</p>
          */
-        private final String roleArn;
+        public final String roleArn;
         /**
          * <p>role_session_name for this backend.</p>
          */
-        private final String roleSessionName;
+        public final String roleSessionName;
         /**
          * <p><code>oidc_provider_arn</code> will be loaded from</p>
          * <ul>
@@ -2381,7 +2392,7 @@ public interface ServiceConfig {
          * <li>env value: [<code>ALIBABA_CLOUD_OIDC_PROVIDER_ARN</code>]</li>
          * </ul>
          */
-        private final String oidcProviderArn;
+        public final String oidcProviderArn;
         /**
          * <p><code>oidc_token_file</code> will be loaded from</p>
          * <ul>
@@ -2389,7 +2400,7 @@ public interface ServiceConfig {
          * <li>env value: [<code>ALIBABA_CLOUD_OIDC_TOKEN_FILE</code>]</li>
          * </ul>
          */
-        private final String oidcTokenFile;
+        public final String oidcTokenFile;
         /**
          * <p><code>sts_endpoint</code> will be loaded from</p>
          * <ul>
@@ -2397,7 +2408,7 @@ public interface ServiceConfig {
          * <li>env value: [<code>ALIBABA_CLOUD_STS_ENDPOINT</code>]</li>
          * </ul>
          */
-        private final String stsEndpoint;
+        public final String stsEndpoint;
 
         @Override
         public String scheme() {
@@ -2416,6 +2427,9 @@ public interface ServiceConfig {
             }
             if (presignEndpoint != null) {
                 map.put("presign_endpoint", presignEndpoint);
+            }
+            if (enableVersioning != null) {
+                map.put("enable_versioning", String.valueOf(enableVersioning));
             }
             if (serverSideEncryption != null) {
                 map.put("server_side_encryption", serverSideEncryption);
@@ -2467,20 +2481,20 @@ public interface ServiceConfig {
         /**
          * <p>pCloud  endpoint address.</p>
          */
-        private final @NonNull String endpoint;
+        public final @NonNull String endpoint;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>pCloud username.</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>pCloud password.</p>
          */
-        private final String password;
+        public final String password;
 
         @Override
         public String scheme() {
@@ -2514,15 +2528,15 @@ public interface ServiceConfig {
         /**
          * <p>That path to the persy data file. The directory in the path must already exist.</p>
          */
-        private final String datafile;
+        public final String datafile;
         /**
          * <p>That name of the persy segment.</p>
          */
-        private final String segment;
+        public final String segment;
         /**
          * <p>That name of the persy index.</p>
          */
-        private final String index;
+        public final String index;
 
         @Override
         public String scheme() {
@@ -2557,7 +2571,7 @@ public interface ServiceConfig {
          * <p>All operations will happen under this root.</p>
          * <p>Default to <code>/</code> if not set.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The URL should be with a scheme of either <code>postgres://</code> or <code>postgresql://</code>.</p>
          * <ul>
@@ -2568,19 +2582,19 @@ public interface ServiceConfig {
          * </ul>
          * <p>For more information, please visit <a href="https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html</a>.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>the table of postgresql</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>the key field of postgresql</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>the value field of postgresql</p>
          */
-        private final String valueField;
+        public final String valueField;
 
         @Override
         public String scheme() {
@@ -2619,15 +2633,15 @@ public interface ServiceConfig {
         /**
          * <p>path to the redb data directory.</p>
          */
-        private final String datadir;
+        public final String datadir;
         /**
          * <p>The root for redb.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The table name for redb.</p>
          */
-        private final String table;
+        public final String table;
 
         @Override
         public String scheme() {
@@ -2661,36 +2675,36 @@ public interface ServiceConfig {
          * <p>the number of DBs redis can take is unlimited</p>
          * <p>default is db 0</p>
          */
-        private final long db;
+        public final long db;
         /**
          * <p>network address of the Redis service. Can be &quot;tcp://127.0.0.1:6379&quot;, e.g.</p>
          * <p>default is &quot;tcp://127.0.0.1:6379&quot;</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>network address of the Redis cluster service. Can be &quot;tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381&quot;, e.g.</p>
          * <p>default is None</p>
          */
-        private final String clusterEndpoints;
+        public final String clusterEndpoints;
         /**
          * <p>the username to connect redis service.</p>
          * <p>default is None</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The default ttl for put operations.</p>
          */
-        private final Duration defaultTtl;
+        public final Duration defaultTtl;
 
         @Override
         public String scheme() {
@@ -2734,17 +2748,17 @@ public interface ServiceConfig {
          * <p>bucket name of this backend.</p>
          * <p>required.</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          * <p>default to <code>/</code> if not set.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>is bucket versioning enabled for this bucket</p>
          */
-        private final Boolean enableVersioning;
+        public final Boolean enableVersioning;
         /**
          * <p>endpoint of this backend.</p>
          * <p>Endpoint must be full uri, e.g.</p>
@@ -2763,7 +2777,7 @@ public interface ServiceConfig {
          * <li>If still not set, default to <code>https://s3.amazonaws.com</code>.</li>
          * </ul>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Region represent the signing region of this endpoint. This is required
          * if you are using the default AWS S3 endpoint.</p>
@@ -2773,7 +2787,7 @@ public interface ServiceConfig {
          * <li>If not, we will try to load it from environment.</li>
          * </ul>
          */
-        private final String region;
+        public final String region;
         /**
          * <p>access_key_id of this backend.</p>
          * <ul>
@@ -2781,7 +2795,7 @@ public interface ServiceConfig {
          * <li>If not, we will try to load it from environment.</li>
          * </ul>
          */
-        private final String accessKeyId;
+        public final String accessKeyId;
         /**
          * <p>secret_access_key of this backend.</p>
          * <ul>
@@ -2789,27 +2803,27 @@ public interface ServiceConfig {
          * <li>If not, we will try to load it from environment.</li>
          * </ul>
          */
-        private final String secretAccessKey;
+        public final String secretAccessKey;
         /**
          * <p>session_token (aka, security token) of this backend.</p>
          * <p>This token will expire after sometime, it's recommended to set session_token
          * by hand.</p>
          */
-        private final String sessionToken;
+        public final String sessionToken;
         /**
          * <p>role_arn for this backend.</p>
          * <p>If <code>role_arn</code> is set, we will use already known config as source
          * credential to assume role with <code>role_arn</code>.</p>
          */
-        private final String roleArn;
+        public final String roleArn;
         /**
          * <p>external_id for this backend.</p>
          */
-        private final String externalId;
+        public final String externalId;
         /**
          * <p>role_session_name for this backend.</p>
          */
-        private final String roleSessionName;
+        public final String roleSessionName;
         /**
          * <p>Disable config load so that opendal will not load config from
          * environment.</p>
@@ -2819,23 +2833,23 @@ public interface ServiceConfig {
          * <li>files like <code>~/.aws/config</code></li>
          * </ul>
          */
-        private final Boolean disableConfigLoad;
+        public final Boolean disableConfigLoad;
         /**
          * <p>Disable load credential from ec2 metadata.</p>
          * <p>This option is used to disable the default behavior of opendal
          * to load credential from ec2 metadata, a.k.a, IMDSv2</p>
          */
-        private final Boolean disableEc2Metadata;
+        public final Boolean disableEc2Metadata;
         /**
          * <p>Allow anonymous will allow opendal to send request without signing
          * when credential is not loaded.</p>
          */
-        private final Boolean allowAnonymous;
+        public final Boolean allowAnonymous;
         /**
          * <p>server_side_encryption for this backend.</p>
          * <p>Available values: <code>AES256</code>, <code>aws:kms</code>.</p>
          */
-        private final String serverSideEncryption;
+        public final String serverSideEncryption;
         /**
          * <p>server_side_encryption_aws_kms_key_id for this backend</p>
          * <ul>
@@ -2849,25 +2863,23 @@ public interface ServiceConfig {
          * is a noop.</li>
          * </ul>
          */
-        private final String serverSideEncryptionAwsKmsKeyId;
+        public final String serverSideEncryptionAwsKmsKeyId;
         /**
          * <p>server_side_encryption_customer_algorithm for this backend.</p>
          * <p>Available values: <code>AES256</code>.</p>
          */
-        private final String serverSideEncryptionCustomerAlgorithm;
+        public final String serverSideEncryptionCustomerAlgorithm;
         /**
          * <p>server_side_encryption_customer_key for this backend.</p>
-         * <h1>Value</h1>
-         * <p>base64 encoded key that matches algorithm specified in
+         * <p>Value: BASE64-encoded key that matches algorithm specified in
          * <code>server_side_encryption_customer_algorithm</code>.</p>
          */
-        private final String serverSideEncryptionCustomerKey;
+        public final String serverSideEncryptionCustomerKey;
         /**
          * <p>Set server_side_encryption_customer_key_md5 for this backend.</p>
-         * <h1>Value</h1>
-         * <p>MD5 digest of key specified in <code>server_side_encryption_customer_key</code>.</p>
+         * <p>Value: MD5 digest of key specified in <code>server_side_encryption_customer_key</code>.</p>
          */
-        private final String serverSideEncryptionCustomerKeyMd5;
+        public final String serverSideEncryptionCustomerKeyMd5;
         /**
          * <p>default storage_class for this backend.</p>
          * <p>Available values:</p>
@@ -2884,7 +2896,7 @@ public interface ServiceConfig {
          * </ul>
          * <p>S3 compatible services don't support all of them</p>
          */
-        private final String defaultStorageClass;
+        public final String defaultStorageClass;
         /**
          * <p>Enable virtual host style so that opendal will send API requests
          * in virtual host style instead of path style.</p>
@@ -2893,7 +2905,7 @@ public interface ServiceConfig {
          * <li>Enabled, opendal will send API to <code>https://bucket_name.s3.us-east-1.amazonaws.com</code></li>
          * </ul>
          */
-        private final Boolean enableVirtualHostStyle;
+        public final Boolean enableVirtualHostStyle;
         /**
          * <p>Set maximum batch operations of this backend.</p>
          * <p>Some compatible services have a limit on the number of operations in a batch request.
@@ -2902,19 +2914,19 @@ public interface ServiceConfig {
          *
          * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
          */
-        private final Long batchMaxOperations;
+        public final Long batchMaxOperations;
         /**
          * <p>Set the maximum delete size of this backend.</p>
          * <p>Some compatible services have a limit on the number of operations in a batch request.
          * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
          * <p>Please tune this value based on services' document.</p>
          */
-        private final Long deleteMaxSize;
+        public final Long deleteMaxSize;
         /**
          * <p>Disable stat with override so that opendal will not send stat request with override queries.</p>
          * <p>For example, R2 doesn't support stat with <code>response_content_type</code> query.</p>
          */
-        private final Boolean disableStatWithOverride;
+        public final Boolean disableStatWithOverride;
         /**
          * <p>Checksum Algorithm to use when sending checksums in HTTP headers.
          * This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.</p>
@@ -2923,12 +2935,12 @@ public interface ServiceConfig {
          * <li>&quot;crc32c&quot;</li>
          * </ul>
          */
-        private final String checksumAlgorithm;
+        public final String checksumAlgorithm;
         /**
          * <p>Disable write with if match so that opendal will not send write request with if match headers.</p>
          * <p>For example, Ceph RADOS S3 doesn't support write with if match.</p>
          */
-        private final Boolean disableWriteWithIfMatch;
+        public final Boolean disableWriteWithIfMatch;
 
         @Override
         public String scheme() {
@@ -3029,24 +3041,24 @@ public interface ServiceConfig {
          * <p>repo_name of this backend.</p>
          * <p>required.</p>
          */
-        private final @NonNull String repoName;
+        public final @NonNull String repoName;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>endpoint address of this backend.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>username of this backend.</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>password of this backend.</p>
          */
-        private final String password;
+        public final String password;
 
         @Override
         public String scheme() {
@@ -3083,27 +3095,27 @@ public interface ServiceConfig {
         /**
          * <p>endpoint of this backend</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>root of this backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>user of this backend</p>
          */
-        private final String user;
+        public final String user;
         /**
          * <p>key of this backend</p>
          */
-        private final String key;
+        public final String key;
         /**
          * <p>known_hosts_strategy of this backend</p>
          */
-        private final String knownHostsStrategy;
+        public final String knownHostsStrategy;
         /**
          * <p>enable_copy of this backend</p>
          */
-        private final Boolean enableCopy;
+        public final Boolean enableCopy;
 
         @Override
         public String scheme() {
@@ -3145,15 +3157,15 @@ public interface ServiceConfig {
         /**
          * <p>That path to the sled data directory.</p>
          */
-        private final String datadir;
+        public final String datadir;
         /**
          * <p>The root for sled.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The tree for sled.</p>
          */
-        private final String tree;
+        public final String tree;
 
         @Override
         public String scheme() {
@@ -3185,9 +3197,8 @@ public interface ServiceConfig {
     class Sqlite implements ServiceConfig {
         /**
          * <p>Set the connection_string of the sqlite service.</p>
-         * <p>This connection string is used to connect to the sqlite service. There are url based formats:</p>
-         * <h2>Url</h2>
-         * <p>This format resembles the url format of the sqlite client:</p>
+         * <p>This connection string is used to connect to the sqlite service.</p>
+         * <p>The format of connect string resembles the url format of the sqlite client:</p>
          * <ul>
          * <li><code>sqlite::memory:</code></li>
          * <li><code>sqlite:data.db</code></li>
@@ -3195,26 +3206,26 @@ public interface ServiceConfig {
          * </ul>
          * <p>For more information, please visit <a href="https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html">https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html</a>.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>Set the table name of the sqlite service to read/write.</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>Set the key field name of the sqlite service to read/write.</p>
          * <p>Default to <code>key</code> if not specified.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>Set the value field name of the sqlite service to read/write.</p>
          * <p>Default to <code>value</code> if not specified.</p>
          */
-        private final String valueField;
+        public final String valueField;
         /**
          * <p>set the working directory, all operations will be performed under it.</p>
          * <p>default: &quot;/&quot;</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -3253,19 +3264,19 @@ public interface ServiceConfig {
         /**
          * <p>The bucket for supabase service.</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>The root for supabase service.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The endpoint for supabase service.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The key for supabase service.</p>
          */
-        private final String key;
+        public final String key;
 
         @Override
         public String scheme() {
@@ -3299,39 +3310,39 @@ public interface ServiceConfig {
         /**
          * <p>The connection string for surrealdb.</p>
          */
-        private final String connectionString;
+        public final String connectionString;
         /**
          * <p>The username for surrealdb.</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>The password for surrealdb.</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>The namespace for surrealdb.</p>
          */
-        private final String namespace;
+        public final String namespace;
         /**
          * <p>The database for surrealdb.</p>
          */
-        private final String database;
+        public final String database;
         /**
          * <p>The table for surrealdb.</p>
          */
-        private final String table;
+        public final String table;
         /**
          * <p>The key field for surrealdb.</p>
          */
-        private final String keyField;
+        public final String keyField;
         /**
          * <p>The value field for surrealdb.</p>
          */
-        private final String valueField;
+        public final String valueField;
         /**
          * <p>The root for surrealdb.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {
@@ -3382,19 +3393,19 @@ public interface ServiceConfig {
         /**
          * <p>The endpoint for Swift.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>The container for Swift.</p>
          */
-        private final String container;
+        public final String container;
         /**
          * <p>The root for Swift.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>The token for Swift.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -3430,20 +3441,20 @@ public interface ServiceConfig {
         /**
          * <p>bucket address of this backend.</p>
          */
-        private final @NonNull String bucket;
+        public final @NonNull String bucket;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>username of this backend.</p>
          */
-        private final String operator;
+        public final String operator;
         /**
          * <p>password of this backend.</p>
          */
-        private final String password;
+        public final String password;
 
         @Override
         public String scheme() {
@@ -3477,7 +3488,7 @@ public interface ServiceConfig {
         /**
          * <p>The access token for Vercel.</p>
          */
-        private final String accessToken;
+        public final String accessToken;
 
         @Override
         public String scheme() {
@@ -3505,11 +3516,11 @@ public interface ServiceConfig {
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>vercel blob token.</p>
          */
-        private final String token;
+        public final String token;
 
         @Override
         public String scheme() {
@@ -3539,27 +3550,27 @@ public interface ServiceConfig {
         /**
          * <p>endpoint of this backend</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>username of this backend</p>
          */
-        private final String username;
+        public final String username;
         /**
          * <p>password of this backend</p>
          */
-        private final String password;
+        public final String password;
         /**
          * <p>token of this backend</p>
          */
-        private final String token;
+        public final String token;
         /**
          * <p>root of this backend</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>WebDAV Service doesn't support copy.</p>
          */
-        private final Boolean disableCopy;
+        public final Boolean disableCopy;
 
         @Override
         public String scheme() {
@@ -3601,23 +3612,23 @@ public interface ServiceConfig {
         /**
          * <p>Root for webhdfs.</p>
          */
-        private final String root;
+        public final String root;
         /**
          * <p>Endpoint for webhdfs.</p>
          */
-        private final String endpoint;
+        public final String endpoint;
         /**
          * <p>Delegation token for webhdfs.</p>
          */
-        private final String delegation;
+        public final String delegation;
         /**
          * <p>Disable batch listing</p>
          */
-        private final Boolean disableListBatch;
+        public final Boolean disableListBatch;
         /**
          * <p>atomic_write_dir of this backend</p>
          */
-        private final String atomicWriteDir;
+        public final String atomicWriteDir;
 
         @Override
         public String scheme() {
@@ -3656,12 +3667,12 @@ public interface ServiceConfig {
         /**
          * <p>yandex disk oauth access_token.</p>
          */
-        private final @NonNull String accessToken;
+        public final @NonNull String accessToken;
         /**
          * <p>root of this backend.</p>
          * <p>All operations will happen under this root.</p>
          */
-        private final String root;
+        public final String root;
 
         @Override
         public String scheme() {

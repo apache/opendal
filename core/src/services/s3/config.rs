@@ -124,16 +124,12 @@ pub struct S3Config {
     pub server_side_encryption_customer_algorithm: Option<String>,
     /// server_side_encryption_customer_key for this backend.
     ///
-    /// # Value
-    ///
-    /// base64 encoded key that matches algorithm specified in
+    /// Value: BASE64-encoded key that matches algorithm specified in
     /// `server_side_encryption_customer_algorithm`.
     pub server_side_encryption_customer_key: Option<String>,
     /// Set server_side_encryption_customer_key_md5 for this backend.
     ///
-    /// # Value
-    ///
-    /// MD5 digest of key specified in `server_side_encryption_customer_key`.
+    /// Value: MD5 digest of key specified in `server_side_encryption_customer_key`.
     pub server_side_encryption_customer_key_md5: Option<String>,
     /// default storage_class for this backend.
     ///

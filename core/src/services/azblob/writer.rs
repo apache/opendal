@@ -88,7 +88,7 @@ impl oio::AppendWrite for AzblobWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .azblob_append_blob_request(&self.path, offset, size, body)?;
@@ -99,7 +99,7 @@ impl oio::AppendWrite for AzblobWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED => Ok(()),
+            StatusCode::CREATED => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

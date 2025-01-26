@@ -189,14 +189,19 @@ impl oio::MultipartWrite for S3Writer {
                 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Example_4
                 let (parts, body) = resp.into_parts();
 
-                let maybe_error: S3Error = quick_xml::de::from_reader(body.clone().reader())
-                    .map_err(new_xml_deserialize_error)?;
-                if !maybe_error.code.is_empty() {
-                    return Err(from_s3_error(maybe_error, parts));
-                }
-
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                if !ret.code.is_empty() {
+                    return Err(from_s3_error(
+                        S3Error {
+                            code: ret.code,
+                            message: ret.message,
+                            resource: "".to_string(),
+                            request_id: ret.request_id,
+                        },
+                        parts,
+                    ));
+                }
                 meta.set_etag(&ret.etag);
 
                 Ok(meta)

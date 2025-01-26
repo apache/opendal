@@ -28,18 +28,21 @@ use crate::*;
 pub struct SftpWriter {
     /// TODO: maybe we can use `File` directly?
     file: Pin<Box<TokioCompatFile>>,
+    write_bytes_count: u64,
 }
 
 impl SftpWriter {
     pub fn new(file: File) -> Self {
         SftpWriter {
             file: Box::pin(TokioCompatFile::new(file)),
+            write_bytes_count: 0,
         }
     }
 }
 
 impl oio::Write for SftpWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
         while bs.has_remaining() {
             let n = self
                 .file
@@ -55,7 +58,7 @@ impl oio::Write for SftpWriter {
     async fn close(&mut self) -> Result<Metadata> {
         self.file.shutdown().await.map_err(new_std_io_error)?;
 
-        Ok(Metadata::default())
+        Ok(Metadata::default().with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {

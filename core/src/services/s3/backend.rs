@@ -963,6 +963,9 @@ impl Access for S3Backend {
                 write_with_if_match: !self.core.disable_write_with_if_match,
                 write_with_if_not_exists: true,
                 write_with_user_metadata: true,
+                write_has_content_length: true,
+                write_has_etag: true,
+                write_has_version: self.core.enable_versioning,
 
                 // The min multipart size of S3 is 5 MiB.
                 //

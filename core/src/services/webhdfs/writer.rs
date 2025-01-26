@@ -145,7 +145,7 @@ impl oio::AppendWrite for WebhdfsWriter {
         Ok(0)
     }
 
-    async fn append(&self, _offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, _offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self.backend.webhdfs_get_file_status(&self.path).await?;
 
         let status = resp.status();
@@ -182,7 +182,7 @@ impl oio::AppendWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

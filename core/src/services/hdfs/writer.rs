@@ -30,6 +30,7 @@ pub struct HdfsWriter<F> {
     f: Option<F>,
     client: Arc<hdrs::Client>,
     target_path_exists: bool,
+    write_bytes_count: u64,
 }
 
 /// # Safety
@@ -51,12 +52,14 @@ impl<F> HdfsWriter<F> {
             f: Some(f),
             client,
             target_path_exists,
+            write_bytes_count: 0,
         }
     }
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
         while bs.has_remaining() {
@@ -84,7 +87,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
                 .map_err(new_std_io_error)?
         }
 
-        Ok(Metadata::default())
+        Ok(Metadata::default().with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -97,6 +100,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
+
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
         while bs.has_remaining() {
             let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
@@ -122,6 +127,6 @@ impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
                 .map_err(new_std_io_error)?;
         }
 
-        Ok(Metadata::default())
+        Ok(Metadata::default().with_content_length(self.write_bytes_count))
     }
 }

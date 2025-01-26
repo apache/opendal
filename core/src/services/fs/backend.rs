@@ -188,6 +188,8 @@ impl Access for FsBackend {
                 write_can_append: true,
                 write_can_multi: true,
                 write_with_if_not_exists: true,
+                write_has_last_modified: true,
+
                 create_dir: true,
                 delete: true,
 

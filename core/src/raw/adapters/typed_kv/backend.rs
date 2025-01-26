@@ -300,9 +300,10 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
                 value
             }
         };
+        let meta = value.metadata.clone();
         self.kv.set(&self.path, value).await?;
 
-        Ok(Metadata::default())
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -330,8 +331,9 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
             }
         };
 
+        let meta = value.metadata.clone();
         kv.blocking_set(&self.path, value)?;
-        Ok(Metadata::default())
+        Ok(meta)
     }
 }
 

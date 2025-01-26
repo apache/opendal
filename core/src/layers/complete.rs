@@ -350,6 +350,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
+        // write operations should always return content length
+        cap.write_has_content_length = true;
         meta.into()
     }
 

@@ -149,7 +149,7 @@ impl oio::Write for MonoiofsWriter {
             .unwrap(self.tx.send(WriterRequest::Close { tx }).await);
         self.core.unwrap(rx.await)?;
 
-        Ok(Metadata::default())
+        Ok(Metadata::default().with_content_length(self.pos))
     }
 
     async fn abort(&mut self) -> Result<()> {

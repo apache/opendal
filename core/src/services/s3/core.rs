@@ -943,7 +943,7 @@ pub struct CompleteMultipartUploadRequestPart {
     pub checksum_crc32c: Option<String>,
 }
 
-/// OutPut of `CompleteMultipartUpload` operation
+/// Output of `CompleteMultipartUpload` operation
 #[derive(Debug, Default, Deserialize)]
 #[serde[default, rename_all = "PascalCase"]]
 pub struct CompleteMultipartUploadResult {
@@ -952,6 +952,9 @@ pub struct CompleteMultipartUploadResult {
     pub location: String,
     #[serde(rename = "ETag")]
     pub etag: String,
+    pub code: String,
+    pub message: String,
+    pub request_id: String,
 }
 
 /// Request of DeleteObjects.
@@ -1177,6 +1180,30 @@ mod tests {
             "http://Example-Bucket.s3.region.amazonaws.com/Example-Object"
         );
         assert_eq!(out.etag, "\"3858f62230ac3c915f300c664312c11f-9\"");
+    }
+
+    #[test]
+    fn test_deserialize_complete_multipart_upload_result_when_return_error() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+
+                <Error>
+                <Code>InternalError</Code>
+                <Message>We encountered an internal error. Please try again.</Message>
+                <RequestId>656c76696e6727732072657175657374</RequestId>
+                <HostId>Uuag1LuByRx9e6j5Onimru9pO4ZVKnJ2Qz7/C1NPcfTWAtRPfTaOFg==</HostId>
+                </Error>"#,
+        );
+
+        let out: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!(out.code, "InternalError");
+        assert_eq!(
+            out.message,
+            "We encountered an internal error. Please try again."
+        );
+        assert_eq!(out.request_id, "656c76696e6727732072657175657374");
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_Examples

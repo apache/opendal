@@ -261,34 +261,22 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
 }
 
 pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
     let meta = op.write(&path, content).await?;
     let stat_meta = op.stat(&path).await?;
 
-    dbg!(meta.clone());
-    if meta.content_length() != 0 {
-        assert_eq!(stat_meta.content_length(), meta.content_length());
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if let Some(etag) = meta.etag() {
-        assert_eq!(stat_meta.etag().expect("etag must exist"), etag);
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if let Some(last_modified_time) = meta.last_modified() {
-        assert_eq!(
-            stat_meta
-                .last_modified()
-                .expect("last modified time mut exist"),
-            last_modified_time
-        );
-    }
-    if let Some(version) = meta.version() {
-        assert_eq!(stat_meta.version().expect("version must exist"), version);
-    }
-    if let Some(md5) = meta.content_md5() {
-        assert_eq!(
-            stat_meta.content_md5().expect("content md5 must exist"),
-            md5
-        );
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
     }
 
     Ok(())
@@ -589,7 +577,8 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
 }
 
 pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_can_multi {
+    let cap = op.info().full_capability();
+    if !cap.write_can_multi {
         return Ok(());
     }
 
@@ -605,33 +594,15 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
-    if meta.content_length() != 0 {
-        assert_eq!(stat_meta.content_length(), meta.content_length());
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if let Some(last_modified_time) = meta.last_modified() {
-        assert_eq!(
-            stat_meta
-                .last_modified()
-                .expect("last modified time mut exist"),
-            last_modified_time
-        );
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if let Some(etag) = meta.etag() {
-        // workaround for Ceph RADOS Gateway
-        let mut etag = etag.to_string();
-        if !etag.starts_with("\"") {
-            etag = format!("\"{}\"", etag);
-        }
-        assert_eq!(stat_meta.etag().expect("etag must exist"), &etag);
-    }
-    if let Some(version) = meta.version() {
-        assert_eq!(stat_meta.version().expect("version must exist"), version);
-    }
-    if let Some(md5) = meta.content_md5() {
-        assert_eq!(
-            stat_meta.content_md5().expect("content md5 must exist"),
-            md5
-        );
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
     }
 
     Ok(())
@@ -670,9 +641,11 @@ pub async fn test_write_with_append(op: Operator) -> Result<()> {
 }
 
 pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+
     let path = TEST_FIXTURE.new_file_path();
-    let (content_one, _) = gen_bytes(op.info().full_capability());
-    let (content_two, _) = gen_bytes(op.info().full_capability());
+    let (content_one, _) = gen_bytes(cap);
+    let (content_two, _) = gen_bytes(cap);
 
     op.write_with(&path, content_one.clone())
         .append(true)
@@ -687,28 +660,15 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
-    if meta.content_length() != 0 {
-        assert_eq!(stat_meta.content_length(), meta.content_length());
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if let Some(last_modified_time) = meta.last_modified() {
-        assert_eq!(
-            stat_meta
-                .last_modified()
-                .expect("last modified time mut exist"),
-            last_modified_time
-        );
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if let Some(etag) = meta.etag() {
-        assert_eq!(stat_meta.etag().expect("etag must exist"), etag);
-    }
-    if let Some(version) = meta.version() {
-        assert_eq!(stat_meta.version().expect("version must exist"), version);
-    }
-    if let Some(md5) = meta.content_md5() {
-        assert_eq!(
-            stat_meta.content_md5().expect("content md5 must exist"),
-            md5
-        );
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
     }
 
     Ok(())

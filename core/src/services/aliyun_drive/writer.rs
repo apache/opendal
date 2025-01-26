@@ -37,6 +37,8 @@ pub struct AliyunDriveWriter {
     file_id: Option<String>,
     upload_id: Option<String>,
     part_number: usize,
+
+    write_bytes_count: u64,
 }
 
 impl AliyunDriveWriter {
@@ -49,12 +51,14 @@ impl AliyunDriveWriter {
             file_id: None,
             upload_id: None,
             part_number: 1, // must start from 1
+            write_bytes_count: 0,
         }
     }
 }
 
 impl oio::Write for AliyunDriveWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
         let (upload_id, file_id) = match (self.upload_id.as_ref(), self.file_id.as_ref()) {
             (Some(upload_id), Some(file_id)) => (upload_id, file_id),
             _ => {

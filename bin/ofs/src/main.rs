@@ -38,7 +38,7 @@ struct Config {
 async fn main() -> Result<()> {
     let cfg = Config::parse();
 
-    env_logger::init();
+    logforth::stderr().apply();
     execute(cfg).await
 }
 

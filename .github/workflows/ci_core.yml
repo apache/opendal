@@ -108,7 +108,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         working-directory: core
-        run: cargo build
+        run: cargo build --locked
 
   build_all_features:
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
 
       - name: Build
         working-directory: core
-        run: cargo build --all-features
+        run: cargo build --all-features --locked
 
   build_all_platforms:
     runs-on: ${{ matrix.os }}
@@ -213,7 +213,7 @@ jobs:
             services-webdav
             services-webhdfs
           )
-          cargo build --features "${FEATURES[*]}"
+          cargo build --features "${FEATURES[*]}" --locked
 
   # We only support some services(see `available_services` below) for now.
   build_under_wasm:
@@ -233,7 +233,7 @@ jobs:
             services-s3
           )
           rustup target add wasm32-unknown-unknown
-          cargo build --target wasm32-unknown-unknown --no-default-features --features="${FEATURES[*]}"
+          cargo build --target wasm32-unknown-unknown --no-default-features --features="${FEATURES[*]}" --locked
 
   unit:
     runs-on: ubuntu-latest

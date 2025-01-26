@@ -15,35 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Fuzz Test
-description: "Fuzz test given setup and service"
-inputs:
-  setup:
-    description: "The setup action for test"
-  service:
-    description: "The service to test"
-  target:
-    description: "The fuzz target to test"
+name: webhdfs
+description: "Behavior test for webhdfs with user name specified"
 
 runs:
   using: "composite"
   steps:
+    - name: Setup webhdfs
+      shell: bash
+      working-directory: fixtures/webhdfs
+      run: |
+        docker compose -f docker-compose-webhdfs.yml up -d --wait
     - name: Setup
       shell: bash
       run: |
-        mkdir -p ./dynamic_fuzz_test &&
-        cat <<EOF >./dynamic_fuzz_test/action.yml
-        runs:
-          using: composite
-          steps:
-          - name: Setup Fuzz Test
-            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-          - name: Run Fuzz Test
-            shell: bash
-            working-directory: core/fuzz
-            run: cargo +nightly-2024-11-22 fuzz run ${{ inputs.target }} --features services-${{ inputs.service }} -- -max_total_time=120
-            env:
-              OPENDAL_TEST: ${{ inputs.service }}
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_WEBHDFS_ROOT=/
+        OPENDAL_WEBHDFS_ENDPOINT=http://127.0.0.1:9870
+        OPENDAL_WEBHDFS_ATOMIC_WRITE_DIR=.opendal_tmp/
+        OPENDAL_WEBHDFS_USER_NAME=root
         EOF
-    - name: Run
-      uses: ./dynamic_fuzz_test

@@ -751,10 +751,10 @@ impl Builder for S3Builder {
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
-            _ => {
+            v => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "{v} is not a supported checksum_algorithm.",
+                    format!("{:?} is not a supported checksum_algorithm.", v),
                 ))
             }
         };

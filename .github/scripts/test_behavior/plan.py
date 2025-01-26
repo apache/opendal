@@ -139,6 +139,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             and not p.startswith("core/edge/")
             and not p.startswith("core/fuzz/")
             and not p.startswith("core/src/services/")
+            and not p.startswith("core/src/docs/")
         ):
             hint.core = True
             hint.binding_java = True

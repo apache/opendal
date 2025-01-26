@@ -256,3 +256,7 @@ pub mod rfc_5485_conditional_reader {}
 /// List With Deleted
 #[doc = include_str!("5495_list_with_deleted.md")]
 pub mod rfc_5495_list_with_deleted {}
+
+/// Write Returns Metadata
+#[doc = include_str!("5556_write_returns_metadata.md")]
+pub mod rfc_5556_write_returns_metadata {}

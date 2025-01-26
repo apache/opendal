@@ -101,6 +101,16 @@ impl WebhdfsBuilder {
         self
     }
 
+    /// Set the username of this backend,
+    /// used for authentication
+    ///
+    pub fn user_name(mut self, user_name: &str) -> Self {
+        if !user_name.is_empty() {
+            self.config.user_name = Some(user_name.to_string());
+        }
+        self
+    }
+
     /// Set the delegation token of this backend,
     /// used for authentication
     ///
@@ -179,6 +189,7 @@ impl Builder for WebhdfsBuilder {
         let backend = WebhdfsBackend {
             root,
             endpoint,
+            user_name: self.config.user_name,
             auth,
             client,
             root_checker: OnceCell::new(),
@@ -195,6 +206,7 @@ impl Builder for WebhdfsBuilder {
 pub struct WebhdfsBackend {
     root: String,
     endpoint: String,
+    user_name: Option<String>,
     auth: Option<String>,
     root_checker: OnceCell<()>,
 
@@ -212,6 +224,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
         }
@@ -220,6 +235,7 @@ impl WebhdfsBackend {
 
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
+
     /// create object
     pub async fn webhdfs_create_object_request(
         &self,
@@ -235,6 +251,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
         }
@@ -277,6 +296,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += &format!("&{auth}");
         }
@@ -311,7 +333,9 @@ impl WebhdfsBackend {
             percent_encode_path(&from),
             percent_encode_path(&to)
         );
-
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += &format!("&{auth}");
         }
@@ -330,7 +354,9 @@ impl WebhdfsBackend {
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let mut url = location.to_string();
-
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += &format!("&{auth}");
         }
@@ -362,7 +388,9 @@ impl WebhdfsBackend {
             percent_encode_path(&p),
             percent_encode_path(&sources),
         );
-
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += &format!("&{auth}");
         }
@@ -379,6 +407,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += &format!("&{auth}");
         }
@@ -404,6 +435,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
         }
@@ -428,6 +462,9 @@ impl WebhdfsBackend {
         );
         if !start_after.is_empty() {
             url += format!("&startAfter={}", start_after).as_str();
+        }
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
         }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
@@ -455,7 +492,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
-
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
         }
@@ -474,6 +513,9 @@ impl WebhdfsBackend {
             self.endpoint,
             percent_encode_path(&p),
         );
+        if let Some(user) = &self.user_name {
+            url += format!("&user.name={user}").as_str();
+        }
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
         }

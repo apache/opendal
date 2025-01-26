@@ -58,3 +58,5 @@ tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
 anyhow = "1.0.86"
 libtest-mimic = "0.7.3"
 uuid = "1.11.0"
+datafusion = "44.0.0"
+url = "2.5.2"

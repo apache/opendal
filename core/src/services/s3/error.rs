@@ -37,6 +37,7 @@ pub(crate) struct S3Error {
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
@@ -49,9 +50,10 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, s3_err) = de::from_reader::<_, S3Error>(body.clone().reader())
+    let body_content = bs.chunk();
+    let (message, s3_err) = de::from_reader::<_, S3Error>(body_content.reader())
         .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(body.chunk()).into_owned(), None));
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(s3_err) = s3_err {
         (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));

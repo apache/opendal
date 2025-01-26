@@ -194,7 +194,7 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
             log!(
                 target: LOGGING_TARGET,
                 lvl,
-                "service={} name={} {}: {operation} {message} {}",
+                "service={} name={}{}: {operation} {message} {}",
                 info.scheme(),
                 info.name(),
                 LoggingContext(context),
@@ -220,7 +220,7 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
         log!(
             target: LOGGING_TARGET,
             lvl,
-            "service={} name={} {}: {operation} {message}",
+            "service={} name={}{}: {operation} {message}",
             info.scheme(),
             info.name(),
             LoggingContext(context),
@@ -232,12 +232,8 @@ struct LoggingContext<'a>(&'a [(&'a str, &'a str)]);
 
 impl Display for LoggingContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, (k, v)) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, " {}={}", k, v)?;
-            } else {
-                write!(f, "{}={}", k, v)?;
-            }
+        for (k, v) in self.0.iter() {
+            write!(f, " {}={}", k, v)?;
         }
         Ok(())
     }

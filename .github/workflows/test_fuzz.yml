@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [ "fuzz_reader", "fuzz_writer" ]
+        target: ["fuzz_reader", "fuzz_writer"]
         cases:
           - { service: "memory", setup: "memory" }
           - { service: "fs", setup: "local_fs" }
@@ -54,8 +54,8 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install -y libfuzzer-14-dev
-          rustup install nightly
-          cargo +nightly install cargo-fuzz
+          rustup install nightly-2024-11-22
+          cargo +nightly-2024-11-22 install cargo-fuzz
       - name: Fuzz
         uses: ./.github/actions/fuzz_test
         env:

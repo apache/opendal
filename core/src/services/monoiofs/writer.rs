@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
+use chrono::DateTime;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::SinkExt;
@@ -35,6 +36,9 @@ enum WriterRequest {
         pos: u64,
         buf: Bytes,
         tx: oneshot::Sender<Result<()>>,
+    },
+    Stat {
+        tx: oneshot::Sender<Result<monoio::fs::Metadata>>,
     },
     Close {
         tx: oneshot::Sender<Result<()>>,
@@ -101,6 +105,10 @@ impl MonoiofsWriter {
                     // MonoiofsWriter::write cancelled
                     let _ = tx.send(result.map_err(new_std_io_error));
                 }
+                WriterRequest::Stat { tx } => {
+                    let result = file.metadata().await;
+                    let _ = tx.send(result.map_err(new_std_io_error));
+                }
                 WriterRequest::Close { tx } => {
                     let result = file.sync_all().await;
                     // discard the result if send failed due to
@@ -146,10 +154,30 @@ impl oio::Write for MonoiofsWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let (tx, rx) = oneshot::channel();
         self.core
+            .unwrap(self.tx.send(WriterRequest::Stat { tx }).await);
+        let file_meta = self.core.unwrap(rx.await)?;
+
+        let (tx, rx) = oneshot::channel();
+        self.core
             .unwrap(self.tx.send(WriterRequest::Close { tx }).await);
         self.core.unwrap(rx.await)?;
 
-        Ok(Metadata::default().with_content_length(self.pos))
+        let mode = if file_meta.is_dir() {
+            EntryMode::DIR
+        } else if file_meta.is_file() {
+            EntryMode::FILE
+        } else {
+            EntryMode::Unknown
+        };
+        let meta = Metadata::new(mode)
+            .with_content_length(file_meta.len())
+            .with_last_modified(
+                file_meta
+                    .modified()
+                    .map(DateTime::from)
+                    .map_err(new_std_io_error)?,
+            );
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {

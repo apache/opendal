@@ -93,6 +93,14 @@ impl ErrorKind {
     pub fn into_static(self) -> &'static str {
         self.into()
     }
+
+    /// Capturing a backtrace can be a quite expensive runtime operation.
+    /// For some kinds of errors, backtrace is not useful and we can skip it (e.g., check if a file exists).
+    ///
+    /// See <https://github.com/apache/opendal/discussions/5569>
+    fn disable_backtrace(&self) -> bool {
+        matches!(self, ErrorKind::NotFound)
+    }
 }
 
 impl Display for ErrorKind {
@@ -314,7 +322,11 @@ impl Error {
             source: None,
             // `Backtrace::capture()` will check if backtrace has been enabled
             // internally. It's zero cost if backtrace is disabled.
-            backtrace: Backtrace::capture(),
+            backtrace: if kind.disable_backtrace() {
+                Backtrace::disabled()
+            } else {
+                Backtrace::capture()
+            },
         }
     }
 

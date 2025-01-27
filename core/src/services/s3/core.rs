@@ -266,11 +266,10 @@ impl S3Core {
                 body.clone()
                     .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
                 Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
-            },
+            }
             Some(ChecksumAlgorithm::Crc64nvme) => {
                 let mut c = crc64fast_nvme::Digest::new();
-                body.clone()
-                    .for_each(|b| c.write(&b));
+                body.clone().for_each(|b| c.write(&b));
                 Some(BASE64_STANDARD.encode(c.sum64().to_be_bytes()))
             }
         }

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL™ Development Tools"
 name = "odev"
+publish = false
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
@@ -25,7 +26,6 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.0.1"
 
 [dependencies]
 anyhow = { version = "1.0.95" }

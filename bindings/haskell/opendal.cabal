@@ -17,7 +17,7 @@ cabal-version:      3.0
 -- under the License.
 
 name:               opendal
-version:            0.44.15.0
+version:            0.44.16.0
 license:            Apache-2.0
 synopsis:           Apache OpenDAL™ Haskell Binding
 description:
@@ -41,7 +41,7 @@ source-repository head
 source-repository this
     type:     git
     location: https://github.com/apache/opendal
-    tag:      v0.47.1
+    tag:      v0.51.2
     subdir:   bindings/haskell
 
 common base

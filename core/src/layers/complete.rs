@@ -350,6 +350,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         if cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
+        // write operations should always return content length
+        cap.write_has_content_length = true;
         meta.into()
     }
 
@@ -517,15 +519,17 @@ where
         w.write(bs).await
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.close().await?;
+        // we must return `Err` before setting inner to None; otherwise,
+        // we won't be able to retry `close` in `RetryLayer`.
+        let ret = w.close().await?;
         self.inner = None;
 
-        Ok(())
+        Ok(ret)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -552,13 +556,14 @@ where
         w.write(bs)
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.close()?;
+        let ret = w.close()?;
         self.inner = None;
-        Ok(())
+
+        Ok(ret)
     }
 }

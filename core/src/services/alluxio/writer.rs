@@ -29,6 +29,8 @@ pub struct AlluxioWriter {
     _op: OpWrite,
     path: String,
     stream_id: Option<u64>,
+
+    write_bytes_count: u64,
 }
 
 impl AlluxioWriter {
@@ -38,12 +40,15 @@ impl AlluxioWriter {
             _op,
             path,
             stream_id: None,
+            write_bytes_count: 0,
         }
     }
 }
 
 impl oio::Write for AlluxioWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
+
         let stream_id = match self.stream_id {
             Some(stream_id) => stream_id,
             None => {
@@ -56,11 +61,13 @@ impl oio::Write for AlluxioWriter {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let Some(stream_id) = self.stream_id else {
-            return Ok(());
+            return Ok(Metadata::default().with_content_length(self.write_bytes_count));
         };
-        self.core.close(stream_id).await
+        self.core.close(stream_id).await?;
+
+        Ok(Metadata::default().with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {

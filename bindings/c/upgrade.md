@@ -1,6 +1,6 @@
 # Upgrade to v0.45
 
-Change to use `Cmake` to build the C binding.
+Change to use CMake to build the C binding.
 
 # Upgrade to v0.42
 

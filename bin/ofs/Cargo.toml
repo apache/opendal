@@ -30,10 +30,10 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
 
 [dependencies]
-anyhow = "1"
+anyhow = { version = "1" }
 clap = { version = "4.5.21", features = ["derive", "env"] }
-env_logger = "0.11.2"
-log = "0.4.21"
+log = { version = "0.4.22" }
+logforth = { version = "0.21.0", default-features = false }
 opendal = { version = "0.51.0", path = "../../core" }
 tokio = { version = "1.37.0", features = [
   "fs",
@@ -42,7 +42,7 @@ tokio = { version = "1.37.0", features = [
   "io-std",
   "signal",
 ] }
-url = "2.5.0"
+url = { version = "2.5.4" }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
 fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }

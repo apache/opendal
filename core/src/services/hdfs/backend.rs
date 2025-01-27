@@ -299,8 +299,12 @@ impl Access for HdfsBackend {
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let target_path = build_rooted_abs_path(&self.root, path);
+        let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
-            Ok(_) => true,
+            Ok(meta) => {
+                initial_size = meta.len();
+                true
+            }
             Err(err) => {
                 if err.kind() != io::ErrorKind::NotFound {
                     return Err(new_std_io_error(err));
@@ -322,6 +326,9 @@ impl Access for HdfsBackend {
         if !target_exists {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
+        }
+        if !should_append {
+            initial_size = 0;
         }
 
         let mut open_options = self.client.open_file();
@@ -345,6 +352,7 @@ impl Access for HdfsBackend {
                 f,
                 Arc::clone(&self.client),
                 target_exists,
+                initial_size,
             ),
         ))
     }
@@ -474,8 +482,12 @@ impl Access for HdfsBackend {
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let target_path = build_rooted_abs_path(&self.root, path);
+        let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
-            Ok(_) => true,
+            Ok(meta) => {
+                initial_size = meta.len();
+                true
+            }
             Err(err) => {
                 if err.kind() != io::ErrorKind::NotFound {
                     return Err(new_std_io_error(err));
@@ -498,6 +510,9 @@ impl Access for HdfsBackend {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
         }
+        if !should_append {
+            initial_size = 0;
+        }
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -519,6 +534,7 @@ impl Access for HdfsBackend {
                 f,
                 Arc::clone(&self.client),
                 target_exists,
+                initial_size,
             ),
         ))
     }

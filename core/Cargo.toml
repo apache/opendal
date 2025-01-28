@@ -192,6 +192,7 @@ services-s3 = [
     "reqsign?/services-aws",
     "reqsign?/reqwest_request",
     "dep:crc32c",
+    "dep:crc64fast-nvme",
 ]
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
@@ -352,6 +353,7 @@ compio = { version = "0.12.0", optional = true, features = [
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
+crc64fast-nvme = {version = "1.1.1", optional = true}
 # for services-nebula-graph
 rust-nebula = { version = "^0.0.2", optional = true, features = ["graph"] }
 snowflaked = { version = "1", optional = true, features = ["sync"] }

@@ -33,6 +33,7 @@ use crate::capability::Capability;
 use crate::io::Io;
 use crate::lister::Lister;
 use crate::metadata::Metadata;
+use crate::operator_info::OperatorInfo;
 use crate::*;
 
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
@@ -181,6 +182,11 @@ impl Operator {
 
         Ok(Lister::new(lister))
     }
+
+    /// Gets meta information of the underlying accessor.
+    fn info(&self) -> Result<OperatorInfo, Error> {
+        Ok(OperatorInfo(self.0.info()))
+    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -198,6 +204,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("copy", method!(Operator::copy, 2))?;
     class.define_method("open", method!(Operator::open, 2))?;
     class.define_method("list", method!(Operator::list, -1))?;
+    class.define_method("info", method!(Operator::info, 0))?;
 
     Ok(())
 }

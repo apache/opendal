@@ -28,8 +28,8 @@ pub fn archive_package() -> anyhow::Result<()> {
     for package in packages {
         let mut cmd = find_command("git", &workspace_dir);
         cmd.args(["ls-files", "LICENSE", "NOTICE"]);
-        cmd.arg(&package.name);
-        for dep in &package.dependencies {
+        cmd.arg(&package.name());
+        for dep in &package.dependencies() {
             cmd.arg(&dep.name);
         }
         let output = cmd.output().expect("failed to execute git ls-files");
@@ -37,10 +37,9 @@ pub fn archive_package() -> anyhow::Result<()> {
         let files = output.lines().collect::<Vec<_>>();
         archive_and_checksum(&package, &files)?;
 
-        let prefix = format!("apache-opendal-{}-src", package.name.replace("/", "-"));
-        let filename = format!("{}.tar.gz", prefix);
+        let filename = format!("{}.tar.gz", package.make_prefix());
 
-        println!("Generate signature for package: {}", package.name);
+        println!("Generate signature for package: {}", package.name());
         let mut cmd = find_command("gpg", &dist_dir);
         cmd.args([
             "--yes",
@@ -52,7 +51,7 @@ pub fn archive_package() -> anyhow::Result<()> {
         ]);
         cmd.output().expect("failed to sign the package");
 
-        println!("Check signature for package: {}", package.name);
+        println!("Check signature for package: {}", package.name());
         let mut cmd = find_command("gpg", &dist_dir);
         cmd.args([
             "--verify",
@@ -67,10 +66,10 @@ pub fn archive_package() -> anyhow::Result<()> {
 }
 
 fn archive_and_checksum(package: &package::Package, files: &[&str]) -> anyhow::Result<()> {
-    println!("archiving package: {}", package.name);
+    println!("Archiving package: {}", package.name());
 
-    let prefix = format!("apache-opendal-{}-src", package.name.replace("/", "-"));
-    let filename = format!("{}.tar.gz", prefix);
+    let prefix = package.make_prefix();
+    let filename = format!("{prefix}.tar.gz");
     let tarball = workspace_dir().join("dist").join(&filename);
 
     {

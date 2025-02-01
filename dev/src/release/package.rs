@@ -5,10 +5,28 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Package {
-    pub name: String,
-    pub path: PathBuf,
-    pub version: Version,
-    pub dependencies: Vec<Package>,
+    name: String,
+    path: PathBuf,
+    version: Version,
+    dependencies: Vec<Package>,
+}
+
+impl Package {
+    pub fn dependencies(&self) -> &[Package] {
+        &self.dependencies
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn make_prefix(&self) -> String {
+        format!(
+            "apache-opendal-{}-{}-src",
+            self.name.replace("/", "-"),
+            self.version
+        )
+    }
 }
 
 fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Package {

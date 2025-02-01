@@ -13,7 +13,7 @@ pub struct Package {
 
 fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Package {
     let name = path.to_string();
-    let path = workspace_dir().join(path).canonicalize().unwrap();
+    let path = workspace_dir().join(path);
     let version = Version::parse(version).unwrap();
     Package {
         name,
@@ -25,11 +25,11 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.51.0", vec![]);
+    let core = make_package("core", "0.51.1", vec![]);
 
     // Integrations
     let cloud_filter = make_package("integrations/cloud_filter", "0.0.4", vec![core.clone()]);
-    let compact = make_package("integrations/compact", "1.0.2", vec![core.clone()]);
+    let compact = make_package("integrations/compat", "1.0.2", vec![core.clone()]);
     let dav_server = make_package("integrations/dav-server", "0.3.0", vec![core.clone()]);
     let fuse3 = make_package("integrations/fuse3", "0.0.11", vec![core.clone()]);
     let object_store = make_package("integrations/object_store", "0.49.0", vec![core.clone()]);
@@ -48,10 +48,10 @@ pub fn all_packages() -> Vec<Package> {
     // Bindings
     let c = make_package("bindings/c", "0.45.3", vec![core.clone()]);
     let cpp = make_package("bindings/cpp", "0.45.15", vec![core.clone()]);
-    let haskell = make_package("bindings/haskell", "0.44.15", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.47.7", vec![core.clone()]);
+    // let haskell = make_package("bindings/haskell", "0.44.15", vec![core.clone()]);
+    // let java = make_package("bindings/java", "0.47.7", vec![core.clone()]);
     let lua = make_package("bindings/lua", "0.1.13", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.47.9", vec![core.clone()]);
+    // let nodejs = make_package("bindings/nodejs", "0.47.9", vec![core.clone()]);
     let python = make_package("bindings/python", "0.45.14", vec![core.clone()]);
 
     vec![
@@ -68,10 +68,10 @@ pub fn all_packages() -> Vec<Package> {
         oli,
         c,
         cpp,
-        haskell,
-        java,
+        // haskell,
+        // java,
         lua,
-        nodejs,
+        // nodejs,
         python,
     ]
 }
@@ -80,7 +80,7 @@ pub fn update_package_version(package: &Package) -> bool {
     match package.name.as_str() {
         "core" => update_cargo_version(&package.path, &package.version),
         "integrations/cloud_filter" => update_cargo_version(&package.path, &package.version),
-        "integrations/compact" => update_cargo_version(&package.path, &package.version),
+        "integrations/compat" => update_cargo_version(&package.path, &package.version),
         "integrations/dav-server" => update_cargo_version(&package.path, &package.version),
         "integrations/fuse3" => update_cargo_version(&package.path, &package.version),
         "integrations/object_store" => update_cargo_version(&package.path, &package.version),

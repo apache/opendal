@@ -20,3 +20,6 @@
 # Available languages: python, java
 generate language:
     cargo run --quiet --manifest-path=dev/Cargo.toml -- generate -l {{language}}
+
+update-version:
+    cargo run --quiet --manifest-path=dev/Cargo.toml -- update-version

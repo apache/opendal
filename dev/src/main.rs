@@ -18,7 +18,6 @@
 mod generate;
 mod release;
 
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -46,12 +45,15 @@ enum Commands {
         #[arg(short, long)]
         language: String,
     },
+    /// Update the version of all packages.
+    UpdateVersion,
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     logforth::stderr().apply();
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
+        Commands::UpdateVersion => release::update_version(),
     }
 }

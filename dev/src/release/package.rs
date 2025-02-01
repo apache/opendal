@@ -129,31 +129,12 @@ fn update_maven_version(path: &Path, version: &Version) -> bool {
     let path = path.join("pom.xml");
     let manifest = std::fs::read_to_string(&path).unwrap();
 
-    let pkg = sxd_document::parser::parse(manifest.as_str()).unwrap();
-    let doc = pkg.as_document();
-    let root = doc.root();
-    for child in root.children() {
-        if let Some(project) = child.element() {
-            if project.name().local_part() != "project" {
-                continue;
-            }
-            for child in project.children() {
-                if let Some(v) = child.element() {
-                    if v.name().local_part() != "version" {
-                        continue;
-                    }
-                    v.set_text(version.to_string().as_str());
-                    break;
-                }
-            }
-            break;
-        }
-    }
+    let old_version_matcher = r#"<version>\d+\.\d+\.\d+</version> <!-- update version number -->"#;
+    let new_version_string = format!("<version>{version}</version> <!-- update version number -->");
 
-    let mut result = Vec::new();
-    sxd_document::writer::format_document(&doc, &mut result).unwrap();
-
-    let new_manifest = String::from_utf8_lossy(&result);
+    let new_manifest = regex::Regex::new(old_version_matcher)
+        .unwrap()
+        .replace_all(manifest.as_str(), new_version_string.as_str());
     if manifest != new_manifest {
         std::fs::write(&path, new_manifest.as_bytes()).unwrap();
         println!(

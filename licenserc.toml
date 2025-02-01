@@ -43,4 +43,7 @@ excludes = [
   # Test files
   "**/tests/data/**",
   "**/fixtures/data/**",
+  # dart binding generated file
+  "opendal_api.dart",
+  "*generated*",
 ]

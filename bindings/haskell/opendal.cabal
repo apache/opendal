@@ -17,7 +17,7 @@ cabal-version:      3.0
 -- under the License.
 
 name:               opendal
-version:            0.44.15
+version:            0.1.0
 license:            Apache-2.0
 synopsis:           Apache OpenDAL™ Haskell Binding
 description:

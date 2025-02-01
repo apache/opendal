@@ -79,9 +79,6 @@ jobs:
         working-directory: bindings/dart
         run: flutter pub get
 
-      - name: Debugging with tmate
-        uses: mxschmitt/action-tmate@v3.19
-
       - name: build lib
         working-directory: bindings/dart/rust
         run: |

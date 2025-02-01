@@ -1,0 +1,94 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Bindings Dart CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "bindings/dart/**"
+      - ".github/workflows/ci_bindings_dart.yml"
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.27.3"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install Flutter
+        working-directory: bindings/dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+  
+      - name: Install flutter_rust_bridge_codegen and cargo-expand and fvm
+        working-directory: bindings/dart
+        run: |
+          set -eux -o pipefail
+          curl -fsSL https://fvm.app/install.sh | bash
+          cargo binstall --no-confirm --no-symlinks --force cargo-expand
+          cargo binstall --no-confirm --no-symlinks --force flutter_rust_bridge_codegen --version "2.7.1"
+
+      - name: Install cargo-binstall
+        working-directory: bindings/dart
+        uses: cargo-bins/cargo-binstall@v1.10.22
+
+      - name: Generate bridge code
+        working-directory: bindings/dart
+        run: |
+          set -eux -o pipefail
+          mkdir -p lib/src/rust
+          flutter_rust_bridge_codegen generate
+          # just ensure the version
+          sed -i --debug "s/2.7.1/2.7.0/g" rust/src/frb_generated.rs
+
+      - name: Flutter pub get
+        working-directory: bindings/dart
+        run: flutter pub get
+
+      - name: build lib
+        working-directory: bindings/dart/rust
+        run: |
+          set -eux -o pipefail
+          cargo build --release
+
+      # - name: test
+      #   run: |
+      #     dart run

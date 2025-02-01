@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: opendal-dart
+name: opendal_dart
 description: opendal dart binding
 version: 0.0.0
 publish_to: none

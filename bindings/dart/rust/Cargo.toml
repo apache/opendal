@@ -21,7 +21,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-flutter_rust_bridge = "2.7.0"
+flutter_rust_bridge = "2.7.1"
 opendal = { path = "../../../core" }
 
 [lib]

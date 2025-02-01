@@ -73,15 +73,6 @@ impl Operator {
     pub async fn rename(&self, from: String, to: String) -> () {
         self.0.rename(&from, &to).await.unwrap()
     }
-
-    /// Rename file according to given `from` and `to` path synchronously.
-    ///
-    /// It's similar to `mv` command.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// op.renameSync("path/to/file", "path/to/dest");
-    /// ```
     #[frb(sync)]
     pub fn rename_sync(&self, from: String, to: String) -> () {
         self.0

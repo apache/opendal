@@ -62,13 +62,10 @@ jobs:
         working-directory: bindings/dart
         run: |
           set -eux -o pipefail
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
           curl -fsSL https://fvm.app/install.sh | bash
           cargo binstall --no-confirm --no-symlinks --force cargo-expand
           cargo binstall --no-confirm --no-symlinks --force flutter_rust_bridge_codegen --version "2.7.1"
-
-      - name: Install cargo-binstall
-        working-directory: bindings/dart
-        uses: cargo-bins/cargo-binstall@v1.10.22
 
       - name: Generate bridge code
         working-directory: bindings/dart

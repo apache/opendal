@@ -15,6 +15,4 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![deny(warnings)]
-#![allow(unexpected_cfgs)]
 pub mod opendal_api;

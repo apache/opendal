@@ -16,6 +16,7 @@
 // under the License.
 
 mod generate;
+mod release;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};

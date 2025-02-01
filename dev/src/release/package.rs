@@ -84,7 +84,6 @@ pub fn all_packages() -> Vec<Package> {
     let c = make_package("bindings/c", "0.45.3", vec![core.clone()]);
     let cpp = make_package("bindings/cpp", "0.45.15", vec![core.clone()]);
     let java = make_package("bindings/java", "0.47.7", vec![core.clone()]);
-    let lua = make_package("bindings/lua", "0.1.13", vec![core.clone()]);
     let nodejs = make_package("bindings/nodejs", "0.47.9", vec![core.clone()]);
     let python = make_package("bindings/python", "0.45.14", vec![core.clone()]);
 
@@ -103,7 +102,6 @@ pub fn all_packages() -> Vec<Package> {
         c,
         cpp,
         java,
-        lua,
         nodejs,
         python,
     ]

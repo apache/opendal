@@ -19,7 +19,7 @@ mod generate;
 mod release;
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
 
 fn manifest_dir() -> PathBuf {
@@ -32,11 +32,11 @@ fn workspace_dir() -> PathBuf {
     manifest_dir().join("..").canonicalize().unwrap()
 }
 
-fn find_command(cmd: &str) -> StdCommand {
+fn find_command(cmd: &str, cwd: impl AsRef<Path>) -> StdCommand {
     match which::which(cmd) {
         Ok(exe) => {
             let mut cmd = StdCommand::new(exe);
-            cmd.current_dir(workspace_dir());
+            cmd.current_dir(cwd);
             cmd
         }
         Err(err) => {

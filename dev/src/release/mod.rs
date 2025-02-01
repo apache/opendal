@@ -21,9 +21,12 @@ pub fn update_version() -> anyhow::Result<()> {
 pub fn archive_package() -> anyhow::Result<()> {
     std::fs::create_dir_all(workspace_dir().join("dist"))?;
 
+    let workspace_dir = workspace_dir();
+    let dist_dir = workspace_dir.join("dist");
+
     let packages = package::all_packages();
     for package in packages {
-        let mut cmd = find_command("git");
+        let mut cmd = find_command("git", &workspace_dir);
         cmd.args(["ls-files", "LICENSE", "NOTICE"]);
         cmd.arg(&package.name);
         for dep in &package.dependencies {
@@ -33,6 +36,31 @@ pub fn archive_package() -> anyhow::Result<()> {
         let output = String::from_utf8_lossy(&output.stdout);
         let files = output.lines().collect::<Vec<_>>();
         archive_and_checksum(&package, &files)?;
+
+        let prefix = format!("apache-opendal-{}-src", package.name.replace("/", "-"));
+        let filename = format!("{}.tar.gz", prefix);
+
+        println!("Generate signature for package: {}", package.name);
+        let mut cmd = find_command("gpg", &dist_dir);
+        cmd.args([
+            "--yes",
+            "--armor",
+            "--output",
+            format!("{filename}.asc").as_str(),
+            "--detach-sign",
+            filename.as_str(),
+        ]);
+        cmd.output().expect("failed to sign the package");
+
+        println!("Check signature for package: {}", package.name);
+        let mut cmd = find_command("gpg", &dist_dir);
+        cmd.args([
+            "--verify",
+            format!("{filename}.asc").as_str(),
+            filename.as_str(),
+        ]);
+        cmd.output()
+            .expect("failed to verify the package signature");
     }
 
     Ok(())

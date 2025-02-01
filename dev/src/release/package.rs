@@ -149,5 +149,32 @@ fn update_maven_version(path: &Path, version: &Version) -> bool {
 }
 
 fn update_nodejs_version(path: &Path, version: &Version) -> bool {
-    false
+    let mut updated = false;
+
+    for entry in ignore::Walk::new(path) {
+        let entry = entry.unwrap();
+        if entry.file_name() != "package.json" {
+            continue;
+        }
+        let manifest = std::fs::read_to_string(entry.path()).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+
+        let value = manifest.pointer_mut("/version").unwrap();
+        let old_version = Version::parse(value.as_str().unwrap()).unwrap();
+        if &old_version != version {
+            *value = serde_json::Value::String(version.to_string());
+            let mut new_manifest = serde_json::to_string_pretty(&manifest).unwrap();
+            new_manifest.push('\n');
+            std::fs::write(entry.path(), new_manifest).unwrap();
+            println!(
+                "updating version for package: {} from {} to {}",
+                entry.path().display(),
+                old_version,
+                version
+            );
+            updated = true;
+        }
+    }
+
+    updated
 }

@@ -33,11 +33,13 @@ clap = { version = "4.5.23", features = ["derive"] }
 log = { version = "0.4.22" }
 logforth = { version = "0.21.0", default-features = false }
 heck = { version = "0.5.0" }
+ignore = { version = "0.4.23" }
 markdown = { version = "1.0.0-alpha.21" }
 minijinja = { version = "2.5.0" }
 regex = { version = "1.11.1" }
 semver = { version = "1.0.25" }
 serde = { version = "1.0.216", features = ["derive"] }
+serde_json = { version = "1.0.138", features = ["preserve_order"] }
 syn = { version = "2.0.91", features = ["visit", "full", "extra-traits"] }
 toml_edit = { version = "0.22.23", features = ["serde"] }
 

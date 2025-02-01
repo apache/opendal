@@ -72,8 +72,6 @@ jobs:
           set -eux -o pipefail
           mkdir -p lib/src/rust
           RUST_LOG=warn flutter_rust_bridge_codegen generate
-          # just ensure the version
-          sed -i --debug "s/2.7.1/2.7.0/g" rust/src/frb_generated.rs
 
       - name: Flutter pub get
         working-directory: bindings/dart

@@ -89,6 +89,7 @@ jobs:
           set -eux -o pipefail
           cargo build --release
 
-      # - name: test
-      #   run: |
-      #     dart run
+      - name: test
+        working-directory: bindings/dart
+        run: |
+          dart run lib/example.dart

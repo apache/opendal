@@ -38,6 +38,8 @@ minijinja = { version = "2.5.0" }
 semver = { version = "1.0.25" }
 serde = { version = "1.0.216", features = ["derive"] }
 syn = { version = "2.0.91", features = ["visit", "full", "extra-traits"] }
+toml = { version = "0.8.19", features = ["preserve_order"] }
+toml_edit = { version = "0.22.23", features = ["serde"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

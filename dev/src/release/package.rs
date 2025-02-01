@@ -1,6 +1,7 @@
 use crate::workspace_dir;
 use semver::Version;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Package {
@@ -73,4 +74,53 @@ pub fn all_packages() -> Vec<Package> {
         nodejs,
         python,
     ]
+}
+
+pub fn update_package_version(package: &Package) -> bool {
+    match package.name.as_str() {
+        "core" => update_cargo_version(&package.path, &package.version),
+        "integrations/cloud_filter" => update_cargo_version(&package.path, &package.version),
+        "integrations/compact" => update_cargo_version(&package.path, &package.version),
+        "integrations/dav-server" => update_cargo_version(&package.path, &package.version),
+        "integrations/fuse3" => update_cargo_version(&package.path, &package.version),
+        "integrations/object_store" => update_cargo_version(&package.path, &package.version),
+        "integrations/parquet" => update_cargo_version(&package.path, &package.version),
+        "integrations/unftp-sbe" => update_cargo_version(&package.path, &package.version),
+        "bin/oay" => update_cargo_version(&package.path, &package.version),
+        "bin/ofs" => update_cargo_version(&package.path, &package.version),
+        "bin/oli" => update_cargo_version(&package.path, &package.version),
+
+        "bindings/c" => false,   // C bindings has no version to update
+        "bindings/cpp" => false, // C++ bindings has no version to update
+        "bindings/lua" => false, // Lua bindings has no version to update
+
+        "bindings/python" => update_cargo_version(&package.path, &package.version),
+
+        name => panic!("unknown package: {}", name),
+    }
+}
+
+fn update_cargo_version(path: &Path, version: &Version) -> bool {
+    let path = path.join("Cargo.toml");
+    let manifest = std::fs::read_to_string(&path).unwrap();
+    let mut manifest = toml_edit::DocumentMut::from_str(manifest.as_str()).unwrap();
+
+    let old_version = match manifest["package"]["version"].as_str() {
+        Some(version) => Version::parse(version).unwrap(),
+        None => panic!("missing version for package: {}", path.display()),
+    };
+
+    if &old_version != version {
+        manifest["package"]["version"] = toml_edit::value(version.to_string());
+        std::fs::write(&path, manifest.to_string()).unwrap();
+        println!(
+            "updating version for package: {} from {} to {}",
+            path.display(),
+            old_version,
+            version
+        );
+        true
+    } else {
+        false
+    }
 }

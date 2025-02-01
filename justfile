@@ -23,3 +23,6 @@ generate language:
 
 update-version:
     cargo run --quiet --manifest-path=dev/Cargo.toml -- update-version
+
+release:
+    cargo run --quiet --manifest-path=dev/Cargo.toml -- release

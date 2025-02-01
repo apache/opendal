@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Package {
-    name: String,
-    path: PathBuf,
-    version: Version,
-    dependencies: Vec<Package>,
+    pub name: String,
+    pub path: PathBuf,
+    pub version: Version,
+    pub dependencies: Vec<Package>,
 }
 
 fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Package {

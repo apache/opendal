@@ -52,7 +52,6 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Install Flutter
-        working-directory: bindings/dart
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}

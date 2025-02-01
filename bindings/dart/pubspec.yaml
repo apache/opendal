@@ -15,6 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-analyzer:
-  exclude:
-    - rust/target/**.dart # contains dumped debug info, instead of normal code
+name: opendal-dart
+description: opendal dart binding
+version: 0.0.0
+publish_to: none
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+dependencies:
+  lints: ^2.0.1
+  flutter_rust_bridge: 2.7.1
+  freezed_annotation: ^2.2.0
+  collection: ^1.18.0
+dev_dependencies:
+  test: ^1.21.4
+  freezed: ^2.1.0+1
+  build_runner: ^2.4.4
+  ffigen: ^11.0.0

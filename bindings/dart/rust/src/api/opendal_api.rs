@@ -32,27 +32,16 @@ impl Operator {
     #[frb(sync)]
     pub fn new(
         scheme: String,
-        options: Option<HashMap<String, String>>,
+        options: HashMap<String, String>,
     ) -> Result<od::Operator, od::Error> {
-        let hm: HashMap<String, String> = map.into_iter().collect();
-        let scheme: od::Scheme = od::Scheme::from_str(&scheme_str)?;
-        od::Operator::via_iter(scheme, hm)
+        let scheme: od::Scheme = od::Scheme::from_str(&scheme)?;
+        od::Operator::via_iter(scheme, options)
     }
 
-    #[frb(sync)]
-    pub fn capability(&self) -> Result<capability::Capability> {
-        Ok(Capability::new(self.0.info().full_capability()))
-    }
 }
 
 #[frb(opaque)]
 pub struct Capability(opendal::Capability);
-
-impl Capability {
-    pub fn new(cap: opendal::Capability) -> Self {
-        Self(cap)
-    }
-}
 
 impl Capability {
     /// If operator supports stat.

@@ -69,63 +69,11 @@ ${name}
 
 ## Start a tracking issue about the next release
 
-Start a tracking issue on GitHub for the upcoming release to track all tasks that need to be completed.
-
-Title:
-
-```
-Tracking issues of OpenDAL ${opendal_version} Release
-```
-
-Content:
-
-```markdown
-This issue is used to track tasks of the opendal ${opendal_version} release.
-
-## Tasks
-
-### Blockers
-
-<!-- Blockers are the tasks that must be completed before the release. -->
-
-### Build Release
-
-#### Release List
-
-<!-- Generate release list by `./scripts/version.py`, please adapt with the actual needs. -->
-
-#### GitHub Side
-
-- [ ] Bump version in project
-- [ ] Update docs
-- [ ] Generate dependencies list
-- [ ] Push release candidate tag to GitHub
-
-#### ASF Side
-
-- [ ] Create an ASF Release
-- [ ] Upload artifacts to the SVN dist repo
-- [ ] Close the Nexus staging repo
-
-### Voting
-
-- [ ] Start VOTE at opendal community
-
-### Official Release
-
-- [ ] Push the release git tag
-- [ ] Publish artifacts to SVN RELEASE branch
-- [ ] Release Maven artifacts
-- [ ] Send the announcement
-
-For details of each step, please refer to: https://opendal.apache.org/community/release/
-```
+Start a [tracking issue on GitHub](https://github.com/apache/opendal/issues/new?template=3-new-release.md) for the upcoming release to track all tasks that need to be completed.
 
 ## Release List
 
-Use `./scripts/version.py` to generate a release version list for review.
-
-This list bumps the `patch` version by default; please adapt to the actual needs.
+Update the version list in the `dev/src/release/package.rs` file.
 
 For example:
 
@@ -136,13 +84,7 @@ For example:
 
 ### Bump version in project
 
-Bump all components' version in the project to the new opendal version.
-Please note that this version is the exact version of the release, not the release candidate version.
-
-- Rust core: Bump version in `Cargo.toml`
-- Haskell binding: Bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`
-- Java binding: Bump version in `bindings/java/pom.xml`
-- Node.js binding: Bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`
+Run `just update-version` to bump the version in the project.
 
 ### Update docs
 

@@ -29,8 +29,8 @@ pub fn archive_package() -> anyhow::Result<()> {
         let mut cmd = find_command("git", &workspace_dir);
         cmd.args(["ls-files", "LICENSE", "NOTICE"]);
         cmd.arg(&package.name());
-        for dep in &package.dependencies() {
-            cmd.arg(&dep.name);
+        for dep in package.dependencies() {
+            cmd.arg(&dep.name());
         }
         let output = cmd.output().expect("failed to execute git ls-files");
         let output = String::from_utf8_lossy(&output.stdout);

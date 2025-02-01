@@ -1,0 +1,3 @@
+analyzer:
+  exclude:
+    - rust/target/**.dart # contains dumped debug info, instead of normal code

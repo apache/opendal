@@ -1,0 +1,11 @@
+[package]
+name = "opendal-dart"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flutter_rust_bridge = "2.7.0"
+opendal = { path = "../../core" }
+
+[lib]
+crate-type = ["staticlib", "cdylib"]

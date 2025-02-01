@@ -153,6 +153,10 @@ abstract class Operator implements RustOpaqueInterface {
 
   void createDirSync({required String path});
 
+  Future<void> delete({required String path});
+
+  void deleteSync({required String path});
+
   Future<bool> isExist({required String path});
 
   bool isExistSync({required String path});
@@ -161,6 +165,18 @@ abstract class Operator implements RustOpaqueInterface {
           {required String schemeStr, required Map<String, String> map}) =>
       RustLib.instance.api
           .crateApiOpendalApiOperatorNew(schemeStr: schemeStr, map: map);
+
+  Future<void> rename({required String from, required String to});
+
+  /// Rename file according to given `from` and `to` path synchronously.
+  ///
+  /// It's similar to `mv` command.
+  ///
+  /// ### Example
+  /// ```javascript
+  /// op.renameSync("path/to/file", "path/to/dest");
+  /// ```
+  void renameSync({required String from, required String to});
 
   Future<Metadata> stat({required String path});
 

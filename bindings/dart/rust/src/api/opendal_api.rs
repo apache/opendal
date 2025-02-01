@@ -20,10 +20,7 @@ use flutter_rust_bridge::frb;
 use ::opendal as od;
 
 use std::collections::HashMap;
-use std::fmt::Display;
-use std::io::Read;
 use std::str::FromStr;
-use std::time::Duration;
 
 #[frb(opaque)]
 pub struct Operator(opendal::Operator);
@@ -55,6 +52,13 @@ impl Operator {
     pub async fn is_exist(&self, path: String) -> bool {
         self.0.is_exist(&path).await.unwrap()
     }
+    pub async fn delete(&self, path: String) -> () {
+        self.0.delete(&path).await.unwrap()
+    }
+    #[frb(sync)]
+    pub fn delete_sync(&self, path: String) -> () {
+        self.0.blocking().delete(&path).unwrap()
+    }
     #[frb(sync)]
     pub fn is_exist_sync(&self, path: String) -> bool {
         self.0.blocking().is_exist(&path).unwrap()
@@ -65,6 +69,25 @@ impl Operator {
     #[frb(sync)]
     pub fn create_dir_sync(&self, path: String) -> () {
         self.0.blocking().create_dir(&path).unwrap()
+    }
+    pub async fn rename(&self, from: String, to: String) -> () {
+        self.0.rename(&from, &to).await.unwrap()
+    }
+
+    /// Rename file according to given `from` and `to` path synchronously.
+    ///
+    /// It's similar to `mv` command.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.renameSync("path/to/file", "path/to/dest");
+    /// ```
+    #[frb(sync)]
+    pub fn rename_sync(&self, from: String, to: String) -> () {
+        self.0
+            .blocking()
+            .rename(&from, &to)
+            .unwrap()
     }
 }
 

@@ -22,7 +22,7 @@ edition = "2021"
 
 [dependencies]
 flutter_rust_bridge = "2.7.0"
-opendal = { path = "../../core" }
+opendal = { path = "../../../core" }
 
 [lib]
 crate-type = ["staticlib", "cdylib"]

@@ -168,14 +168,6 @@ abstract class Operator implements RustOpaqueInterface {
 
   Future<void> rename({required String from, required String to});
 
-  /// Rename file according to given `from` and `to` path synchronously.
-  ///
-  /// It's similar to `mv` command.
-  ///
-  /// ### Example
-  /// ```javascript
-  /// op.renameSync("path/to/file", "path/to/dest");
-  /// ```
   void renameSync({required String from, required String to});
 
   Future<Metadata> stat({required String path});

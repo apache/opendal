@@ -26,21 +26,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 #[frb(opaque)]
-pub struct Operator(opendal::Operator);
-
-impl Operator {
-    #[frb(sync)]
-    pub fn new(
-        scheme: String,
-        options: HashMap<String, String>,
-    ) -> Result<od::Operator, od::Error> {
-        let scheme: od::Scheme = od::Scheme::from_str(&scheme)?;
-        od::Operator::via_iter(scheme, options)
-    }
-
-}
-
-#[frb(opaque)]
 pub struct Capability(opendal::Capability);
 
 impl Capability {

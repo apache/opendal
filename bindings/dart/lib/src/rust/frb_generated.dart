@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.1';
 
   @override
-  int get rustContentHash => -958887605;
+  int get rustContentHash => 1542605546;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -183,6 +183,12 @@ abstract class RustLibApi extends BaseApi {
   void crateApiOpendalApiOperatorCreateDirSync(
       {required Operator that, required String path});
 
+  Future<void> crateApiOpendalApiOperatorDelete(
+      {required Operator that, required String path});
+
+  void crateApiOpendalApiOperatorDeleteSync(
+      {required Operator that, required String path});
+
   Future<bool> crateApiOpendalApiOperatorIsExist(
       {required Operator that, required String path});
 
@@ -191,6 +197,12 @@ abstract class RustLibApi extends BaseApi {
 
   Operator crateApiOpendalApiOperatorNew(
       {required String schemeStr, required Map<String, String> map});
+
+  Future<void> crateApiOpendalApiOperatorRename(
+      {required Operator that, required String from, required String to});
+
+  void crateApiOpendalApiOperatorRenameSync(
+      {required Operator that, required String from, required String to});
 
   Future<Metadata> crateApiOpendalApiOperatorStat(
       {required Operator that, required String path});
@@ -1388,7 +1400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiOpendalApiOperatorIsExist(
+  Future<void> crateApiOpendalApiOperatorDelete(
       {required Operator that, required String path}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1398,6 +1410,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
             funcId: 46, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorDeleteConstMeta,
+      argValues: [that, path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorDeleteConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_delete",
+        argNames: ["that", "path"],
+      );
+
+  @override
+  void crateApiOpendalApiOperatorDeleteSync(
+      {required Operator that, required String path}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorDeleteSyncConstMeta,
+      argValues: [that, path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorDeleteSyncConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_delete_sync",
+        argNames: ["that", "path"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiOperatorIsExist(
+      {required Operator that, required String path}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 48, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1424,7 +1491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1450,7 +1517,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(schemeStr, serializer);
         sse_encode_Map_String_String(map, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1470,6 +1537,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiOpendalApiOperatorRename(
+      {required Operator that, required String from, required String to}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(from, serializer);
+        sse_encode_String(to, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 51, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorRenameConstMeta,
+      argValues: [that, from, to],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorRenameConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_rename",
+        argNames: ["that", "from", "to"],
+      );
+
+  @override
+  void crateApiOpendalApiOperatorRenameSync(
+      {required Operator that, required String from, required String to}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(from, serializer);
+        sse_encode_String(to, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorRenameSyncConstMeta,
+      argValues: [that, from, to],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorRenameSyncConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_rename_sync",
+        argNames: ["that", "from", "to"],
+      );
+
+  @override
   Future<Metadata> crateApiOpendalApiOperatorStat(
       {required Operator that, required String path}) {
     return handler.executeNormal(NormalTask(
@@ -1479,7 +1603,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 49, port: port_);
+            funcId: 53, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1507,7 +1631,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -2442,11 +2566,33 @@ class OperatorImpl extends RustOpaque implements Operator {
   void createDirSync({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorCreateDirSync(that: this, path: path);
 
+  Future<void> delete({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorDelete(that: this, path: path);
+
+  void deleteSync({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorDeleteSync(that: this, path: path);
+
   Future<bool> isExist({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorIsExist(that: this, path: path);
 
   bool isExistSync({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorIsExistSync(that: this, path: path);
+
+  Future<void> rename({required String from, required String to}) =>
+      RustLib.instance.api
+          .crateApiOpendalApiOperatorRename(that: this, from: from, to: to);
+
+  /// Rename file according to given `from` and `to` path synchronously.
+  ///
+  /// It's similar to `mv` command.
+  ///
+  /// ### Example
+  /// ```javascript
+  /// op.renameSync("path/to/file", "path/to/dest");
+  /// ```
+  void renameSync({required String from, required String to}) =>
+      RustLib.instance.api
+          .crateApiOpendalApiOperatorRenameSync(that: this, from: from, to: to);
 
   Future<Metadata> stat({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorStat(that: this, path: path);

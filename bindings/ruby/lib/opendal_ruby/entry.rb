@@ -19,6 +19,7 @@
 
 module OpenDAL
   class Entry
+    # Returns the canonical data about an entry
     def to_h
       {
         path: path,

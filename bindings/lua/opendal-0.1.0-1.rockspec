@@ -1,5 +1,5 @@
 package = "opendal"
-version = "0.1.13-1"
+version = "0.1.0-1"
 
 source = {
     url = "git+https://github.com/apache/opendal/",

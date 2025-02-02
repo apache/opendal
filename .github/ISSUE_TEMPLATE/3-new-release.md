@@ -14,10 +14,6 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 ### Build Release
 
-#### Release List
-
-<!-- Generate release list by `./scripts/version.py`, please adapt with the actual needs. -->
-
 #### GitHub Side
 
 - [ ] Bump version in project

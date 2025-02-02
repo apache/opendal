@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check license headers
-        uses: korandoru/hawkeye@v5
+        uses: korandoru/hawkeye@v6
 
   # Add python format check later.
   code-format:

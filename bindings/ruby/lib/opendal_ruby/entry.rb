@@ -17,6 +17,13 @@
 
 # frozen_string_literal: true
 
-require_relative "opendal_ruby/opendal_ruby"
-require_relative "opendal_ruby/io"
-require_relative "opendal_ruby/entry"
+module OpenDAL
+  class Entry
+    def to_h
+      {
+        path: path,
+        metadata: metadata
+      }
+    end
+  end
+end

@@ -28,6 +28,7 @@ use magnus::Ruby;
 
 use crate::capability::Capability;
 use crate::io::Io;
+use crate::lister::Lister;
 use crate::metadata::Metadata;
 use crate::*;
 
@@ -141,6 +142,30 @@ impl Operator {
         let operator = rb_self.0.clone();
         Ok(Io::new(&ruby, operator, path, mode)?)
     }
+
+    /// Lists the directory.
+    pub fn list(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Lister, Error> {
+        let lister = rb_self
+            .0
+            .clone()
+            .lister(&path)
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
+
+        Ok(Lister::new(lister))
+    }
+
+    /// Lists the directory recursively.
+    pub fn scan(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Lister, Error> {
+        let lister = rb_self
+            .0
+            .clone()
+            .lister_with(&path)
+            .recursive(true)
+            .call()
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
+
+        Ok(Lister::new(lister))
+    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -157,6 +182,8 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("remove_all", method!(Operator::remove_all, 1))?;
     class.define_method("copy", method!(Operator::copy, 2))?;
     class.define_method("open", method!(Operator::open, 2))?;
+    class.define_method("list", method!(Operator::list, 1))?;
+    class.define_method("scan", method!(Operator::scan, 1))?;
 
     Ok(())
 }

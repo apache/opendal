@@ -28,6 +28,7 @@ mod capability;
 mod io;
 mod metadata;
 mod operator;
+mod operator_info;
 
 pub fn format_magnus_error(err: ocore::Error) -> Error {
     Error::new(exception::runtime_error(), err.to_string())
@@ -41,6 +42,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let _ = metadata::include(&gem_module);
     let _ = capability::include(&gem_module);
     let _ = io::include(&gem_module);
+    let _ = operator_info::include(&gem_module);
 
     Ok(())
 }

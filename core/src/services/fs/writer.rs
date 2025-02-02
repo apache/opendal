@@ -63,7 +63,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
         f.flush().await.map_err(new_std_io_error)?;
         f.sync_all().await.map_err(new_std_io_error)?;
@@ -73,7 +73,19 @@ impl oio::Write for FsWriter<tokio::fs::File> {
                 .await
                 .map_err(new_std_io_error)?;
         }
-        Ok(())
+
+        let file_meta = f.metadata().await.map_err(new_std_io_error)?;
+        let mode = if file_meta.is_file() {
+            EntryMode::FILE
+        } else if file_meta.is_dir() {
+            EntryMode::DIR
+        } else {
+            EntryMode::Unknown
+        };
+        let meta = Metadata::new(mode)
+            .with_content_length(file_meta.len())
+            .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -102,16 +114,26 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
         Ok(())
     }
 
-    fn close(&mut self) -> Result<()> {
-        if let Some(f) = self.f.take() {
-            f.sync_all().map_err(new_std_io_error)?;
+    fn close(&mut self) -> Result<Metadata> {
+        let f = self.f.as_mut().expect("FsWriter must be initialized");
+        f.sync_all().map_err(new_std_io_error)?;
 
-            if let Some(tmp_path) = &self.tmp_path {
-                std::fs::rename(tmp_path, &self.target_path).map_err(new_std_io_error)?;
-            }
+        if let Some(tmp_path) = &self.tmp_path {
+            std::fs::rename(tmp_path, &self.target_path).map_err(new_std_io_error)?;
         }
 
-        Ok(())
+        let file_meta = f.metadata().map_err(new_std_io_error)?;
+        let mode = if file_meta.is_file() {
+            EntryMode::FILE
+        } else if file_meta.is_dir() {
+            EntryMode::DIR
+        } else {
+            EntryMode::Unknown
+        };
+        let meta = Metadata::new(mode)
+            .with_content_length(file_meta.len())
+            .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
+        Ok(meta)
     }
 }
 
@@ -144,7 +166,7 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
         .map_err(new_task_join_error)?
     }
 
-    async fn close(&self) -> Result<()> {
+    async fn close(&self) -> Result<Metadata> {
         let f = self.f.as_ref().expect("FsWriter must be initialized");
 
         let mut f = f
@@ -162,7 +184,19 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
                 .await
                 .map_err(new_std_io_error)?;
         }
-        Ok(())
+
+        let file_meta = f.metadata().map_err(new_std_io_error)?;
+        let mode = if file_meta.is_file() {
+            EntryMode::FILE
+        } else if file_meta.is_dir() {
+            EntryMode::DIR
+        } else {
+            EntryMode::Unknown
+        };
+        let meta = Metadata::new(mode)
+            .with_content_length(file_meta.len())
+            .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
+        Ok(meta)
     }
 
     async fn abort(&self) -> Result<()> {

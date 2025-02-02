@@ -30,7 +30,7 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    fn write_once(&self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn write_once(&self, bs: Buffer) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 }
 
 /// OneShotWrite is used to implement [`oio::Write`] based on one shot.
@@ -63,11 +63,17 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        match self.buffer.clone() {
-            Some(bs) => self.inner.write_once(bs).await,
+    async fn close(&mut self) -> Result<Metadata> {
+        let mut length = 0;
+        let meta = match self.buffer.clone() {
+            Some(bs) => {
+                length = bs.len();
+                self.inner.write_once(bs).await
+            }
             None => self.inner.write_once(Buffer::new()).await,
-        }
+        }?;
+
+        Ok(meta.with_content_length(length as u64))
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -106,7 +106,7 @@ impl MonoiofsCore {
             .with_entries(io_uring_entries)
             .build()
             .expect("monoio runtime initialize should success");
-        // run a infinite loop that receives TaskSpawner and calls
+        // run an infinite loop that receives TaskSpawner and calls
         // them in a context of monoio
         rt.block_on(async {
             while let Ok(spawner) = rx.recv_async().await {

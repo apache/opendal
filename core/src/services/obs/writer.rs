@@ -45,7 +45,7 @@ impl ObsWriter {
 }
 
 impl oio::MultipartWrite for ObsWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
@@ -57,7 +57,7 @@ impl oio::MultipartWrite for ObsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }
@@ -122,7 +122,7 @@ impl oio::MultipartWrite for ObsWriter {
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| CompleteMultipartUploadRequestPart {
@@ -139,7 +139,7 @@ impl oio::MultipartWrite for ObsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }
@@ -181,7 +181,7 @@ impl oio::AppendWrite for ObsWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .obs_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -193,7 +193,7 @@ impl oio::AppendWrite for ObsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

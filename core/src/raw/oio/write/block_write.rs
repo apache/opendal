@@ -63,7 +63,11 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     /// BlockWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn write_once(
+        &self,
+        size: u64,
+        body: Buffer,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// write_block will write a block of the data.
     ///
@@ -80,7 +84,10 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
 
     /// complete_block will complete the block upload to build the final
     /// file.
-    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn complete_block(
+        &self,
+        block_ids: Vec<Uuid>,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_block will cancel the block upload and purge all data.
     fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -103,6 +110,8 @@ pub struct BlockWriter<W: BlockWrite> {
     block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
+
+    write_bytes_count: u64,
 }
 
 impl<W: BlockWrite> BlockWriter<W> {
@@ -149,6 +158,7 @@ impl<W: BlockWrite> BlockWriter<W> {
                     }
                 })
             }),
+            write_bytes_count: 0,
         }
     }
 
@@ -165,6 +175,8 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
+
         if !self.started && self.cache.is_none() {
             self.fill_cache(bs);
             return Ok(());
@@ -187,16 +199,16 @@ where
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         if !self.started {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
                 None => (0, Buffer::new()),
             };
 
-            self.w.write_once(size as u64, body).await?;
             self.cache = None;
-            return Ok(());
+            let meta = self.w.write_once(size as u64, body).await?;
+            return Ok(meta.with_content_length(self.write_bytes_count));
         }
 
         if let Some(cache) = self.cache.clone() {
@@ -219,7 +231,8 @@ where
         }
 
         let block_ids = self.block_ids.clone();
-        self.w.complete_block(block_ids).await
+        let meta = self.w.complete_block(block_ids).await?;
+        Ok(meta.with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -268,8 +281,8 @@ mod tests {
     }
 
     impl BlockWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, _: u64, _: Buffer) -> Result<()> {
-            Ok(())
+        async fn write_once(&self, _: u64, _: Buffer) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
@@ -290,7 +303,7 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
             let mut this = self.lock().unwrap();
             let mut bs = Vec::new();
             for id in block_ids {
@@ -298,7 +311,7 @@ mod tests {
             }
             this.content = Some(bs.into_iter().flatten().collect());
 
-            Ok(())
+            Ok(Metadata::default())
         }
 
         async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {

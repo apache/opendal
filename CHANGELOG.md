@@ -5,7 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-<!-- Release notes generated using configuration in .github/release.yml at main -->
+<!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
+
+## [v0.51.2] - 2025-02-02
+### Added
+* feat(core): implement if_modified_since and if_unmodified_since for stat_with by @meteorgan in https://github.com/apache/opendal/pull/5528
+* feat(layer/otelmetrics): add OtelMetricsLayer by @andylokandy in https://github.com/apache/opendal/pull/5524
+* feat(integrations/object_store): implement put_opts and get_opts by @meteorgan in https://github.com/apache/opendal/pull/5513
+* feat: Conditional reader for azblob, gcs, oss by @geetanshjuneja in https://github.com/apache/opendal/pull/5531
+* feat(core): Add correctness check for read with if_xxx headers by @Xuanwo in https://github.com/apache/opendal/pull/5538
+* feat(services/cos): Added user metadata support for cos service by @geetanshjuneja in https://github.com/apache/opendal/pull/5510
+* feat(core): Implement list with deleted and versions for oss by @hoslo in https://github.com/apache/opendal/pull/5527
+* feat(layer/otelmetrics): take meter when register by @andylokandy in https://github.com/apache/opendal/pull/5547
+* feat(gcs): Convert TOO_MANY_REQUESTS to retryable Ratelimited by @Xuanwo in https://github.com/apache/opendal/pull/5551
+* feat(services/webdfs): Add user.name support for webhdfs by @Xuanwo in https://github.com/apache/opendal/pull/5567
+* feat: disable backtrace for NotFound error by @xxchan in https://github.com/apache/opendal/pull/5577
+### Changed
+* refactor: refactor some unnecessary clone and use next_back to make clippy happy by @yihong0618 in https://github.com/apache/opendal/pull/5554
+* refactor: refactor all body.copy_to_bytes(body.remaining()) by @yihong0618 in https://github.com/apache/opendal/pull/5561
+### Fixed
+* fix(integrations/object_store) `object_store_opendal` now compiles on wasm32-unknown-unknown by @XiangpengHao in https://github.com/apache/opendal/pull/5530
+* fix(serivces/gcs): Gcs doesn't support read with if_(un)modified_since by @Xuanwo in https://github.com/apache/opendal/pull/5537
+* fix(logging): remove additional space by @xxchan in https://github.com/apache/opendal/pull/5568
+### Docs
+* docs: Fix opendal rust core's README not align with new vision by @Xuanwo in https://github.com/apache/opendal/pull/5541
+* docs(integration/object_store): add example for datafusion by @meteorgan in https://github.com/apache/opendal/pull/5543
+* docs: Add docs on how to pronounce opendal by @Xuanwo in https://github.com/apache/opendal/pull/5552
+* docs(bindings/java): better javadoc  by @tisonkun in https://github.com/apache/opendal/pull/5572
+### CI
+* ci(integration/object_store): add integration tests for object_store_opendal by @meteorgan in https://github.com/apache/opendal/pull/5536
+* ci: Pin the nightly version to rust 1.84 for fuzz by @Xuanwo in https://github.com/apache/opendal/pull/5546
+* ci: skip running behavior tests when adding or modifying documentation by @meteorgan in https://github.com/apache/opendal/pull/5558
+* build: fix Cargo.lock and pass --locked in CI by @xxchan in https://github.com/apache/opendal/pull/5565
+* build: implement release process in odev by @tisonkun in https://github.com/apache/opendal/pull/5592
+### Chore
+* chore: Update CODEOWNERS by @Xuanwo in https://github.com/apache/opendal/pull/5542
+* chore(layer/otelmetrics): take meter by reference by @andylokandy in https://github.com/apache/opendal/pull/5553
+* chore(core): Avoid using mongodb 3.2.0 by @Xuanwo in https://github.com/apache/opendal/pull/5560
+* chore: add oli/oay/ofs to rust-analyzer.linkedProjects by @xxchan in https://github.com/apache/opendal/pull/5564
+* chore: try use logforth  by @tisonkun in https://github.com/apache/opendal/pull/5573
+* chore: bump version 0.51.2  by @tisonkun in https://github.com/apache/opendal/pull/5595
 
 ## [v0.51.1] - 2025-01-08
 

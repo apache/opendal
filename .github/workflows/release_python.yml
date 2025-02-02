@@ -46,9 +46,9 @@ jobs:
           command: sdist
           args: -o dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-sdist
           path: bindings/python/dist
 
   wheels:
@@ -94,34 +94,34 @@ jobs:
           sccache: true
           manylinux: ${{ matrix.manylinux || 'auto' }}
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: bindings/python/dist
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     permissions:
       contents: read
       id-token: write
     needs: [sdist, wheels]
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
           path: bindings/python/dist
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: "contains(github.ref, '-')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
           packages-dir: bindings/python/dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: "!contains(github.ref, '-')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
         with:
           skip-existing: true
           packages-dir: bindings/python/dist

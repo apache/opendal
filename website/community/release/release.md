@@ -138,7 +138,7 @@ Additionally, we should also drop the staging Maven artifacts on https://reposit
 After GitHub Release has been created, we can start to create ASF Release.
 
 - Checkout to released tag. (e.g. `git checkout v0.46.0-rc.1`, tag is created in the previous step)
-- Use the release script to create a new release: `python ./scripts/release.py`
+- Use the release script to create a new release: `just release`
   - This script will generate the release candidate artifacts under `dist`, including:
     - `apache-opendal-{package}-{version}-src.tar.gz`
     - `apache-opendal-{package}-{version}-src.tar.gz.asc`

@@ -52,7 +52,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
-rb-sys = { version = "0.9.102", default-features = false }
+rb-sys = { version = "0.9.110", default-features = false }
 # should be in sync with opendal
 bytes = "1.6"
 

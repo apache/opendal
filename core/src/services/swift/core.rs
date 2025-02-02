@@ -58,6 +58,13 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("x-swift-meta-{key}"), value)
+            }
+        }
+        
         let body = Buffer::new();
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -89,6 +96,13 @@ impl SwiftCore {
         }
         if !marker.is_empty() {
             url += &format!("&marker={}", marker);
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("x-swift-meta-{key}"), value)
+            }
         }
 
         let mut req = Request::get(&url);

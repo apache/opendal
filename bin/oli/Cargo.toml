@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.15"
+version = "0.41.16"
 
 [dependencies]
 anyhow = { version = "1.0" }

@@ -24,7 +24,7 @@ license = "Apache-2.0"
 name = "cloud_filter_opendal"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.0.4"
+version = "0.0.5"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"

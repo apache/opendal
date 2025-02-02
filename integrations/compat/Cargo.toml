@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "1.0.2"
+version = "1.0.3"
 
 [package.metadata.docs.rs]
 all-features = true

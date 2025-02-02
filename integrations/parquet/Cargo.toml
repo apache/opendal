@@ -31,7 +31,7 @@ version = "0.3.1"
 async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
-opendal = { version = "0.51.0", path = "../../core" }
+opendal = { version = "0.51.2", path = "../../core" }
 parquet = { version = "53.1", default-features = false, features = [
   "async",
   "arrow",
@@ -39,7 +39,7 @@ parquet = { version = "53.1", default-features = false, features = [
 
 [dev-dependencies]
 arrow = { version = "53.1" }
-opendal = { version = "0.51.0", path = "../../core", features = [
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-memory",
   "services-s3",
 ] }

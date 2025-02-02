@@ -29,13 +29,13 @@ version = "0.0.12"
 [dependencies]
 async-trait = "0.1.80"
 libunftp = "0.20.0"
-opendal = { version = "0.51.0", path = "../../core" }
+opendal = { version = "0.51.2", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
 
 [dev-dependencies]
 anyhow = "1"
-opendal = { version = "0.51.0", path = "../../core", features = [
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-s3",
 ] }
 tokio = { version = "1.38.0", default-features = false, features = [

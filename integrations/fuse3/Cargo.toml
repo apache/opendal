@@ -33,7 +33,7 @@ fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }
 futures-util = "0.3.30"
 libc = "0.2.155"
 log = "0.4.21"
-opendal = { version = "0.51.0", path = "../../core" }
+opendal = { version = "0.51.2", path = "../../core" }
 sharded-slab = "0.1.7"
 tokio = "1.38.0"
 

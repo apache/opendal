@@ -38,7 +38,7 @@ humansize = { version = "2.1" }
 humantime = { version = "2.1" }
 humantime-serde = { version = "1.1" }
 indicatif = { version = "0.17" }
-opendal = { version = "0.51.0", path = "../../core", features = [
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-azblob",
   "services-azdls",
   "services-cos",

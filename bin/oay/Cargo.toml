@@ -48,7 +48,7 @@ dav-server-opendalfs = { version = "0.3.0", path = "../../integrations/dav-serve
 futures-util = { version = "0.3.29", optional = true }
 log = { version = "0.4.22" }
 logforth = { version = "0.21.0", default-features = false }
-opendal = { version = "0.51.0", path = "../../core", features = [
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-fs",
 ] }
 quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }

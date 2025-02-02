@@ -42,13 +42,13 @@ flagset = "0.4"
 futures = "0.3"
 futures-util = "0.3"
 object_store = "0.11"
-opendal = { version = "0.51.0", path = "../../core", default-features = false }
+opendal = { version = "0.51.2", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
-opendal = { version = "0.51.0", path = "../../core", features = [
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-memory",
   "services-s3",
   "tests",

@@ -10,18 +10,18 @@ asn1-rs-derive@0.5.1		X							X
 asn1-rs-impl@0.2.0		X							X						
 async-trait@0.1.85		X							X						
 autocfg@1.4.0		X							X						
-aws-lc-rs@1.12.0		X						X							
-aws-lc-sys@0.24.1		X						X				X			
+aws-lc-rs@1.12.2		X						X							
+aws-lc-sys@0.25.0		X						X				X			
 backon@1.3.0		X													
 backtrace@0.3.74		X							X						
 base64@0.22.1		X							X						
 bindgen@0.69.5					X										
-bitflags@2.6.0		X							X						
+bitflags@2.8.0		X							X						
 block-buffer@0.10.4		X							X						
 bumpalo@3.16.0		X							X						
 byteorder@1.5.0									X					X	
 bytes@1.9.0									X						
-cc@1.2.7		X							X						
+cc@1.2.10		X							X						
 cexpr@0.6.0		X							X						
 cfg-if@1.0.0		X							X						
 cfg_aliases@0.2.1									X						
@@ -31,14 +31,14 @@ cmake@0.1.52		X							X
 const-oid@0.9.6		X							X						
 convert_case@0.4.0									X						
 core-foundation-sys@0.8.7		X							X						
-cpufeatures@0.2.16		X							X						
+cpufeatures@0.2.17		X							X						
 crc32c@0.6.8		X							X						
 crossbeam-channel@0.5.14		X							X						
 crossbeam-epoch@0.9.18		X							X						
 crossbeam-utils@0.8.21		X							X						
 crypto-common@0.1.6		X							X						
 dashmap@5.5.3									X						
-data-encoding@2.6.0									X						
+data-encoding@2.7.0									X						
 der-parser@9.0.0		X							X						
 deranged@0.3.11		X							X						
 derive_more@0.99.18									X						
@@ -91,11 +91,11 @@ icu_provider@1.5.0													X
 icu_provider_macros@1.5.0													X		
 idna@1.0.3		X							X						
 idna_adapter@1.2.0		X							X						
-ipnet@2.10.1		X							X						
+ipnet@2.11.0		X							X						
 itertools@0.12.1		X							X						
 itoa@1.0.14		X							X						
 jobserver@0.1.32		X							X						
-js-sys@0.3.76		X							X						
+js-sys@0.3.77		X							X						
 lazy_static@1.5.0		X							X						
 lazycell@1.3.0		X							X						
 libc@0.2.169		X							X						
@@ -104,14 +104,14 @@ libunftp@0.20.3		X
 linux-raw-sys@0.4.15		X	X						X						
 litemap@0.7.4													X		
 lock_api@0.4.12		X							X						
-log@0.4.22		X							X						
+log@0.4.25		X							X						
 loom@0.7.2									X						
 matchers@0.1.0									X						
 md-5@0.10.6		X							X						
 memchr@2.7.4									X					X	
 mime@0.3.17		X							X						
 minimal-lexical@0.2.1		X							X						
-miniz_oxide@0.8.2		X							X						X
+miniz_oxide@0.8.3		X							X						X
 mio@1.0.3									X						
 moka@0.12.10		X							X						
 nix@0.29.0									X						
@@ -124,7 +124,7 @@ num-traits@0.2.19		X							X
 object@0.36.7		X							X						
 oid-registry@0.7.1		X							X						
 once_cell@1.20.2		X							X						
-opendal@0.51.1		X													
+opendal@0.51.2		X													
 overload@0.1.1									X						
 parking_lot@0.12.3		X							X						
 parking_lot_core@0.9.10		X							X						
@@ -135,8 +135,8 @@ pin-utils@0.1.0		X							X
 portable-atomic@1.10.0		X							X						
 powerfmt@0.2.0		X							X						
 ppv-lite86@0.2.20		X							X						
-prettyplease@0.2.27		X							X						
-proc-macro2@1.0.92		X							X						
+prettyplease@0.2.29		X							X						
+proc-macro2@1.0.93		X							X						
 prometheus@0.13.4		X													
 proxy-protocol@0.5.0		X							X						
 quick-xml@0.36.2									X						
@@ -157,19 +157,19 @@ rustc-demangle@0.1.24		X							X
 rustc-hash@1.1.0		X							X						
 rustc_version@0.4.1		X							X						
 rusticata-macros@4.1.0		X							X						
-rustix@0.38.43		X	X						X						
-rustls@0.23.20		X						X	X						
+rustix@0.38.44		X	X						X						
+rustls@0.23.21		X						X	X						
 rustls-pemfile@2.2.0		X						X	X						
-rustls-pki-types@1.10.1		X							X						
+rustls-pki-types@1.11.0		X							X						
 rustls-webpki@0.102.8								X							
 rustversion@1.0.19		X							X						
 ryu@1.0.18		X				X									
 scoped-tls@1.0.1		X							X						
 scopeguard@1.2.0		X							X						
-semver@1.0.24		X							X						
+semver@1.0.25		X							X						
 serde@1.0.217		X							X						
 serde_derive@1.0.217		X							X						
-serde_json@1.0.135		X							X						
+serde_json@1.0.137		X							X						
 serde_urlencoded@0.7.1		X							X						
 sha1@0.10.6		X							X						
 sha2@0.10.8		X							X						
@@ -188,7 +188,7 @@ spin@0.9.8									X
 stable_deref_trait@1.2.0		X							X						
 subtle@2.6.1					X										
 syn@1.0.109		X							X						
-syn@2.0.95		X							X						
+syn@2.0.96		X							X						
 sync_wrapper@1.0.2		X													
 synstructure@0.13.1									X						
 tagptr@0.2.0		X							X						
@@ -199,8 +199,8 @@ time@0.3.37		X							X
 time-core@0.1.2		X							X						
 time-macros@0.2.19		X							X						
 tinystr@0.7.6													X		
-tokio@1.42.0									X						
-tokio-macros@2.4.0									X						
+tokio@1.43.0									X						
+tokio-macros@2.5.0									X						
 tokio-rustls@0.26.1		X							X						
 tokio-util@0.7.13									X						
 tower@0.5.2									X						
@@ -213,24 +213,24 @@ tracing-log@0.2.0									X
 tracing-subscriber@0.3.19									X						
 try-lock@0.2.5									X						
 typenum@1.17.0		X							X						
-unftp-sbe-opendal@0.0.11		X													
-unicode-ident@1.0.14		X							X				X		
+unftp-sbe-opendal@0.0.12		X													
+unicode-ident@1.0.15		X							X				X		
 untrusted@0.9.0								X							
 url@2.5.4		X							X						
 utf16_iter@1.0.5		X							X						
 utf8_iter@1.0.4		X							X						
-uuid@1.11.0		X							X						
+uuid@1.12.1		X							X						
 version_check@0.9.5		X							X						
 want@0.3.1									X						
 wasi@0.11.0+wasi-snapshot-preview1		X	X						X						
-wasm-bindgen@0.2.99		X							X						
-wasm-bindgen-backend@0.2.99		X							X						
-wasm-bindgen-futures@0.4.49		X							X						
-wasm-bindgen-macro@0.2.99		X							X						
-wasm-bindgen-macro-support@0.2.99		X							X						
-wasm-bindgen-shared@0.2.99		X							X						
+wasm-bindgen@0.2.100		X							X						
+wasm-bindgen-backend@0.2.100		X							X						
+wasm-bindgen-futures@0.4.50		X							X						
+wasm-bindgen-macro@0.2.100		X							X						
+wasm-bindgen-macro-support@0.2.100		X							X						
+wasm-bindgen-shared@0.2.100		X							X						
 wasm-streams@0.4.2		X							X						
-web-sys@0.3.76		X							X						
+web-sys@0.3.77		X							X						
 webpki-roots@0.26.7											X				
 which@4.4.2									X						
 winapi@0.3.9		X							X						

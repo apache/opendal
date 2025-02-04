@@ -187,6 +187,7 @@ impl Access for FsBackend {
                 write_can_empty: true,
                 write_can_append: true,
                 write_can_multi: true,
+                write_with_if_not_exists: true,
                 create_dir: true,
                 delete: true,
 
@@ -470,7 +471,14 @@ impl Access for FsBackend {
         };
 
         let mut f = std::fs::OpenOptions::new();
-        f.create(true).write(true);
+
+        if op.if_not_exists() {
+            f.create_new(true);
+        } else {
+            f.create(true);
+        }
+
+        f.write(true);
 
         if op.append() {
             f.append(true);

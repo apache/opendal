@@ -750,6 +750,7 @@ impl Builder for S3Builder {
 
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
+            Some("crc64nvme") => Some(ChecksumAlgorithm::Crc64nvme),
             None => None,
             v => {
                 return Err(Error::new(

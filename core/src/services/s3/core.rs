@@ -267,6 +267,11 @@ impl S3Core {
                     .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
                 Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
             }
+            Some(ChecksumAlgorithm::Crc64nvme) => {
+                let mut c = crc64fast_nvme::Digest::new();
+                body.clone().for_each(|b| c.write(&b));
+                Some(BASE64_STANDARD.encode(c.sum64().to_be_bytes()))
+            }
         }
     }
     pub fn insert_checksum_header(
@@ -938,6 +943,8 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
     pub checksum_crc32c: Option<String>,
+    #[serde(rename = "ChecksumCRC64NVME", skip_serializing_if = "Option::is_none")]
+    pub checksum_crc64nvme: Option<String>,
 }
 
 /// Request of DeleteObjects.
@@ -1046,11 +1053,13 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 pub enum ChecksumAlgorithm {
     Crc32c,
+    Crc64nvme,
 }
 impl ChecksumAlgorithm {
     pub fn to_header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Crc64nvme => HeaderName::from_static("x-amz-checksum-crc64nvme"),
         }
     }
 }
@@ -1061,6 +1070,7 @@ impl Display for ChecksumAlgorithm {
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Crc64nvme => "CRC64NVME",
             }
         )
     }

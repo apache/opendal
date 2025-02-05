@@ -198,11 +198,14 @@ impl Access for SwiftBackend {
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
+                stat_has_user_metadata: true,
 
                 read: true,
 
                 write: true,
                 write_can_empty: true,
+                write_with_user_metadata: true,
+
                 delete: true,
 
                 list: true,
@@ -227,6 +230,11 @@ impl Access for SwiftBackend {
         match status {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
+                let user_meta = parse_prefixed_headers(headers, "x-swift-meta-");
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+                
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),

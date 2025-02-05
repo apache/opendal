@@ -272,6 +272,9 @@ impl Access for FsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if 1 < 2 {
+            panic!("Dummy failure");
+        }
         let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
             let target_path = self
                 .core
@@ -443,6 +446,9 @@ impl Access for FsBackend {
     }
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        if 1 < 2 {
+            panic!("Dummy failure");
+        }
         let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
             let target_path = self
                 .core

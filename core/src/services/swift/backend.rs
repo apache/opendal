@@ -231,7 +231,7 @@ impl Access for SwiftBackend {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
-                let user_meta = parse_prefixed_headers(headers, "X-OBJECT-META-");
+                let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }

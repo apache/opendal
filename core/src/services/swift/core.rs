@@ -64,7 +64,7 @@ impl SwiftCore {
                 req = req.header(format!("x-swift-meta-{key}"), value)
             }
         }
-        
+
         let body = Buffer::new();
 
         let req = req.body(body).map_err(new_request_build_error)?;

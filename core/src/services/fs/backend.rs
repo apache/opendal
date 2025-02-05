@@ -303,7 +303,14 @@ impl Access for FsBackend {
         };
 
         let mut open_options = tokio::fs::OpenOptions::new();
-        open_options.create(true).write(true);
+        if op.if_not_exists() {
+            open_options.create_new(true);
+        } else {
+            open_options.create(true);
+        }
+
+        open_options.write(true);
+
         if op.append() {
             open_options.append(true);
         } else {

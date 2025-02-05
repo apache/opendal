@@ -320,7 +320,19 @@ impl Access for FsBackend {
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            ErrorKind::ConditionNotMatch.to_string(),
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         let w = FsWriter::new(target_path, tmp_path, f);
 
@@ -495,7 +507,19 @@ impl Access for FsBackend {
 
         let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            ErrorKind::ConditionNotMatch.to_string(),
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }

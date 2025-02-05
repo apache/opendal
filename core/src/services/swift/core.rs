@@ -58,13 +58,6 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        // Set user metadata headers.
-        if let Some(user_metadata) = args.user_metadata() {
-            for (key, value) in user_metadata {
-                req = req.header(format!("x-swift-meta-{key}"), value)
-            }
-        }
-
         let body = Buffer::new();
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -98,13 +91,6 @@ impl SwiftCore {
             url += &format!("&marker={}", marker);
         }
 
-        // Set user metadata headers.
-        if let Some(user_metadata) = args.user_metadata() {
-            for (key, value) in user_metadata {
-                req = req.header(format!("x-swift-meta-{key}"), value)
-            }
-        }
-
         let mut req = Request::get(&url);
 
         req = req.header("X-Auth-Token", &self.token);
@@ -118,6 +104,7 @@ impl SwiftCore {
         &self,
         path: &str,
         length: u64,
+        args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
@@ -129,6 +116,13 @@ impl SwiftCore {
         );
 
         let mut req = Request::put(&url);
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("X-Object-Meta-{key}"), value)
+            }
+        }
 
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, length);

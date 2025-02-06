@@ -230,11 +230,11 @@ impl Access for SwiftBackend {
         match status {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
-                let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
-                if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
-                }
+                let meta = parse_into_metadata(path, headers)?;
+                // let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
+                // if !user_meta.is_empty() {
+                //     meta.with_user_metadata(user_meta);
+                // }
 
                 Ok(RpStat::new(meta))
             }

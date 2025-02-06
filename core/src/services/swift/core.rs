@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use log::debug;
 use std::fmt::Debug;
 
 use http::header;
@@ -103,9 +104,9 @@ impl SwiftCore {
     pub async fn swift_create_object(
         &self,
         path: &str,
-        size: u64,
-        op: &OpWrite,
-        bs: Buffer,
+        length: u64,
+        args: &OpWrite,
+        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
@@ -118,7 +119,7 @@ impl SwiftCore {
         let mut req = Request::put(&url);
 
         // Set user metadata headers.
-        if let Some(user_metadata) = op.user_metadata() {
+        if let Some(user_metadata) = args.user_metadata() {
             debug!(
                 "swift: setting user metadata for path {}: {:?}",
                 path, user_metadata
@@ -129,12 +130,12 @@ impl SwiftCore {
         }
 
         req = req.header("X-Auth-Token", &self.token);
-        req = req.header(header::CONTENT_LENGTH, size);
+        req = req.header(header::CONTENT_LENGTH, length);
 
-        let req = req.body(bs).map_err(new_request_build_error)?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
-        
+
         // 添加日志：记录响应状态和头部
         debug!(
             "swift: create object response status: {}, headers: {:?}",
@@ -214,7 +215,7 @@ impl SwiftCore {
 
     pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
-        
+
         debug!("swift: getting metadata for path: {}", p);
 
         let url = format!(
@@ -231,7 +232,7 @@ impl SwiftCore {
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
-        
+
         // 添加日志：记录所有响应头部
         debug!(
             "swift: get metadata response status: {}, all headers: {:?}",
@@ -240,7 +241,8 @@ impl SwiftCore {
         );
 
         // 添加日志：特别关注元数据相关的头部
-        let meta_headers: Vec<_> = resp.headers()
+        let meta_headers: Vec<_> = resp
+            .headers()
             .iter()
             .filter(|(name, _)| name.as_str().starts_with("x-object-meta-"))
             .collect();

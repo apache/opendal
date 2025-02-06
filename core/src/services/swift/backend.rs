@@ -233,13 +233,13 @@ impl Access for SwiftBackend {
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
-                let meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?;
                 
                 // 添加日志：记录解析前的原始头部
-                debug!("swift: parsing user metadata from headers: {:?}", headers);
+                log::debug!("swift: parsing user metadata from headers: {:?}", headers);
                 
                 let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
-                debug!("swift: parsed user metadata: {:?}", user_meta);
+                log::debug!("swift: parsed user metadata: {:?}", user_meta);
                 
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);

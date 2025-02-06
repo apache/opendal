@@ -198,8 +198,7 @@ impl Access for SwiftBackend {
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
-                stat_has_user_metadata: true,
-
+                // stat_has_user_metadata: true,
                 read: true,
 
                 write: true,

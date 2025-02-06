@@ -198,12 +198,12 @@ impl Access for SwiftBackend {
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
-                // stat_has_user_metadata: true,
+                stat_has_user_metadata: true,
                 read: true,
 
                 write: true,
                 write_can_empty: true,
-                // write_with_user_metadata: true,
+                write_with_user_metadata: true,
 
                 delete: true,
 
@@ -223,17 +223,27 @@ impl Access for SwiftBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.swift_get_metadata(path).await?;
+        
+        debug!(
+            "swift: stat operation for path {}, response status: {}",
+            path,
+            resp.status()
+        );
 
-        let status = resp.status();
-
-        match status {
+        match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
                 let meta = parse_into_metadata(path, headers)?;
-                // let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
-                // if !user_meta.is_empty() {
-                //     meta.with_user_metadata(user_meta);
-                // }
+                
+                // 添加日志：记录解析前的原始头部
+                debug!("swift: parsing user metadata from headers: {:?}", headers);
+                
+                let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
+                debug!("swift: parsed user metadata: {:?}", user_meta);
+                
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
 
                 Ok(RpStat::new(meta))
             }

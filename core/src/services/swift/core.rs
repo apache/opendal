@@ -103,9 +103,9 @@ impl SwiftCore {
     pub async fn swift_create_object(
         &self,
         path: &str,
-        length: u64,
-        args: &OpWrite,
-        body: Buffer,
+        size: u64,
+        op: &OpWrite,
+        bs: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
@@ -117,19 +117,32 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
-        // // Set user metadata headers.
-        // if let Some(user_metadata) = args.user_metadata() {
-        //     for (key, value) in user_metadata {
-        //         req = req.header(format!("X-Object-Meta-{key}"), value)
-        //     }
-        // }
+        // Set user metadata headers.
+        if let Some(user_metadata) = op.user_metadata() {
+            debug!(
+                "swift: setting user metadata for path {}: {:?}",
+                path, user_metadata
+            );
+            for (k, v) in user_metadata {
+                req = req.header(format!("X-Object-Meta-{}", k), v);
+            }
+        }
 
         req = req.header("X-Auth-Token", &self.token);
-        req = req.header(header::CONTENT_LENGTH, length);
+        req = req.header(header::CONTENT_LENGTH, size);
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req.body(bs).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let resp = self.client.send(req).await?;
+        
+        // 添加日志：记录响应状态和头部
+        debug!(
+            "swift: create object response status: {}, headers: {:?}",
+            resp.status(),
+            resp.headers()
+        );
+
+        Ok(resp)
     }
 
     pub async fn swift_read(
@@ -201,6 +214,8 @@ impl SwiftCore {
 
     pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
+        
+        debug!("swift: getting metadata for path: {}", p);
 
         let url = format!(
             "{}/{}/{}",
@@ -215,7 +230,23 @@ impl SwiftCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        let resp = self.client.send(req).await?;
+        
+        // 添加日志：记录所有响应头部
+        debug!(
+            "swift: get metadata response status: {}, all headers: {:?}",
+            resp.status(),
+            resp.headers()
+        );
+
+        // 添加日志：特别关注元数据相关的头部
+        let meta_headers: Vec<_> = resp.headers()
+            .iter()
+            .filter(|(name, _)| name.as_str().starts_with("x-object-meta-"))
+            .collect();
+        debug!("swift: metadata headers found: {:?}", meta_headers);
+
+        Ok(resp)
     }
 }
 

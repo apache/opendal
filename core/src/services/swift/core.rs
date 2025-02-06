@@ -117,12 +117,12 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
-        // Set user metadata headers.
-        if let Some(user_metadata) = args.user_metadata() {
-            for (key, value) in user_metadata {
-                req = req.header(format!("X-Object-Meta-{key}"), value)
-            }
-        }
+        // // Set user metadata headers.
+        // if let Some(user_metadata) = args.user_metadata() {
+        //     for (key, value) in user_metadata {
+        //         req = req.header(format!("X-Object-Meta-{key}"), value)
+        //     }
+        // }
 
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, length);

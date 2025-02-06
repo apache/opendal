@@ -203,7 +203,7 @@ impl Access for SwiftBackend {
 
                 write: true,
                 write_can_empty: true,
-                write_with_user_metadata: true,
+                // write_with_user_metadata: true,
 
                 delete: true,
 

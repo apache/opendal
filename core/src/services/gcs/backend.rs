@@ -444,10 +444,8 @@ impl Access for GcsBackend {
             m.set_content_type(&meta.content_type);
         }
 
-        if let Some(content_encoding) = meta.content_encoding.as_ref() {
-            if !content_encoding.is_empty() {
-                m.set_content_encoding(content_encoding);
-            }
+        if !meta.content_encoding.is_empty() {
+            m.set_content_encoding(&meta.content_encoding);
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
@@ -565,7 +563,8 @@ struct GetObjectJsonResponse {
     /// Content encoding of this object
     ///
     /// For example: "contentEncoding": "br"
-    content_encoding: Option<String>,
+    #[serde(default)]
+    content_encoding: String,
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`
@@ -610,7 +609,7 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
-        assert_eq!(meta.content_encoding, Some("br".to_string()));
+        assert_eq!(meta.content_encoding, "br".to_string());
         assert_eq!(
             meta.metadata,
             HashMap::from_iter([("location".to_string(), "everywhere".to_string())])

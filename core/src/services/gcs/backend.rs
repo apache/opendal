@@ -362,6 +362,7 @@ impl Access for GcsBackend {
                 stat_has_content_md5: true,
                 stat_has_content_length: true,
                 stat_has_content_type: true,
+                stat_has_content_encoding: true,
                 stat_has_last_modified: true,
                 stat_has_user_metadata: true,
 
@@ -374,6 +375,7 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
+                write_with_content_encoding: true,
                 write_with_user_metadata: true,
                 write_with_if_not_exists: true,
 
@@ -440,6 +442,12 @@ impl Access for GcsBackend {
         m.set_content_length(size);
         if !meta.content_type.is_empty() {
             m.set_content_type(&meta.content_type);
+        }
+
+        if let Some(content_encoding) = meta.content_encoding.as_ref() {
+            if !content_encoding.is_empty() {
+                m.set_content_encoding(content_encoding);
+            }
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
@@ -554,6 +562,10 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+    /// Content encoding of this object
+    ///
+    /// For example: "contentEncoding": "br"
+    content_encoding: Option<String>,
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`

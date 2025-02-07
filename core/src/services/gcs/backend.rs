@@ -588,6 +588,7 @@ mod tests {
   "generation": "1660563214863653",
   "metageneration": "1",
   "contentType": "image/png",
+  "contentEncoding": "br",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -609,6 +610,7 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
+        assert_eq!(meta.content_encoding, Some("br".to_string()));
         assert_eq!(
             meta.metadata,
             HashMap::from_iter([("location".to_string(), "everywhere".to_string())])

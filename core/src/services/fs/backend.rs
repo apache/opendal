@@ -326,7 +326,7 @@ impl Access for FsBackend {
                         // Map io AlreadyExists to opendal ConditionNotMatch
                         Error::new(
                             ErrorKind::ConditionNotMatch,
-                            ErrorKind::ConditionNotMatch.to_string(),
+                            "The file already exists in the filesystem",
                         )
                         .set_source(e)
                     }

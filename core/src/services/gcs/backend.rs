@@ -563,7 +563,6 @@ struct GetObjectJsonResponse {
     /// Content encoding of this object
     ///
     /// For example: "contentEncoding": "br"
-    #[serde(default)]
     content_encoding: String,
     /// Custom metadata of this object.
     ///

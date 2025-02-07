@@ -349,7 +349,6 @@ impl GcsCore {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
-        // Completely untested at this point
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding);
         }

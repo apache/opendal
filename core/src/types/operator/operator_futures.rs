@@ -200,6 +200,11 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
         self.map(|(args, dur)| (args.with_content_disposition(v), dur))
     }
 
+    /// Set the content encoding of the operation
+    pub fn content_encoding(self, v: &str) -> Self {
+        self.map(|(args, dur)| (args.with_content_encoding(v), dur))
+    }
+
     /// Set the content type of option
     pub fn cache_control(self, v: &str) -> Self {
         self.map(|(args, dur)| (args.with_cache_control(v), dur))

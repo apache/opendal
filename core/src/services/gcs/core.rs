@@ -657,6 +657,7 @@ pub struct InsertRequestMetadata<'a> {
 impl InsertRequestMetadata<'_> {
     pub fn is_empty(&self) -> bool {
         self.content_type.is_none()
+            && self.content_encoding.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
             && self.metadata.is_none()

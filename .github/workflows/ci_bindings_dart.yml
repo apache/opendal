@@ -83,4 +83,4 @@ jobs:
       - name: test
         working-directory: bindings/dart
         run: |
-          dart run lib/example.dart
+          dart run lib/opendal_test.dart

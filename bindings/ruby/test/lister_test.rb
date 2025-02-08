@@ -51,18 +51,27 @@ class ListerTest < ActiveSupport::TestCase
     assert !metadata.dir?
   end
 
-  test "scans the directory" do
-    lister = @op.scan("")
+  test "lists the directory recursively" do
+    lister = @op.list("", recursive: true)
 
     lists = lister.map(&:to_h).map { |e| e[:path] }.sort
 
     assert_equal ["/", "sample", "sub/", "sub/sample"], lists
   end
 
-  test "scan returns the entry" do
-    entry = @op.scan("sample").first
+  test "lists the directory with limit" do
+    lister = @op.list("", limit: 1)
 
-    assert entry.is_a?(OpenDAL::Entry)
-    assert_equal "sample", entry.name
+    lists = lister.map(&:to_h).map { |e| e[:path] }.sort
+
+    assert_equal ["/", "sample", "sub/"], lists
+  end
+
+  test "lists the directory with start_after" do
+    lister = @op.list("", start_after: "sub/")
+
+    lists = lister.map(&:to_h).map { |e| e[:path] }.sort
+
+    assert_equal ["/", "sample", "sub/"], lists # fs backend doesn't support start_after
   end
 end

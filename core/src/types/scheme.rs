@@ -123,8 +123,6 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
-    /// [libsql][crate::services::Libsql]: Libsql services
-    Libsql,
     /// [mysql][crate::services::Mysql]: Mysql services
     Mysql,
     /// [sqlite][crate::services::Sqlite]: Sqlite services
@@ -247,8 +245,6 @@ impl Scheme {
             Scheme::Ipmfs,
             #[cfg(feature = "services-icloud")]
             Scheme::Icloud,
-            #[cfg(feature = "services-libsql")]
-            Scheme::Libsql,
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached,
             #[cfg(feature = "services-memory")]
@@ -375,7 +371,6 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "icloud" => Ok(Scheme::Icloud),
             "koofr" => Ok(Scheme::Koofr),
-            "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
             "mysql" => Ok(Scheme::Mysql),
@@ -446,7 +441,6 @@ impl From<Scheme> for &'static str {
             Scheme::Ipmfs => "ipmfs",
             Scheme::Icloud => "icloud",
             Scheme::Koofr => "koofr",
-            Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",

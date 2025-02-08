@@ -423,20 +423,6 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["libsql"],
-        /,
-        *,
-        connection_string: str = ...,
-        auth_token: str = ...,
-        table: str = ...,
-        key_field: str = ...,
-        value_field: str = ...,
-        root: str = ...,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
         scheme: Literal["memcached"],
         /,
         *,

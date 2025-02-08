@@ -187,6 +187,7 @@ impl Access for FsBackend {
                 write_can_empty: true,
                 write_can_append: true,
                 write_can_multi: true,
+                write_with_if_not_exists: true,
                 create_dir: true,
                 delete: true,
 
@@ -302,7 +303,14 @@ impl Access for FsBackend {
         };
 
         let mut open_options = tokio::fs::OpenOptions::new();
-        open_options.create(true).write(true);
+        if op.if_not_exists() {
+            open_options.create_new(true);
+        } else {
+            open_options.create(true);
+        }
+
+        open_options.write(true);
+
         if op.append() {
             open_options.append(true);
         } else {
@@ -312,7 +320,19 @@ impl Access for FsBackend {
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         let w = FsWriter::new(target_path, tmp_path, f);
 
@@ -470,7 +490,14 @@ impl Access for FsBackend {
         };
 
         let mut f = std::fs::OpenOptions::new();
-        f.create(true).write(true);
+
+        if op.if_not_exists() {
+            f.create_new(true);
+        } else {
+            f.create(true);
+        }
+
+        f.write(true);
 
         if op.append() {
             f.append(true);
@@ -480,7 +507,19 @@ impl Access for FsBackend {
 
         let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }

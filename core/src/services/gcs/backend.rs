@@ -362,6 +362,7 @@ impl Access for GcsBackend {
                 stat_has_content_md5: true,
                 stat_has_content_length: true,
                 stat_has_content_type: true,
+                stat_has_content_encoding: true,
                 stat_has_last_modified: true,
                 stat_has_user_metadata: true,
 
@@ -374,6 +375,7 @@ impl Access for GcsBackend {
                 write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
+                write_with_content_encoding: true,
                 write_with_user_metadata: true,
                 write_with_if_not_exists: true,
 
@@ -440,6 +442,10 @@ impl Access for GcsBackend {
         m.set_content_length(size);
         if !meta.content_type.is_empty() {
             m.set_content_type(&meta.content_type);
+        }
+
+        if !meta.content_encoding.is_empty() {
+            m.set_content_encoding(&meta.content_encoding);
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
@@ -554,6 +560,10 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+    /// Content encoding of this object
+    ///
+    /// For example: "contentEncoding": "br"
+    content_encoding: String,
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`
@@ -576,6 +586,7 @@ mod tests {
   "generation": "1660563214863653",
   "metageneration": "1",
   "contentType": "image/png",
+  "contentEncoding": "br",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -597,6 +608,7 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
+        assert_eq!(meta.content_encoding, "br".to_string());
         assert_eq!(
             meta.metadata,
             HashMap::from_iter([("location".to_string(), "everywhere".to_string())])

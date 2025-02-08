@@ -230,8 +230,6 @@ impl Operator {
             Scheme::Ipmfs => Self::from_iter::<services::Ipmfs>(iter)?.finish(),
             #[cfg(feature = "services-icloud")]
             Scheme::Icloud => Self::from_iter::<services::Icloud>(iter)?.finish(),
-            #[cfg(feature = "services-libsql")]
-            Scheme::Libsql => Self::from_iter::<services::Libsql>(iter)?.finish(),
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached => Self::from_iter::<services::Memcached>(iter)?.finish(),
             #[cfg(feature = "services-memory")]

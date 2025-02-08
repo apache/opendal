@@ -121,9 +121,6 @@ pub use koofr::*;
 mod lakefs;
 pub use lakefs::*;
 
-mod libsql;
-pub use libsql::*;
-
 mod memcached;
 pub use memcached::*;
 

@@ -83,7 +83,6 @@ services-all = [
   "services-mongodb",
   "services-gridfs",
   "services-sqlite",
-  "services-libsql",
   "services-alluxio",
   "services-b2",
   "services-seafile",
@@ -126,7 +125,6 @@ services-hdfs = ["opendal/services-hdfs"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
 services-koofr = ["opendal/services-koofr"]
-services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]

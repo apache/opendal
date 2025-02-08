@@ -46,7 +46,7 @@ chrono = "0.4.31"
 dav-server = { version = "0.7", optional = true }
 dav-server-opendalfs = { version = "0.3.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
-log = { version = "0.4.22" }
+log = { version = "0.4.25" }
 logforth = { version = "0.21.0", default-features = false }
 opendal = { version = "0.51.2", path = "../../core", features = [
   "services-fs",

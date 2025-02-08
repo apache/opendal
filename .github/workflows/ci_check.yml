@@ -103,7 +103,7 @@ jobs:
 
       - name: Corepack
         working-directory: website
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install Dependencies
         working-directory: website

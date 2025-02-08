@@ -61,6 +61,6 @@ services-s3 = ["opendal/services-s3"]
 
 [dev-dependencies]
 opendal = { version = "0.51.2", path = "../../core", features = ["tests"] }
-tempfile = "3.10.1"
+tempfile = "3.16.0"
 test-context = "0.3.0"
 walkdir = "2.5.0"

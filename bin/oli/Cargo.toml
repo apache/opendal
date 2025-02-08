@@ -60,7 +60,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
-uuid = { version = "1.11" }
+uuid = { version = "1.12" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }

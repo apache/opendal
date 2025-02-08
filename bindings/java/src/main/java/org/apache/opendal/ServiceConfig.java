@@ -1730,68 +1730,6 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service libsql.
-     */
-    @Builder
-    @Data
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    class Libsql implements ServiceConfig {
-        /**
-         * <p>Connection string for libsql service.</p>
-         */
-        public final String connectionString;
-        /**
-         * <p>Authentication token for libsql service.</p>
-         */
-        public final String authToken;
-        /**
-         * <p>Table name for libsql service.</p>
-         */
-        public final String table;
-        /**
-         * <p>Key field name for libsql service.</p>
-         */
-        public final String keyField;
-        /**
-         * <p>Value field name for libsql service.</p>
-         */
-        public final String valueField;
-        /**
-         * <p>Root for libsql service.</p>
-         */
-        public final String root;
-
-        @Override
-        public String scheme() {
-            return "libsql";
-        }
-
-        @Override
-        public Map<String, String> configMap() {
-            final HashMap<String, String> map = new HashMap<>();
-            if (connectionString != null) {
-                map.put("connection_string", connectionString);
-            }
-            if (authToken != null) {
-                map.put("auth_token", authToken);
-            }
-            if (table != null) {
-                map.put("table", table);
-            }
-            if (keyField != null) {
-                map.put("key_field", keyField);
-            }
-            if (valueField != null) {
-                map.put("value_field", valueField);
-            }
-            if (root != null) {
-                map.put("root", root);
-            }
-            return map;
-        }
-    }
-
-    /**
      * Configuration for service memcached.
      */
     @Builder

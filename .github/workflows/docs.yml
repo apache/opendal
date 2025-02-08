@@ -116,7 +116,7 @@ jobs:
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         working-directory: bindings/nodejs
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs
@@ -521,7 +521,7 @@ jobs:
 
       - name: Corepack
         working-directory: website
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v4

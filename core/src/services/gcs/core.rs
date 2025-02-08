@@ -24,6 +24,7 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -267,6 +268,7 @@ impl GcsCore {
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),
+            content_encoding: op.content_encoding(),
             metadata: op.user_metadata(),
         };
 
@@ -345,6 +347,10 @@ impl GcsCore {
 
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
+        }
+
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, content_encoding);
         }
 
         if let Some(acl) = &self.predefined_acl {
@@ -639,6 +645,8 @@ pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    content_encoding: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     storage_class: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache_control: Option<&'a str>,
@@ -649,6 +657,7 @@ pub struct InsertRequestMetadata<'a> {
 impl InsertRequestMetadata<'_> {
     pub fn is_empty(&self) -> bool {
         self.content_type.is_none()
+            && self.content_encoding.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
             && self.metadata.is_none()

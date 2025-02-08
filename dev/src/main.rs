@@ -16,10 +16,11 @@
 // under the License.
 
 mod generate;
+mod release;
 
-use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command as StdCommand;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -29,6 +30,19 @@ fn manifest_dir() -> PathBuf {
 
 fn workspace_dir() -> PathBuf {
     manifest_dir().join("..").canonicalize().unwrap()
+}
+
+fn find_command(cmd: &str, cwd: impl AsRef<Path>) -> StdCommand {
+    match which::which(cmd) {
+        Ok(exe) => {
+            let mut cmd = StdCommand::new(exe);
+            cmd.current_dir(cwd);
+            cmd
+        }
+        Err(err) => {
+            panic!("{cmd} not found: {err}");
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -45,12 +59,18 @@ enum Commands {
         #[arg(short, long)]
         language: String,
     },
+    /// Update the version of all packages.
+    UpdateVersion,
+    /// Create all the release artifacts.
+    Release,
 }
 
-fn main() -> Result<()> {
-    env_logger::init();
+fn main() -> anyhow::Result<()> {
+    logforth::stderr().apply();
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
+        Commands::UpdateVersion => release::update_version(),
+        Commands::Release => release::archive_package(),
     }
 }

@@ -30,13 +30,22 @@ version = "0.0.1"
 [dependencies]
 anyhow = { version = "1.0.95" }
 clap = { version = "4.5.23", features = ["derive"] }
-env_logger = { version = "0.11.5" }
-log = { version = "0.4.22" }
+flate2 = { version = "1.0.35" }
 heck = { version = "0.5.0" }
+ignore = { version = "0.4.23" }
+log = { version = "0.4.22" }
+logforth = { version = "0.21.0", default-features = false }
 markdown = { version = "1.0.0-alpha.21" }
 minijinja = { version = "2.5.0" }
+regex = { version = "1.11.1" }
+semver = { version = "1.0.25" }
 serde = { version = "1.0.216", features = ["derive"] }
+serde_json = { version = "1.0.138", features = ["preserve_order"] }
+sha2 = { version = "0.10.8" }
 syn = { version = "2.0.91", features = ["visit", "full", "extra-traits"] }
+tar = { version = "0.4.43" }
+toml_edit = { version = "0.22.23", features = ["serde"] }
+which = { version = "7.0.1" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

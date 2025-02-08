@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check license headers
-        uses: korandoru/hawkeye@v5
+        uses: korandoru/hawkeye@v6
 
   # Add python format check later.
   code-format:
@@ -103,7 +103,7 @@ jobs:
 
       - name: Corepack
         working-directory: website
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install Dependencies
         working-directory: website

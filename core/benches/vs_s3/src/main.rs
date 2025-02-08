@@ -29,11 +29,7 @@ use tokio::io::AsyncReadExt;
 
 fn main() {
     let _ = dotenvy::dotenv();
-    let _ = tracing_subscriber::fmt()
-        .pretty()
-        .with_test_writer()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
+    let _ = logforth::stderr().try_apply();
 
     let endpoint = env::var("OPENDAL_S3_ENDPOINT").unwrap();
     let access_key = env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap();

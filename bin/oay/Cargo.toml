@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.15"
+version = "0.41.16"
 
 [features]
 default = ["frontends-webdav", "frontends-s3"]
@@ -46,7 +46,9 @@ chrono = "0.4.31"
 dav-server = { version = "0.7", optional = true }
 dav-server-opendalfs = { version = "0.3.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
-opendal = { version = "0.51.0", path = "../../core", features = [
+log = { version = "0.4.25" }
+logforth = { version = "0.21.0", default-features = false }
+opendal = { version = "0.51.2", path = "../../core", features = [
   "services-fs",
 ] }
 quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }
@@ -59,5 +61,3 @@ tokio = { version = "1.39", features = [
 ] }
 toml = "0.8.12"
 tower = { version = "0.4", features = ["util"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }

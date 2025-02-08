@@ -32,11 +32,7 @@ aws-credential-types = { version = "1.0.1", features = [
 aws-sdk-s3 = "1.4.0"
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
+logforth = { version = "0.21.0", default-features = false }
 opendal = { path = "../..", features = ["tests"] }
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }
-uuid = { version = "1", features = ["v4"] }

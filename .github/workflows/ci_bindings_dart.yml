@@ -61,17 +61,14 @@ jobs:
         working-directory: bindings/dart
         run: |
           set -eux -o pipefail
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-          curl -fsSL https://fvm.app/install.sh | bash
-          cargo binstall --no-confirm --no-symlinks --force cargo-expand
-          cargo binstall --no-confirm --no-symlinks --force flutter_rust_bridge_codegen --version "2.7.1"
+          cargo install cargo-expand
+          cargo install flutter_rust_bridge_codegen --version "2.7.1"
 
-      - name: Generate bridge code
+      - name: Check generated bridge code is sync
         working-directory: bindings/dart
         run: |
           set -eux -o pipefail
-          mkdir -p lib/src/rust
-          RUST_LOG=warn flutter_rust_bridge_codegen generate
+          git diff
 
       - name: Flutter pub get
         working-directory: bindings/dart
@@ -81,7 +78,7 @@ jobs:
         working-directory: bindings/dart/rust
         run: |
           set -eux -o pipefail
-          cargo build --release
+          cargo build
 
       - name: test
         working-directory: bindings/dart

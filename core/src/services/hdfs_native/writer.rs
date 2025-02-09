@@ -32,7 +32,10 @@ impl HdfsNativeWriter {
 
 impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let f = self.f.as_mut().expect("HdfsNativeWriter must be initialized");
+        let f = self
+            .f
+            .as_mut()
+            .expect("HdfsNativeWriter must be initialized");
 
         while bs.has_remaining() {
             let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
@@ -43,7 +46,10 @@ impl oio::Write for HdfsNativeWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let f = self.f.as_mut().expect("HdfsNativeWriter must be initialized");
+        let f = self
+            .f
+            .as_mut()
+            .expect("HdfsNativeWriter must be initialized");
         f.flush().map_err(new_std_io_error)?;
 
         if let Some(tmp_path) = &self.tmp_path {

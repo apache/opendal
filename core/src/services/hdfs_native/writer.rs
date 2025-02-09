@@ -18,6 +18,7 @@
 use bytes::{Buf, Bytes};
 use hdfs_native::file::FileWriter;
 
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::raw::*;
 use crate::*;
 
@@ -38,7 +39,7 @@ impl oio::Write for HdfsNativeWriter {
                 .f
                 .write(Bytes::copy_from_slice(bs.chunk()))
                 .await
-                .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
+                .map_err(parse_hdfs_error)?;
             bs.advance(n);
         }
 
@@ -49,7 +50,7 @@ impl oio::Write for HdfsNativeWriter {
         self.f
             .close()
             .await
-            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
+            .map_err(parse_hdfs_error)?;
 
         Ok(())
     }

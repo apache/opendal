@@ -18,8 +18,8 @@
 use bytes::{Buf, Bytes};
 use hdfs_native::file::FileWriter;
 
-use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::raw::*;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 
 pub struct HdfsNativeWriter {
@@ -47,10 +47,7 @@ impl oio::Write for HdfsNativeWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.f
-            .close()
-            .await
-            .map_err(parse_hdfs_error)?;
+        self.f.close().await.map_err(parse_hdfs_error)?;
 
         Ok(())
     }

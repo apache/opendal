@@ -21,22 +21,44 @@ use crate::raw::oio;
 use crate::*;
 
 pub struct HdfsNativeWriter {
-    _f: FileWriter,
+    f: FileWriter,
 }
 
 impl HdfsNativeWriter {
     pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { _f: f }
+        HdfsNativeWriter { f: f }
     }
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, _bs: Buffer) -> Result<()> {
-        todo!()
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsNativeWriter must be initialized");
+
+        while bs.has_remaining() {
+            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            bs.advance(n);
+        }
+
+        Ok(())
     }
 
-    async fn close(&mut self) -> Result<Metadata> {
-        todo!()
+    async fn close(&mut self) -> Result<()> {
+        let f = self.f.as_mut().expect("HdfsNativeWriter must be initialized");
+        f.flush().map_err(new_std_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            // we must delete the target_path, otherwise the rename_file operation will fail
+            if self.target_path_exists {
+                self.client
+                    .remove_file(&self.target_path)
+                    .map_err(new_std_io_error)?;
+            }
+            self.client
+                .rename_file(tmp_path, &self.target_path)
+                .map_err(new_std_io_error)?;
+        }
+
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -15,23 +15,62 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
+use bytes::BytesMut;
 use hdfs_native::file::FileReader;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 
 pub struct HdfsNativeReader {
-    _f: FileReader,
+    f: FileReader,
+    read: usize,
+    size: usize,
+    buf_size: usize,
+    buf: BytesMut,
 }
 
 impl HdfsNativeReader {
     pub fn new(f: FileReader) -> Self {
-        HdfsNativeReader { _f: f }
+        HdfsNativeReader {
+            f,
+            read: 0,
+            size: 0,
+            buf_size: 0,
+            buf: BytesMut::new(),
+        }
     }
 }
 
 impl oio::Read for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
-        todo!()
+        if self.read >= self.size {
+            return Ok(Buffer::new());
+        }
+
+        let size = (self.size - self.read).min(self.buf_size);
+        self.buf.reserve(size);
+
+        let buf = &mut self.buf.spare_capacity_mut()[..size];
+        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
+
+        // SAFETY: Read at most `limit` bytes into `read_buf`.
+        unsafe {
+            read_buf.assume_init(size);
+        }
+
+        let len = read_buf.initialize_unfilled().len();
+        let bytes: Bytes = self.f.read(len).await.map_err(parse_hdfs_error)?;
+        read_buf.put_slice(&bytes);
+        self.read += bytes.len();
+
+        // Safety: We make sure that bs contains `n` more bytes.
+        let filled = read_buf.filled().len();
+        unsafe { self.buf.set_len(filled) }
+
+        let frozen = self.buf.split().freeze();
+        Ok(Buffer::from(frozen))
     }
 }

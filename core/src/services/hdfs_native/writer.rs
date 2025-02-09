@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::{Buf, Bytes};
 use hdfs_native::file::FileWriter;
 
-use crate::raw::oio;
+use crate::raw::*;
 use crate::*;
 
 pub struct HdfsNativeWriter {
@@ -26,19 +27,18 @@ pub struct HdfsNativeWriter {
 
 impl HdfsNativeWriter {
     pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { f: f }
+        HdfsNativeWriter { f }
     }
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let f = self
-            .f
-            .as_mut()
-            .expect("HdfsNativeWriter must be initialized");
-
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
         while bs.has_remaining() {
-            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            let n = self
+                .f
+                .write(Bytes::copy_from_slice(bs.chunk()))
+                .await
+                .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
             bs.advance(n);
         }
 
@@ -46,23 +46,10 @@ impl oio::Write for HdfsNativeWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let f = self
-            .f
-            .as_mut()
-            .expect("HdfsNativeWriter must be initialized");
-        f.flush().map_err(new_std_io_error)?;
-
-        if let Some(tmp_path) = &self.tmp_path {
-            // we must delete the target_path, otherwise the rename_file operation will fail
-            if self.target_path_exists {
-                self.client
-                    .remove_file(&self.target_path)
-                    .map_err(new_std_io_error)?;
-            }
-            self.client
-                .rename_file(tmp_path, &self.target_path)
-                .map_err(new_std_io_error)?;
-        }
+        self.f
+            .close()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
 
         Ok(())
     }

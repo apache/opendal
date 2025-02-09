@@ -15,22 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::RefCell;
+use std::borrow::BorrowMut;
+use std::sync::Arc;
+use std::sync::Mutex;
 
+use magnus::block::Yield;
 use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 use magnus::Ruby;
-use magnus::Value;
 
 use crate::metadata::Metadata;
 use crate::*;
-
-/// Represents the result when list a directory
-#[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
-pub struct Lister(RefCell<ocore::BlockingLister>);
 
 /// Entry returned by Lister to represent a path and it's relative metadata.
 #[magnus::wrap(class = "OpenDAL::Entry", free_immediately, size)]
@@ -61,19 +59,34 @@ impl Entry {
     }
 }
 
+/// Represents the result when list a directory
+#[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
+pub struct Lister(Arc<Mutex<ocore::BlockingLister>>);
+
+impl Iterator for Lister {
+    type Item = Entry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Ok(mut inner) = self.0.borrow_mut().lock() {
+            match inner.next() {
+                Some(Ok(entry)) => Some(Entry(entry)),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+}
+
 impl Lister {
     /// Creates a new blocking Lister.
     pub fn new(inner: ocore::BlockingLister) -> Self {
-        Self(RefCell::new(inner))
+        Self(Arc::new(Mutex::new(inner)))
     }
 
     /// Returns the next element.
-    fn each(ruby: &Ruby, rb_self: &Self) -> Result<(), Error> {
-        while let Some(Ok(entry)) = rb_self.0.borrow_mut().next() {
-            // we don't need the return value of the yield block
-            let _ = ruby.yield_value::<lister::Entry, Value>(Entry(entry));
-        }
-        Ok(())
+    fn each(&self) -> Result<Yield<Lister>, Error> {
+        Ok(Yield::Iter(Lister(self.0.clone())))
     }
 }
 

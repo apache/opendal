@@ -238,7 +238,7 @@ impl Access for SwiftBackend {
                 // 添加日志：记录解析前的原始头部
                 log::debug!("swift: parsing user metadata from headers: {:?}", headers);
                 
-                let user_meta = parse_prefixed_headers(headers, "X-Object-Meta-");
+                let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 log::debug!("swift: parsed user metadata: {:?}", user_meta);
                 
                 if !user_meta.is_empty() {

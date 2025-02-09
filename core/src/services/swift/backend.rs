@@ -223,7 +223,6 @@ impl Access for SwiftBackend {
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.swift_get_metadata(path).await?;
-        
         debug!(
             "swift: stat operation for path {}, response status: {}",
             path,
@@ -234,13 +233,10 @@ impl Access for SwiftBackend {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
-                
                 // 添加日志：记录解析前的原始头部
                 log::debug!("swift: parsing user metadata from headers: {:?}", headers);
-                
                 let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 log::debug!("swift: parsed user metadata: {:?}", user_meta);
-                
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }

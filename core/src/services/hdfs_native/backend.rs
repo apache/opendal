@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -240,8 +241,31 @@ impl Access for HdfsNativeBackend {
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        let l = HdfsNativeLister::new(p, self.client.clone());
-        Ok((RpList::default(), Some(l)))
+        let mut deque = VecDeque::new();
+        let statues = self
+            .client
+            .list_status(&p, true)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        for entry in statues {
+            let path = format!("{}/{}", p.trim_end_matches('/'), entry.path);
+            let path = path.trim_start_matches('/').to_string();
+
+            let mode = if entry.isdir {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+
+            let mut meta = Metadata::new(mode);
+            meta.set_content_length(entry.length as u64)
+                .set_last_modified(parse_datetime_from_from_timestamp_millis(
+                    entry.modification_time as i64,
+                )?);
+            deque.push_back(oio::Entry::new(&path, meta));
+        }
+        Ok((RpList::default(), Some(HdfsNativeLister::new(deque))))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

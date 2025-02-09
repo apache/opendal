@@ -49,7 +49,6 @@ services-http = ["opendal/services-http"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
 services-ipmfs = ["opendal/services-ipmfs"]
-services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-memory = ["opendal/services-memory"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -80,9 +79,9 @@ services-webhdfs = ["opendal/services-webhdfs"]
 [dependencies]
 arbitrary = { version = "1.3.0", features = ["derive"] }
 libfuzzer-sys = "0.4"
-opendal = { path = "..", features = ["tests"] }
 log = { version = "0.4.22" }
 logforth = { version = "0.21.0", default-features = false }
+opendal = { path = "..", features = ["tests"] }
 uuid = { version = "1", features = ["v4"] }
 
 [[bin]]

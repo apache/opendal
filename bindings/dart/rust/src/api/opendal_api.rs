@@ -138,7 +138,7 @@ impl Metadata {
 }
 
 #[frb(opaque)]
-pub struct Capability(opendal::Capability);
+struct Capability(opendal::Capability);
 
 impl Capability {
     /// If operator supports stat.

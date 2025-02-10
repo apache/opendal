@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.1';
 
   @override
-  int get rustContentHash => 1542605546;
+  int get rustContentHash => -814163533;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -77,85 +77,6 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  bool crateApiOpendalApiCapabilityBlocking({required Capability that});
-
-  bool crateApiOpendalApiCapabilityCopy({required Capability that});
-
-  bool crateApiOpendalApiCapabilityCreateDir({required Capability that});
-
-  bool crateApiOpendalApiCapabilityDelete({required Capability that});
-
-  bool crateApiOpendalApiCapabilityList({required Capability that});
-
-  bool crateApiOpendalApiCapabilityListWithLimit({required Capability that});
-
-  bool crateApiOpendalApiCapabilityListWithRecursive(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityListWithStartAfter(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityPresign({required Capability that});
-
-  bool crateApiOpendalApiCapabilityPresignRead({required Capability that});
-
-  bool crateApiOpendalApiCapabilityPresignStat({required Capability that});
-
-  bool crateApiOpendalApiCapabilityPresignWrite({required Capability that});
-
-  bool crateApiOpendalApiCapabilityRead({required Capability that});
-
-  bool crateApiOpendalApiCapabilityReadWithIfMatch({required Capability that});
-
-  bool crateApiOpendalApiCapabilityReadWithIfNoneMatch(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityReadWithOverrideContentType(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityRename({required Capability that});
-
-  bool crateApiOpendalApiCapabilityShared({required Capability that});
-
-  bool crateApiOpendalApiCapabilityStat({required Capability that});
-
-  bool crateApiOpendalApiCapabilityStatWithIfMatch({required Capability that});
-
-  bool crateApiOpendalApiCapabilityStatWithIfNoneMatch(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityWrite({required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteCanAppend({required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteCanEmpty({required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteCanMulti({required Capability that});
-
-  BigInt? crateApiOpendalApiCapabilityWriteMultiMaxSize(
-      {required Capability that});
-
-  BigInt? crateApiOpendalApiCapabilityWriteMultiMinSize(
-      {required Capability that});
-
-  BigInt? crateApiOpendalApiCapabilityWriteTotalMaxSize(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteWithCacheControl(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteWithContentDisposition(
-      {required Capability that});
-
-  bool crateApiOpendalApiCapabilityWriteWithContentType(
-      {required Capability that});
-
   String? crateApiOpendalApiMetadataContentDisposition(
       {required Metadata that});
 
@@ -172,8 +93,6 @@ abstract class RustLibApi extends BaseApi {
   bool crateApiOpendalApiMetadataIsFile({required Metadata that});
 
   String? crateApiOpendalApiMetadataLastModified({required Metadata that});
-
-  Capability crateApiOpendalApiOperatorCapability({required Operator that});
 
   Future<void> crateApiOpendalApiOperatorCheck({required Operator that});
 
@@ -210,13 +129,94 @@ abstract class RustLibApi extends BaseApi {
   Metadata crateApiOpendalApiOperatorStatSync(
       {required Operator that, required String path});
 
-  RustArcIncrementStrongCountFnType
-      get rust_arc_increment_strong_count_Capability;
+  Future<bool> crateApiOpendalApiCapabilityBlocking({required Capability that});
 
-  RustArcDecrementStrongCountFnType
-      get rust_arc_decrement_strong_count_Capability;
+  Future<bool> crateApiOpendalApiCapabilityCopy({required Capability that});
 
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_CapabilityPtr;
+  Future<bool> crateApiOpendalApiCapabilityCreateDir(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityDelete({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityList({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityListWithLimit(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityListWithRecursive(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityListWithStartAfter(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityPresign({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityPresignRead(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityPresignStat(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityPresignWrite(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityRead({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityReadWithIfMatch(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityReadWithIfNoneMatch(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentType(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityRename({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityShared({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityStat({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityStatWithIfMatch(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityStatWithIfNoneMatch(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWrite({required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteCanAppend(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteCanEmpty(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteCanMulti(
+      {required Capability that});
+
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMaxSize(
+      {required Capability that});
+
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMinSize(
+      {required Capability that});
+
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteTotalMaxSize(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteWithCacheControl(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteWithContentDisposition(
+      {required Capability that});
+
+  Future<bool> crateApiOpendalApiCapabilityWriteWithContentType(
+      {required Capability that});
 
   RustArcIncrementStrongCountFnType
       get rust_arc_increment_strong_count_Metadata;
@@ -244,854 +244,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  bool crateApiOpendalApiCapabilityBlocking({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityBlockingConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityBlockingConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_blocking",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityCopy({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityCopyConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityCopyConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_copy",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityCreateDir({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityCreateDirConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityCreateDirConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_create_dir",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityDelete({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityDeleteConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityDeleteConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_delete",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityList({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityListConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_list",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityListWithLimit({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithLimitConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithLimitConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_list_with_limit",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityListWithRecursive(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_list_with_recursive",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityListWithStartAfter(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_list_with_start_after",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityPresign({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_presign",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityPresignRead({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignReadConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_presign_read",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityPresignStat({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignStatConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignStatConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_presign_stat",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityPresignWrite({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignWriteConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignWriteConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_presign_write",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityRead({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityReadConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_read",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityReadWithIfMatch({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_read_with_if_match",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityReadWithIfNoneMatch(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_read_with_if_none_match",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_read_with_override_cache_control",
-            argNames: ["that"],
-          );
-
-  @override
-  bool crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_read_with_override_content_disposition",
-            argNames: ["that"],
-          );
-
-  @override
-  bool crateApiOpendalApiCapabilityReadWithOverrideContentType(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_read_with_override_content_type",
-            argNames: ["that"],
-          );
-
-  @override
-  bool crateApiOpendalApiCapabilityRename({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityRenameConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityRenameConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_rename",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityShared({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilitySharedConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilitySharedConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_shared",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityStat({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityStatConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_stat",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityStatWithIfMatch({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_stat_with_if_match",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityStatWithIfNoneMatch(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_stat_with_if_none_match",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityWrite({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteCanAppend({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_can_append",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteCanEmpty({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_can_empty",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteCanMulti({required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_can_multi",
-        argNames: ["that"],
-      );
-
-  @override
-  BigInt? crateApiOpendalApiCapabilityWriteMultiMaxSize(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_multi_max_size",
-        argNames: ["that"],
-      );
-
-  @override
-  BigInt? crateApiOpendalApiCapabilityWriteMultiMinSize(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_multi_min_size",
-        argNames: ["that"],
-      );
-
-  @override
-  BigInt? crateApiOpendalApiCapabilityWriteTotalMaxSize(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta =>
-      const TaskConstMeta(
-        debugName: "Capability_write_total_max_size",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteWithCacheControl(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_write_with_cache_control",
-            argNames: ["that"],
-          );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteWithContentDisposition(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta:
-          kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_write_with_content_disposition",
-            argNames: ["that"],
-          );
-
-  @override
-  bool crateApiOpendalApiCapabilityWriteWithContentType(
-      {required Capability that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta =>
-          const TaskConstMeta(
-            debugName: "Capability_write_with_content_type",
-            argNames: ["that"],
-          );
-
-  @override
   String? crateApiOpendalApiMetadataContentDisposition(
       {required Metadata that}) {
     return handler.executeSync(SyncTask(
@@ -1099,7 +251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_String,
@@ -1124,7 +276,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_box_autoadd_u_64,
@@ -1149,7 +301,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_String,
@@ -1174,7 +326,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_String,
@@ -1199,7 +351,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_String,
@@ -1224,7 +376,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1249,7 +401,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1274,7 +426,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_String,
@@ -1293,32 +445,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Capability crateApiOpendalApiOperatorCapability({required Operator that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData:
-            sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiOpendalApiOperatorCapabilityConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiOpendalApiOperatorCapabilityConstMeta =>
-      const TaskConstMeta(
-        debugName: "Operator_capability",
-        argNames: ["that"],
-      );
-
-  @override
   Future<void> crateApiOpendalApiOperatorCheck({required Operator that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1326,7 +452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 43, port: port_);
+            funcId: 9, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1354,7 +480,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 44, port: port_);
+            funcId: 10, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1381,7 +507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1409,7 +535,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 46, port: port_);
+            funcId: 12, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1436,7 +562,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1464,7 +590,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 48, port: port_);
+            funcId: 14, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1491,7 +617,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -1517,7 +643,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(schemeStr, serializer);
         sse_encode_Map_String_String(map, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1547,7 +673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(from, serializer);
         sse_encode_String(to, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 51, port: port_);
+            funcId: 17, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1575,7 +701,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(from, serializer);
         sse_encode_String(to, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1603,7 +729,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 53, port: port_);
+            funcId: 19, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1631,7 +757,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1650,13 +776,864 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["that", "path"],
       );
 
-  RustArcIncrementStrongCountFnType
-      get rust_arc_increment_strong_count_Capability => wire
-          .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability;
+  @override
+  Future<bool> crateApiOpendalApiCapabilityBlocking(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 21, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityBlockingConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
 
-  RustArcDecrementStrongCountFnType
-      get rust_arc_decrement_strong_count_Capability => wire
-          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability;
+  TaskConstMeta get kCrateApiOpendalApiCapabilityBlockingConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_blocking",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityCopy({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 22, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityCopyConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityCopyConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_copy",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityCreateDir(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 23, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityCreateDirConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityCreateDirConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_create_dir",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityDelete({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 24, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityDeleteConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityDeleteConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_delete",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityList({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 25, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityListConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityListConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_list",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityListWithLimit(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 26, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityListWithLimitConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithLimitConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_list_with_limit",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityListWithRecursive(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 27, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_list_with_recursive",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityListWithStartAfter(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 28, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_list_with_start_after",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityPresign({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 29, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityPresignConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_presign",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityPresignRead(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 30, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityPresignReadConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_presign_read",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityPresignStat(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 31, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityPresignStatConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignStatConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_presign_stat",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityPresignWrite(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 32, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityPresignWriteConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignWriteConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_presign_write",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityRead({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 33, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityReadConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_read",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityReadWithIfMatch(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 34, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_read_with_if_match",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityReadWithIfNoneMatch(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 35, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_read_with_if_none_match",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 36, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta:
+          kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_read_with_override_cache_control",
+            argNames: ["that"],
+          );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 37, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta:
+          kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_read_with_override_content_disposition",
+            argNames: ["that"],
+          );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentType(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 38, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta:
+          kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_read_with_override_content_type",
+            argNames: ["that"],
+          );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityRename({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 39, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityRenameConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityRenameConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_rename",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityShared({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 40, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilitySharedConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilitySharedConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_shared",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityStat({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 41, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityStatConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityStatConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_stat",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityStatWithIfMatch(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 42, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_stat_with_if_match",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityStatWithIfNoneMatch(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 43, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_stat_with_if_none_match",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWrite({required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 44, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteCanAppend(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 45, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_can_append",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteCanEmpty(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 46, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_can_empty",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteCanMulti(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 47, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_can_multi",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMaxSize(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 48, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_multi_max_size",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMinSize(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 49, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_multi_min_size",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<BigInt?> crateApiOpendalApiCapabilityWriteTotalMaxSize(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 50, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_opt_box_autoadd_usize,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta =>
+      const TaskConstMeta(
+        debugName: "capability_write_total_max_size",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteWithCacheControl(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 51, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_write_with_cache_control",
+            argNames: ["that"],
+          );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteWithContentDisposition(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 52, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta:
+          kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_write_with_content_disposition",
+            argNames: ["that"],
+          );
+
+  @override
+  Future<bool> crateApiOpendalApiCapabilityWriteWithContentType(
+      {required Capability that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_capability(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 53, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_bool,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta =>
+          const TaskConstMeta(
+            debugName: "capability_write_with_content_type",
+            argNames: ["that"],
+          );
 
   RustArcIncrementStrongCountFnType
       get rust_arc_increment_strong_count_Metadata => wire
@@ -1675,14 +1652,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator;
 
   @protected
-  Capability
-      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return CapabilityImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   Metadata
       dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
           dynamic raw) {
@@ -1696,14 +1665,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return OperatorImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  Capability
-      dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return CapabilityImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1727,14 +1688,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return Map.fromEntries(dco_decode_list_record_string_string(raw)
         .map((e) => MapEntry(e.$1, e.$2)));
-  }
-
-  @protected
-  Capability
-      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return CapabilityImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1766,6 +1719,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Capability dco_decode_box_autoadd_capability(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_capability(raw);
+  }
+
+  @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_u_64(raw);
@@ -1775,6 +1734,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_box_autoadd_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_usize(raw);
+  }
+
+  @protected
+  Capability dco_decode_capability(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return Capability(
+      field0: dco_decode_capability(arr[0]),
+    );
   }
 
   @protected
@@ -1845,15 +1815,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  Capability
-      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return CapabilityImpl.frbInternalSseDecode(
-        sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
-  }
-
-  @protected
   Metadata
       sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
           SseDeserializer deserializer) {
@@ -1868,15 +1829,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return OperatorImpl.frbInternalSseDecode(
-        sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
-  }
-
-  @protected
-  Capability
-      sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return CapabilityImpl.frbInternalSseDecode(
         sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
   }
 
@@ -1904,15 +1856,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_record_string_string(deserializer);
     return Map.fromEntries(inner.map((e) => MapEntry(e.$1, e.$2)));
-  }
-
-  @protected
-  Capability
-      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return CapabilityImpl.frbInternalSseDecode(
-        sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
   }
 
   @protected
@@ -1947,6 +1890,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Capability sse_decode_box_autoadd_capability(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_capability(deserializer));
+  }
+
+  @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_64(deserializer));
@@ -1956,6 +1905,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_usize(deserializer));
+  }
+
+  @protected
+  Capability sse_decode_capability(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_capability(deserializer);
+    return Capability(field0: var_field0);
   }
 
   @protected
@@ -2051,15 +2007,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          Capability self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-        (self as CapabilityImpl).frbInternalSseEncode(move: true), serializer);
-  }
-
-  @protected
-  void
       sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
           Metadata self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2074,15 +2021,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
         (self as OperatorImpl).frbInternalSseEncode(move: true), serializer);
-  }
-
-  @protected
-  void
-      sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          Capability self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-        (self as CapabilityImpl).frbInternalSseEncode(move: false), serializer);
   }
 
   @protected
@@ -2109,15 +2047,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_record_string_string(
         self.entries.map((e) => (e.key, e.value)).toList(), serializer);
-  }
-
-  @protected
-  void
-      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCapability(
-          Capability self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-        (self as CapabilityImpl).frbInternalSseEncode(move: null), serializer);
   }
 
   @protected
@@ -2151,6 +2080,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_capability(
+      Capability self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_capability(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
@@ -2160,6 +2096,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(self, serializer);
+  }
+
+  @protected
+  void sse_encode_capability(Capability self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_capability(self.field0, serializer);
   }
 
   @protected
@@ -2250,221 +2192,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 }
 
 @sealed
-class CapabilityImpl extends RustOpaque implements Capability {
-  // Not to be used by end users
-  CapabilityImpl.frbInternalDcoDecode(List<dynamic> wire)
-      : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  CapabilityImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-      : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Capability,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Capability,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_CapabilityPtr,
-  );
-
-  /// If operator supports blocking.
-  bool get blocking =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityBlocking(
-        that: this,
-      );
-
-  /// If operator supports copy.
-  bool get copy => RustLib.instance.api.crateApiOpendalApiCapabilityCopy(
-        that: this,
-      );
-
-  /// If operator supports create dir.
-  bool get createDir =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityCreateDir(
-        that: this,
-      );
-
-  /// If operator supports delete.
-  bool get delete => RustLib.instance.api.crateApiOpendalApiCapabilityDelete(
-        that: this,
-      );
-
-  /// If operator supports list.
-  bool get list => RustLib.instance.api.crateApiOpendalApiCapabilityList(
-        that: this,
-      );
-
-  /// If backend supports list with limit.
-  bool get listWithLimit =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityListWithLimit(
-        that: this,
-      );
-
-  /// If backend supports list with recursive.
-  bool get listWithRecursive =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityListWithRecursive(
-        that: this,
-      );
-
-  /// If backend supports list with start after.
-  bool get listWithStartAfter =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityListWithStartAfter(
-        that: this,
-      );
-
-  /// If operator supports presign.
-  bool get presign => RustLib.instance.api.crateApiOpendalApiCapabilityPresign(
-        that: this,
-      );
-
-  /// If operator supports presign read.
-  bool get presignRead =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityPresignRead(
-        that: this,
-      );
-
-  /// If operator supports presign stat.
-  bool get presignStat =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityPresignStat(
-        that: this,
-      );
-
-  /// If operator supports presign write.
-  bool get presignWrite =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityPresignWrite(
-        that: this,
-      );
-
-  /// If operator supports read.
-  bool get read => RustLib.instance.api.crateApiOpendalApiCapabilityRead(
-        that: this,
-      );
-
-  /// If operator supports read with if matched.
-  bool get readWithIfMatch =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityReadWithIfMatch(
-        that: this,
-      );
-
-  /// If operator supports read with if not match.
-  bool get readWithIfNoneMatch =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityReadWithIfNoneMatch(
-        that: this,
-      );
-
-  /// if operator supports read with override cache control.
-  bool get readWithOverrideCacheControl => RustLib.instance.api
-          .crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
-        that: this,
-      );
-
-  /// if operator supports `read` with override content disposition.
-  bool get readWithOverrideContentDisposition => RustLib.instance.api
-          .crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
-        that: this,
-      );
-
-  /// if operator supports read with override content type.
-  bool get readWithOverrideContentType => RustLib.instance.api
-          .crateApiOpendalApiCapabilityReadWithOverrideContentType(
-        that: this,
-      );
-
-  /// If operator supports rename.
-  bool get rename => RustLib.instance.api.crateApiOpendalApiCapabilityRename(
-        that: this,
-      );
-
-  /// If operator supports shared.
-  bool get shared => RustLib.instance.api.crateApiOpendalApiCapabilityShared(
-        that: this,
-      );
-
-  /// If operator supports stat.
-  bool get stat => RustLib.instance.api.crateApiOpendalApiCapabilityStat(
-        that: this,
-      );
-
-  /// If operator supports stat with if matched.
-  bool get statWithIfMatch =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityStatWithIfMatch(
-        that: this,
-      );
-
-  /// If operator supports stat with if not match.
-  bool get statWithIfNoneMatch =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityStatWithIfNoneMatch(
-        that: this,
-      );
-
-  /// If operator supports write.
-  bool get write => RustLib.instance.api.crateApiOpendalApiCapabilityWrite(
-        that: this,
-      );
-
-  /// If operator supports write by append.
-  bool get writeCanAppend =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanAppend(
-        that: this,
-      );
-
-  /// If operator supports write with empty content.
-  bool get writeCanEmpty =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanEmpty(
-        that: this,
-      );
-
-  /// If operator supports write can be called in multi times.
-  bool get writeCanMulti =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanMulti(
-        that: this,
-      );
-
-  /// write_multi_max_size is the max size that services support in write_multi.
-  ///
-  /// For example, AWS S3 supports 5GiB as max in write_multi.
-  BigInt? get writeMultiMaxSize =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteMultiMaxSize(
-        that: this,
-      );
-
-  /// write_multi_min_size is the min size that services support in write_multi.
-  ///
-  /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
-  BigInt? get writeMultiMinSize =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteMultiMinSize(
-        that: this,
-      );
-
-  /// write_total_max_size is the max size that services support in write_total.
-  ///
-  /// For example, Cloudflare D1 supports 1MB as max in write_total.
-  BigInt? get writeTotalMaxSize =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteTotalMaxSize(
-        that: this,
-      );
-
-  /// If operator supports write with cache control.
-  bool get writeWithCacheControl =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteWithCacheControl(
-        that: this,
-      );
-
-  /// If operator supports write with content disposition.
-  bool get writeWithContentDisposition => RustLib.instance.api
-          .crateApiOpendalApiCapabilityWriteWithContentDisposition(
-        that: this,
-      );
-
-  /// If operator supports write with content type.
-  bool get writeWithContentType =>
-      RustLib.instance.api.crateApiOpendalApiCapabilityWriteWithContentType(
-        that: this,
-      );
-}
-
-@sealed
 class MetadataImpl extends RustOpaque implements Metadata {
   // Not to be used by end users
   MetadataImpl.frbInternalDcoDecode(List<dynamic> wire)
@@ -2551,11 +2278,6 @@ class OperatorImpl extends RustOpaque implements Operator {
         RustLib.instance.api.rust_arc_decrement_strong_count_OperatorPtr,
   );
 
-  Capability capability() =>
-      RustLib.instance.api.crateApiOpendalApiOperatorCapability(
-        that: this,
-      );
-
   Future<void> check() => RustLib.instance.api.crateApiOpendalApiOperatorCheck(
         that: this,
       );
@@ -2582,14 +2304,6 @@ class OperatorImpl extends RustOpaque implements Operator {
       RustLib.instance.api
           .crateApiOpendalApiOperatorRename(that: this, from: from, to: to);
 
-  /// Rename file according to given `from` and `to` path synchronously.
-  ///
-  /// It's similar to `mv` command.
-  ///
-  /// ### Example
-  /// ```javascript
-  /// op.renameSync("path/to/file", "path/to/dest");
-  /// ```
   void renameSync({required String from, required String to}) =>
       RustLib.instance.api
           .crateApiOpendalApiOperatorRenameSync(that: this, from: from, to: to);

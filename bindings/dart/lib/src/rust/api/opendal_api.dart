@@ -6,114 +6,6 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Capability>>
-abstract class Capability implements RustOpaqueInterface {
-  /// If operator supports blocking.
-  bool get blocking;
-
-  /// If operator supports copy.
-  bool get copy;
-
-  /// If operator supports create dir.
-  bool get createDir;
-
-  /// If operator supports delete.
-  bool get delete;
-
-  /// If operator supports list.
-  bool get list;
-
-  /// If backend supports list with limit.
-  bool get listWithLimit;
-
-  /// If backend supports list with recursive.
-  bool get listWithRecursive;
-
-  /// If backend supports list with start after.
-  bool get listWithStartAfter;
-
-  /// If operator supports presign.
-  bool get presign;
-
-  /// If operator supports presign read.
-  bool get presignRead;
-
-  /// If operator supports presign stat.
-  bool get presignStat;
-
-  /// If operator supports presign write.
-  bool get presignWrite;
-
-  /// If operator supports read.
-  bool get read;
-
-  /// If operator supports read with if matched.
-  bool get readWithIfMatch;
-
-  /// If operator supports read with if not match.
-  bool get readWithIfNoneMatch;
-
-  /// if operator supports read with override cache control.
-  bool get readWithOverrideCacheControl;
-
-  /// if operator supports `read` with override content disposition.
-  bool get readWithOverrideContentDisposition;
-
-  /// if operator supports read with override content type.
-  bool get readWithOverrideContentType;
-
-  /// If operator supports rename.
-  bool get rename;
-
-  /// If operator supports shared.
-  bool get shared;
-
-  /// If operator supports stat.
-  bool get stat;
-
-  /// If operator supports stat with if matched.
-  bool get statWithIfMatch;
-
-  /// If operator supports stat with if not match.
-  bool get statWithIfNoneMatch;
-
-  /// If operator supports write.
-  bool get write;
-
-  /// If operator supports write by append.
-  bool get writeCanAppend;
-
-  /// If operator supports write with empty content.
-  bool get writeCanEmpty;
-
-  /// If operator supports write can be called in multi times.
-  bool get writeCanMulti;
-
-  /// write_multi_max_size is the max size that services support in write_multi.
-  ///
-  /// For example, AWS S3 supports 5GiB as max in write_multi.
-  BigInt? get writeMultiMaxSize;
-
-  /// write_multi_min_size is the min size that services support in write_multi.
-  ///
-  /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
-  BigInt? get writeMultiMinSize;
-
-  /// write_total_max_size is the max size that services support in write_total.
-  ///
-  /// For example, Cloudflare D1 supports 1MB as max in write_total.
-  BigInt? get writeTotalMaxSize;
-
-  /// If operator supports write with cache control.
-  bool get writeWithCacheControl;
-
-  /// If operator supports write with content disposition.
-  bool get writeWithContentDisposition;
-
-  /// If operator supports write with content type.
-  bool get writeWithContentType;
-}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Metadata>>
 abstract class Metadata implements RustOpaqueInterface {
   /// Content-Disposition of this object
@@ -145,8 +37,6 @@ abstract class Metadata implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Operator>>
 abstract class Operator implements RustOpaqueInterface {
-  Capability capability();
-
   Future<void> check();
 
   Future<void> createDir({required String path});
@@ -173,4 +63,222 @@ abstract class Operator implements RustOpaqueInterface {
   Future<Metadata> stat({required String path});
 
   Metadata statSync({required String path});
+}
+
+class Capability {
+  final Capability field0;
+
+  const Capability({
+    required this.field0,
+  });
+
+  /// If operator supports blocking.
+  Future<bool> blocking() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityBlocking(
+        that: this,
+      );
+
+  /// If operator supports copy.
+  Future<bool> copy() => RustLib.instance.api.crateApiOpendalApiCapabilityCopy(
+        that: this,
+      );
+
+  /// If operator supports create dir.
+  Future<bool> createDir() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityCreateDir(
+        that: this,
+      );
+
+  /// If operator supports delete.
+  Future<bool> delete() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityDelete(
+        that: this,
+      );
+
+  /// If operator supports list.
+  Future<bool> list() => RustLib.instance.api.crateApiOpendalApiCapabilityList(
+        that: this,
+      );
+
+  /// If backend supports list with limit.
+  Future<bool> listWithLimit() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityListWithLimit(
+        that: this,
+      );
+
+  /// If backend supports list with recursive.
+  Future<bool> listWithRecursive() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityListWithRecursive(
+        that: this,
+      );
+
+  /// If backend supports list with start after.
+  Future<bool> listWithStartAfter() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityListWithStartAfter(
+        that: this,
+      );
+
+  /// If operator supports presign.
+  Future<bool> presign() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityPresign(
+        that: this,
+      );
+
+  /// If operator supports presign read.
+  Future<bool> presignRead() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityPresignRead(
+        that: this,
+      );
+
+  /// If operator supports presign stat.
+  Future<bool> presignStat() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityPresignStat(
+        that: this,
+      );
+
+  /// If operator supports presign write.
+  Future<bool> presignWrite() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityPresignWrite(
+        that: this,
+      );
+
+  /// If operator supports read.
+  Future<bool> read() => RustLib.instance.api.crateApiOpendalApiCapabilityRead(
+        that: this,
+      );
+
+  /// If operator supports read with if matched.
+  Future<bool> readWithIfMatch() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityReadWithIfMatch(
+        that: this,
+      );
+
+  /// If operator supports read with if not match.
+  Future<bool> readWithIfNoneMatch() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityReadWithIfNoneMatch(
+        that: this,
+      );
+
+  /// if operator supports read with override cache control.
+  Future<bool> readWithOverrideCacheControl() => RustLib.instance.api
+          .crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
+        that: this,
+      );
+
+  /// if operator supports `read` with override content disposition.
+  Future<bool> readWithOverrideContentDisposition() => RustLib.instance.api
+          .crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
+        that: this,
+      );
+
+  /// if operator supports read with override content type.
+  Future<bool> readWithOverrideContentType() => RustLib.instance.api
+          .crateApiOpendalApiCapabilityReadWithOverrideContentType(
+        that: this,
+      );
+
+  /// If operator supports rename.
+  Future<bool> rename() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityRename(
+        that: this,
+      );
+
+  /// If operator supports shared.
+  Future<bool> shared() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityShared(
+        that: this,
+      );
+
+  /// If operator supports stat.
+  Future<bool> stat() => RustLib.instance.api.crateApiOpendalApiCapabilityStat(
+        that: this,
+      );
+
+  /// If operator supports stat with if matched.
+  Future<bool> statWithIfMatch() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityStatWithIfMatch(
+        that: this,
+      );
+
+  /// If operator supports stat with if not match.
+  Future<bool> statWithIfNoneMatch() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityStatWithIfNoneMatch(
+        that: this,
+      );
+
+  /// If operator supports write.
+  Future<bool> write() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWrite(
+        that: this,
+      );
+
+  /// If operator supports write by append.
+  Future<bool> writeCanAppend() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanAppend(
+        that: this,
+      );
+
+  /// If operator supports write with empty content.
+  Future<bool> writeCanEmpty() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanEmpty(
+        that: this,
+      );
+
+  /// If operator supports write can be called in multi times.
+  Future<bool> writeCanMulti() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteCanMulti(
+        that: this,
+      );
+
+  /// write_multi_max_size is the max size that services support in write_multi.
+  ///
+  /// For example, AWS S3 supports 5GiB as max in write_multi.
+  Future<BigInt?> writeMultiMaxSize() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteMultiMaxSize(
+        that: this,
+      );
+
+  /// write_multi_min_size is the min size that services support in write_multi.
+  ///
+  /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+  Future<BigInt?> writeMultiMinSize() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteMultiMinSize(
+        that: this,
+      );
+
+  /// write_total_max_size is the max size that services support in write_total.
+  ///
+  /// For example, Cloudflare D1 supports 1MB as max in write_total.
+  Future<BigInt?> writeTotalMaxSize() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteTotalMaxSize(
+        that: this,
+      );
+
+  /// If operator supports write with cache control.
+  Future<bool> writeWithCacheControl() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteWithCacheControl(
+        that: this,
+      );
+
+  /// If operator supports write with content disposition.
+  Future<bool> writeWithContentDisposition() => RustLib.instance.api
+          .crateApiOpendalApiCapabilityWriteWithContentDisposition(
+        that: this,
+      );
+
+  /// If operator supports write with content type.
+  Future<bool> writeWithContentType() =>
+      RustLib.instance.api.crateApiOpendalApiCapabilityWriteWithContentType(
+        that: this,
+      );
+
+  @override
+  int get hashCode => field0.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Capability &&
+          runtimeType == other.runtimeType &&
+          field0 == other.field0;
 }

@@ -129,9 +129,7 @@ impl SwiftCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
-
-        Ok(resp)
+        self.client.send(req).await
     }
 
     pub async fn swift_read(
@@ -216,9 +214,8 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
 
-        Ok(resp)
+        self.client.send(req).await
     }
 }
 

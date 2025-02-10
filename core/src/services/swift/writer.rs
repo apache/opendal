@@ -26,12 +26,13 @@ use crate::*;
 
 pub struct SwiftWriter {
     core: Arc<SwiftCore>,
+    op: OpWrite,
     path: String,
 }
 
 impl SwiftWriter {
-    pub fn new(core: Arc<SwiftCore>, _op: OpWrite, path: String) -> Self {
-        SwiftWriter { core, path }
+    pub fn new(core: Arc<SwiftCore>, op: OpWrite, path: String) -> Self {
+        SwiftWriter { core, op, path }
     }
 }
 
@@ -39,7 +40,7 @@ impl oio::OneShotWrite for SwiftWriter {
     async fn write_once(&self, bs: Buffer) -> Result<()> {
         let resp = self
             .core
-            .swift_create_object(&self.path, bs.len() as u64, bs)
+            .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
             .await?;
 
         let status = resp.status();

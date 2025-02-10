@@ -149,7 +149,6 @@ impl Builder for SwiftBuilder {
                 ));
             }
         };
-        debug!("backend use container: {}", &container);
 
         let token = self.config.token.unwrap_or_default();
 
@@ -198,11 +197,13 @@ impl Access for SwiftBackend {
                 stat_has_content_md5: true,
                 stat_has_last_modified: true,
                 stat_has_content_disposition: true,
-
+                stat_has_user_metadata: true,
                 read: true,
 
                 write: true,
                 write_can_empty: true,
+                write_with_user_metadata: true,
+
                 delete: true,
 
                 list: true,
@@ -222,11 +223,15 @@ impl Access for SwiftBackend {
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
         let resp = self.core.swift_get_metadata(path).await?;
 
-        let status = resp.status();
-
-        match status {
+        match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+                let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
+                if !user_meta.is_empty() {
+                    meta.with_user_metadata(user_meta);
+                }
+
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),

@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/capability.dart';
 import 'api/opendal_api.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.1';
 
   @override
-  int get rustContentHash => -814163533;
+  int get rustContentHash => 816786174;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -129,93 +130,93 @@ abstract class RustLibApi extends BaseApi {
   Metadata crateApiOpendalApiOperatorStatSync(
       {required Operator that, required String path});
 
-  Future<bool> crateApiOpendalApiCapabilityBlocking({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityBlocking({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityCopy({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityCopy({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityCreateDir(
+  Future<bool> crateApiCapabilityCapabilityCreateDir(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityDelete({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityDelete({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityList({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityList({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityListWithLimit(
+  Future<bool> crateApiCapabilityCapabilityListWithLimit(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityListWithRecursive(
+  Future<bool> crateApiCapabilityCapabilityListWithRecursive(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityListWithStartAfter(
+  Future<bool> crateApiCapabilityCapabilityListWithStartAfter(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityPresign({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityPresign({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityPresignRead(
+  Future<bool> crateApiCapabilityCapabilityPresignRead(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityPresignStat(
+  Future<bool> crateApiCapabilityCapabilityPresignStat(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityPresignWrite(
+  Future<bool> crateApiCapabilityCapabilityPresignWrite(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityRead({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityRead({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityReadWithIfMatch(
+  Future<bool> crateApiCapabilityCapabilityReadWithIfMatch(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityReadWithIfNoneMatch(
+  Future<bool> crateApiCapabilityCapabilityReadWithIfNoneMatch(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideCacheControl(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideContentDisposition(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentType(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideContentType(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityRename({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityRename({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityShared({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityShared({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityStat({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityStat({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityStatWithIfMatch(
+  Future<bool> crateApiCapabilityCapabilityStatWithIfMatch(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityStatWithIfNoneMatch(
+  Future<bool> crateApiCapabilityCapabilityStatWithIfNoneMatch(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWrite({required Capability that});
+  Future<bool> crateApiCapabilityCapabilityWrite({required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteCanAppend(
+  Future<bool> crateApiCapabilityCapabilityWriteCanAppend(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteCanEmpty(
+  Future<bool> crateApiCapabilityCapabilityWriteCanEmpty(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteCanMulti(
+  Future<bool> crateApiCapabilityCapabilityWriteCanMulti(
       {required Capability that});
 
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMaxSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteMultiMaxSize(
       {required Capability that});
 
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMinSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteMultiMinSize(
       {required Capability that});
 
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteTotalMaxSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteTotalMaxSize(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteWithCacheControl(
+  Future<bool> crateApiCapabilityCapabilityWriteWithCacheControl(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteWithContentDisposition(
+  Future<bool> crateApiCapabilityCapabilityWriteWithContentDisposition(
       {required Capability that});
 
-  Future<bool> crateApiOpendalApiCapabilityWriteWithContentType(
+  Future<bool> crateApiCapabilityCapabilityWriteWithContentType(
       {required Capability that});
 
   RustArcIncrementStrongCountFnType
@@ -777,7 +778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityBlocking(
+  Future<bool> crateApiCapabilityCapabilityBlocking(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -790,20 +791,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityBlockingConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityBlockingConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityBlockingConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityBlockingConstMeta =>
       const TaskConstMeta(
         debugName: "capability_blocking",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityCopy({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityCopy({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -815,20 +816,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityCopyConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityCopyConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityCopyConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityCopyConstMeta =>
       const TaskConstMeta(
         debugName: "capability_copy",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityCreateDir(
+  Future<bool> crateApiCapabilityCapabilityCreateDir(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -841,20 +842,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityCreateDirConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityCreateDirConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityCreateDirConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityCreateDirConstMeta =>
       const TaskConstMeta(
         debugName: "capability_create_dir",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityDelete({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityDelete({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -866,20 +867,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityDeleteConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityDeleteConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityDeleteConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityDeleteConstMeta =>
       const TaskConstMeta(
         debugName: "capability_delete",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityList({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityList({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -891,20 +892,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityListConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityListConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityListConstMeta =>
       const TaskConstMeta(
         debugName: "capability_list",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityListWithLimit(
+  Future<bool> crateApiCapabilityCapabilityListWithLimit(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -917,20 +918,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithLimitConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityListWithLimitConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithLimitConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityListWithLimitConstMeta =>
       const TaskConstMeta(
         debugName: "capability_list_with_limit",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityListWithRecursive(
+  Future<bool> crateApiCapabilityCapabilityListWithRecursive(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -943,20 +944,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityListWithRecursiveConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithRecursiveConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityListWithRecursiveConstMeta =>
       const TaskConstMeta(
         debugName: "capability_list_with_recursive",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityListWithStartAfter(
+  Future<bool> crateApiCapabilityCapabilityListWithStartAfter(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -969,20 +970,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityListWithStartAfterConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityListWithStartAfterConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityListWithStartAfterConstMeta =>
       const TaskConstMeta(
         debugName: "capability_list_with_start_after",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityPresign({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityPresign({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -994,20 +995,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityPresignConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityPresignConstMeta =>
       const TaskConstMeta(
         debugName: "capability_presign",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityPresignRead(
+  Future<bool> crateApiCapabilityCapabilityPresignRead(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1020,20 +1021,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignReadConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityPresignReadConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignReadConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityPresignReadConstMeta =>
       const TaskConstMeta(
         debugName: "capability_presign_read",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityPresignStat(
+  Future<bool> crateApiCapabilityCapabilityPresignStat(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1046,20 +1047,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignStatConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityPresignStatConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignStatConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityPresignStatConstMeta =>
       const TaskConstMeta(
         debugName: "capability_presign_stat",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityPresignWrite(
+  Future<bool> crateApiCapabilityCapabilityPresignWrite(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1072,20 +1073,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityPresignWriteConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityPresignWriteConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityPresignWriteConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityPresignWriteConstMeta =>
       const TaskConstMeta(
         debugName: "capability_presign_write",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityRead({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityRead({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -1097,20 +1098,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityReadConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityReadConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityReadConstMeta =>
       const TaskConstMeta(
         debugName: "capability_read",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityReadWithIfMatch(
+  Future<bool> crateApiCapabilityCapabilityReadWithIfMatch(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1123,20 +1124,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityReadWithIfMatchConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfMatchConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityReadWithIfMatchConstMeta =>
       const TaskConstMeta(
         debugName: "capability_read_with_if_match",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityReadWithIfNoneMatch(
+  Future<bool> crateApiCapabilityCapabilityReadWithIfNoneMatch(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1149,20 +1150,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityReadWithIfNoneMatchConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityReadWithIfNoneMatchConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityReadWithIfNoneMatchConstMeta =>
       const TaskConstMeta(
         debugName: "capability_read_with_if_none_match",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideCacheControl(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideCacheControl(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1176,21 +1177,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: null,
       ),
       constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta,
+          kCrateApiCapabilityCapabilityReadWithOverrideCacheControlConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideCacheControlConstMeta =>
+      get kCrateApiCapabilityCapabilityReadWithOverrideCacheControlConstMeta =>
           const TaskConstMeta(
             debugName: "capability_read_with_override_cache_control",
             argNames: ["that"],
           );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentDisposition(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideContentDisposition(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1204,21 +1205,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: null,
       ),
       constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta,
+          kCrateApiCapabilityCapabilityReadWithOverrideContentDispositionConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideContentDispositionConstMeta =>
+      get kCrateApiCapabilityCapabilityReadWithOverrideContentDispositionConstMeta =>
           const TaskConstMeta(
             debugName: "capability_read_with_override_content_disposition",
             argNames: ["that"],
           );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityReadWithOverrideContentType(
+  Future<bool> crateApiCapabilityCapabilityReadWithOverrideContentType(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1232,21 +1233,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: null,
       ),
       constMeta:
-          kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta,
+          kCrateApiCapabilityCapabilityReadWithOverrideContentTypeConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityReadWithOverrideContentTypeConstMeta =>
+      get kCrateApiCapabilityCapabilityReadWithOverrideContentTypeConstMeta =>
           const TaskConstMeta(
             debugName: "capability_read_with_override_content_type",
             argNames: ["that"],
           );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityRename({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityRename({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -1258,20 +1259,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityRenameConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityRenameConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityRenameConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityRenameConstMeta =>
       const TaskConstMeta(
         debugName: "capability_rename",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityShared({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityShared({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -1283,20 +1284,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilitySharedConstMeta,
+      constMeta: kCrateApiCapabilityCapabilitySharedConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilitySharedConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilitySharedConstMeta =>
       const TaskConstMeta(
         debugName: "capability_shared",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityStat({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityStat({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -1308,20 +1309,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityStatConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityStatConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityStatConstMeta =>
       const TaskConstMeta(
         debugName: "capability_stat",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityStatWithIfMatch(
+  Future<bool> crateApiCapabilityCapabilityStatWithIfMatch(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1334,20 +1335,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityStatWithIfMatchConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfMatchConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityStatWithIfMatchConstMeta =>
       const TaskConstMeta(
         debugName: "capability_stat_with_if_match",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityStatWithIfNoneMatch(
+  Future<bool> crateApiCapabilityCapabilityStatWithIfNoneMatch(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1360,20 +1361,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityStatWithIfNoneMatchConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityStatWithIfNoneMatchConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityStatWithIfNoneMatchConstMeta =>
       const TaskConstMeta(
         debugName: "capability_stat_with_if_none_match",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWrite({required Capability that}) {
+  Future<bool> crateApiCapabilityCapabilityWrite({required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -1385,20 +1386,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteCanAppend(
+  Future<bool> crateApiCapabilityCapabilityWriteCanAppend(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1411,20 +1412,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteCanAppendConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanAppendConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteCanAppendConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_can_append",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteCanEmpty(
+  Future<bool> crateApiCapabilityCapabilityWriteCanEmpty(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1437,20 +1438,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteCanEmptyConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanEmptyConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteCanEmptyConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_can_empty",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteCanMulti(
+  Future<bool> crateApiCapabilityCapabilityWriteCanMulti(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1463,20 +1464,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteCanMultiConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteCanMultiConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteCanMultiConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_can_multi",
         argNames: ["that"],
       );
 
   @override
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMaxSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteMultiMaxSize(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1489,20 +1490,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_opt_box_autoadd_usize,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteMultiMaxSizeConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMaxSizeConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteMultiMaxSizeConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_multi_max_size",
         argNames: ["that"],
       );
 
   @override
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteMultiMinSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteMultiMinSize(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1515,20 +1516,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_opt_box_autoadd_usize,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteMultiMinSizeConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteMultiMinSizeConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteMultiMinSizeConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_multi_min_size",
         argNames: ["that"],
       );
 
   @override
-  Future<BigInt?> crateApiOpendalApiCapabilityWriteTotalMaxSize(
+  Future<BigInt?> crateApiCapabilityCapabilityWriteTotalMaxSize(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1541,20 +1542,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_opt_box_autoadd_usize,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteTotalMaxSizeConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiCapabilityWriteTotalMaxSizeConstMeta =>
+  TaskConstMeta get kCrateApiCapabilityCapabilityWriteTotalMaxSizeConstMeta =>
       const TaskConstMeta(
         debugName: "capability_write_total_max_size",
         argNames: ["that"],
       );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteWithCacheControl(
+  Future<bool> crateApiCapabilityCapabilityWriteWithCacheControl(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1567,21 +1568,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteWithCacheControlConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithCacheControlConstMeta =>
+      get kCrateApiCapabilityCapabilityWriteWithCacheControlConstMeta =>
           const TaskConstMeta(
             debugName: "capability_write_with_cache_control",
             argNames: ["that"],
           );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteWithContentDisposition(
+  Future<bool> crateApiCapabilityCapabilityWriteWithContentDisposition(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1595,21 +1596,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: null,
       ),
       constMeta:
-          kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta,
+          kCrateApiCapabilityCapabilityWriteWithContentDispositionConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithContentDispositionConstMeta =>
+      get kCrateApiCapabilityCapabilityWriteWithContentDispositionConstMeta =>
           const TaskConstMeta(
             debugName: "capability_write_with_content_disposition",
             argNames: ["that"],
           );
 
   @override
-  Future<bool> crateApiOpendalApiCapabilityWriteWithContentType(
+  Future<bool> crateApiCapabilityCapabilityWriteWithContentType(
       {required Capability that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -1622,14 +1623,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta,
+      constMeta: kCrateApiCapabilityCapabilityWriteWithContentTypeConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
   TaskConstMeta
-      get kCrateApiOpendalApiCapabilityWriteWithContentTypeConstMeta =>
+      get kCrateApiCapabilityCapabilityWriteWithContentTypeConstMeta =>
           const TaskConstMeta(
             debugName: "capability_write_with_content_type",
             argNames: ["that"],

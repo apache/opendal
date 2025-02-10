@@ -61,8 +61,8 @@ jobs:
         working-directory: bindings/dart
         run: |
           set -eux -o pipefail
-          cargo install cargo-expand
-          cargo install flutter_rust_bridge_codegen --version "2.7.1"
+          # cargo install cargo-expand
+          # cargo install flutter_rust_bridge_codegen --version "2.7.1"
 
       - name: Check generated bridge code is sync
         working-directory: bindings/dart

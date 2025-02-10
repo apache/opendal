@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -814163533;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 816786174;
 
 // Section: executor
 
@@ -1075,7 +1075,7 @@ fn wire__crate__api__opendal_api__Operator_stat_sync_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_blocking_impl(
+fn wire__crate__api__capability__capability_blocking_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1097,12 +1097,12 @@ fn wire__crate__api__opendal_api__capability_blocking_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::blocking(&api_that),
+                        crate::api::capability::Capability::blocking(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1110,7 +1110,7 @@ fn wire__crate__api__opendal_api__capability_blocking_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_copy_impl(
+fn wire__crate__api__capability__capability_copy_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1132,19 +1132,19 @@ fn wire__crate__api__opendal_api__capability_copy_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::opendal_api::Capability::copy(&api_that))?;
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::copy(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_create_dir_impl(
+fn wire__crate__api__capability__capability_create_dir_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1166,12 +1166,12 @@ fn wire__crate__api__opendal_api__capability_create_dir_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::create_dir(&api_that),
+                        crate::api::capability::Capability::create_dir(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1179,7 +1179,7 @@ fn wire__crate__api__opendal_api__capability_create_dir_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_delete_impl(
+fn wire__crate__api__capability__capability_delete_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1201,20 +1201,19 @@ fn wire__crate__api__opendal_api__capability_delete_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::delete(&api_that),
-                    )?;
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::delete(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_list_impl(
+fn wire__crate__api__capability__capability_list_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1236,19 +1235,19 @@ fn wire__crate__api__opendal_api__capability_list_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::opendal_api::Capability::list(&api_that))?;
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::list(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_list_with_limit_impl(
+fn wire__crate__api__capability__capability_list_with_limit_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1270,12 +1269,12 @@ fn wire__crate__api__opendal_api__capability_list_with_limit_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::list_with_limit(&api_that),
+                        crate::api::capability::Capability::list_with_limit(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1283,7 +1282,7 @@ fn wire__crate__api__opendal_api__capability_list_with_limit_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_list_with_recursive_impl(
+fn wire__crate__api__capability__capability_list_with_recursive_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1305,12 +1304,12 @@ fn wire__crate__api__opendal_api__capability_list_with_recursive_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::list_with_recursive(&api_that),
+                        crate::api::capability::Capability::list_with_recursive(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1318,7 +1317,7 @@ fn wire__crate__api__opendal_api__capability_list_with_recursive_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_list_with_start_after_impl(
+fn wire__crate__api__capability__capability_list_with_start_after_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1340,12 +1339,12 @@ fn wire__crate__api__opendal_api__capability_list_with_start_after_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::list_with_start_after(&api_that),
+                        crate::api::capability::Capability::list_with_start_after(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1353,7 +1352,7 @@ fn wire__crate__api__opendal_api__capability_list_with_start_after_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_presign_impl(
+fn wire__crate__api__capability__capability_presign_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1375,12 +1374,12 @@ fn wire__crate__api__opendal_api__capability_presign_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::presign(&api_that),
+                        crate::api::capability::Capability::presign(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1388,7 +1387,7 @@ fn wire__crate__api__opendal_api__capability_presign_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_presign_read_impl(
+fn wire__crate__api__capability__capability_presign_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1410,12 +1409,12 @@ fn wire__crate__api__opendal_api__capability_presign_read_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::presign_read(&api_that),
+                        crate::api::capability::Capability::presign_read(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1423,7 +1422,7 @@ fn wire__crate__api__opendal_api__capability_presign_read_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_presign_stat_impl(
+fn wire__crate__api__capability__capability_presign_stat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1445,12 +1444,12 @@ fn wire__crate__api__opendal_api__capability_presign_stat_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::presign_stat(&api_that),
+                        crate::api::capability::Capability::presign_stat(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1458,7 +1457,7 @@ fn wire__crate__api__opendal_api__capability_presign_stat_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_presign_write_impl(
+fn wire__crate__api__capability__capability_presign_write_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1480,12 +1479,12 @@ fn wire__crate__api__opendal_api__capability_presign_write_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::presign_write(&api_that),
+                        crate::api::capability::Capability::presign_write(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1493,7 +1492,7 @@ fn wire__crate__api__opendal_api__capability_presign_write_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_impl(
+fn wire__crate__api__capability__capability_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1515,19 +1514,19 @@ fn wire__crate__api__opendal_api__capability_read_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::opendal_api::Capability::read(&api_that))?;
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::read(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_with_if_match_impl(
+fn wire__crate__api__capability__capability_read_with_if_match_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1549,12 +1548,12 @@ fn wire__crate__api__opendal_api__capability_read_with_if_match_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::read_with_if_match(&api_that),
+                        crate::api::capability::Capability::read_with_if_match(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1562,7 +1561,7 @@ fn wire__crate__api__opendal_api__capability_read_with_if_match_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_with_if_none_match_impl(
+fn wire__crate__api__capability__capability_read_with_if_none_match_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1584,12 +1583,12 @@ fn wire__crate__api__opendal_api__capability_read_with_if_none_match_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::read_with_if_none_match(&api_that),
+                        crate::api::capability::Capability::read_with_if_none_match(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1597,7 +1596,7 @@ fn wire__crate__api__opendal_api__capability_read_with_if_none_match_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_with_override_cache_control_impl(
+fn wire__crate__api__capability__capability_read_with_override_cache_control_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1619,12 +1618,12 @@ fn wire__crate__api__opendal_api__capability_read_with_override_cache_control_im
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::read_with_override_cache_control(
+                        crate::api::capability::Capability::read_with_override_cache_control(
                             &api_that,
                         ),
                     )?;
@@ -1634,7 +1633,7 @@ fn wire__crate__api__opendal_api__capability_read_with_override_cache_control_im
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_with_override_content_disposition_impl(
+fn wire__crate__api__capability__capability_read_with_override_content_disposition_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1656,12 +1655,12 @@ fn wire__crate__api__opendal_api__capability_read_with_override_content_disposit
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::read_with_override_content_disposition(
+                        crate::api::capability::Capability::read_with_override_content_disposition(
                             &api_that,
                         ),
                     )?;
@@ -1671,7 +1670,7 @@ fn wire__crate__api__opendal_api__capability_read_with_override_content_disposit
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_read_with_override_content_type_impl(
+fn wire__crate__api__capability__capability_read_with_override_content_type_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1693,12 +1692,12 @@ fn wire__crate__api__opendal_api__capability_read_with_override_content_type_imp
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::read_with_override_content_type(
+                        crate::api::capability::Capability::read_with_override_content_type(
                             &api_that,
                         ),
                     )?;
@@ -1708,7 +1707,7 @@ fn wire__crate__api__opendal_api__capability_read_with_override_content_type_imp
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_rename_impl(
+fn wire__crate__api__capability__capability_rename_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1730,20 +1729,19 @@ fn wire__crate__api__opendal_api__capability_rename_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::rename(&api_that),
-                    )?;
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::rename(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_shared_impl(
+fn wire__crate__api__capability__capability_shared_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1765,20 +1763,19 @@ fn wire__crate__api__opendal_api__capability_shared_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::shared(&api_that),
-                    )?;
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::shared(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_stat_impl(
+fn wire__crate__api__capability__capability_stat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1800,19 +1797,19 @@ fn wire__crate__api__opendal_api__capability_stat_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::opendal_api::Capability::stat(&api_that))?;
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::stat(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_stat_with_if_match_impl(
+fn wire__crate__api__capability__capability_stat_with_if_match_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1834,12 +1831,12 @@ fn wire__crate__api__opendal_api__capability_stat_with_if_match_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::stat_with_if_match(&api_that),
+                        crate::api::capability::Capability::stat_with_if_match(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1847,7 +1844,7 @@ fn wire__crate__api__opendal_api__capability_stat_with_if_match_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_stat_with_if_none_match_impl(
+fn wire__crate__api__capability__capability_stat_with_if_none_match_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1869,12 +1866,12 @@ fn wire__crate__api__opendal_api__capability_stat_with_if_none_match_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::stat_with_if_none_match(&api_that),
+                        crate::api::capability::Capability::stat_with_if_none_match(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1882,7 +1879,7 @@ fn wire__crate__api__opendal_api__capability_stat_with_if_none_match_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_impl(
+fn wire__crate__api__capability__capability_write_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1904,19 +1901,19 @@ fn wire__crate__api__opendal_api__capability_write_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::opendal_api::Capability::write(&api_that))?;
+                        Result::<_, ()>::Ok(crate::api::capability::Capability::write(&api_that))?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_can_append_impl(
+fn wire__crate__api__capability__capability_write_can_append_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1938,12 +1935,12 @@ fn wire__crate__api__opendal_api__capability_write_can_append_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_can_append(&api_that),
+                        crate::api::capability::Capability::write_can_append(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1951,7 +1948,7 @@ fn wire__crate__api__opendal_api__capability_write_can_append_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_can_empty_impl(
+fn wire__crate__api__capability__capability_write_can_empty_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1973,12 +1970,12 @@ fn wire__crate__api__opendal_api__capability_write_can_empty_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_can_empty(&api_that),
+                        crate::api::capability::Capability::write_can_empty(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -1986,7 +1983,7 @@ fn wire__crate__api__opendal_api__capability_write_can_empty_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_can_multi_impl(
+fn wire__crate__api__capability__capability_write_can_multi_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2008,12 +2005,12 @@ fn wire__crate__api__opendal_api__capability_write_can_multi_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_can_multi(&api_that),
+                        crate::api::capability::Capability::write_can_multi(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2021,7 +2018,7 @@ fn wire__crate__api__opendal_api__capability_write_can_multi_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_multi_max_size_impl(
+fn wire__crate__api__capability__capability_write_multi_max_size_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2043,12 +2040,12 @@ fn wire__crate__api__opendal_api__capability_write_multi_max_size_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_multi_max_size(&api_that),
+                        crate::api::capability::Capability::write_multi_max_size(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2056,7 +2053,7 @@ fn wire__crate__api__opendal_api__capability_write_multi_max_size_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_multi_min_size_impl(
+fn wire__crate__api__capability__capability_write_multi_min_size_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2078,12 +2075,12 @@ fn wire__crate__api__opendal_api__capability_write_multi_min_size_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_multi_min_size(&api_that),
+                        crate::api::capability::Capability::write_multi_min_size(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2091,7 +2088,7 @@ fn wire__crate__api__opendal_api__capability_write_multi_min_size_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_total_max_size_impl(
+fn wire__crate__api__capability__capability_write_total_max_size_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2113,12 +2110,12 @@ fn wire__crate__api__opendal_api__capability_write_total_max_size_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_total_max_size(&api_that),
+                        crate::api::capability::Capability::write_total_max_size(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2126,7 +2123,7 @@ fn wire__crate__api__opendal_api__capability_write_total_max_size_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_with_cache_control_impl(
+fn wire__crate__api__capability__capability_write_with_cache_control_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2148,12 +2145,12 @@ fn wire__crate__api__opendal_api__capability_write_with_cache_control_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_with_cache_control(&api_that),
+                        crate::api::capability::Capability::write_with_cache_control(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2161,7 +2158,7 @@ fn wire__crate__api__opendal_api__capability_write_with_cache_control_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_with_content_disposition_impl(
+fn wire__crate__api__capability__capability_write_with_content_disposition_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2183,12 +2180,12 @@ fn wire__crate__api__opendal_api__capability_write_with_content_disposition_impl
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_with_content_disposition(
+                        crate::api::capability::Capability::write_with_content_disposition(
                             &api_that,
                         ),
                     )?;
@@ -2198,7 +2195,7 @@ fn wire__crate__api__opendal_api__capability_write_with_content_disposition_impl
         },
     )
 }
-fn wire__crate__api__opendal_api__capability_write_with_content_type_impl(
+fn wire__crate__api__capability__capability_write_with_content_type_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2220,12 +2217,12 @@ fn wire__crate__api__opendal_api__capability_write_with_content_type_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::opendal_api::Capability>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::capability::Capability>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::opendal_api::Capability::write_with_content_type(&api_that),
+                        crate::api::capability::Capability::write_with_content_type(&api_that),
                     )?;
                     Ok(output_ok)
                 })())
@@ -2308,11 +2305,11 @@ impl SseDecode for bool {
     }
 }
 
-impl SseDecode for crate::api::opendal_api::Capability {
+impl SseDecode for crate::api::capability::Capability {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_field0 = <crate::api::opendal_api::Capability>::sse_decode(deserializer);
-        return crate::api::opendal_api::Capability(var_field0);
+        let mut var_field0 = <crate::api::capability::Capability>::sse_decode(deserializer);
+        return crate::api::capability::Capability(var_field0);
     }
 }
 
@@ -2441,177 +2438,164 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__opendal_api__Operator_rename_impl(port, ptr, rust_vec_len, data_len)
         }
         19 => wire__crate__api__opendal_api__Operator_stat_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__opendal_api__capability_blocking_impl(
+        21 => wire__crate__api__capability__capability_blocking_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => {
-            wire__crate__api__opendal_api__capability_copy_impl(port, ptr, rust_vec_len, data_len)
-        }
-        23 => wire__crate__api__opendal_api__capability_create_dir_impl(
+        22 => wire__crate__api__capability__capability_copy_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__capability__capability_create_dir_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         24 => {
-            wire__crate__api__opendal_api__capability_delete_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__capability__capability_delete_impl(port, ptr, rust_vec_len, data_len)
         }
-        25 => {
-            wire__crate__api__opendal_api__capability_list_impl(port, ptr, rust_vec_len, data_len)
+        25 => wire__crate__api__capability__capability_list_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__capability__capability_list_with_limit_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        27 => wire__crate__api__capability__capability_list_with_recursive_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        28 => wire__crate__api__capability__capability_list_with_start_after_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        29 => {
+            wire__crate__api__capability__capability_presign_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__opendal_api__capability_list_with_limit_impl(
+        30 => wire__crate__api__capability__capability_presign_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__opendal_api__capability_list_with_recursive_impl(
+        31 => wire__crate__api__capability__capability_presign_stat_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__opendal_api__capability_list_with_start_after_impl(
+        32 => wire__crate__api__capability__capability_presign_write_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__opendal_api__capability_presign_impl(
+        33 => wire__crate__api__capability__capability_read_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__capability__capability_read_with_if_match_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__opendal_api__capability_presign_read_impl(
+        35 => wire__crate__api__capability__capability_read_with_if_none_match_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__opendal_api__capability_presign_stat_impl(
+        36 => wire__crate__api__capability__capability_read_with_override_cache_control_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__opendal_api__capability_presign_write_impl(
+        37 => wire__crate__api__capability__capability_read_with_override_content_disposition_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => {
-            wire__crate__api__opendal_api__capability_read_impl(port, ptr, rust_vec_len, data_len)
-        }
-        34 => wire__crate__api__opendal_api__capability_read_with_if_match_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        35 => wire__crate__api__opendal_api__capability_read_with_if_none_match_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        36 => wire__crate__api__opendal_api__capability_read_with_override_cache_control_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        37 => {
-            wire__crate__api__opendal_api__capability_read_with_override_content_disposition_impl(
-                port,
-                ptr,
-                rust_vec_len,
-                data_len,
-            )
-        }
-        38 => wire__crate__api__opendal_api__capability_read_with_override_content_type_impl(
+        38 => wire__crate__api__capability__capability_read_with_override_content_type_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         39 => {
-            wire__crate__api__opendal_api__capability_rename_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__capability__capability_rename_impl(port, ptr, rust_vec_len, data_len)
         }
         40 => {
-            wire__crate__api__opendal_api__capability_shared_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__capability__capability_shared_impl(port, ptr, rust_vec_len, data_len)
         }
-        41 => {
-            wire__crate__api__opendal_api__capability_stat_impl(port, ptr, rust_vec_len, data_len)
-        }
-        42 => wire__crate__api__opendal_api__capability_stat_with_if_match_impl(
+        41 => wire__crate__api__capability__capability_stat_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__capability__capability_stat_with_if_match_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__crate__api__opendal_api__capability_stat_with_if_none_match_impl(
+        43 => wire__crate__api__capability__capability_stat_with_if_none_match_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         44 => {
-            wire__crate__api__opendal_api__capability_write_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__capability__capability_write_impl(port, ptr, rust_vec_len, data_len)
         }
-        45 => wire__crate__api__opendal_api__capability_write_can_append_impl(
+        45 => wire__crate__api__capability__capability_write_can_append_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__opendal_api__capability_write_can_empty_impl(
+        46 => wire__crate__api__capability__capability_write_can_empty_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__opendal_api__capability_write_can_multi_impl(
+        47 => wire__crate__api__capability__capability_write_can_multi_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__crate__api__opendal_api__capability_write_multi_max_size_impl(
+        48 => wire__crate__api__capability__capability_write_multi_max_size_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__opendal_api__capability_write_multi_min_size_impl(
+        49 => wire__crate__api__capability__capability_write_multi_min_size_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__opendal_api__capability_write_total_max_size_impl(
+        50 => wire__crate__api__capability__capability_write_total_max_size_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__opendal_api__capability_write_with_cache_control_impl(
+        51 => wire__crate__api__capability__capability_write_with_cache_control_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__opendal_api__capability_write_with_content_disposition_impl(
+        52 => wire__crate__api__capability__capability_write_with_content_disposition_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__opendal_api__capability_write_with_content_type_impl(
+        53 => wire__crate__api__capability__capability_write_with_content_type_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2694,19 +2678,19 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Operator>> for Operator {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::opendal_api::Capability {
+impl flutter_rust_bridge::IntoDart for crate::api::capability::Capability {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.0.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::opendal_api::Capability
+    for crate::api::capability::Capability
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::opendal_api::Capability>
-    for crate::api::opendal_api::Capability
+impl flutter_rust_bridge::IntoIntoDart<crate::api::capability::Capability>
+    for crate::api::capability::Capability
 {
-    fn into_into_dart(self) -> crate::api::opendal_api::Capability {
+    fn into_into_dart(self) -> crate::api::capability::Capability {
         self
     }
 }
@@ -2768,10 +2752,10 @@ impl SseEncode for bool {
     }
 }
 
-impl SseEncode for crate::api::opendal_api::Capability {
+impl SseEncode for crate::api::capability::Capability {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::opendal_api::Capability>::sse_encode(self.0, serializer);
+        <crate::api::capability::Capability>::sse_encode(self.0, serializer);
     }
 }
 

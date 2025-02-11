@@ -1,52 +1,44 @@
 import 'package:test/test.dart';
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/opendal_api.dart';
+import 'opendal.dart';
 
 void main() {
   group('opendal unit test', () {
     group('opendal fs schema', () {
-      test('operator function in fs schema', () async {
+      setUpAll(() async {
         await RustLib.init();
-        final op = new Operator(
-          schemeStr: "fs",
-          map: {"root": "/tmp"},
-        );
-        expect(op, isNotNull);
+        File.initOperator(schemeStr: "fs", map: {"root": "/tmp"});
+      });
+      test('File and Directory functions in fs schema', () async {
+        var testFile = File("test_1.txt");
+        expect(await testFile.exists(), false);
 
-        await op.createDir(path: "test_dir/");
-        expect(await op.isExist(path: "test_dir/"), true);
+        var anotherFile = File("test.txt");
+        expect(await anotherFile.exists(), false);
 
-        expect(await op.isExist(path: "test_1.txt"), false);
-        expect(await op.isExist(path: "test.txt"), false);
+
+        var testDir = Directory("test_dir/");
+        await testDir.create();
+        expect(await testDir.exists(), true);
       });
     });
 
     group('opendal memory schema', () {
-      test('operator function in memory schema', () async {
-        final op = new Operator(
-          schemeStr: "memory",
-          map: {"root": "/tmp"},
-        );
-        expect(op, isNotNull);
+      setUpAll(() async {
+        Directory.initOperator(schemeStr: "memory", map: {"root": "/tmp"});
       });
 
-      test('meta function in memory schema', () async {
-        final op = new Operator(
-          schemeStr: "memory",
-          map: {"root": "/tmp"},
-        );
-        expect(op, isNotNull);
+      test('File and Directory functions in memory schema', () async {
+        var testDir = Directory("test/");
+        await testDir.create();
+        expect(await testDir.exists(), isTrue); // Directory exists after creation
 
-        await op.createDir(path: "test/");
 
-        final meta = await op.stat(path: "test/");
+        final meta = await testDir.stat();
         expect(meta, isNotNull);
-
-        final isFile = meta.isFile;
-        expect(isFile, false);
-
-        final isDir = meta.isDirectory;
-        expect(isDir, true);
+        expect(meta.isFile, false);
+        expect(meta.isDirectory, true);
       });
     });
   });

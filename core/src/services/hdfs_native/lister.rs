@@ -21,21 +21,46 @@ use crate::raw::oio;
 use crate::Result;
 
 pub struct HdfsNativeLister {
-    entries: VecDeque<oio::Entry>,
+    root: String,
+    stream: BoxStream<'static, Result<FileStatus>>,
+    current_path: Option<String>,
 }
 
 impl HdfsNativeLister {
-    pub fn new(entries: VecDeque<oio::Entry>) -> Self {
-        HdfsNativeLister { entries }
+    pub fn new(root: &str, stream: BoxStream<'static, Result<FileStatus>>, path: &str) -> Self {
+        HdfsNativeLister {
+            root: root.to_string(),
+            stream,
+            current_path: Some(path.to_string()),
+        }
     }
 }
 
 impl oio::List for HdfsNativeLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if let Some(entry) = self.entries.pop_front() {
-            return Ok(Some(entry));
+        if let Some(path) = self.current_path.take() {
+            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
         }
 
-        Ok(None)
+        let status: FileStatus = match self.stream.next().await.map_err(parse_hdfs_error)? {
+            Some(status) => status,
+            None => return Ok(None),
+        };
+
+        let path = build_rel_path(&self.root, status.path());
+
+        let entry = if status.isdir {
+            // Make sure we are returning the correct path.
+            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
+        } else {
+            let meta = Metadata::new(EntryMode::FILE)
+                .with_content_length(status.length as u64)
+                .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                    status.modification_time as i64,
+                )?);
+            oio::Entry::new(&path, meta)
+        };
+
+        Ok(Some(entry))
     }
 }

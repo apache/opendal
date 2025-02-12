@@ -26,51 +26,18 @@ use crate::*;
 
 pub struct HdfsNativeReader {
     f: FileReader,
-    read: usize,
     size: usize,
-    buf_size: usize,
-    buf: BytesMut,
 }
 
 impl HdfsNativeReader {
-    pub fn new(f: FileReader) -> Self {
-        HdfsNativeReader {
-            f,
-            read: 0,
-            size: 0,
-            buf_size: 0,
-            buf: BytesMut::new(),
-        }
+    pub fn new(f: FileReader, size: usize) -> Self {
+        HdfsNativeReader { f, size }
     }
 }
 
 impl oio::Read for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
-        if self.read >= self.size {
-            return Ok(Buffer::new());
-        }
-
-        let size = (self.size - self.read).min(self.buf_size);
-        self.buf.reserve(size);
-
-        let buf = &mut self.buf.spare_capacity_mut()[..size];
-        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
-
-        // SAFETY: Read at most `limit` bytes into `read_buf`.
-        unsafe {
-            read_buf.assume_init(size);
-        }
-
-        let len = read_buf.initialize_unfilled().len();
-        let bytes: Bytes = self.f.read(len).await.map_err(parse_hdfs_error)?;
-        read_buf.put_slice(&bytes);
-        self.read += bytes.len();
-
-        // Safety: We make sure that bs contains `n` more bytes.
-        let filled = read_buf.filled().len();
-        unsafe { self.buf.set_len(filled) }
-
-        let frozen = self.buf.split().freeze();
-        Ok(Buffer::from(frozen))
+        let bytes: Bytes = self.f.read(self.size).await.map_err(parse_hdfs_error)?;
+        Ok(Buffer::from(bytes))
     }
 }

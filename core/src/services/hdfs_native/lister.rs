@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-
+use crate::raw::build_rel_path;
 use crate::raw::oio;
+use crate::raw::parse_datetime_from_from_timestamp_millis;
+use crate::services::hdfs_native::error::parse_hdfs_error;
+use crate::Metadata;
 use crate::Result;
+
+use futures::stream::BoxStream;
+use hdfs_native::client::FileStatus;
 
 pub struct HdfsNativeLister {
     root: String,

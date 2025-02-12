@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
+use futures::stream::BoxStream;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use hdfs_native::client::FileStatus;
 use hdfs_native::WriteOptions;
 use log::debug;
 
@@ -208,7 +209,7 @@ impl Access for HdfsNativeBackend {
         Ok(RpStat::new(metadata))
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
@@ -241,7 +242,7 @@ impl Access for HdfsNativeBackend {
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        let iter = self.client.list_status_iter(path, recursive);
+        let iter = self.client.list_status_iter(path, true);
         let stream: BoxStream<'static, Result<FileStatus>> = iter.into_stream();
 
         Ok((

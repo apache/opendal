@@ -16,9 +16,7 @@
 // under the License.
 
 use bytes::Bytes;
-use bytes::BytesMut;
 use hdfs_native::file::FileReader;
-use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;

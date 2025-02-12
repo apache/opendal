@@ -15,23 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use hdfs_native::file::FileReader;
 
 use crate::raw::*;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 
 pub struct HdfsNativeReader {
-    _f: FileReader,
+    f: FileReader,
+    size: usize,
 }
 
 impl HdfsNativeReader {
-    pub fn new(f: FileReader) -> Self {
-        HdfsNativeReader { _f: f }
+    pub fn new(f: FileReader, size: usize) -> Self {
+        HdfsNativeReader { f, size }
     }
 }
 
 impl oio::Read for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
-        todo!()
+        let bytes: Bytes = self.f.read(self.size).await.map_err(parse_hdfs_error)?;
+        Ok(Buffer::from(bytes))
     }
 }

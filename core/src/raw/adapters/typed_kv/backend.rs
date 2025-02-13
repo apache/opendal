@@ -291,7 +291,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let value = match &self.value {
             Some(value) => value.clone(),
             None => {
@@ -300,8 +300,10 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
                 value
             }
         };
+        let meta = value.metadata.clone();
         self.kv.set(&self.path, value).await?;
-        Ok(())
+
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -318,7 +320,7 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
         Ok(())
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         let kv = self.kv.clone();
         let value = match &self.value {
             Some(value) => value.clone(),
@@ -329,8 +331,9 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
             }
         };
 
+        let meta = value.metadata.clone();
         kv.blocking_set(&self.path, value)?;
-        Ok(())
+        Ok(meta)
     }
 }
 

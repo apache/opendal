@@ -30,11 +30,17 @@ use crate::*;
 pub struct CompfsWriter {
     core: Arc<CompfsCore>,
     file: Cursor<File>,
+
+    write_bytes_count: u64,
 }
 
 impl CompfsWriter {
     pub(super) fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
-        Self { core, file }
+        Self {
+            core,
+            file,
+            write_bytes_count: 0,
+        }
     }
 }
 
@@ -45,6 +51,8 @@ impl oio::Write for CompfsWriter {
     ///
     /// The IoBuf::buf_len() only returns the length of the current buffer.
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.write_bytes_count += bs.len() as u64;
+
         let mut file = self.file.clone();
 
         self.core
@@ -57,7 +65,7 @@ impl oio::Write for CompfsWriter {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let f = self.file.clone();
 
         self.core
@@ -67,7 +75,9 @@ impl oio::Write for CompfsWriter {
         let f = self.file.clone();
         self.core
             .exec(move || async move { f.into_inner().close().await })
-            .await
+            .await?;
+
+        Ok(Metadata::default().with_content_length(self.write_bytes_count))
     }
 
     async fn abort(&mut self) -> Result<()> {

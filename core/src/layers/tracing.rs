@@ -59,11 +59,11 @@ use crate::*;
 ///
 /// # fn main() -> Result<()> {
 /// use opentelemetry::trace::TracerProvider;
-/// let tracer_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+/// let tracer_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
 ///     .with_simple_exporter(opentelemetry_otlp::SpanExporter::builder().with_tonic().build()?)
-///     .with_resource(Resource::new(vec![
+///     .with_resource(Resource::builder().with_attributes(vec![
 ///         KeyValue::new("service.name", "opendal_example"),
-///     ]))
+///     ]).build())
 ///     .build();
 /// let tracer = tracer_provider.tracer("opendal_tracer");
 /// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -95,7 +95,7 @@ use crate::*;
 /// // Shut down the current tracer provider.
 /// // This will invoke the shutdown method on all span processors.
 /// // span processors should export remaining spans before return.
-/// opentelemetry::global::shutdown_tracer_provider();
+/// tracer_provider.shutdown()?;
 ///
 /// Ok(())
 /// # }

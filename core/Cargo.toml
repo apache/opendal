@@ -401,7 +401,7 @@ libtest-mimic = "0.8"
 opentelemetry = { version = "0.28", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-otlp = "0.28"
+opentelemetry-otlp = { version = "0.28", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"

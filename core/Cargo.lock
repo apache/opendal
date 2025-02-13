@@ -5472,6 +5472,8 @@ dependencies = [
  "prost 0.13.4",
  "reqwest",
  "thiserror 2.0.9",
+ "tokio",
+ "tonic 0.12.3",
  "tracing",
 ]
 

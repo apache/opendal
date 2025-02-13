@@ -21,13 +21,17 @@ use std::str::FromStr;
 use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
+use magnus::scan_args::get_kwargs;
+use magnus::scan_args::scan_args;
 use magnus::Error;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Ruby;
+use magnus::Value;
 
 use crate::capability::Capability;
 use crate::io::Io;
+use crate::lister::Lister;
 use crate::metadata::Metadata;
 use crate::*;
 
@@ -141,6 +145,42 @@ impl Operator {
         let operator = rb_self.0.clone();
         Ok(Io::new(&ruby, operator, path, mode)?)
     }
+
+    /// Lists the directory.
+    ///
+    /// @param limit [usize, nil] per-request max results
+    /// @param start_after [String, nil] the specified key to start listing from.
+    /// @param recursive [Boolean, nil] lists the directory recursively.
+    pub fn list(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Lister, Error> {
+        let args = scan_args::<(String,), (), (), (), _, ()>(args)?;
+        let (path,) = args.required;
+        let kwargs = get_kwargs::<_, (), (Option<usize>, Option<String>, Option<bool>), ()>(
+            args.keywords,
+            &[],
+            &["limit", "start_after", "recursive"],
+        )?;
+        let (limit, start_after, recursive) = kwargs.optional;
+
+        let mut builder = rb_self.0.clone().lister_with(&path);
+
+        if let Some(limit) = limit {
+            builder = builder.limit(limit);
+        }
+
+        if let Some(start_after) = start_after {
+            builder = builder.start_after(start_after.as_str());
+        }
+
+        if let Some(true) = recursive {
+            builder = builder.recursive(true);
+        }
+
+        let lister = builder
+            .call()
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
+
+        Ok(Lister::new(lister))
+    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -157,6 +197,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("remove_all", method!(Operator::remove_all, 1))?;
     class.define_method("copy", method!(Operator::copy, 2))?;
     class.define_method("open", method!(Operator::open, 2))?;
+    class.define_method("list", method!(Operator::list, -1))?;
 
     Ok(())
 }

@@ -52,7 +52,7 @@ jobs:
           go-version: stable
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: "v1.60"
+          version: "v1.64"
           working-directory: bindings/go
   matrix:
     needs: [ lint ]

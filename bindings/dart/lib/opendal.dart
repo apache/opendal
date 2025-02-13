@@ -1,113 +1,120 @@
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/opendal_api.dart';
 
-class OperatorManager {
-  static Operator? _operator;
-  
-  static void initOperator({required String schemeStr, required Map<String, String> map}) {
-    if (_operator == null) {
-      _operator = Operator(schemeStr: schemeStr, map: map);
-    } else {
-      print("Warning: Operator is already initialized.");
-    }
+class FileManager {
+  final Operator _operator;
+
+  FileManager._(this._operator);
+
+  static FileManager initOp(
+      {required String schemeStr, required Map<String, String> map}) {
+    return FileManager._(Operator(schemeStr: schemeStr, map: map));
   }
-  
-  static Operator get operator {
-    if (_operator == null) {
-      throw StateError('Operator has not been initialized. Call initOperator first.');
-    }
-    return _operator!;
+
+  File call(String path) {
+    return File._(path: path, operator: _operator);
+  }
+}
+
+class DirectoryManager {
+  final Operator _operator;
+
+  DirectoryManager._(this._operator);
+
+  static DirectoryManager initOp(
+      {required String schemeStr, required Map<String, String> map}) {
+    return DirectoryManager._(Operator(schemeStr: schemeStr, map: map));
+  }
+
+  Directory call(String path) {
+    return Directory._(path: path, operator: _operator);
   }
 }
 
 class File {
   final String path;
+  final Operator _operator;
 
-  File(this.path);
-
-  static void initOperator({required String schemeStr, required Map<String, String> map}) {
-    OperatorManager.initOperator(schemeStr: schemeStr, map: map);
-  }
+  File._({required this.path, required Operator operator})
+      : _operator = operator;
 
   Future<bool> exists() {
-    return OperatorManager.operator.isExist(path: path);
+    return _operator.isExist(path: path);
   }
 
   bool existsSync() {
-    return OperatorManager.operator.isExistSync(path: path);
+    return _operator.isExistSync(path: path);
   }
 
   Future<Metadata> stat() {
-    return OperatorManager.operator.stat(path: path);
+    return _operator.stat(path: path);
   }
 
   Metadata statSync() {
-    return OperatorManager.operator.statSync(path: path);
+    return _operator.statSync(path: path);
   }
 
   Future<void> delete() {
-    return OperatorManager.operator.delete(path: path);
+    return _operator.delete(path: path);
   }
 
   Future<void> rename(String newPath) {
-    return OperatorManager.operator.rename(from: path, to: newPath);
+    return _operator.rename(from: path, to: newPath);
   }
 
   void renameSync(String newPath) {
-    OperatorManager.operator.renameSync(from: path, to: newPath);
+    _operator.renameSync(from: path, to: newPath);
   }
 
   void deleteSync() {
-    OperatorManager.operator.deleteSync(path: path);
+    _operator.deleteSync(path: path);
   }
 }
 
 class Directory {
   final String path;
+  final Operator _operator;
 
-  Directory(this.path);
-
-  static void initOperator({required String schemeStr, required Map<String, String> map}) {
-    OperatorManager.initOperator(schemeStr: schemeStr, map: map);
-  }
+  Directory._({required this.path, required Operator operator})
+      : _operator = operator;
 
   Future<void> create() {
-    return OperatorManager.operator.createDir(path: path);
+    return _operator.createDir(path: path);
   }
 
   void createSync() {
-    OperatorManager.operator.createDirSync(path: path);
+    _operator.createDirSync(path: path);
   }
 
   Future<bool> exists() {
-    return OperatorManager.operator.isExist(path: path);
+    return _operator.isExist(path: path);
   }
 
   bool existsSync() {
-    return OperatorManager.operator.isExistSync(path: path);
+    return _operator.isExistSync(path: path);
   }
 
   Future<void> rename(String newPath) {
-    return OperatorManager.operator.rename(from: path, to: newPath);
+    return _operator.rename(from: path, to: newPath);
   }
 
   void renameSync(String newPath) {
-    OperatorManager.operator.renameSync(from: path, to: newPath);
+    _operator.renameSync(from: path, to: newPath);
   }
 
   Future<Metadata> stat() {
-    return OperatorManager.operator.stat(path: path);
+    return _operator.stat(path: path);
   }
 
   Metadata statSync() {
-    return OperatorManager.operator.statSync(path: path);
+    return _operator.statSync(path: path);
   }
 
   Future<void> delete() {
-    return OperatorManager.operator.delete(path: path);
+    return _operator.delete(path: path);
   }
 
   void deleteSync() {
-    OperatorManager.operator.deleteSync(path: path);
+    _operator.deleteSync(path: path);
   }
 }

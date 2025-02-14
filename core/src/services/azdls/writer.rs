@@ -40,7 +40,7 @@ impl AzdlsWriter {
 }
 
 impl oio::OneShotWrite for AzdlsWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let mut req =
             self.core
                 .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;
@@ -67,7 +67,7 @@ impl oio::OneShotWrite for AzdlsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
             _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
         }
     }
@@ -87,7 +87,7 @@ impl oio::AppendWrite for AzdlsWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         if offset == 0 {
             let mut req =
                 self.core
@@ -116,7 +116,7 @@ impl oio::AppendWrite for AzdlsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
             _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
         }
     }

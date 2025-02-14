@@ -122,6 +122,11 @@ impl Fixture {
         }
     }
 
+    /// Add a path.
+    pub fn add_path(&self, path: String) {
+        self.paths.lock().unwrap().push(path);
+    }
+
     /// Create a new dir path
     pub fn new_dir_path(&self) -> String {
         let path = format!("{}/", uuid::Uuid::new_v4());

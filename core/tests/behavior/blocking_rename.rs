@@ -40,14 +40,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Rename a file and test with stat.
 pub fn test_blocking_rename_file(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content.clone())?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
 
     op.rename(&source_path, &target_path)?;
+    TEST_FIXTURE.add_path(target_path.clone());
 
     let err = op.stat(&source_path).expect_err("stat must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
@@ -57,9 +57,6 @@ pub fn test_blocking_rename_file(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
-
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
@@ -99,9 +96,7 @@ pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
         return Ok(());
     }
 
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
-
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&source_path, source_content)?;
 
     let target_path = format!("{}/", uuid::Uuid::new_v4());
@@ -113,15 +108,12 @@ pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
         .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
 
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Rename a file to self should return an error.
 pub fn test_blocking_rename_self(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _size) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content)?;
 
@@ -129,16 +121,12 @@ pub fn test_blocking_rename_self(op: BlockingOperator) -> Result<()> {
         .rename(&source_path, &source_path)
         .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
-
-    op.delete(&source_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Rename to a nested path, parent path should be created successfully.
 pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
-
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&source_path, source_content.clone())?;
 
     let target_path = format!(
@@ -159,15 +147,12 @@ pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(&source_content)),
     );
 
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Rename to a exist path should overwrite successfully.
 pub fn test_blocking_rename_overwrite(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content.clone())?;
 
@@ -188,7 +173,5 @@ pub fn test_blocking_rename_overwrite(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(&source_content)),
     );
 
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }

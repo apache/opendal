@@ -37,17 +37,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Stat existing file should return metadata
 pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content).expect("write must succeed");
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
@@ -57,14 +53,12 @@ pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
         return Ok(());
     }
 
-    let path = format!("{}/", uuid::Uuid::new_v4());
+    let path = TEST_FIXTURE.new_dir_path();
 
     op.create_dir(&path).expect("write must succeed");
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
@@ -90,8 +84,6 @@ pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()>
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 

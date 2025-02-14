@@ -26,7 +26,6 @@ use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
-use http::header::USER_AGENT;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -34,7 +33,6 @@ use log::debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::delete::GhacDeleter;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
@@ -54,14 +52,6 @@ const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// This token will be valid for 6h and github action will running for 6
 /// hours at most. So we don't need to refetch it again.
 const ACTIONS_RUNTIME_TOKEN: &str = "ACTIONS_RUNTIME_TOKEN";
-/// The token provided by workflow;
-const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
-/// The github api url for ghac.
-const GITHUB_API_URL: &str = "GITHUB_API_URL";
-/// The repository that runs this action.
-const GITHUB_REPOSITORY: &str = "GITHUB_REPOSITORY";
-/// The github API version that used by OpenDAL.
-const GITHUB_API_VERSION: &str = "2022-11-28";
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -198,11 +188,6 @@ impl Builder for GhacBuilder {
                 .clone()
                 .unwrap_or_else(|| "opendal".to_string()),
 
-            api_url: env::var(GITHUB_API_URL)
-                .unwrap_or_else(|_| "https://api.github.com".to_string()),
-            api_token: env::var(GITHUB_TOKEN).unwrap_or_default(),
-            repo: env::var(GITHUB_REPOSITORY).unwrap_or_default(),
-
             client,
         };
 
@@ -220,10 +205,6 @@ pub struct GhacBackend {
     catch_token: String,
     version: String,
 
-    api_url: String,
-    pub api_token: String,
-    repo: String,
-
     pub client: HttpClient,
 }
 
@@ -231,7 +212,7 @@ impl Access for GhacBackend {
     type Reader = HttpBody;
     type Writer = GhacWriter;
     type Lister = ();
-    type Deleter = oio::OneShotDeleter<GhacDeleter>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
@@ -258,7 +239,6 @@ impl Access for GhacBackend {
 
                 write: true,
                 write_can_multi: true,
-                delete: true,
 
                 shared: true,
 
@@ -355,13 +335,6 @@ impl Access for GhacBackend {
         };
 
         Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(GhacDeleter::new(self.clone())),
-        ))
     }
 }
 
@@ -462,26 +435,6 @@ impl GhacBackend {
             .map_err(new_request_build_error)?;
 
         Ok(req)
-    }
-
-    pub async fn ghac_delete(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/repos/{}/actions/caches?key={}",
-            self.api_url,
-            self.repo,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::delete(&url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.api_token));
-        req = req.header(USER_AGENT, format!("opendal/{VERSION} (service ghac)"));
-        req = req.header("X-GitHub-Api-Version", GITHUB_API_VERSION);
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
     }
 }
 

@@ -179,7 +179,6 @@ pub struct S3Config {
     ///
     /// Available options:
     /// - "crc32c"
-    /// - "crc64nvme"
     pub checksum_algorithm: Option<String>,
     /// Disable write with if match so that opendal will not send write request with if match headers.
     ///

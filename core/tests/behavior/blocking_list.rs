@@ -43,7 +43,7 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (_, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
     op.write(&path, content).expect("write must succeed");
 
@@ -61,14 +61,12 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
         }
     }
     assert!(found, "file should be found in list");
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
 /// List non exist dir should return nothing.
 pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
-    let dir = format!("{}/", uuid::Uuid::new_v4());
+    let dir = TEST_FIXTURE.new_dir_path();
 
     let obs = op.lister(&dir)?;
     let mut objects = HashMap::new();
@@ -84,6 +82,10 @@ pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
+    if !op.info().full_capability().delete {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = [

@@ -49,16 +49,12 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Write a single file and test with stat.
 pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content)?;
 
     let meta = op.stat(&path).expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
@@ -95,14 +91,12 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 
     let meta = op.stat(&path).expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
 /// Test append to a file must success.
 pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let path = TEST_FIXTURE.new_file_path();
     let (content_one, size_one) = gen_bytes(op.info().full_capability());
     let (content_two, size_two) = gen_bytes(op.info().full_capability());
 
@@ -121,15 +115,12 @@ pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
     assert_eq!(bs[size_one..], content_two);
-
-    op.delete(&path).expect("delete file must success");
-
     Ok(())
 }
 
 /// Copy data from reader to writer
 pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let path = TEST_FIXTURE.new_file_path();
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
@@ -150,7 +141,5 @@ pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(content)),
         "read content"
     );
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }

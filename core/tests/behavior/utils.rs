@@ -122,6 +122,11 @@ impl Fixture {
         }
     }
 
+    /// Add a path.
+    pub fn add_path(&self, path: String) {
+        self.paths.lock().unwrap().push(path);
+    }
+
     /// Create a new dir path
     pub fn new_dir_path(&self) -> String {
         let path = format!("{}/", uuid::Uuid::new_v4());
@@ -186,6 +191,11 @@ impl Fixture {
     /// Perform cleanup
     pub async fn cleanup(&self, op: impl Into<Operator>) {
         let op = op.into();
+        // Don't cleanup data if delete is not supported
+        if !op.info().full_capability().delete {
+            return;
+        }
+
         let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
         // Don't call delete if paths is empty
         if paths.is_empty() {

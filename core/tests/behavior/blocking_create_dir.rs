@@ -37,14 +37,12 @@ pub fn test_blocking_create_dir(op: BlockingOperator) -> Result<()> {
         return Ok(());
     }
 
-    let path = format!("{}/", uuid::Uuid::new_v4());
+    let path = TEST_FIXTURE.new_dir_path();
 
     op.create_dir(&path)?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
@@ -54,15 +52,12 @@ pub fn test_blocking_create_dir_existing(op: BlockingOperator) -> Result<()> {
         return Ok(());
     }
 
-    let path = format!("{}/", uuid::Uuid::new_v4());
-
+    let path = TEST_FIXTURE.new_dir_path();
     op.create_dir(&path)?;
 
     op.create_dir(&path)?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }

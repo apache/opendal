@@ -16,7 +16,6 @@
 // under the License.
 
 use anyhow::Result;
-use log::debug;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -49,9 +48,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Read full content should match.
 pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content.clone())
         .expect("write must succeed");
@@ -64,15 +61,12 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
         "read content"
     );
 
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
     let (offset, length) = gen_offset_length(size);
 
     op.write(&path, content.clone())
@@ -92,8 +86,6 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
         ),
         "read content"
     );
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 

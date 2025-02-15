@@ -103,4 +103,10 @@ class OpenDalTest < ActiveSupport::TestCase
 
     io.close
   end
+
+  test "layer applies a layer" do
+    @op.layer(OpenDAL::RetryLayer.new)
+
+    assert @op.is_a?(OpenDAL::Operator)
+  end
 end

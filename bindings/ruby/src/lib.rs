@@ -26,6 +26,7 @@ pub use ::opendal as ocore;
 
 mod capability;
 mod io;
+mod layers;
 mod lister;
 mod metadata;
 mod operator;
@@ -45,6 +46,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let _ = io::include(&gem_module);
     let _ = lister::include(ruby, &gem_module);
     let _ = operator_info::include(&gem_module);
+    let _ = layers::include(&gem_module);
 
     Ok(())
 }

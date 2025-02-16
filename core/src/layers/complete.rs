@@ -15,15 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::Ordering;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
 use crate::raw::oio::FlatLister;
 use crate::raw::oio::PrefixLister;
 use crate::raw::*;
 use crate::*;
+use std::cmp::Ordering;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 /// Complete underlying services features so that users can use them in
 /// the same way.
@@ -488,11 +487,15 @@ impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
+    size: u64,
 }
 
 impl<W> CompleteWriter<W> {
     pub fn new(inner: W) -> CompleteWriter<W> {
-        CompleteWriter { inner: Some(inner) }
+        CompleteWriter {
+            inner: Some(inner),
+            size: 0,
+        }
     }
 }
 
@@ -516,7 +519,11 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.write(bs).await
+        let len = bs.len();
+        w.write(bs).await?;
+        self.size += len as u64;
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
@@ -526,7 +533,10 @@ where
 
         // we must return `Err` before setting inner to None; otherwise,
         // we won't be able to retry `close` in `RetryLayer`.
-        let ret = w.close().await?;
+        let mut ret = w.close().await?;
+        if ret.content_length() == 0 {
+            ret = ret.with_content_length(self.size);
+        }
         self.inner = None;
 
         Ok(ret)
@@ -553,7 +563,11 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.write(bs)
+        let len = bs.len();
+        w.write(bs)?;
+        self.size += len as u64;
+
+        Ok(())
     }
 
     fn close(&mut self) -> Result<Metadata> {
@@ -561,7 +575,10 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        let ret = w.close()?;
+        let mut ret = w.close()?;
+        if ret.content_length() == 0 {
+            ret = ret.with_content_length(self.size);
+        }
         self.inner = None;
 
         Ok(ret)

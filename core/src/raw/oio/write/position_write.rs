@@ -66,7 +66,7 @@ struct WriteInput<W: PositionWrite> {
     bytes: Buffer,
 }
 
-/// PositionWriter will implements [`oio::Write`] based on position write.
+/// PositionWriter will implement [`oio::Write`] based on position write.
 pub struct PositionWriter<W: PositionWrite> {
     w: Arc<W>,
     executor: Executor,

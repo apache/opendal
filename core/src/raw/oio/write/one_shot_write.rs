@@ -64,16 +64,10 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let mut length = 0;
-        let meta = match self.buffer.clone() {
-            Some(bs) => {
-                length = bs.len();
-                self.inner.write_once(bs).await
-            }
+        match self.buffer.clone() {
+            Some(bs) => self.inner.write_once(bs).await,
             None => self.inner.write_once(Buffer::new()).await,
-        }?;
-
-        Ok(meta.with_content_length(length as u64))
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

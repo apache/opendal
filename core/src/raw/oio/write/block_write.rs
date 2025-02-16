@@ -100,7 +100,7 @@ struct WriteInput<W: BlockWrite> {
     bytes: Buffer,
 }
 
-/// BlockWriter will implements [`oio::Write`] based on block
+/// BlockWriter will implement [`oio::Write`] based on block
 /// uploads.
 pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,
@@ -110,8 +110,6 @@ pub struct BlockWriter<W: BlockWrite> {
     block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
-
-    write_bytes_count: u64,
 }
 
 impl<W: BlockWrite> BlockWriter<W> {
@@ -158,7 +156,6 @@ impl<W: BlockWrite> BlockWriter<W> {
                     }
                 })
             }),
-            write_bytes_count: 0,
         }
     }
 
@@ -175,8 +172,6 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.write_bytes_count += bs.len() as u64;
-
         if !self.started && self.cache.is_none() {
             self.fill_cache(bs);
             return Ok(());
@@ -208,7 +203,7 @@ where
 
             self.cache = None;
             let meta = self.w.write_once(size as u64, body).await?;
-            return Ok(meta.with_content_length(self.write_bytes_count));
+            return Ok(meta);
         }
 
         if let Some(cache) = self.cache.clone() {
@@ -232,7 +227,7 @@ where
 
         let block_ids = self.block_ids.clone();
         let meta = self.w.complete_block(block_ids).await?;
-        Ok(meta.with_content_length(self.write_bytes_count))
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {

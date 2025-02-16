@@ -128,7 +128,7 @@ struct WriteInput<W: MultipartWrite> {
     bytes: Buffer,
 }
 
-/// MultipartWriter will implements [`oio::Write`] based on multipart
+/// MultipartWriter will implement [`oio::Write`] based on multipart
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
     w: Arc<W>,
@@ -140,8 +140,6 @@ pub struct MultipartWriter<W: MultipartWrite> {
     next_part_number: usize,
 
     tasks: ConcurrentTasks<WriteInput<W>, MultipartPart>,
-
-    write_bytes_count: u64,
 }
 
 /// # Safety
@@ -193,7 +191,6 @@ impl<W: MultipartWrite> MultipartWriter<W> {
                     }
                 })
             }),
-            write_bytes_count: 0,
         }
     }
 
@@ -210,7 +207,6 @@ where
     W: MultipartWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.write_bytes_count += bs.len() as u64;
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
@@ -256,9 +252,7 @@ where
 
                 self.cache = None;
                 // Call write_once if there is no upload_id.
-                let mut meta = self.w.write_once(size as u64, body).await?;
-                meta.set_content_length(self.write_bytes_count);
-                return Ok(meta);
+                return self.w.write_once(size as u64, body).await;
             }
         };
 
@@ -294,9 +288,7 @@ where
             .with_context("actual", self.parts.len())
             .with_context("upload_id", upload_id));
         }
-        let mut meta = self.w.complete_part(&upload_id, &self.parts).await?;
-        meta.set_content_length(self.write_bytes_count);
-        Ok(meta)
+        self.w.complete_part(&upload_id, &self.parts).await
     }
 
     async fn abort(&mut self) -> Result<()> {

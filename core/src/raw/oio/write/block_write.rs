@@ -202,8 +202,7 @@ where
             };
 
             self.cache = None;
-            let meta = self.w.write_once(size as u64, body).await?;
-            return Ok(meta);
+            return self.w.write_once(size as u64, body).await;
         }
 
         if let Some(cache) = self.cache.clone() {
@@ -226,8 +225,7 @@ where
         }
 
         let block_ids = self.block_ids.clone();
-        let meta = self.w.complete_block(block_ids).await?;
-        Ok(meta)
+        self.w.complete_block(block_ids).await
     }
 
     async fn abort(&mut self) -> Result<()> {

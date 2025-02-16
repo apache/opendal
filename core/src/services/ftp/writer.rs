@@ -30,7 +30,6 @@ pub struct FtpWriter {
     tmp_path: Option<String>,
     ftp_stream: PooledConnection<'static, Manager>,
     data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
-    write_bytes_count: u64,
 }
 
 /// # Safety
@@ -54,15 +53,12 @@ impl FtpWriter {
             tmp_path,
             ftp_stream,
             data_stream: None,
-            write_bytes_count: 0,
         }
     }
 }
 
 impl oio::Write for FtpWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        self.write_bytes_count += bs.len() as u64;
-
         let path = if let Some(tmp_path) = &self.tmp_path {
             tmp_path
         } else {
@@ -114,7 +110,7 @@ impl oio::Write for FtpWriter {
             }
         }
 
-        Ok(Metadata::default().with_content_length(self.write_bytes_count))
+        Ok(Metadata::default())
     }
 
     async fn abort(&mut self) -> Result<()> {

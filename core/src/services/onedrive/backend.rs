@@ -61,6 +61,9 @@ impl OnedriveBackend {
                         delete: true,
                         create_dir: true,
                         list: true,
+                        list_has_content_length: true,
+                        list_has_etag: true,
+                        list_has_last_modified: true,
                         shared: true,
                         ..Default::default()
                     });

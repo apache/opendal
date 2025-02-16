@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use hdfs_native::file::FileWriter;
 
 use crate::raw::*;
@@ -34,11 +35,14 @@ impl HdfsNativeWriter {
 
 impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        for chunk in &bs {
-            let n = self.f.write(chunk).await.map_err(parse_hdfs_error)?;
+        while bs.has_remaining() {
+            let n = self
+                .f
+                .write(Bytes::copy_from_slice(bs.chunk()))
+                .await
+                .map_err(parse_hdfs_error)?;
             bs.advance(n);
         }
-
         Ok(())
     }
 

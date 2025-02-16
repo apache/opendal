@@ -27,14 +27,21 @@ use futures::stream::BoxStream;
 use futures::stream::StreamExt;
 use hdfs_native::client::FileStatus;
 
+
 pub struct HdfsNativeLister {
     root: String,
     stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
     current_path: Option<String>,
 }
 
+unsafe impl Sync for HdfsNativeLister {}
+
 impl HdfsNativeLister {
-    pub fn new(root: &str, stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>, path: &str) -> Self {
+    pub fn new(
+        root: &str,
+        stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
+        path: &str,
+    ) -> Self {
         HdfsNativeLister {
             root: root.to_string(),
             stream,

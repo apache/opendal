@@ -27,7 +27,6 @@ use futures::stream::BoxStream;
 use futures::stream::StreamExt;
 use hdfs_native::client::FileStatus;
 
-
 pub struct HdfsNativeLister {
     root: String,
     stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,

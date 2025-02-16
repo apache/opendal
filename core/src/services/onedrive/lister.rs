@@ -17,6 +17,8 @@
 
 use bytes::Buf;
 
+use chrono::Utc;
+
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;
@@ -96,19 +98,36 @@ impl oio::PageList for OnedriveLister {
                 .unwrap_or("");
 
             let path = format!("{}/{}", parent_path, name);
-
-            let normalized_path = build_rel_path(&self.root, &path);
-
-            let entry: oio::Entry = match drive_item.item_type {
-                ItemType::Folder { .. } => {
-                    let normalized_path = format!("{}/", normalized_path);
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
-                }
-                ItemType::File { .. } => {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::FILE))
-                }
+            let mut normalized_path = build_rel_path(&self.root, &path);
+            let entry_mode = match drive_item.item_type {
+                ItemType::Folder { .. } => EntryMode::DIR,
+                ItemType::File { .. } => EntryMode::FILE,
             };
 
+            // OneDrive returns the folder without the trailing `/`
+            if entry_mode == EntryMode::DIR {
+                normalized_path.push('/');
+            }
+
+            let mut meta = Metadata::new(entry_mode)
+                .with_last_modified(
+                    drive_item
+                        .last_modified_date_time
+                        .parse::<chrono::DateTime<Utc>>()
+                        .map_err(|e| {
+                            Error::new(ErrorKind::Unexpected, "parse last modified time")
+                                .set_source(e)
+                        })?,
+                )
+                .with_etag(drive_item.e_tag);
+            let content_length = if drive_item.size < 0 {
+                0
+            } else {
+                drive_item.size as u64
+            };
+            meta.set_content_length(content_length);
+
+            let entry = oio::Entry::new(&normalized_path, meta);
             ctx.entries.push_back(entry)
         }
 

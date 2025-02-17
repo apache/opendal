@@ -147,7 +147,10 @@ impl GhacCore {
                         return Err(Error::new(
                             ErrorKind::NotFound,
                             "GetCacheEntryDownloadURL returns non-ok, the key doesn't exist",
-                        ));
+                        )
+                        // we allow users to retry this since ghac is not consistent anymore.
+                        // read after write could fail.
+                        .set_temporary());
                     }
                     query_resp.signed_download_url
                 } else {

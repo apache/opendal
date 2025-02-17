@@ -117,7 +117,7 @@ impl Builder for HdfsNativeBuilder {
         Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),
-            _enable_append: self.config.enable_append,
+            enable_append: self.config.enable_append,
         })
     }
 }
@@ -135,7 +135,7 @@ impl Builder for HdfsNativeBuilder {
 pub struct HdfsNativeBackend {
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
-    _enable_append: bool,
+    enable_append: bool,
 }
 
 /// hdfs_native::Client is thread-safe.
@@ -164,6 +164,7 @@ impl Access for HdfsNativeBackend {
                 read: true,
 
                 write: true,
+                write_can_append: self.enable_append,
 
                 delete: true,
 

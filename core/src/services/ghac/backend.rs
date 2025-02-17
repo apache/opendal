@@ -30,6 +30,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use sha2::Digest;
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -145,6 +146,18 @@ impl Builder for GhacBuilder {
         let service_version = get_cache_service_version();
         debug!("backend use service version {:?}", service_version);
 
+        let mut version = self
+            .config
+            .version
+            .clone()
+            .unwrap_or_else(|| "opendal".to_string());
+        debug!("backend use version {version}");
+        // ghac requires to use hex digest of Sha256 as version.
+        if matches!(service_version, GhacVersion::V2) {
+            let hash = sha2::Sha256::digest(&version);
+            version = format!("{:x}", hash);
+        }
+
         let cache_url = self
             .config
             .endpoint
@@ -174,11 +187,7 @@ impl Builder for GhacBuilder {
                 ACTIONS_RUNTIME_TOKEN,
                 "Builder::build",
             )?,
-            version: self
-                .config
-                .version
-                .clone()
-                .unwrap_or_else(|| "opendal".to_string()),
+            version,
 
             service_version,
             http_client,
@@ -297,7 +306,7 @@ impl Access for GhacBackend {
 
         Ok((
             RpWrite::default(),
-            GhacWriter::new(self.core.clone(), path.to_string(), url),
+            GhacWriter::new(self.core.clone(), path.to_string(), url)?,
         ))
     }
 }

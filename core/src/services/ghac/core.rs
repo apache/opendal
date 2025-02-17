@@ -143,10 +143,17 @@ impl GhacCore {
                     let slc = resp.into_body();
                     let query_resp = ghac_types::GetCacheEntryDownloadUrlResponse::decode(slc)
                         .map_err(new_prost_decode_error)?;
+                    if !query_resp.ok {
+                        return Err(Error::new(
+                            ErrorKind::NotFound,
+                            "GetCacheEntryDownloadURL returns non-ok, the key doesn't exist",
+                        ));
+                    }
                     query_resp.signed_download_url
                 } else {
                     return Err(parse_error(resp));
                 };
+
                 Ok(location)
             }
         }
@@ -195,7 +202,6 @@ impl GhacCore {
                 let req = ghac_types::CreateCacheEntryRequest {
                     key: p,
                     version: self.version.clone(),
-
                     metadata: None,
                 };
 
@@ -209,9 +215,16 @@ impl GhacCore {
                     .map_err(new_request_build_error)?;
                 let resp = self.http_client.send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
-                    let slc = resp.into_body();
+                    let (parts, slc) = resp.into_parts();
                     let query_resp = ghac_types::CreateCacheEntryResponse::decode(slc)
                         .map_err(new_prost_decode_error)?;
+                    if !query_resp.ok {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "create cache entry returns non-ok",
+                        )
+                        .with_context("parts", format!("{:?}", parts)));
+                    }
                     query_resp.signed_upload_url
                 } else {
                     return Err(parse_error(resp));

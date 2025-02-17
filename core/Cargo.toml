@@ -148,7 +148,7 @@ services-gcs = [
   "reqsign?/reqwest_request",
 ]
 services-gdrive = ["internal-path-cache"]
-services-ghac = ["dep:ghac"]
+services-ghac = ["dep:ghac", "dep:prost"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]

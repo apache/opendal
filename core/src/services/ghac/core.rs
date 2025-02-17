@@ -144,13 +144,21 @@ impl GhacCore {
                     let query_resp = ghac_types::GetCacheEntryDownloadUrlResponse::decode(slc)
                         .map_err(new_prost_decode_error)?;
                     if !query_resp.ok {
-                        return Err(Error::new(
+                        let mut err = Error::new(
                             ErrorKind::NotFound,
                             "GetCacheEntryDownloadURL returns non-ok, the key doesn't exist",
-                        )
-                        // we allow users to retry this since ghac is not consistent anymore.
-                        // read after write could fail.
-                        .set_temporary());
+                        );
+
+                        // GHAC is a cache service, so it's acceptable for it to occasionally not contain
+                        // data that users have just written. However, we don't want users to always have
+                        // to retry reading it, nor do we want our CI to fail constantly.
+                        //
+                        // Here's the trick: we check if the environment variable `OPENDAL_TEST` is set to `ghac`.
+                        // If it is, we mark the error as temporary to allow retries in the test CI.
+                        if env::var("OPENDAL_TEST") == Ok("ghac".to_string()) {
+                            err = err.set_temporary();
+                        }
+                        return Err(err);
                     }
                     query_resp.signed_download_url
                 } else {

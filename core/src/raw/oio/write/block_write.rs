@@ -201,8 +201,9 @@ where
                 None => (0, Buffer::new()),
             };
 
+            let meta = self.w.write_once(size as u64, body).await?;
             self.cache = None;
-            return self.w.write_once(size as u64, body).await;
+            return Ok(meta);
         }
 
         if let Some(cache) = self.cache.clone() {

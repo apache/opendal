@@ -250,9 +250,11 @@ where
                     None => (0, Buffer::new()),
                 };
 
-                self.cache = None;
                 // Call write_once if there is no upload_id.
-                return self.w.write_once(size as u64, body).await;
+                let meta = self.w.write_once(size as u64, body).await?;
+                // make sure to clear the cache only after write_once succeeds; otherwise, retries may fail.
+                self.cache = None;
+                return Ok(meta);
             }
         };
 

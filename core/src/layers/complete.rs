@@ -368,7 +368,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let (rp, w) = self.inner.write(path, args.clone()).await?;
-        let w = CompleteWriter::new(w);
+        let w = CompleteWriter::new(w, args.append());
         Ok((rp, w))
     }
 
@@ -400,9 +400,10 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let append = args.append();
         self.inner
             .blocking_write(path, args)
-            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
+            .map(|(rp, w)| (rp, CompleteWriter::new(w, append)))
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -487,14 +488,36 @@ impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
+    append: bool,
     size: u64,
 }
 
 impl<W> CompleteWriter<W> {
-    pub fn new(inner: W) -> CompleteWriter<W> {
+    pub fn new(inner: W, append: bool) -> CompleteWriter<W> {
         CompleteWriter {
             inner: Some(inner),
+            append,
             size: 0,
+        }
+    }
+
+    fn check(&self, content_length: u64) -> Result<()> {
+        if self.append || content_length == 0 {
+            return Ok(());
+        }
+
+        match self.size.cmp(&content_length) {
+            Ordering::Equal => Ok(()),
+            Ordering::Less => Err(
+                Error::new(ErrorKind::Unexpected, "writer got too little data")
+                    .with_context("expect", content_length)
+                    .with_context("actual", self.size),
+            ),
+            Ordering::Greater => Err(
+                Error::new(ErrorKind::Unexpected, "writer got too much data")
+                    .with_context("expect", content_length)
+                    .with_context("actual", self.size),
+            ),
         }
     }
 }
@@ -534,6 +557,7 @@ where
         // we must return `Err` before setting inner to None; otherwise,
         // we won't be able to retry `close` in `RetryLayer`.
         let mut ret = w.close().await?;
+        self.check(ret.content_length())?;
         if ret.content_length() == 0 {
             ret = ret.with_content_length(self.size);
         }
@@ -576,6 +600,7 @@ where
         })?;
 
         let mut ret = w.close()?;
+        self.check(ret.content_length())?;
         if ret.content_length() == 0 {
             ret = ret.with_content_length(self.size);
         }

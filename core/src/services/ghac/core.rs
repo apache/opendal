@@ -34,7 +34,7 @@ use std::str::FromStr;
 /// The base url for cache url.
 pub const CACHE_URL_BASE: &str = "_apis/artifactcache";
 /// The base url for cache service v2.
-pub const CACHE_URL_BASE_V2: &str = "/twirp/github.actions.results.api.v1.CacheService";
+pub const CACHE_URL_BASE_V2: &str = "twirp/github.actions.results.api.v1.CacheService";
 /// Cache API requires to provide an accept header.
 pub const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
 /// The cache url env for ghac.

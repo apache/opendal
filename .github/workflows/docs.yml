@@ -163,6 +163,35 @@ jobs:
           name: python-docs
           path: ./bindings/python/docs
 
+  build-ruby-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: bindings/ruby
+          bundler-cache: true
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        # yard-rustdoc depends on a particular rust doc JSON format
+        run: |
+          rustup toolchain install nightly-2024-08-19
+
+      - name: Build Docs
+        working-directory: bindings/ruby
+        run: bundle exec rake doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./bindings/ruby/doc
+
   build-c-doc:
     runs-on: ubuntu-latest
 
@@ -491,6 +520,7 @@ jobs:
       - build-java-doc
       - build-nodejs-doc
       - build-python-doc
+      - build-ruby-doc
       - build-c-doc
       - build-lua-doc
       - build-haskell-doc
@@ -540,6 +570,12 @@ jobs:
         with:
           name: python-docs
           path: ./website/static/docs/python
+
+      - name: Download ruby docs
+        uses: actions/download-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./website/static/docs/ruby
 
       - name: Download java docs
         uses: actions/download-artifact@v4

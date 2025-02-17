@@ -16,15 +16,19 @@
 // under the License.
 
 use crate::raw::{
-    build_abs_path, new_json_serialize_error, new_request_build_error, percent_encode_path,
-    BytesContentRange, BytesRange, HttpClient,
+    build_abs_path, new_json_deserialize_error, new_json_serialize_error, new_request_build_error,
+    percent_encode_path, HttpClient,
 };
-use crate::Buffer;
-use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
-use http::{header, Request};
+use crate::services::ghac::error::{parse_error, parse_grpc_error};
+use crate::*;
+use ::ghac::v1 as ghac_grpc;
+use bytes::{Buf, Bytes};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use http::{Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
+use tonic::transport::Channel;
+use tonic::IntoRequest;
 
 /// The base url for cache url.
 pub const CACHE_URL_BASE: &str = "_apis/artifactcache";
@@ -50,7 +54,9 @@ pub struct GhacCore {
     pub catch_token: String,
     pub version: String,
 
-    pub client: HttpClient,
+    pub http_client: HttpClient,
+
+    pub grpc_client: Option<ghac_grpc::cache_service_client::CacheServiceClient<Channel>>,
 }
 
 impl Debug for GhacCore {
@@ -64,106 +70,149 @@ impl Debug for GhacCore {
 }
 
 impl GhacCore {
-    pub fn ghac_query(&self, path: &str) -> crate::Result<Request<Buffer>> {
+    pub async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
-            self.cache_url,
-            percent_encode_path(&p),
-            self.version
-        );
+        if let Some(grpc_client) = &self.grpc_client {
+            let req = ghac_grpc::GetCacheEntryDownloadUrlRequest {
+                key: p,
+                version: self.version.clone(),
 
-        let mut req = Request::get(&url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+                metadata: None,
+                restore_keys: vec![],
+            };
+            let mut req = req.into_request();
+            req.metadata_mut().insert(
+                AUTHORIZATION.as_str(),
+                format!("Bearer {}", self.catch_token).parse().unwrap(),
+            );
+            let resp = grpc_client
+                .clone()
+                .get_cache_entry_download_url(req)
+                .await
+                .map_err(parse_grpc_error)?;
+            Ok(resp.into_inner().signed_download_url)
+        } else {
+            let url = format!(
+                "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
+                self.cache_url,
+                percent_encode_path(&p),
+                self.version
+            );
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+            let mut req = Request::get(&url);
+            req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+            req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
-        Ok(req)
-    }
-
-    pub fn ghac_get_location(
-        &self,
-        location: &str,
-        range: BytesRange,
-    ) -> crate::Result<Request<Buffer>> {
-        let mut req = Request::get(location);
-
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
+            let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+            let resp = self.http_client.send(req).await?;
+            let location = if resp.status() == StatusCode::OK {
+                let slc = resp.into_body();
+                let query_resp: GhacQueryResponse =
+                    serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
+                query_resp.archive_location
+            } else {
+                return Err(parse_error(resp));
+            };
+            Ok(location)
         }
-
-        req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    pub fn ghac_reserve(&self, path: &str) -> crate::Result<Request<Buffer>> {
+    pub async fn ghac_get_upload_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
+        if let Some(grpc_client) = &self.grpc_client {
+            let req = ghac_grpc::CreateCacheEntryRequest {
+                key: p,
+                version: self.version.clone(),
 
-        let bs = serde_json::to_vec(&GhacReserveRequest {
-            key: p,
-            version: self.version.to_string(),
-        })
-        .map_err(new_json_serialize_error)?;
+                metadata: None,
+            };
+            let mut req = req.into_request();
+            req.metadata_mut().insert(
+                AUTHORIZATION.as_str(),
+                format!("Bearer {}", self.catch_token).parse().unwrap(),
+            );
+            let resp = grpc_client
+                .clone()
+                .create_cache_entry(req)
+                .await
+                .map_err(parse_grpc_error)?;
+            Ok(resp.into_inner().signed_upload_url)
+        } else {
+            let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
 
-        let mut req = Request::post(&url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-        req = req.header(CONTENT_LENGTH, bs.len());
-        req = req.header(CONTENT_TYPE, "application/json");
+            let bs = serde_json::to_vec(&GhacReserveRequest {
+                key: p,
+                version: self.version.to_string(),
+            })
+            .map_err(new_json_serialize_error)?;
 
-        let req = req
-            .body(Buffer::from(Bytes::from(bs)))
-            .map_err(new_request_build_error)?;
+            let mut req = Request::post(&url);
+            req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+            req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+            req = req.header(CONTENT_LENGTH, bs.len());
+            req = req.header(CONTENT_TYPE, "application/json");
 
-        Ok(req)
+            let req = req
+                .body(Buffer::from(Bytes::from(bs)))
+                .map_err(new_request_build_error)?;
+            let resp = self.http_client.send(req).await?;
+            let cache_id = if resp.status().is_success() {
+                let slc = resp.into_body();
+                let reserve_resp: GhacReserveResponse =
+                    serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
+                reserve_resp.cache_id
+            } else {
+                return Err(
+                    parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve"))
+                );
+            };
+
+            let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+            Ok(url)
+        }
     }
 
-    pub fn ghac_upload(
-        &self,
-        cache_id: i64,
-        offset: u64,
-        size: u64,
-        body: Buffer,
-    ) -> crate::Result<Request<Buffer>> {
-        let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+    pub async fn ghac_finalize_upload(&self, path: &str, url: &str, size: u64) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
 
-        let mut req = Request::patch(&url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-        req = req.header(CONTENT_LENGTH, size);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
-        req = req.header(
-            CONTENT_RANGE,
-            BytesContentRange::default()
-                .with_range(offset, offset + size - 1)
-                .to_header(),
-        );
+        if let Some(grpc_client) = &self.grpc_client {
+            let req = ghac_grpc::FinalizeCacheEntryUploadRequest {
+                key: p,
+                version: self.version.clone(),
+                size_bytes: size as i64,
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+                metadata: None,
+            };
+            let mut req = req.into_request();
+            req.metadata_mut().insert(
+                AUTHORIZATION.as_str(),
+                format!("Bearer {}", self.catch_token).parse().unwrap(),
+            );
+            let _ = grpc_client
+                .clone()
+                .finalize_cache_entry_upload(req)
+                .await
+                .map_err(parse_grpc_error)?;
+            Ok(())
+        } else {
+            let bs = serde_json::to_vec(&GhacCommitRequest { size })
+                .map_err(new_json_serialize_error)?;
 
-        Ok(req)
-    }
-
-    pub fn ghac_commit(&self, cache_id: i64, size: u64) -> crate::Result<Request<Buffer>> {
-        let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
-
-        let bs =
-            serde_json::to_vec(&GhacCommitRequest { size }).map_err(new_json_serialize_error)?;
-
-        let mut req = Request::post(&url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-        req = req.header(CONTENT_TYPE, "application/json");
-        req = req.header(CONTENT_LENGTH, bs.len());
-
-        let req = req
-            .body(Buffer::from(Bytes::from(bs)))
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
+            let req = Request::post(url)
+                .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
+                .header(ACCEPT, CACHE_HEADER_ACCEPT)
+                .header(CONTENT_LENGTH, bs.len())
+                .body(Buffer::from(bs))
+                .map_err(new_request_build_error)?;
+            let resp = self.http_client.send(req).await?;
+            if resp.status().is_success() {
+                Ok(())
+            } else {
+                Err(parse_error(resp))
+            }
+        }
     }
 }
 

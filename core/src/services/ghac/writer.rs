@@ -19,20 +19,24 @@ use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
+use http::Request;
 use std::sync::Arc;
 
 pub struct GhacWriter {
     core: Arc<GhacCore>,
 
-    cache_id: i64,
+    path: String,
+    url: String,
     size: u64,
 }
 
 impl GhacWriter {
-    pub fn new(core: Arc<GhacCore>, cache_id: i64) -> Self {
+    pub fn new(core: Arc<GhacCore>, path: String, url: String) -> Self {
         GhacWriter {
             core,
-            cache_id,
+            path,
+            url,
             size: 0,
         }
     }
@@ -40,23 +44,27 @@ impl GhacWriter {
 
 impl oio::Write for GhacWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let size = bs.len();
+        let size = bs.len() as u64;
         let offset = self.size;
 
-        let req = self.core.ghac_upload(
-            self.cache_id,
-            offset,
-            size as u64,
-            Buffer::from(bs.to_bytes()),
-        )?;
+        let mut req = Request::patch(&self.url);
+        req = req.header(AUTHORIZATION, format!("Bearer {}", self.core.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+        req = req.header(CONTENT_LENGTH, size);
+        req = req.header(CONTENT_TYPE, "application/octet-stream");
+        req = req.header(
+            CONTENT_RANGE,
+            BytesContentRange::default()
+                .with_range(offset, offset + size - 1)
+                .to_header(),
+        );
+        let req = req.body(bs).map_err(new_request_build_error)?;
 
-        let resp = self.core.client.send(req).await?;
-
+        let resp = self.core.http_client.send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }
-
-        self.size += size as u64;
+        self.size += size;
         Ok(())
     }
 
@@ -65,13 +73,8 @@ impl oio::Write for GhacWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let req = self.core.ghac_commit(self.cache_id, self.size)?;
-        let resp = self.core.client.send(req).await?;
-
-        if resp.status().is_success() {
-            Ok(())
-        } else {
-            Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
-        }
+        self.core
+            .ghac_finalize_upload(&self.path, &self.url, self.size)
+            .await
     }
 }

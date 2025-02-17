@@ -18,7 +18,6 @@
 use std::env;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::header;
 use http::Request;
 use http::Response;
@@ -144,7 +143,7 @@ impl Builder for GhacBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client {
+        let http_client = if let Some(client) = self.http_client {
             client
         } else {
             HttpClient::new().map_err(|err| {
@@ -168,7 +167,8 @@ impl Builder for GhacBuilder {
                 .clone()
                 .unwrap_or_else(|| "opendal".to_string()),
 
-            client,
+            http_client,
+            grpc_client: None,
         };
 
         Ok(GhacBackend {
@@ -228,24 +228,13 @@ impl Access for GhacBackend {
     ///
     /// In this way, we can support both self-hosted GHES and `github.com`.
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let req = self.core.ghac_query(path)?;
-
-        let resp = self.core.client.send(req).await?;
-
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body();
-            let query_resp: GhacQueryResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-            query_resp.archive_location
-        } else {
-            return Err(parse_error(resp));
-        };
+        let location = self.core.ghac_get_download_url(path).await?;
 
         let req = Request::get(location)
             .header(header::RANGE, "bytes=0-0")
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.http_client.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -266,21 +255,16 @@ impl Access for GhacBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let req = self.core.ghac_query(path)?;
+        let location = self.core.ghac_get_download_url(path).await?;
 
-        let resp = self.core.client.send(req).await?;
+        let mut req = Request::get(location);
 
-        let location = if resp.status() == StatusCode::OK {
-            let slc = resp.into_body();
-            let query_resp: GhacQueryResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-            query_resp.archive_location
-        } else {
-            return Err(parse_error(resp));
-        };
+        if !args.range().is_full() {
+            req = req.header(header::RANGE, args.range().to_header());
+        }
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let req = self.core.ghac_get_location(&location, args.range())?;
-        let resp = self.core.client.fetch(req).await?;
+        let resp = self.core.http_client.fetch(req).await?;
 
         let status = resp.status();
         match status {
@@ -296,22 +280,11 @@ impl Access for GhacBackend {
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let req = self.core.ghac_reserve(path)?;
-
-        let resp = self.core.client.send(req).await?;
-
-        let cache_id = if resp.status().is_success() {
-            let slc = resp.into_body();
-            let reserve_resp: GhacReserveResponse =
-                serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-            reserve_resp.cache_id
-        } else {
-            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve")));
-        };
+        let url = self.core.ghac_get_upload_url(path).await?;
 
         Ok((
             RpWrite::default(),
-            GhacWriter::new(self.core.clone(), cache_id),
+            GhacWriter::new(self.core.clone(), path.to_string(), url),
         ))
     }
 }

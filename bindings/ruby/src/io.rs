@@ -15,6 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(
+    rustdoc::broken_intra_doc_links,
+    reason = "YARD's syntax for documentation"
+)]
+#![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
+#![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
+
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::io::BufRead;
@@ -29,6 +36,7 @@ use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 
+use crate::operator::Operator;
 use crate::*;
 
 // `Io` is the rust implementation for `OpenDAL::IO`. `Io` follows similar Ruby IO classes, such as:
@@ -37,6 +45,11 @@ use crate::*;
 //
 // `Io` is not exactly an `IO` but is unidirectional (either `Reader` or `Writer`).
 // TODO: implement encoding.
+//
+/// @yard
+/// `OpenDAL::IO` is similar to Ruby's `IO` and `StringIO` for accessing files.
+///
+/// You can't create an instance of `OpenDAL::IO` except using {OpenDAL::Operator#open}.
 #[magnus::wrap(class = "OpenDAL::IO", free_immediately, size)]
 pub struct Io(RefCell<FileState>);
 
@@ -53,12 +66,7 @@ pub fn format_io_error(err: std::io::Error) -> Error {
 impl Io {
     /// Creates a new `OpenDAL::IO` object in Ruby.
     ///
-    // @param ruby Ruby handle, required for exception handling.
-    // @param operator OpenDAL operator for file operations.
-    // @param path Path to the file.
-    // @param mode Mode string, e.g., "r", "w", or "rb".
-    //
-    // The mode must contain unique characters. Invalid or duplicate modes will raise an `ArgumentError`.
+    /// See [`Operator::open`] for more information.
     pub fn new(
         ruby: &Ruby,
         operator: ocore::BlockingOperator,
@@ -101,7 +109,11 @@ impl Io {
         }
     }
 
+    /// @yard
+    /// @def binmode
     /// Enables binary mode for the stream.
+    /// @return [nil]
+    /// @raise [IOError] when operate on a closed stream
     fn binary_mode(ruby: &Ruby, rb_self: &Self) -> Result<(), Error> {
         let mut cell = rb_self.0.borrow_mut();
         match &mut *cell {
@@ -117,7 +129,11 @@ impl Io {
         }
     }
 
+    /// @yard
+    /// @def binmode?
     /// Returns if the stream is on binary mode.
+    /// @return [Boolean]
+    /// @raise [IOError] when operate on a closed stream
     fn is_binary_mode(ruby: &Ruby, rb_self: &Self) -> Result<bool, Error> {
         match *rb_self.0.borrow() {
             FileState::Reader(_, is_binary_mode) => Ok(is_binary_mode),
@@ -126,7 +142,10 @@ impl Io {
         }
     }
 
-    /// Checks if the stream is in binary mode.
+    /// @yard
+    /// @def close
+    /// Close streams.
+    /// @return [nil]
     fn close(&self) -> Result<(), Error> {
         // skips closing reader because `StdReader` doesn't have `close()`.
         let mut cell = self.0.borrow_mut();
@@ -137,13 +156,19 @@ impl Io {
         Ok(())
     }
 
-    /// Closes the stream and transitions the state to `Closed`.
+    /// @yard
+    /// @def close_read
+    /// Closes the read stream.
+    /// @return [nil]
     fn close_read(&self) -> Result<(), Error> {
         *self.0.borrow_mut() = FileState::Closed;
         Ok(())
     }
 
-    /// Reads data from the stream.
+    /// @yard
+    /// @def close_write
+    /// Closes the write stream.
+    /// @return [nil]
     fn close_write(&self) -> Result<(), Error> {
         let mut cell = self.0.borrow_mut();
         if let FileState::Writer(writer, _) = &mut *cell {
@@ -153,14 +178,26 @@ impl Io {
         Ok(())
     }
 
+    /// @yard
+    /// @def closed?
+    /// Returns if streams are closed.
+    /// @return [Boolean]
     fn is_closed(&self) -> Result<bool, Error> {
         Ok(matches!(*self.0.borrow(), FileState::Closed))
     }
 
+    /// @yard
+    /// @def closed_read?
+    /// Returns if the read stream is closed.
+    /// @return [Boolean]
     fn is_closed_read(&self) -> Result<bool, Error> {
         Ok(!matches!(*self.0.borrow(), FileState::Reader(_, _)))
     }
 
+    /// @yard
+    /// @def closed_write?
+    /// Returns if the write stream is closed.
+    /// @return [Boolean]
     fn is_closed_write(&self) -> Result<bool, Error> {
         Ok(!matches!(*self.0.borrow(), FileState::Writer(_, _)))
     }
@@ -199,7 +236,10 @@ impl Io {
         }
     }
 
+    /// @yard
+    /// @def readline
     /// Reads a single line from the stream.
+    /// @return [String]
     // TODO: extend readline with parameters
     fn readline(ruby: &Ruby, rb_self: &Self) -> Result<String, Error> {
         if let FileState::Reader(reader, _) = &mut *rb_self.0.borrow_mut() {
@@ -221,9 +261,11 @@ impl Io {
         }
     }
 
+    /// @yard
+    /// @def write(buffer)
     /// Writes data to the stream.
-    ///
-    /// @param bs The string data to write to the stream.
+    /// @param buffer [String]
+    /// @return [Integer] the written byte size
     fn write(ruby: &Ruby, rb_self: &Self, bs: String) -> Result<usize, Error> {
         if let FileState::Writer(writer, _) = &mut *rb_self.0.borrow_mut() {
             Ok(writer
@@ -240,13 +282,15 @@ impl Io {
 }
 
 impl Io {
+    /// @yard
+    /// @def seek(offset, whence)
     /// Moves the file position based on the offset and whence.
-    ///
-    /// @param offset The position offset.
-    /// @param whence The reference point:
+    /// @param offset [Integer] The position offset.
+    /// @param whence [Integer] The reference point:
     ///   - 0 = IO:SEEK_SET (Start)
     ///   - 1 = IO:SEEK_CUR (Current position)
     ///   - 2 = IO:SEEK_END (From the end)
+    /// @return [Integer] always 0 if the seek operation is successful
     fn seek(ruby: &Ruby, rb_self: &Self, offset: i64, whence: u8) -> Result<u8, Error> {
         match &mut *rb_self.0.borrow_mut() {
             FileState::Reader(reader, _) => {
@@ -272,7 +316,11 @@ impl Io {
         }
     }
 
+    /// @yard
+    /// @def tell
     /// Returns the current position of the file pointer in the stream.
+    /// @return [Integer] the current position in bytes
+    /// @raise [IOError] when cannot operate on the operation mode
     fn tell(ruby: &Ruby, rb_self: &Self) -> Result<u64, Error> {
         match &mut *rb_self.0.borrow_mut() {
             FileState::Reader(reader, _) => {

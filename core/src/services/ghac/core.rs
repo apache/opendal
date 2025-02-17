@@ -30,7 +30,7 @@ use std::env;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 use tokio::sync::OnceCell;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, ClientTlsConfig};
 use tonic::IntoRequest;
 
 /// The base url for cache url.
@@ -95,10 +95,23 @@ impl GhacCore {
         })?;
         self.grpc_client
             .get_or_try_init(|| async move {
-                let channel = Channel::builder(uri).connect().await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "Failed to connect to cache service")
+                let channel = Channel::builder(uri.clone())
+                    .tls_config(ClientTlsConfig::default().with_enabled_roots())
+                    .map_err(|err| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "Failed to setup tls config for grpc service",
+                        )
+                        .with_context("uri", uri.to_string())
                         .set_source(err)
-                })?;
+                    })?
+                    .connect()
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "Failed to connect to cache service")
+                            .with_context("uri", uri.to_string())
+                            .set_source(err)
+                    })?;
                 Ok(ghac_grpc::cache_service_client::CacheServiceClient::new(
                     channel,
                 ))

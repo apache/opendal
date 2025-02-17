@@ -25,7 +25,8 @@ mod backend;
 #[cfg(feature = "services-ghac")]
 pub use backend::GhacBuilder as Ghac;
 
-mod config;
+#[cfg(feature = "services-ghac")]
 mod core;
 
+mod config;
 pub use config::GhacConfig;

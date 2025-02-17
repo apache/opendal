@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::error::{parse_error, parse_grpc_error};
 use crate::raw::{
     build_abs_path, new_json_deserialize_error, new_json_serialize_error, new_request_build_error,
     percent_encode_path, HttpClient,
 };
-use crate::services::ghac::error::{parse_error, parse_grpc_error};
 use crate::*;
 use ::ghac::v1 as ghac_grpc;
 use bytes::{Buf, Bytes};

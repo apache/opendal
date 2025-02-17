@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
+use tokio::sync::OnceCell;
 use tonic::transport::Channel;
 use tonic::IntoRequest;
 
@@ -50,6 +51,13 @@ pub const ACTIONS_CACHE_SERVICE_V2: &str = "ACTIONS_CACHE_SERVICE_V2";
 /// The results url env for ghac.
 pub const ACTIONS_RESULTS_URL: &str = "ACTIONS_RESULTS_URL";
 
+/// The version of github action cache.
+#[derive(Clone, Copy, Debug)]
+pub enum GhacVersion {
+    V1,
+    V2,
+}
+
 /// Core for github action cache services.
 #[derive(Clone)]
 pub struct GhacCore {
@@ -60,9 +68,9 @@ pub struct GhacCore {
     pub catch_token: String,
     pub version: String,
 
+    pub service_version: GhacVersion,
     pub http_client: HttpClient,
-
-    pub grpc_client: Option<ghac_grpc::cache_service_client::CacheServiceClient<Channel>>,
+    pub grpc_client: OnceCell<ghac_grpc::cache_service_client::CacheServiceClient<Channel>>,
 }
 
 impl Debug for GhacCore {
@@ -71,152 +79,191 @@ impl Debug for GhacCore {
             .field("root", &self.root)
             .field("cache_url", &self.cache_url)
             .field("version", &self.version)
+            .field("service_version", &self.service_version)
             .finish_non_exhaustive()
     }
 }
 
 impl GhacCore {
+    pub async fn get_grpc_client(
+        &self,
+    ) -> Result<ghac_grpc::cache_service_client::CacheServiceClient<Channel>> {
+        let uri = http::Uri::from_str(&self.cache_url).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "Failed to parse cache url")
+                .with_context("cache_url", &self.cache_url)
+                .set_source(err)
+        })?;
+        self.grpc_client
+            .get_or_try_init(|| async move {
+                let channel = Channel::builder(uri).connect().await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "Failed to connect to cache service")
+                        .set_source(err)
+                })?;
+                Ok(ghac_grpc::cache_service_client::CacheServiceClient::new(
+                    channel,
+                ))
+            })
+            .await
+            .cloned()
+    }
+
     pub async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
-        if let Some(grpc_client) = &self.grpc_client {
-            let req = ghac_grpc::GetCacheEntryDownloadUrlRequest {
-                key: p,
-                version: self.version.clone(),
+        match self.service_version {
+            GhacVersion::V1 => {
+                let url = format!(
+                    "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
+                    self.cache_url,
+                    percent_encode_path(&p),
+                    self.version
+                );
 
-                metadata: None,
-                restore_keys: vec![],
-            };
-            let mut req = req.into_request();
-            req.metadata_mut().insert(
-                AUTHORIZATION.as_str(),
-                format!("Bearer {}", self.catch_token).parse().unwrap(),
-            );
-            let resp = grpc_client
-                .clone()
-                .get_cache_entry_download_url(req)
-                .await
-                .map_err(parse_grpc_error)?;
-            Ok(resp.into_inner().signed_download_url)
-        } else {
-            let url = format!(
-                "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
-                self.cache_url,
-                percent_encode_path(&p),
-                self.version
-            );
+                let mut req = Request::get(&url);
+                req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+                req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
-            let mut req = Request::get(&url);
-            req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-            req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                let location = if resp.status() == StatusCode::OK {
+                    let slc = resp.into_body();
+                    let query_resp: GhacQueryResponse = serde_json::from_reader(slc.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    query_resp.archive_location
+                } else {
+                    return Err(parse_error(resp));
+                };
+                Ok(location)
+            }
+            GhacVersion::V2 => {
+                let grpc_client = self.get_grpc_client().await?;
 
-            let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-            let resp = self.http_client.send(req).await?;
-            let location = if resp.status() == StatusCode::OK {
-                let slc = resp.into_body();
-                let query_resp: GhacQueryResponse =
-                    serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-                query_resp.archive_location
-            } else {
-                return Err(parse_error(resp));
-            };
-            Ok(location)
+                let req = ghac_grpc::GetCacheEntryDownloadUrlRequest {
+                    key: p,
+                    version: self.version.clone(),
+
+                    metadata: None,
+                    restore_keys: vec![],
+                };
+                let mut req = req.into_request();
+                req.metadata_mut().insert(
+                    AUTHORIZATION.as_str(),
+                    format!("Bearer {}", self.catch_token).parse().unwrap(),
+                );
+                let resp = grpc_client
+                    .clone()
+                    .get_cache_entry_download_url(req)
+                    .await
+                    .map_err(parse_grpc_error)?;
+                Ok(resp.into_inner().signed_download_url)
+            }
         }
     }
 
     pub async fn ghac_get_upload_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
-        if let Some(grpc_client) = &self.grpc_client {
-            let req = ghac_grpc::CreateCacheEntryRequest {
-                key: p,
-                version: self.version.clone(),
+        match self.service_version {
+            GhacVersion::V1 => {
+                let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
 
-                metadata: None,
-            };
-            let mut req = req.into_request();
-            req.metadata_mut().insert(
-                AUTHORIZATION.as_str(),
-                format!("Bearer {}", self.catch_token).parse().unwrap(),
-            );
-            let resp = grpc_client
-                .clone()
-                .create_cache_entry(req)
-                .await
-                .map_err(parse_grpc_error)?;
-            Ok(resp.into_inner().signed_upload_url)
-        } else {
-            let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
+                let bs = serde_json::to_vec(&GhacReserveRequest {
+                    key: p,
+                    version: self.version.to_string(),
+                })
+                .map_err(new_json_serialize_error)?;
 
-            let bs = serde_json::to_vec(&GhacReserveRequest {
-                key: p,
-                version: self.version.to_string(),
-            })
-            .map_err(new_json_serialize_error)?;
+                let mut req = Request::post(&url);
+                req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+                req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+                req = req.header(CONTENT_TYPE, "application/json");
+                req = req.header(CONTENT_LENGTH, bs.len());
 
-            let mut req = Request::post(&url);
-            req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
-            req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-            req = req.header(CONTENT_LENGTH, bs.len());
-            req = req.header(CONTENT_TYPE, "application/json");
+                let req = req
+                    .body(Buffer::from(Bytes::from(bs)))
+                    .map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                let cache_id = if resp.status().is_success() {
+                    let slc = resp.into_body();
+                    let reserve_resp: GhacReserveResponse = serde_json::from_reader(slc.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    reserve_resp.cache_id
+                } else {
+                    return Err(
+                        parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve"))
+                    );
+                };
 
-            let req = req
-                .body(Buffer::from(Bytes::from(bs)))
-                .map_err(new_request_build_error)?;
-            let resp = self.http_client.send(req).await?;
-            let cache_id = if resp.status().is_success() {
-                let slc = resp.into_body();
-                let reserve_resp: GhacReserveResponse =
-                    serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-                reserve_resp.cache_id
-            } else {
-                return Err(
-                    parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve"))
+                let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+                Ok(url)
+            }
+            GhacVersion::V2 => {
+                let grpc_client = self.get_grpc_client().await?;
+
+                let req = ghac_grpc::CreateCacheEntryRequest {
+                    key: p,
+                    version: self.version.clone(),
+
+                    metadata: None,
+                };
+                let mut req = req.into_request();
+                req.metadata_mut().insert(
+                    AUTHORIZATION.as_str(),
+                    format!("Bearer {}", self.catch_token).parse().unwrap(),
                 );
-            };
-
-            let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
-            Ok(url)
+                let resp = grpc_client
+                    .clone()
+                    .create_cache_entry(req)
+                    .await
+                    .map_err(parse_grpc_error)?;
+                Ok(resp.into_inner().signed_upload_url)
+            }
         }
     }
 
     pub async fn ghac_finalize_upload(&self, path: &str, url: &str, size: u64) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
-        if let Some(grpc_client) = &self.grpc_client {
-            let req = ghac_grpc::FinalizeCacheEntryUploadRequest {
-                key: p,
-                version: self.version.clone(),
-                size_bytes: size as i64,
+        match self.service_version {
+            GhacVersion::V1 => {
+                let bs = serde_json::to_vec(&GhacCommitRequest { size })
+                    .map_err(new_json_serialize_error)?;
 
-                metadata: None,
-            };
-            let mut req = req.into_request();
-            req.metadata_mut().insert(
-                AUTHORIZATION.as_str(),
-                format!("Bearer {}", self.catch_token).parse().unwrap(),
-            );
-            let _ = grpc_client
-                .clone()
-                .finalize_cache_entry_upload(req)
-                .await
-                .map_err(parse_grpc_error)?;
-            Ok(())
-        } else {
-            let bs = serde_json::to_vec(&GhacCommitRequest { size })
-                .map_err(new_json_serialize_error)?;
+                let req = Request::post(url)
+                    .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
+                    .header(ACCEPT, CACHE_HEADER_ACCEPT)
+                    .header(CONTENT_TYPE, "application/json")
+                    .header(CONTENT_LENGTH, bs.len())
+                    .body(Buffer::from(bs))
+                    .map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                if resp.status().is_success() {
+                    Ok(())
+                } else {
+                    Err(parse_error(resp))
+                }
+            }
+            GhacVersion::V2 => {
+                let grpc_client = self.get_grpc_client().await?;
 
-            let req = Request::post(url)
-                .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
-                .header(ACCEPT, CACHE_HEADER_ACCEPT)
-                .header(CONTENT_LENGTH, bs.len())
-                .body(Buffer::from(bs))
-                .map_err(new_request_build_error)?;
-            let resp = self.http_client.send(req).await?;
-            if resp.status().is_success() {
+                let req = ghac_grpc::FinalizeCacheEntryUploadRequest {
+                    key: p,
+                    version: self.version.clone(),
+                    size_bytes: size as i64,
+
+                    metadata: None,
+                };
+                let mut req = req.into_request();
+                req.metadata_mut().insert(
+                    AUTHORIZATION.as_str(),
+                    format!("Bearer {}", self.catch_token).parse().unwrap(),
+                );
+                let _ = grpc_client
+                    .clone()
+                    .finalize_cache_entry_upload(req)
+                    .await
+                    .map_err(parse_grpc_error)?;
                 Ok(())
-            } else {
-                Err(parse_error(resp))
             }
         }
     }
@@ -246,35 +293,34 @@ pub fn is_ghes() -> bool {
 }
 
 /// Determines the cache service version based on environment
-pub fn get_cache_service_version() -> String {
+pub fn get_cache_service_version() -> GhacVersion {
     if is_ghes() {
         // GHES only supports v1 regardless of feature flags
-        "v1".to_string()
+        GhacVersion::V1
     } else {
         // Check for presence of non-empty ACTIONS_CACHE_SERVICE_V2
         let value = env::var(ACTIONS_CACHE_SERVICE_V2).unwrap_or_default();
         if value.is_empty() {
-            "v1".to_string()
+            GhacVersion::V1
         } else {
-            "v2".to_string()
+            GhacVersion::V2
         }
     }
 }
 
 /// Returns the appropriate cache service URL based on version
-pub fn get_cache_service_url(version: &str) -> String {
+pub fn get_cache_service_url(version: GhacVersion) -> String {
     match version {
-        "v1" => {
+        GhacVersion::V1 => {
             // Priority order for v1: CACHE_URL -> RESULTS_URL
             env::var(ACTIONS_CACHE_URL)
                 .or_else(|_| env::var(ACTIONS_RESULTS_URL))
                 .unwrap_or_default()
         }
-        "v2" => {
+        GhacVersion::V2 => {
             // Only RESULTS_URL is used for v2
             env::var(ACTIONS_RESULTS_URL).unwrap_or_default()
         }
-        _ => panic!("Unsupported cache service version: {}", version),
     }
 }
 

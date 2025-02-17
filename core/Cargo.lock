@@ -5202,7 +5202,6 @@ dependencies = [
  "surrealdb",
  "tikv-client",
  "tokio",
- "tonic 0.12.3",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",

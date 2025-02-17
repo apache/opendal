@@ -51,6 +51,8 @@ pub const ACTIONS_CACHE_SERVICE_V2: &str = "ACTIONS_CACHE_SERVICE_V2";
 /// The results url env for ghac.
 pub const ACTIONS_RESULTS_URL: &str = "ACTIONS_RESULTS_URL";
 /// The content type for protobuf.
+pub const CONTENT_TYPE_JSON: &str = "application/json";
+/// The content type for protobuf.
 pub const CONTENT_TYPE_PROTOBUF: &str = "application/protobuf";
 
 /// The version of github action cache.
@@ -166,7 +168,7 @@ impl GhacCore {
                 let mut req = Request::post(&url);
                 req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
                 req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-                req = req.header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF);
+                req = req.header(CONTENT_TYPE, CONTENT_TYPE_JSON);
                 req = req.header(CONTENT_LENGTH, bs.len());
 
                 let req = req
@@ -230,7 +232,7 @@ impl GhacCore {
                 let req = Request::post(url)
                     .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
                     .header(ACCEPT, CACHE_HEADER_ACCEPT)
-                    .header(CONTENT_TYPE, "application/json")
+                    .header(CONTENT_TYPE, CONTENT_TYPE_JSON)
                     .header(CONTENT_LENGTH, bs.len())
                     .body(Buffer::from(bs))
                     .map_err(new_request_build_error)?;

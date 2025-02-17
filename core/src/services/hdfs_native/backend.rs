@@ -161,7 +161,16 @@ impl Access for HdfsNativeBackend {
                 stat_has_last_modified: true,
                 stat_has_content_length: true,
 
+                read: true,
+
+                write: true,
+
                 delete: true,
+
+                list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
                 rename: true,
 
                 shared: true,

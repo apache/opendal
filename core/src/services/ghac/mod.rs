@@ -26,4 +26,6 @@ mod backend;
 pub use backend::GhacBuilder as Ghac;
 
 mod config;
+mod core;
+
 pub use config::GhacConfig;

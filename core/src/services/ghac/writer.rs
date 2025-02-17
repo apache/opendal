@@ -15,22 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::GhacBackend;
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
+use std::sync::Arc;
 
 pub struct GhacWriter {
-    backend: GhacBackend,
+    core: Arc<GhacCore>,
 
     cache_id: i64,
     size: u64,
 }
 
 impl GhacWriter {
-    pub fn new(backend: GhacBackend, cache_id: i64) -> Self {
+    pub fn new(core: Arc<GhacCore>, cache_id: i64) -> Self {
         GhacWriter {
-            backend,
+            core,
             cache_id,
             size: 0,
         }
@@ -42,14 +43,14 @@ impl oio::Write for GhacWriter {
         let size = bs.len();
         let offset = self.size;
 
-        let req = self.backend.ghac_upload(
+        let req = self.core.ghac_upload(
             self.cache_id,
             offset,
             size as u64,
             Buffer::from(bs.to_bytes()),
         )?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.client.send(req).await?;
 
         if !resp.status().is_success() {
             return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
@@ -64,8 +65,8 @@ impl oio::Write for GhacWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let req = self.backend.ghac_commit(self.cache_id, self.size)?;
-        let resp = self.backend.client.send(req).await?;
+        let req = self.core.ghac_commit(self.cache_id, self.size)?;
+        let resp = self.core.client.send(req).await?;
 
         if resp.status().is_success() {
             Ok(())

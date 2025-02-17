@@ -15,6 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(
+    rustdoc::broken_intra_doc_links,
+    reason = "YARD's syntax for documentation"
+)]
+#![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
+#![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
+
 use std::borrow::BorrowMut;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -30,36 +37,49 @@ use magnus::Ruby;
 use crate::metadata::Metadata;
 use crate::*;
 
+/// @yard
 /// Entry returned by Lister to represent a path and it's relative metadata.
 #[magnus::wrap(class = "OpenDAL::Entry", free_immediately, size)]
 pub struct Entry(ocore::Entry);
 
 impl Entry {
+    /// @yard
+    /// @def path
     /// Gets the path of entry. Path is relative to operator's root.
     ///
     /// Only valid in current operator.
     ///
     /// If this entry is a dir, `path` MUST end with `/`
     /// Otherwise, `path` MUST NOT end with `/`.
+    /// @return [String]
     fn path(&self) -> Result<&str, Error> {
         Ok(self.0.path())
     }
 
+    /// @yard
+    /// @def name
     /// Gets the name of entry. Name is the last segment of path.
     ///
     /// If this entry is a dir, `name` MUST end with `/`
     /// Otherwise, `name` MUST NOT end with `/`.
+    /// @return [String]
     fn name(&self) -> Result<&str, Error> {
         Ok(self.0.name())
     }
 
+    /// @yard
+    /// @def metadata
     /// Fetches the metadata of this entry.
+    /// @return [Metadata]
     fn metadata(&self) -> Result<Metadata, Error> {
         Ok(Metadata::new(self.0.metadata().clone()))
     }
 }
 
+/// @yard
 /// Represents the result when list a directory
+///
+/// This class is an enumerable.
 #[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
 pub struct Lister(Arc<Mutex<ocore::BlockingLister>>);
 
@@ -84,7 +104,10 @@ impl Lister {
         Self(Arc::new(Mutex::new(inner)))
     }
 
+    /// @yard
+    /// @def each
     /// Returns the next element.
+    /// @return [Entry]
     fn each(&self) -> Result<Yield<Lister>, Error> {
         Ok(Yield::Iter(Lister(self.0.clone())))
     }

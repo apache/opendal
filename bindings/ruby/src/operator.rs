@@ -15,6 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(
+    rustdoc::broken_intra_doc_links,
+    reason = "YARD's syntax for documentation"
+)]
+#![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
+#![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
+
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -35,9 +42,11 @@ use crate::lister::Lister;
 use crate::metadata::Metadata;
 use crate::*;
 
+/// @yard
+/// The entrypoint for operating with file services and files.
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
 #[derive(Clone, Debug)]
-struct Operator(ocore::BlockingOperator);
+pub struct Operator(ocore::BlockingOperator);
 
 impl Operator {
     fn new(
@@ -59,7 +68,11 @@ impl Operator {
         Ok(Operator(op))
     }
 
+    /// @yard
+    /// @def read(path)
     /// Reads the whole path into string.
+    /// @param path [String]
+    /// @return [String]
     fn read(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bytes::Bytes, Error> {
         let buffer = rb_self
             .0
@@ -68,7 +81,12 @@ impl Operator {
         Ok(buffer.to_bytes())
     }
 
+    /// @yard
+    /// @def write(path, buffer)
     /// Writes string into given path.
+    /// @param path [String]
+    /// @param buffer [String]
+    /// @return [nil]
     fn write(ruby: &Ruby, rb_self: &Self, path: String, bs: RString) -> Result<(), Error> {
         rb_self
             .0
@@ -76,7 +94,11 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def read(path)
     /// Gets current path's metadata **without cache** directly.
+    /// @param path
+    /// @return [Metadata]
     fn stat(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Metadata, Error> {
         rb_self
             .0
@@ -85,14 +107,21 @@ impl Operator {
             .map(Metadata::new)
     }
 
+    /// @yard
+    /// @def capability
     /// Gets capabilities of the current operator
+    /// @return [Capability]
     fn capability(&self) -> Result<Capability, Error> {
         let capability = self.0.info().full_capability();
         Ok(Capability::new(capability))
     }
 
+    /// @yard
+    /// @def create_dir(path)
     /// Creates directory recursively similar as `mkdir -p`
     /// The ending path must be `/`. Otherwise, OpenDAL throws `NotADirectory` error.
+    /// @param path [String]
+    /// @return [nil]
     fn create_dir(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
             .0
@@ -100,7 +129,11 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def delete(path)
     /// Deletes given path
+    /// @param path [String]
+    /// @return [nil]
     fn delete(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
             .0
@@ -108,7 +141,11 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def exist?(path)
     /// Returns if this path exists
+    /// @param path [String]
+    /// @return [Boolean]
     fn exists(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bool, Error> {
         rb_self
             .0
@@ -116,7 +153,12 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def rename(from, to)
     /// Renames a file from `from` to `to`
+    /// @param from [String] a file path
+    /// @param to [String] a file path
+    /// @return [nil]
     fn rename(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
             .0
@@ -124,7 +166,11 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def remove_all(path)
     /// Removes the path and all nested directories and files recursively
+    /// @param path [String]
+    /// @return [nil]
     fn remove_all(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
             .0
@@ -132,7 +178,12 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
+    /// @yard
+    /// @def copy(from, to)
     /// Copies a file from `from` to `to`.
+    /// @param from [String] a file path
+    /// @param to [String] a file path
+    /// @return [nil]
     fn copy(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
             .0
@@ -140,17 +191,25 @@ impl Operator {
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
-    /// Opens a IO-like reader for the given path.
+    /// @yard
+    /// @def open(path, mode)
+    /// Opens a `IO`-like reader for the given path.
+    /// @param path [String] file path
+    /// @param mode [String] operation mode, e.g., `r`, `w`, or `rb`.
+    /// @raise [ArgumentError] invalid mode, or when the mode is not unique
+    /// @return [OpenDAL::IO]
     fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
         let operator = rb_self.0.clone();
         Ok(Io::new(&ruby, operator, path, mode)?)
     }
 
+    /// @yard
+    /// @def list(limit: nil, start_after: nil, recursive: nil)
     /// Lists the directory.
-    ///
     /// @param limit [usize, nil] per-request max results
     /// @param start_after [String, nil] the specified key to start listing from.
     /// @param recursive [Boolean, nil] lists the directory recursively.
+    /// @return [Lister]
     pub fn list(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Lister, Error> {
         let args = scan_args::<(String,), (), (), (), _, ()>(args)?;
         let (path,) = args.required;

@@ -275,7 +275,18 @@ mod tests {
     }
 
     impl BlockWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, _: u64, _: Buffer) -> Result<Metadata> {
+        async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+            sleep(Duration::from_nanos(50)).await;
+
+            if thread_rng().gen_bool(1.0 / 10.0) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
+            }
+
+            let mut this = self.lock().unwrap();
+            this.length = size;
+            this.content = Some(body);
             Ok(Metadata::default())
         }
 
@@ -354,5 +365,41 @@ mod tests {
             inner.content.clone().unwrap().to_bytes(),
             "content must be the same"
         );
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_with_retry_when_write_once_error() {
+        let mut rng = thread_rng();
+
+        for _ in 1..100 {
+            let mut w = BlockWriter::new(TestWrite::new(), Some(Executor::new()), 8);
+
+            let size = rng.gen_range(1..1024);
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(bs.clone().into()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            loop {
+                match w.close().await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            let inner = w.w.lock().unwrap();
+            assert_eq!(size as u64, inner.length, "length must be the same");
+            assert!(inner.content.is_some());
+            assert_eq!(
+                bs,
+                inner.content.clone().unwrap().to_bytes(),
+                "content must be the same"
+            );
+        }
     }
 }

@@ -324,6 +324,7 @@ mod tests {
         upload_id: String,
         part_numbers: Vec<usize>,
         length: u64,
+        content: Option<Buffer>,
     }
 
     impl TestWrite {
@@ -332,6 +333,7 @@ mod tests {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
                 length: 0,
+                content: None,
             };
 
             Arc::new(Mutex::new(v))
@@ -339,8 +341,18 @@ mod tests {
     }
 
     impl MultipartWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, size: u64, _: Buffer) -> Result<Metadata> {
-            self.lock().await.length += size;
+        async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+            sleep(Duration::from_nanos(50)).await;
+
+            if thread_rng().gen_bool(1.0 / 10.0) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
+            }
+
+            let mut this = self.lock().await;
+            this.length = size;
+            this.content = Some(body);
             Ok(Metadata::default().with_content_length(size))
         }
 
@@ -472,5 +484,36 @@ mod tests {
 
         let actual_size = w.w.lock().await.length;
         assert_eq!(actual_size, total_size);
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_with_retry_when_write_once_error() {
+        let mut rng = thread_rng();
+
+        for _ in 0..100 {
+            let mut w = MultipartWriter::new(TestWrite::new(), None, 200);
+            let size = rng.gen_range(1..1024);
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(bs.clone().into()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            loop {
+                match w.close().await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            let inner = w.w.lock().await;
+            assert_eq!(inner.length, size as u64);
+            assert!(inner.content.is_some());
+            assert_eq!(inner.content.clone().unwrap().to_bytes(), bs);
+        }
     }
 }

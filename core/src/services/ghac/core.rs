@@ -24,9 +24,11 @@ use crate::*;
 use ::ghac::v1 as ghac_grpc;
 use bytes::{Buf, Bytes};
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use http::{Request, StatusCode};
+use http::{Request, StatusCode, Uri};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fmt::{Debug, Formatter};
+use std::str::FromStr;
 use tonic::transport::Channel;
 use tonic::IntoRequest;
 
@@ -43,6 +45,10 @@ pub const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// This token will be valid for 6h and github action will running for 6
 /// hours at most. So we don't need to refetch it again.
 pub const ACTIONS_RUNTIME_TOKEN: &str = "ACTIONS_RUNTIME_TOKEN";
+/// The cache service version env for ghac.
+pub const ACTIONS_CACHE_SERVICE_V2: &str = "ACTIONS_CACHE_SERVICE_V2";
+/// The results url env for ghac.
+pub const ACTIONS_RESULTS_URL: &str = "ACTIONS_RESULTS_URL";
 
 /// Core for github action cache services.
 #[derive(Clone)]
@@ -213,6 +219,62 @@ impl GhacCore {
                 Err(parse_error(resp))
             }
         }
+    }
+}
+
+/// Determines if the current environment is GitHub Enterprise Server (GHES)
+///
+/// We need to know this since GHES doesn't support ghac v2 yet.
+pub fn is_ghes() -> bool {
+    // Fetch GitHub Server URL with fallback to "https://github.com"
+    let server_url =
+        env::var("GITHUB_SERVER_URL").unwrap_or_else(|_| "https://github.com".to_string());
+
+    let Ok(url) = Uri::from_str(&server_url) else {
+        // We just return false if the URL is invalid
+        return false;
+    };
+
+    // Check against known non-GHES host patterns
+    let hostname = url.host().unwrap_or("").trim_end().to_lowercase();
+
+    let is_github_host = hostname == "github.com";
+    let is_ghe_host = hostname.ends_with(".ghe.com");
+    let is_localhost = hostname.ends_with(".localhost");
+
+    !is_github_host && !is_ghe_host && !is_localhost
+}
+
+/// Determines the cache service version based on environment
+pub fn get_cache_service_version() -> String {
+    if is_ghes() {
+        // GHES only supports v1 regardless of feature flags
+        "v1".to_string()
+    } else {
+        // Check for presence of non-empty ACTIONS_CACHE_SERVICE_V2
+        let value = env::var(ACTIONS_CACHE_SERVICE_V2).unwrap_or_default();
+        if value.is_empty() {
+            "v1".to_string()
+        } else {
+            "v2".to_string()
+        }
+    }
+}
+
+/// Returns the appropriate cache service URL based on version
+pub fn get_cache_service_url(version: &str) -> String {
+    match version {
+        "v1" => {
+            // Priority order for v1: CACHE_URL -> RESULTS_URL
+            env::var(ACTIONS_CACHE_URL)
+                .or_else(|_| env::var(ACTIONS_RESULTS_URL))
+                .unwrap_or_default()
+        }
+        "v2" => {
+            // Only RESULTS_URL is used for v2
+            env::var(ACTIONS_RESULTS_URL).unwrap_or_default()
+        }
+        _ => panic!("Unsupported cache service version: {}", version),
     }
 }
 

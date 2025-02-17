@@ -16,13 +16,8 @@
 // under the License.
 
 use std::env;
+use std::str::FromStr;
 use std::sync::Arc;
-
-use http::header;
-use http::Request;
-use http::Response;
-use http::StatusCode;
-use log::debug;
 
 use super::core::*;
 use super::error::parse_error;
@@ -31,6 +26,13 @@ use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
+use ::ghac::v1 as ghac_grpc;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use log::debug;
+use tonic::transport::Channel;
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -143,6 +145,34 @@ impl Builder for GhacBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
+        let version = get_cache_service_version();
+
+        let cache_url = self
+            .config
+            .endpoint
+            .unwrap_or_else(|| get_cache_service_url(&version));
+        if cache_url.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "cache url for ghac not found, maybe not in github action environment?".to_string(),
+            ));
+        }
+
+        let mut grpc_client = None;
+        // Try connect to grpc endpoint if we are using v2.
+        if version == "v2" {
+            let uri = http::Uri::from_str(&cache_url).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid cache url for ghac")
+                    .with_operation("Builder::build")
+                    .set_source(err)
+            })?;
+            let endpoint = Channel::builder(uri);
+            let channel = endpoint.connect_lazy();
+            grpc_client = Some(ghac_grpc::cache_service_client::CacheServiceClient::new(
+                channel,
+            ));
+        }
+
         let http_client = if let Some(client) = self.http_client {
             client
         } else {
@@ -155,7 +185,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             root,
 
-            cache_url: value_or_env(self.config.endpoint, ACTIONS_CACHE_URL, "Builder::build")?,
+            cache_url,
             catch_token: value_or_env(
                 self.config.runtime_token,
                 ACTIONS_RUNTIME_TOKEN,
@@ -168,7 +198,7 @@ impl Builder for GhacBuilder {
                 .unwrap_or_else(|| "opendal".to_string()),
 
             http_client,
-            grpc_client: None,
+            grpc_client,
         };
 
         Ok(GhacBackend {

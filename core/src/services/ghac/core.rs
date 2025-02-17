@@ -15,26 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::error::{parse_error, parse_grpc_error};
+use super::error::parse_error;
 use crate::raw::{
     build_abs_path, new_json_deserialize_error, new_json_serialize_error, new_request_build_error,
     percent_encode_path, HttpClient,
 };
 use crate::*;
-use ::ghac::v1 as ghac_grpc;
+use ::ghac::v1 as ghac_types;
 use bytes::{Buf, Bytes};
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Request, StatusCode, Uri};
+use prost::Message;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
-use tokio::sync::OnceCell;
-use tonic::transport::{Channel, ClientTlsConfig};
-use tonic::IntoRequest;
 
 /// The base url for cache url.
 pub const CACHE_URL_BASE: &str = "_apis/artifactcache";
+/// The base url for cache service v2.
+pub const CACHE_URL_BASE_V2: &str = "/twirp/github.actions.results.api.v1.CacheService";
 /// Cache API requires to provide an accept header.
 pub const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
 /// The cache url env for ghac.
@@ -50,6 +50,8 @@ pub const ACTIONS_RUNTIME_TOKEN: &str = "ACTIONS_RUNTIME_TOKEN";
 pub const ACTIONS_CACHE_SERVICE_V2: &str = "ACTIONS_CACHE_SERVICE_V2";
 /// The results url env for ghac.
 pub const ACTIONS_RESULTS_URL: &str = "ACTIONS_RESULTS_URL";
+/// The content type for protobuf.
+pub const CONTENT_TYPE_PROTOBUF: &str = "application/protobuf";
 
 /// The version of github action cache.
 #[derive(Clone, Copy, Debug)]
@@ -70,7 +72,6 @@ pub struct GhacCore {
 
     pub service_version: GhacVersion,
     pub http_client: HttpClient,
-    pub grpc_client: OnceCell<ghac_grpc::cache_service_client::CacheServiceClient<Channel>>,
 }
 
 impl Debug for GhacCore {
@@ -85,41 +86,6 @@ impl Debug for GhacCore {
 }
 
 impl GhacCore {
-    pub async fn get_grpc_client(
-        &self,
-    ) -> Result<ghac_grpc::cache_service_client::CacheServiceClient<Channel>> {
-        let uri = http::Uri::from_str(&self.cache_url).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "Failed to parse cache url")
-                .with_context("cache_url", &self.cache_url)
-                .set_source(err)
-        })?;
-        self.grpc_client
-            .get_or_try_init(|| async move {
-                let channel = Channel::builder(uri.clone())
-                    .tls_config(ClientTlsConfig::default().with_enabled_roots())
-                    .map_err(|err| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "Failed to setup tls config for grpc service",
-                        )
-                        .with_context("uri", uri.to_string())
-                        .set_source(err)
-                    })?
-                    .connect()
-                    .await
-                    .map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "Failed to connect to cache service")
-                            .with_context("uri", uri.to_string())
-                            .set_source(err)
-                    })?;
-                Ok(ghac_grpc::cache_service_client::CacheServiceClient::new(
-                    channel,
-                ))
-            })
-            .await
-            .cloned()
-    }
-
     pub async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
@@ -149,26 +115,37 @@ impl GhacCore {
                 Ok(location)
             }
             GhacVersion::V2 => {
-                let grpc_client = self.get_grpc_client().await?;
+                let url = format!(
+                    "{}{CACHE_URL_BASE_V2}/GetCacheEntryDownloadURL",
+                    self.cache_url,
+                );
 
-                let req = ghac_grpc::GetCacheEntryDownloadUrlRequest {
+                let req = ghac_types::GetCacheEntryDownloadUrlRequest {
                     key: p,
                     version: self.version.clone(),
 
                     metadata: None,
                     restore_keys: vec![],
                 };
-                let mut req = req.into_request();
-                req.metadata_mut().insert(
-                    AUTHORIZATION.as_str(),
-                    format!("Bearer {}", self.catch_token).parse().unwrap(),
-                );
-                let resp = grpc_client
-                    .clone()
-                    .get_cache_entry_download_url(req)
-                    .await
-                    .map_err(parse_grpc_error)?;
-                Ok(resp.into_inner().signed_download_url)
+
+                let body = Buffer::from(req.encode_to_vec());
+
+                let req = Request::post(&url)
+                    .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
+                    .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
+                    .header(CONTENT_LENGTH, body.len())
+                    .body(body)
+                    .map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                let location = if resp.status() == StatusCode::OK {
+                    let slc = resp.into_body();
+                    let query_resp = ghac_types::GetCacheEntryDownloadUrlResponse::decode(slc)
+                        .map_err(new_prost_decode_error)?;
+                    query_resp.signed_download_url
+                } else {
+                    return Err(parse_error(resp));
+                };
+                Ok(location)
             }
         }
     }
@@ -189,7 +166,7 @@ impl GhacCore {
                 let mut req = Request::post(&url);
                 req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
                 req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-                req = req.header(CONTENT_TYPE, "application/json");
+                req = req.header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF);
                 req = req.header(CONTENT_LENGTH, bs.len());
 
                 let req = req
@@ -211,25 +188,33 @@ impl GhacCore {
                 Ok(url)
             }
             GhacVersion::V2 => {
-                let grpc_client = self.get_grpc_client().await?;
+                let url = format!("{}{CACHE_URL_BASE_V2}/CreateCacheEntry", self.cache_url,);
 
-                let req = ghac_grpc::CreateCacheEntryRequest {
+                let req = ghac_types::CreateCacheEntryRequest {
                     key: p,
                     version: self.version.clone(),
 
                     metadata: None,
                 };
-                let mut req = req.into_request();
-                req.metadata_mut().insert(
-                    AUTHORIZATION.as_str(),
-                    format!("Bearer {}", self.catch_token).parse().unwrap(),
-                );
-                let resp = grpc_client
-                    .clone()
-                    .create_cache_entry(req)
-                    .await
-                    .map_err(parse_grpc_error)?;
-                Ok(resp.into_inner().signed_upload_url)
+
+                let body = Buffer::from(req.encode_to_vec());
+
+                let req = Request::post(&url)
+                    .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
+                    .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
+                    .header(CONTENT_LENGTH, body.len())
+                    .body(body)
+                    .map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                let location = if resp.status() == StatusCode::OK {
+                    let slc = resp.into_body();
+                    let query_resp = ghac_types::CreateCacheEntryResponse::decode(slc)
+                        .map_err(new_prost_decode_error)?;
+                    query_resp.signed_upload_url
+                } else {
+                    return Err(parse_error(resp));
+                };
+                Ok(location)
             }
         }
     }
@@ -257,25 +242,30 @@ impl GhacCore {
                 }
             }
             GhacVersion::V2 => {
-                let grpc_client = self.get_grpc_client().await?;
+                let url = format!(
+                    "{}{CACHE_URL_BASE_V2}/FinalizeCacheEntryUpload",
+                    self.cache_url,
+                );
 
-                let req = ghac_grpc::FinalizeCacheEntryUploadRequest {
+                let req = ghac_types::FinalizeCacheEntryUploadRequest {
                     key: p,
                     version: self.version.clone(),
                     size_bytes: size as i64,
 
                     metadata: None,
                 };
-                let mut req = req.into_request();
-                req.metadata_mut().insert(
-                    AUTHORIZATION.as_str(),
-                    format!("Bearer {}", self.catch_token).parse().unwrap(),
-                );
-                let _ = grpc_client
-                    .clone()
-                    .finalize_cache_entry_upload(req)
-                    .await
-                    .map_err(parse_grpc_error)?;
+                let body = Buffer::from(req.encode_to_vec());
+
+                let req = Request::post(&url)
+                    .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
+                    .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
+                    .header(CONTENT_LENGTH, body.len())
+                    .body(body)
+                    .map_err(new_request_build_error)?;
+                let resp = self.http_client.send(req).await?;
+                if resp.status() != StatusCode::OK {
+                    return Err(parse_error(resp));
+                };
                 Ok(())
             }
         }
@@ -335,6 +325,11 @@ pub fn get_cache_service_url(version: GhacVersion) -> String {
             env::var(ACTIONS_RESULTS_URL).unwrap_or_default()
         }
     }
+}
+
+/// Parse prost decode error into opendal::Error.
+pub fn new_prost_decode_error(e: prost::DecodeError) -> Error {
+    Error::new(ErrorKind::Unexpected, "deserialize protobuf").set_source(e)
 }
 
 #[derive(Deserialize)]

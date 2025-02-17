@@ -30,7 +30,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::OnceCell;
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -183,7 +182,6 @@ impl Builder for GhacBuilder {
 
             service_version,
             http_client,
-            grpc_client: OnceCell::new(),
         };
 
         Ok(GhacBackend {

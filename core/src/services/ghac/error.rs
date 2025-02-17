@@ -19,7 +19,6 @@ use crate::raw::*;
 use crate::*;
 use http::Response;
 use http::StatusCode;
-use tonic::{Code, Status};
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
@@ -43,32 +42,6 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let mut err = Error::new(kind, message);
 
     err = with_error_response_context(err, parts);
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    err
-}
-
-pub fn parse_grpc_error(status: Status) -> Error {
-    let (kind, retryable) = match status.code() {
-        Code::Ok => unreachable!("parse_grpc_error should not be called with Code::Ok"),
-        Code::NotFound => (ErrorKind::NotFound, false),
-        Code::AlreadyExists => (ErrorKind::AlreadyExists, false),
-        Code::PermissionDenied => (ErrorKind::PermissionDenied, false),
-        Code::FailedPrecondition => (ErrorKind::ConditionNotMatch, false),
-        Code::Cancelled
-        | Code::DeadlineExceeded
-        | Code::ResourceExhausted
-        | Code::Aborted
-        | Code::Internal
-        | Code::Unavailable => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, false),
-    };
-
-    let mut err = Error::new(kind, status.message())
-        .with_context("metadata", format!("{:?}", status.metadata()));
 
     if retryable {
         err = err.set_temporary();

@@ -354,7 +354,10 @@ impl PathQuery for GdrivePathQuery {
             // Make sure name has been replaced with escaped name.
             //
             // ref: <https://developers.google.com/drive/api/guides/ref-search-terms>
-            format!("name = '{}'", name.replace('\'', "\\'")),
+            format!(
+                "name = '{}'",
+                name.replace('\'', "\\'").trim_end_matches('/')
+            ),
             format!("'{}' in parents", parent_id),
             "trashed = false".to_string(),
         ];
@@ -397,7 +400,7 @@ impl PathQuery for GdrivePathQuery {
         let url = "https://www.googleapis.com/drive/v3/files";
 
         let content = serde_json::to_vec(&json!({
-            "name": name,
+            "name": name.trim_end_matches('/'),
             "mimeType": "application/vnd.google-apps.folder",
             // If the parent is not provided, the folder will be created in the root folder.
             "parents": [parent_id],

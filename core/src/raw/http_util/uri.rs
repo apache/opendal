@@ -15,10 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::*;
 use percent_encoding::percent_decode_str;
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
+
+/// Parse http uri invalid error in to opendal::Error.
+pub fn new_http_uri_invalid_error(err: http::uri::InvalidUri) -> Error {
+    Error::new(ErrorKind::Unexpected, "parse http uri").set_source(err)
+}
 
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///

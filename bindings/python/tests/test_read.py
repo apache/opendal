@@ -119,7 +119,7 @@ async def test_async_read(service_name, operator, async_operator):
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
-async def test_async_read(service_name, operator, async_operator):
+async def test_async_read_path(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = Path(f"random_file_{str(uuid4())}")
     content = os.urandom(size)

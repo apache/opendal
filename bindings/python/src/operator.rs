@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -89,7 +90,7 @@ impl Operator {
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open(&self, path: String, mode: String) -> PyResult<File> {
+    pub fn open(&self, path: PathBuf, mode: String) -> PyResult<File> {
         let this = self.core.clone();
         if mode == "rb" {
             let r = this
@@ -109,14 +110,14 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<'p, PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let buffer = self.core.read(path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let kwargs = kwargs.unwrap_or_default();
         let mut write = self
             .core
@@ -139,7 +140,7 @@ impl Operator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat(&self, path: &str) -> PyResult<Metadata> {
+    pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
         self.core
             .stat(path)
             .map_err(format_pyerr)
@@ -147,17 +148,17 @@ impl Operator {
     }
 
     /// Copy source to target.
-    pub fn copy(&self, source: &str, target: &str) -> PyResult<()> {
+    pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         self.core.copy(source, target).map_err(format_pyerr)
     }
 
     /// Rename filename.
-    pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
+    pub fn rename(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         self.core.rename(source, target).map_err(format_pyerr)
     }
 
     /// Remove all file
-    pub fn remove_all(&self, path: &str) -> PyResult<()> {
+    pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         self.core.remove_all(path).map_err(format_pyerr)
     }
 
@@ -173,7 +174,7 @@ impl Operator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir(&self, path: &str) -> PyResult<()> {
+    pub fn create_dir(&self, path: PathBuf) -> PyResult<()> {
         self.core.create_dir(path).map_err(format_pyerr)
     }
 
@@ -182,18 +183,18 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete(&self, path: &str) -> PyResult<()> {
+    pub fn delete(&self, path: PathBuf) -> PyResult<()> {
         self.core.delete(path).map_err(format_pyerr)
     }
 
     /// List current dir path.
-    pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
+    pub fn list(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let l = self.core.lister(path).map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
     /// List dir in flat way.
-    pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
+    pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let l = self
             .core
             .lister_with(path)

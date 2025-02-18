@@ -27,6 +27,6 @@ import pytest
 def test_sync_exists(service_name, operator, async_operator):
     content = os.urandom(1024)
     target = f"random_{str(uuid4())}"
-    operator.write(target)
+    operator.write(target, content)
     assert operator.exists(target)
     assert not operator.exists(target + "1")

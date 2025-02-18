@@ -1,3 +1,35 @@
+# Upgrade to v0.52
+
+## Public API
+
+### RFC-5556: Write Returns Metadata
+
+Since v0.52, all write APIs in OpenDAL have been updated to return `Metadata` instead of `()`. This metadata includes useful information provided by the service, such as `content-length`, `etag`, `version`, and `last-modified`.
+
+This feature is not fully ready yet, and many available metadata fields are still not returned. Please visit [Tracking Issues of RFC-5556: Write Returns Metadata](https://github.com/apache/opendal/issues/5557) for progress and contributions.
+
+Affected API:
+
+- `opendal::Operator::write`
+- `opendal::Operator::write_with`
+- `opendal::Operator::writer::close`
+- `opendal::raw::oio::Write::close`
+
+### Github Actions Cache (ghac) service v2
+
+As [requested](https://github.com/apache/opendal/issues/5620) by GitHub, we have upgraded our GHAC service to ensure compatibility with the latest GitHub Actions cache API.
+
+By upgrading to OpenDAL v0.52, your services will continue functioning after the deprecation of the legacy service (2025/03/01). GHES does not yet support GHAC v2, but OpenDAL has handled this properly to prevent any disruptions.
+
+ghac service doesn't support `delete` anymore, please use github's API to delete cache instead.
+
+This upgrade is mandatory and enabled by default using an environment variable in the GitHub CI environment. No changes are required at the code level.
+
+### Breaking Changes in Dependencies
+
+- `OtelTraceLayer` and `OtelMetricsLayer`'s dependence `opentelemetry` bumped to `0.28`
+- `PrometheusClientLayer`'s dependence `prometheus-client` bumped to `0.23.1`
+
 # Upgrade to v0.51
 
 ## Public API

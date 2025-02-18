@@ -63,7 +63,11 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
     /// BlockWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn write_once(
+        &self,
+        size: u64,
+        body: Buffer,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// write_block will write a block of the data.
     ///
@@ -80,7 +84,10 @@ pub trait BlockWrite: Send + Sync + Unpin + 'static {
 
     /// complete_block will complete the block upload to build the final
     /// file.
-    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn complete_block(
+        &self,
+        block_ids: Vec<Uuid>,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_block will cancel the block upload and purge all data.
     fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -93,7 +100,7 @@ struct WriteInput<W: BlockWrite> {
     bytes: Buffer,
 }
 
-/// BlockWriter will implements [`oio::Write`] based on block
+/// BlockWriter will implement [`oio::Write`] based on block
 /// uploads.
 pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,
@@ -187,16 +194,16 @@ where
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         if !self.started {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
                 None => (0, Buffer::new()),
             };
 
-            self.w.write_once(size as u64, body).await?;
+            let meta = self.w.write_once(size as u64, body).await?;
             self.cache = None;
-            return Ok(());
+            return Ok(meta);
         }
 
         if let Some(cache) = self.cache.clone() {
@@ -268,8 +275,19 @@ mod tests {
     }
 
     impl BlockWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, _: u64, _: Buffer) -> Result<()> {
-            Ok(())
+        async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+            sleep(Duration::from_nanos(50)).await;
+
+            if thread_rng().gen_bool(1.0 / 10.0) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
+            }
+
+            let mut this = self.lock().unwrap();
+            this.length = size;
+            this.content = Some(body);
+            Ok(Metadata::default())
         }
 
         async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
@@ -290,7 +308,7 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
             let mut this = self.lock().unwrap();
             let mut bs = Vec::new();
             for id in block_ids {
@@ -298,7 +316,7 @@ mod tests {
             }
             this.content = Some(bs.into_iter().flatten().collect());
 
-            Ok(())
+            Ok(Metadata::default())
         }
 
         async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {
@@ -347,5 +365,41 @@ mod tests {
             inner.content.clone().unwrap().to_bytes(),
             "content must be the same"
         );
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_with_retry_when_write_once_error() {
+        let mut rng = thread_rng();
+
+        for _ in 1..100 {
+            let mut w = BlockWriter::new(TestWrite::new(), Some(Executor::new()), 8);
+
+            let size = rng.gen_range(1..1024);
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(bs.clone().into()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            loop {
+                match w.close().await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            let inner = w.w.lock().unwrap();
+            assert_eq!(size as u64, inner.length, "length must be the same");
+            assert!(inner.content.is_some());
+            assert_eq!(
+                bs,
+                inner.content.clone().unwrap().to_bytes(),
+                "content must be the same"
+            );
+        }
     }
 }

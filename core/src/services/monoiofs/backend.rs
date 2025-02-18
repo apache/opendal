@@ -121,8 +121,11 @@ impl Access for MonoiofsBackend {
                 stat_has_last_modified: true,
 
                 read: true,
+
                 write: true,
                 write_can_append: true,
+                write_has_last_modified: true,
+
                 delete: true,
                 rename: true,
                 create_dir: true,

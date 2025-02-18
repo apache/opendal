@@ -50,6 +50,7 @@ use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
 use crate::*;
+use constants::X_AMZ_VERSION_ID;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -962,6 +963,9 @@ impl Access for S3Backend {
                 write_with_if_match: !self.core.disable_write_with_if_match,
                 write_with_if_not_exists: true,
                 write_with_user_metadata: true,
+                write_has_content_length: true,
+                write_has_etag: true,
+                write_has_version: self.core.enable_versioning,
 
                 // The min multipart size of S3 is 5 MiB.
                 //
@@ -1021,7 +1025,7 @@ impl Access for S3Backend {
                     meta.with_user_metadata(user_meta);
                 }
 
-                if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
+                if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
                     meta.set_version(v);
                 }
 

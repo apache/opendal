@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::StatusCode;
 use uuid::Uuid;
 
 use super::backend::WebhdfsBackend;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::webhdfs::message::FileStatusWrapper;
 use crate::*;
 
 pub type WebhdfsWriters =
@@ -40,7 +42,7 @@ impl WebhdfsWriter {
 }
 
 impl oio::BlockWrite for WebhdfsWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let req = self
             .backend
             .webhdfs_create_object_request(&self.path, Some(size), &self.op, body)
@@ -50,7 +52,7 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }
@@ -81,7 +83,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         }
     }
 
-    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
         let Some(ref atomic_write_dir) = self.backend.atomic_write_dir else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -123,7 +125,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }
@@ -142,19 +144,16 @@ impl oio::BlockWrite for WebhdfsWriter {
 
 impl oio::AppendWrite for WebhdfsWriter {
     async fn offset(&self) -> Result<u64> {
-        Ok(0)
-    }
-
-    async fn append(&self, _offset: u64, size: u64, body: Buffer) -> Result<()> {
         let resp = self.backend.webhdfs_get_file_status(&self.path).await?;
-
         let status = resp.status();
-
-        let location;
-
         match status {
             StatusCode::OK => {
-                location = self.backend.webhdfs_init_append_request(&self.path).await?;
+                let bs = resp.into_body();
+                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(bs.reader())
+                    .map_err(new_json_deserialize_error)?
+                    .file_status;
+
+                Ok(file_status.length)
             }
             StatusCode::NOT_FOUND => {
                 let req = self
@@ -163,26 +162,25 @@ impl oio::AppendWrite for WebhdfsWriter {
                     .await?;
 
                 let resp = self.backend.client.send(req).await?;
-
                 let status = resp.status();
 
                 match status {
-                    StatusCode::CREATED | StatusCode::OK => {
-                        location = self.backend.webhdfs_init_append_request(&self.path).await?;
-                    }
-                    _ => return Err(parse_error(resp)),
+                    StatusCode::CREATED | StatusCode::OK => Ok(0),
+                    _ => Err(parse_error(resp)),
                 }
             }
-            _ => return Err(parse_error(resp)),
+            _ => Err(parse_error(resp)),
         }
+    }
 
+    async fn append(&self, _offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        let location = self.backend.webhdfs_init_append_request(&self.path).await?;
         let req = self.backend.webhdfs_append_request(&location, size, body)?;
-
         let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

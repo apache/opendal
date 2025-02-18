@@ -37,7 +37,7 @@ impl SwiftWriter {
 }
 
 impl oio::OneShotWrite for SwiftWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<()> {
+    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
             .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
@@ -46,7 +46,7 @@ impl oio::OneShotWrite for SwiftWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

@@ -49,6 +49,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_if_not_exists,
             test_write_with_if_match,
             test_write_with_user_metadata,
+            test_write_returns_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
             test_writer_write_with_concurrent,
@@ -57,7 +58,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_abort,
             test_writer_abort_with_concurrent,
             test_writer_futures_copy,
-            test_writer_futures_copy_with_concurrent
+            test_writer_futures_copy_with_concurrent,
+            test_writer_return_metadata
         ))
     }
 
@@ -65,6 +67,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(
             op,
             test_write_with_append,
+            test_write_with_append_returns_metadata,
             test_writer_with_append
         ))
     }
@@ -253,6 +256,28 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
         *resp_meta,
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let meta = op.write(&path, content).await?;
+    let stat_meta = op.stat(&path).await?;
+
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
+    }
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
 
     Ok(())
 }
@@ -551,6 +576,38 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
     Ok(())
 }
 
+pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let content_a = gen_fixed_bytes(size);
+    let content_b = gen_fixed_bytes(size);
+
+    let mut w = op.writer(&path).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_b.clone()).await?;
+    let meta = w.close().await?;
+
+    let stat_meta = op.stat(&path).await.expect("stat must succeed");
+
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
+    }
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
+
+    Ok(())
+}
+
 /// Test append to a file must success.
 pub async fn test_write_with_append(op: Operator) -> Result<()> {
     let path = TEST_FIXTURE.new_file_path();
@@ -579,6 +636,40 @@ pub async fn test_write_with_append(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
     assert_eq!(bs[size_one..], content_two);
+
+    Ok(())
+}
+
+pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (content_one, _) = gen_bytes(cap);
+    let (content_two, _) = gen_bytes(cap);
+
+    op.write_with(&path, content_one.clone())
+        .append(true)
+        .await
+        .expect("append file first time must success");
+
+    let meta = op
+        .write_with(&path, content_two.clone())
+        .append(true)
+        .await
+        .expect("append to an existing file must success");
+
+    let stat_meta = op.stat(&path).await.expect("stat must succeed");
+
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if cap.write_has_last_modified {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if cap.write_has_etag {
+        assert_eq!(stat_meta.etag(), meta.etag());
+    }
+    if cap.write_has_version {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
 
     Ok(())
 }

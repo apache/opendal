@@ -135,10 +135,11 @@ impl oio::Write for GhacWriterV1 {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         self.core
             .ghac_finalize_upload(&self.path, &self.url, self.size)
-            .await
+            .await?;
+        Ok(Metadata::default().with_content_length(self.size))
     }
 }
 
@@ -160,11 +161,13 @@ impl oio::Write for GhacWriterV2 {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         self.writer.close().await?;
-        self.core
+        let _ = self
+            .core
             .ghac_finalize_upload(&self.path, &self.url, self.size)
-            .await
+            .await;
+        Ok(Metadata::default().with_content_length(self.size))
     }
 
     async fn abort(&mut self) -> Result<()> {

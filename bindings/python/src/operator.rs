@@ -302,7 +302,7 @@ impl AsyncOperator {
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         mode: String,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
@@ -330,7 +330,7 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -344,7 +344,7 @@ impl AsyncOperator {
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         bs: &Bound<PyBytes>,
         kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
@@ -373,7 +373,7 @@ impl AsyncOperator {
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -391,8 +391,8 @@ impl AsyncOperator {
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
-        source: String,
-        target: String,
+        source: PathBuf,
+        target: PathBuf,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy();
@@ -406,8 +406,8 @@ impl AsyncOperator {
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
-        source: String,
-        target: String,
+        source: PathBuf,
+        target: PathBuf,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy();
@@ -418,7 +418,7 @@ impl AsyncOperator {
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -438,7 +438,7 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -451,7 +451,7 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(
@@ -461,7 +461,7 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn list<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -473,7 +473,7 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy();
         future_into_py(py, async move {
@@ -492,7 +492,7 @@ impl AsyncOperator {
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
@@ -512,7 +512,7 @@ impl AsyncOperator {
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
@@ -532,7 +532,7 @@ impl AsyncOperator {
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();

@@ -113,7 +113,7 @@ impl Operator {
     /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy();
-        let buffer = self.core.read(path).map_err(format_pyerr)?.to_vec();
+        let buffer = self.core.read(&path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
@@ -124,7 +124,7 @@ impl Operator {
         let kwargs = kwargs.unwrap_or_default();
         let mut write = self
             .core
-            .write_with(path, bs)
+            .write_with(&path, bs)
             .append(kwargs.append.unwrap_or(false));
         if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
@@ -146,29 +146,29 @@ impl Operator {
     pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
         let path = path.to_string_lossy();
         self.core
-            .stat(path)
+            .stat(&path)
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
 
     /// Copy source to target.
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
-        let source = source.to_string_lossy().into_owned();
-        let target = target.to_string_lossy().into_owned();
-        self.core.copy(source, target).map_err(format_pyerr)
+        let source = source.to_string_lossy();
+        let target = target.to_string_lossy();
+        self.core.copy(&source, &target).map_err(format_pyerr)
     }
 
     /// Rename filename.
     pub fn rename(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
-        let source = source.to_string_lossy().into_owned();
-        let target = target.to_string_lossy().into_owned();
-        self.core.rename(source, target).map_err(format_pyerr)
+        let source = source.to_string_lossy();
+        let target = target.to_string_lossy();
+        self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
     /// Remove all file
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy();
-        self.core.remove_all(path).map_err(format_pyerr)
+        self.core.remove_all(&path).map_err(format_pyerr)
     }
 
     /// Create a dir at given path.
@@ -184,7 +184,8 @@ impl Operator {
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
     pub fn create_dir(&self, path: PathBuf) -> PyResult<()> {
-        self.core.create_dir(path).map_err(format_pyerr)
+        let path = path.to_string_lossy();
+        self.core.create_dir(&path).map_err(format_pyerr)
     }
 
     /// Delete given path.
@@ -194,13 +195,13 @@ impl Operator {
     /// - Delete not existing error won't return errors.
     pub fn delete(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy();
-        self.core.delete(path).map_err(format_pyerr)
+        self.core.delete(&path).map_err(format_pyerr)
     }
 
     /// List current dir path.
     pub fn list(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy();
-        let l = self.core.lister(path).map_err(format_pyerr)?;
+        let l = self.core.lister(&path).map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
@@ -209,7 +210,7 @@ impl Operator {
         let path = path.to_string_lossy();
         let l = self
             .core
-            .lister_with(path)
+            .lister_with(&path)
             .recursive(true)
             .call()
             .map_err(format_pyerr)?;
@@ -394,6 +395,8 @@ impl AsyncOperator {
         target: String,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let source = source.to_string_lossy();
+        let target = target.to_string_lossy();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
         })
@@ -407,6 +410,8 @@ impl AsyncOperator {
         target: String,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let source = source.to_string_lossy();
+        let target = target.to_string_lossy();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
         })

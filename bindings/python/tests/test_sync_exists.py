@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability(
     "read", "write", "delete", "list", "blocking", "create_dir"
 )
 def test_sync_exists(service_name, operator, async_operator):
-    parent = f"random_dir_{str(uuid4())}"
+    parent = f"random_dir_{str(uuid4())}/"
     operator.create_dir(parent)
     assert operator.exists(parent)
     assert not operator.exists(parent + "1")

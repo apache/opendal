@@ -15,17 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 from uuid import uuid4
 
 import pytest
-from opendal.exceptions import NotFound
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
 async def test_async_remove_all(service_name, operator, async_operator):
-    parent = f"random_dir_{str(uuid4())}"
+    parent = f"random_dir_{str(uuid4())}/"
     await async_operator.create_dir(parent)
     assert await async_operator.exists(parent)
     assert not await async_operator.exists(parent + "1")

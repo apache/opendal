@@ -19,6 +19,7 @@ import os
 import io
 from random import randint, choices
 from uuid import uuid4
+from pathlib import Path
 
 import pytest
 from opendal.exceptions import NotFound
@@ -106,6 +107,21 @@ def test_sync_reader_readline(service_name, operator, async_operator):
 async def test_async_read(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    await async_operator.write(filename, content)
+
+    read_content = await async_operator.read(filename)
+    assert read_content is not None
+    assert read_content == content
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_read(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = Path(f"random_file_{str(uuid4())}")
     content = os.urandom(size)
     await async_operator.write(filename, content)
 

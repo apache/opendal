@@ -198,6 +198,16 @@ impl Operator {
         self.core.delete(&path).map_err(format_pyerr)
     }
 
+    /// Check given path is exists.
+    ///
+    /// # Notes
+    ///
+    /// - Check not existing path won't return errors.
+    pub fn exists(&self, path: PathBuf) -> PyResult<bool> {
+        let path = path.to_string_lossy().to_string();
+        self.core.exists(&path).map_err(format_pyerr)
+    }
+
     /// List current dir path.
     pub fn list(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
@@ -457,6 +467,20 @@ impl AsyncOperator {
         future_into_py(
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },
+        )
+    }
+
+    /// Check given path is exists.
+    ///
+    /// # Notes
+    ///
+    /// - Check not existing path won't return errors.
+    pub fn exists<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+        future_into_py(
+            py,
+            async move { this.exists(&path).await.map_err(format_pyerr) },
         )
     }
 

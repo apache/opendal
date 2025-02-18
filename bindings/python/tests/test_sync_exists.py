@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 from uuid import uuid4
 
 import pytest
@@ -24,7 +25,8 @@ import pytest
     "read", "write", "delete", "list", "blocking", "create_dir"
 )
 def test_sync_exists(service_name, operator, async_operator):
-    parent = f"random_dir_{str(uuid4())}/"
-    operator.create_dir(parent)
-    assert operator.exists(parent)
-    assert not operator.exists(parent + "1")
+    content = os.urandom(1024)
+    target = f"random_{str(uuid4())}"
+    operator.write(target)
+    assert operator.exists(target)
+    assert not operator.exists(target + "1")

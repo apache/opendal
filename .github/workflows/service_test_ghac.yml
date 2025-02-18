@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ghac:
+  ghac_v1:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     permissions:
@@ -55,6 +55,35 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '');
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo test behavior --features tests,services-ghac
+        env:
+          OPENDAL_TEST: ghac
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ghac_v2:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Configure Cache Env
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
 
       - name: Test
         shell: bash

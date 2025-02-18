@@ -53,6 +53,7 @@ pub use header::parse_multipart_boundary;
 pub use header::parse_prefixed_headers;
 
 mod uri;
+pub use uri::new_http_uri_invalid_error;
 pub use uri::percent_decode_path;
 pub use uri::percent_encode_path;
 

@@ -645,6 +645,7 @@ impl Access for AzblobBackend {
                 self.core
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())?
             }
+            PresignOperation::Delele(_) => todo!(),
         };
 
         self.core.sign_query(&mut req).await?;

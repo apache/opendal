@@ -36,7 +36,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_presign_write,
             test_presign_read,
-            test_presign_stat
+            test_presign_stat,
+            test_presign_delete
         ))
     }
 }

@@ -267,6 +267,7 @@ impl Access for B2Backend {
                 presign_read: true,
                 presign_write: true,
                 presign_stat: true,
+                presign_delete: true,
 
                 shared: true,
 

@@ -522,6 +522,7 @@ impl Access for GcsBackend {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())?
             }
+            PresignOperation::Delete(v) => todo!(),
         };
 
         self.core.sign_query(&mut req, args.expire())?;

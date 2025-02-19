@@ -472,6 +472,7 @@ impl Access for B2Backend {
                     parts.headers,
                 )))
             }
+            PresignOperation::Delete(_) => todo!(),
         }
     }
 }

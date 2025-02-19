@@ -115,6 +115,7 @@ Based on `Accessor::presign`, we will export public APIs in `Operator`:
 impl Operator {
     fn presign_read(&self, path: &str) -> Result<PresignedRequest> {}
     fn presign_write(&self, path: &str) -> Result<PresignedRequest> {}
+    fn presign_delete(&self, path: &str) -> Result<PresignedRequest> {}
 }
 ```
 
@@ -151,4 +152,4 @@ None.
 
 # Future possibilities
 
-- Add `stat`/`list`/`delete` support
+- Add `stat`/`list` support

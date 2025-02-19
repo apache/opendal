@@ -545,6 +545,7 @@ impl Access for AzblobBackend {
                 presign_stat: self.has_sas_token,
                 presign_read: self.has_sas_token,
                 presign_write: self.has_sas_token,
+                presign_delete: self.has_sas_token,
 
                 shared: true,
 

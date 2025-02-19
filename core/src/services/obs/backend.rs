@@ -421,6 +421,7 @@ impl Access for ObsBackend {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())?
             }
+            PresignOperation::Delete(v) => todo!(),
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

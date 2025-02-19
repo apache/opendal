@@ -2020,7 +2020,6 @@ impl Operator {
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
     ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .content_type("text/csv")
     ///         .await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -2044,7 +2043,6 @@ impl Operator {
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
     ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .content_disposition("attachment; filename=\"cool.html\"")
     ///         .await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -2068,7 +2066,6 @@ impl Operator {
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
     ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .cache_control("no-store")
     ///         .await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())

@@ -139,3 +139,9 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
+
+/// Presign delete should succeed.
+pub async fn test_presign_delete(op: Operator) -> Result<()> {
+    todo!();
+    Ok(())
+}

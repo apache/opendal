@@ -20,6 +20,10 @@ name: Bindings NodeJS CI
 env:
   DEBUG: napi:*
   MACOSX_DEPLOYMENT_TARGET: "10.13"
+  # refer to https://github.com/nodejs/corepack/issues/612#issuecomment-2631462297
+  #
+  # SHOULD remove after nodejs been upgraded.
+  COREPACK_INTEGRITY_KEYS: 0
 
 on:
   push:

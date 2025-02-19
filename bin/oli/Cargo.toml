@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
-version = "0.41.16"
+version = "0.41.17"
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -38,7 +38,7 @@ humansize = { version = "2.1" }
 humantime = { version = "2.1" }
 humantime-serde = { version = "1.1" }
 indicatif = { version = "0.17" }
-opendal = { version = "0.51.2", path = "../../core", features = [
+opendal = { version = "0.52.0", path = "../../core", features = [
   "services-azblob",
   "services-azdls",
   "services-cos",

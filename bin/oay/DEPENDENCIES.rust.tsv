@@ -25,7 +25,7 @@ core-foundation-sys@0.8.7		X					X
 cpufeatures@0.2.16		X					X					
 crypto-common@0.1.6		X					X					
 dav-server@0.7.0		X										
-dav-server-opendalfs@0.3.1		X										
+dav-server-opendalfs@0.4.0		X										
 deranged@0.3.11		X					X					
 digest@0.10.7		X					X					
 displaydoc@0.2.5		X					X					
@@ -85,7 +85,7 @@ lazy_static@1.5.0		X					X
 libc@0.2.169		X					X					
 litemap@0.7.4										X		
 lock_api@0.4.12		X					X					
-log@0.4.22		X					X					
+log@0.4.25		X					X					
 logforth@0.21.0		X										
 lru@0.12.5							X					
 matchit@0.7.3				X			X					
@@ -97,10 +97,10 @@ miniz_oxide@0.8.2		X					X					X
 mio@1.0.3							X					
 num-conv@0.1.0		X					X					
 num-traits@0.2.19		X					X					
-oay@0.41.16		X										
+oay@0.41.17		X										
 object@0.36.7		X					X					
 once_cell@1.20.2		X					X					
-opendal@0.51.2		X										
+opendal@0.52.0		X										
 parking_lot@0.12.3		X					X					
 parking_lot_core@0.9.10		X					X					
 percent-encoding@2.3.1		X					X					

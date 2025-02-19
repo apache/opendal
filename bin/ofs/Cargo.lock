@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "cloud_filter_opendal"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -521,7 +521,7 @@ dependencies = [
 
 [[package]]
 name = "fuse3_opendal"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "bytes",
  "fuse3",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "ofs"
-version = "0.0.17"
+version = "0.0.18"
 dependencies = [
  "anyhow",
  "clap",
@@ -1196,7 +1196,7 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "opendal"
-version = "0.51.2"
+version = "0.52.0"
 dependencies = [
  "anyhow",
  "async-trait",

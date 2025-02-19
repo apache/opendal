@@ -62,7 +62,7 @@ jobs:
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
 
       - name: Corepack
-        run: npm i -g --force corepack && corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -99,7 +99,7 @@ jobs:
               -e NAPI_TARGET=x86_64-unknown-linux-gnu \
               -w /build/bindings/nodejs \
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
-              bash -c "npm i -g --force corepack && corepack enable && pnpm build"
+              bash -c "npm i -g --force corepack@latest && corepack enable && pnpm build"
               cd bindings/nodejs
               # change owner to current user
               sudo chown -R 1001:121 *.node
@@ -112,7 +112,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64 \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-gnu &&
-              npm i -g --force corepack &&
+              npm i -g --force corepack@latest &&
               corepack enable &&
               pnpm build --target aarch64-unknown-linux-gnu &&
               aarch64-unknown-linux-gnu-strip *.node"
@@ -128,7 +128,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-musl &&
-              npm i -g --force corepack &&
+              npm i -g --force corepack@latest &&
               corepack enable &&
               pnpm build --target aarch64-unknown-linux-musl &&
               /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node"
@@ -148,7 +148,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: npm i -g --force corepack && corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -197,7 +197,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: npm i -g --force corepack && corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -253,7 +253,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -288,7 +288,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: npm i -g --force corepack && corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

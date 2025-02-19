@@ -13,7 +13,7 @@ base64@0.21.7		X							X
 base64@0.22.1		X							X					
 base64ct@1.6.0		X							X					
 bindgen@0.68.1					X									
-bitflags@2.8.0		X							X					
+bitflags@2.6.0		X							X					
 block-buffer@0.10.4		X							X					
 block-padding@0.3.3		X							X					
 bumpalo@3.16.0		X							X					
@@ -26,23 +26,20 @@ camino@1.1.9		X							X
 cargo-platform@0.1.9		X							X					
 cargo_metadata@0.14.2									X					
 cbc@0.1.2		X							X					
-cc@1.2.10		X							X					
+cc@1.2.7		X							X					
 cexpr@0.6.0		X							X					
 cfg-if@1.0.0		X							X					
 chrono@0.4.39		X							X					
 cipher@0.4.4		X							X					
 clang-sys@1.8.1		X												
 const-oid@0.9.6		X							X					
-const-random@0.1.18		X							X					
-const-random-macro@0.1.16		X							X					
 constant_time_eq@0.1.5							X							
 core-foundation@0.9.4		X							X					
 core-foundation-sys@0.8.7		X							X					
-cpufeatures@0.2.17		X							X					
+cpufeatures@0.2.16		X							X					
 crc32c@0.6.8		X							X					
 crc32fast@1.4.2		X							X					
 crossbeam-utils@0.8.21		X							X					
-crunchy@0.2.3									X					
 crypto-common@0.1.6		X							X					
 darling@0.14.4									X					
 darling_core@0.14.4									X					
@@ -51,7 +48,6 @@ der@0.7.9		X							X
 deranged@0.3.11		X							X					
 digest@0.10.7		X							X					
 displaydoc@0.2.5		X							X					
-dlv-list@0.5.2		X							X					
 either@1.13.0		X							X					
 errno@0.3.10		X							X					
 error-chain@0.12.4		X							X					
@@ -73,10 +69,10 @@ futures-task@0.3.31		X							X
 futures-util@0.3.31		X							X					
 generic-array@0.14.7									X					
 getrandom@0.2.15		X							X					
+ghac@0.2.0		X												
 gimli@0.31.1		X							X					
 glob@0.3.2		X							X					
 gloo-timers@0.3.0		X							X					
-hashbrown@0.14.5		X							X					
 hex@0.4.3		X							X					
 hmac@0.12.1		X							X					
 home@0.5.11		X							X					
@@ -103,10 +99,11 @@ ident_case@1.0.1		X							X
 idna@1.0.3		X							X					
 idna_adapter@1.2.0		X							X					
 inout@0.1.3		X							X					
-ipnet@2.11.0		X							X					
+ipnet@2.10.1		X							X					
+itertools@0.14.0		X							X					
 itoa@1.0.14		X							X					
 jobserver@0.1.32		X							X					
-js-sys@0.3.77		X							X					
+js-sys@0.3.76		X							X					
 jsonwebtoken@9.3.0									X					
 lazy_static@1.5.0		X							X					
 lazycell@1.3.0		X							X					
@@ -116,14 +113,14 @@ libm@0.2.11		X							X
 linux-raw-sys@0.4.15		X	X						X					
 litemap@0.7.4												X		
 lock_api@0.4.12		X							X					
-log@0.4.25		X							X					
+log@0.4.22		X							X					
 md-5@0.10.6		X							X					
 memchr@2.7.4									X				X	
 mime@0.3.17		X							X					
 minimal-lexical@0.2.1		X							X					
-miniz_oxide@0.8.3		X							X					X
+miniz_oxide@0.8.2		X							X					X
 mio@1.0.3									X					
-native-tls@0.2.13		X							X					
+native-tls@0.2.12		X							X					
 nom@7.1.3									X					
 num-bigint@0.4.6		X							X					
 num-bigint-dig@0.8.4		X							X					
@@ -133,13 +130,12 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X					
 object@0.36.7		X							X					
 once_cell@1.20.2		X							X					
-opendal@0.51.2		X												
+opendal@0.52.0		X												
 opendal-php@0.0.0		X												
-openssl@0.10.69		X												
+openssl@0.10.68		X												
 openssl-macros@0.1.1		X							X					
-openssl-probe@0.1.6		X							X					
+openssl-probe@0.1.5		X							X					
 openssl-sys@0.9.104									X					
-ordered-multimap@0.7.3									X					
 parking_lot@0.12.3		X							X					
 parking_lot_core@0.9.10		X							X					
 password-hash@0.4.2		X							X					
@@ -157,8 +153,10 @@ pkcs8@0.10.2		X							X
 pkg-config@0.3.31		X							X					
 powerfmt@0.2.0		X							X					
 ppv-lite86@0.2.20		X							X					
-prettyplease@0.2.29		X							X					
-proc-macro2@1.0.93		X							X					
+prettyplease@0.2.27		X							X					
+proc-macro2@1.0.92		X							X					
+prost@0.13.5		X												
+prost-derive@0.13.5		X												
 pulldown-cmark@0.9.6									X					
 quick-xml@0.35.0									X					
 quick-xml@0.36.2									X					
@@ -174,16 +172,14 @@ reqsign@0.16.1		X
 reqwest@0.12.12		X							X					
 ring@0.17.8											X			
 rsa@0.9.7		X							X					
-rust-ini@0.21.1									X					
 rustc-demangle@0.1.24		X							X					
 rustc-hash@1.1.0		X							X					
 rustc_version@0.4.1		X							X					
-rustix@0.38.44		X	X						X					
-rustls@0.23.21		X						X	X					
+rustix@0.38.43		X	X						X					
+rustls@0.23.20		X						X	X					
 rustls-pemfile@2.2.0		X						X	X					
-rustls-pki-types@1.11.0		X							X					
+rustls-pki-types@1.10.1		X							X					
 rustls-webpki@0.102.8								X						
-rustversion@1.0.19		X							X					
 ryu@1.0.18		X				X								
 salsa20@0.10.2		X							X					
 same-file@1.0.6									X				X	
@@ -192,16 +188,16 @@ scopeguard@1.2.0		X							X
 scrypt@0.11.0		X							X					
 security-framework@2.11.1		X							X					
 security-framework-sys@2.14.0		X							X					
-semver@1.0.25		X							X					
+semver@1.0.24		X							X					
 serde@1.0.217		X							X					
 serde_derive@1.0.217		X							X					
-serde_json@1.0.137		X							X					
+serde_json@1.0.135		X							X					
 serde_urlencoded@0.7.1		X							X					
 sha1@0.10.6		X							X					
 sha2@0.10.8		X							X					
 shlex@1.3.0		X							X					
 signature@2.2.0		X							X					
-simple_asn1@0.6.3								X						
+simple_asn1@0.6.2								X						
 skeptic@0.13.7		X							X					
 slab@0.4.9									X					
 smallvec@1.13.2		X							X					
@@ -212,18 +208,17 @@ stable_deref_trait@1.2.0		X							X
 strsim@0.10.0									X					
 subtle@2.6.1					X									
 syn@1.0.109		X							X					
-syn@2.0.96		X							X					
+syn@2.0.95		X							X					
 sync_wrapper@1.0.2		X												
 synstructure@0.13.1									X					
 tempfile@3.15.0		X							X					
-thiserror@2.0.11		X							X					
-thiserror-impl@2.0.11		X							X					
+thiserror@1.0.69		X							X					
+thiserror-impl@1.0.69		X							X					
 time@0.3.37		X							X					
 time-core@0.1.2		X							X					
 time-macros@0.2.19		X							X					
-tiny-keccak@2.0.2							X							
 tinystr@0.7.6												X		
-tokio@1.43.0									X					
+tokio@1.42.0									X					
 tokio-rustls@0.26.1		X							X					
 tokio-util@0.7.13									X					
 tower@0.5.2									X					
@@ -231,30 +226,29 @@ tower-layer@0.3.3									X
 tower-service@0.3.3									X					
 tracing@0.1.41									X					
 tracing-core@0.1.33									X					
-trim-in-place@0.1.7									X					
 try-lock@0.2.5									X					
 typenum@1.17.0		X							X					
 unicase@2.8.1		X							X					
-unicode-ident@1.0.15		X							X			X		
+unicode-ident@1.0.14		X							X			X		
 untrusted@0.9.0								X						
 ureq@2.12.1		X							X					
 url@2.5.4		X							X					
 utf16_iter@1.0.5		X							X					
 utf8_iter@1.0.4		X							X					
-uuid@1.12.1		X							X					
+uuid@1.11.0		X							X					
 vcpkg@0.2.15		X							X					
 version_check@0.9.5		X							X					
 walkdir@2.5.0									X				X	
 want@0.3.1									X					
 wasi@0.11.0+wasi-snapshot-preview1		X	X						X					
-wasm-bindgen@0.2.100		X							X					
-wasm-bindgen-backend@0.2.100		X							X					
-wasm-bindgen-futures@0.4.50		X							X					
-wasm-bindgen-macro@0.2.100		X							X					
-wasm-bindgen-macro-support@0.2.100		X							X					
-wasm-bindgen-shared@0.2.100		X							X					
+wasm-bindgen@0.2.99		X							X					
+wasm-bindgen-backend@0.2.99		X							X					
+wasm-bindgen-futures@0.4.49		X							X					
+wasm-bindgen-macro@0.2.99		X							X					
+wasm-bindgen-macro-support@0.2.99		X							X					
+wasm-bindgen-shared@0.2.99		X							X					
 wasm-streams@0.4.2		X							X					
-web-sys@0.3.77		X							X					
+web-sys@0.3.76		X							X					
 webpki-roots@0.26.7										X				
 which@4.4.2									X					
 winapi-util@0.1.9									X				X	

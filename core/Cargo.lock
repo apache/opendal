@@ -5126,7 +5126,7 @@ checksum = "b410bbe7e14ab526a0e86877eb47c6996a2bd7746f027ba551028c925390e4e9"
 
 [[package]]
 name = "opendal"
-version = "0.51.2"
+version = "0.52.0"
 dependencies = [
  "anyhow",
  "async-backtrace",

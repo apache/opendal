@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
+use futures::StreamExt;
 use hdfs_native::file::FileReader;
 
 use crate::raw::*;
@@ -24,18 +24,35 @@ use crate::*;
 
 pub struct HdfsNativeReader {
     f: FileReader,
+    read: usize,
     size: usize,
+    buf: Buffer,
 }
 
 impl HdfsNativeReader {
     pub fn new(f: FileReader, size: usize) -> Self {
-        HdfsNativeReader { f, size }
+        HdfsNativeReader {
+            f,
+            read: 0,
+            size,
+            buf: Buffer::new(),
+        }
     }
 }
 
 impl oio::Read for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
-        let bytes: Bytes = self.f.read(self.size).await.map_err(parse_hdfs_error)?;
-        Ok(Buffer::from(bytes))
+        if self.buf.is_empty() {
+            let mut stream = Box::pin(self.f.read_range_stream(self.read, self.size));
+
+            if let Some(bytes) = stream.next().await {
+                let bytes = bytes.map_err(parse_hdfs_error)?;
+                self.buf = Buffer::from(bytes);
+            } else {
+                return Ok(Buffer::new());
+            }
+        }
+
+        Ok(std::mem::take(&mut self.buf))
     }
 }

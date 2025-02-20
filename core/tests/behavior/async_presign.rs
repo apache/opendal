@@ -144,7 +144,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (content, _size) = gen_bytes(op.info().full_capability());
     // create a file
     op.write(&path, content.clone())
         .await
@@ -163,7 +163,7 @@ pub async fn test_presign_delete(op: Operator) -> Result<()> {
         req = req.header(k, v);
     }
 
-    let resp = req.send().await.expect("send request must succeed");
+    let _resp = req.send().await.expect("send request must succeed");
 
     assert!(!op.exists(&path).await.expect("delete must succeed"));
     Ok(())

@@ -152,4 +152,4 @@ None.
 
 # Future possibilities
 
-- Add `stat`/`list` support
+- Add `stat`/`list`/`delete` support

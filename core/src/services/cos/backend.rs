@@ -429,7 +429,7 @@ impl Access for CosBackend {
                 self.core
                     .cos_put_object_request(path, None, v, Buffer::new())?
             }
-            PresignOperation::Delete(v) => todo!(),
+            PresignOperation::Delete(_) => todo!(),
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

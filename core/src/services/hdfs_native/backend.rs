@@ -248,8 +248,8 @@ impl Access for HdfsNativeBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let iter = self.client.list_status_iter(path, OpList::recursive);
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let iter = self.client.list_status_iter(path, args.recursive());
         let stream = iter.into_stream();
 
         Ok((

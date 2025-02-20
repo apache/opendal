@@ -1001,6 +1001,7 @@ impl Access for S3Backend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+                presign_delete: true,
 
                 shared: true,
 
@@ -1111,6 +1112,7 @@ impl Access for S3Backend {
                 self.core
                     .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
 
         self.core.sign_query(&mut req, expire).await?;

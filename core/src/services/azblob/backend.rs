@@ -545,6 +545,7 @@ impl Access for AzblobBackend {
                 presign_stat: self.has_sas_token,
                 presign_read: self.has_sas_token,
                 presign_write: self.has_sas_token,
+                presign_delete: self.has_sas_token,
 
                 shared: true,
 
@@ -644,6 +645,7 @@ impl Access for AzblobBackend {
                 self.core
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
 
         self.core.sign_query(&mut req).await?;

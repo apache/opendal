@@ -518,6 +518,7 @@ impl Access for OssBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+                presign_delete: true,
 
                 shared: true,
 
@@ -626,6 +627,7 @@ impl Access for OssBackend {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;

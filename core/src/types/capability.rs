@@ -227,6 +227,8 @@ pub struct Capability {
     pub presign_stat: bool,
     /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
+    /// Indicates if presigned URLs for delete operations are supported.
+    pub presign_delete: bool,
 
     /// Indicate if the operator supports shared access.
     pub shared: bool,

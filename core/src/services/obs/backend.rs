@@ -308,6 +308,7 @@ impl Access for ObsBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+                presign_delete: true,
 
                 shared: true,
 
@@ -420,6 +421,7 @@ impl Access for ObsBackend {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

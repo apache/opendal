@@ -410,6 +410,7 @@ impl Access for GcsBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+                presign_delete: true,
 
                 shared: true,
 
@@ -521,6 +522,7 @@ impl Access for GcsBackend {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
 
         self.core.sign_query(&mut req, args.expire())?;

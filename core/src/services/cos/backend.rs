@@ -313,6 +313,7 @@ impl Access for CosBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
+                presign_delete: true,
 
                 shared: true,
 
@@ -428,6 +429,7 @@ impl Access for CosBackend {
                 self.core
                     .cos_put_object_request(path, None, v, Buffer::new())?
             }
+            PresignOperation::Delete(_) => todo!(),
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

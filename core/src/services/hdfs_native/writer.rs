@@ -32,8 +32,8 @@ impl HdfsNativeWriter {
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        while let Some(bs) = bs.next() {
+    async fn write(&mut self, mut buf: Buffer) -> Result<()> {
+        for bs in buf.by_ref() {
             self.f.write(bs).await.map_err(parse_hdfs_error)?;
         }
 

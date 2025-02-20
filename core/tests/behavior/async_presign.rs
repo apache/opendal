@@ -142,6 +142,29 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
-    todo!();
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes(op.info().full_capability());
+    // create a file
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // presign delete it
+    let signed_req = op.presign_delete(&path, Duration::from_secs(3600)).await?;
+    debug!("Generated request: {signed_req:?}");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send request must succeed");
+
+    assert!(!op.exists(&path).await.expect("delete must succeed"));
     Ok(())
 }

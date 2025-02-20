@@ -40,10 +40,11 @@ impl oio::Write for HdfsNativeWriter {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         self.f.close().await.map_err(parse_hdfs_error)?;
 
-        Ok(())
+        // todo: get content length from hdfs native client
+        Ok(Metadata::default().with_content_length(0))
     }
 
     async fn abort(&mut self) -> Result<()> {

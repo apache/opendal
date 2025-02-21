@@ -215,9 +215,9 @@ impl VhostUserBackend for VhostUserFsBackend {
     /// Get available virtio features.
     fn features(&self) -> u64 {
         // Align to the virtiofsd's features here.
-        1 << VIRTIO_F_VERSION_1
-            | 1 << VIRTIO_RING_F_INDIRECT_DESC
-            | 1 << VIRTIO_RING_F_EVENT_IDX
+        (1 << VIRTIO_F_VERSION_1)
+            | (1 << VIRTIO_RING_F_INDIRECT_DESC)
+            | (1 << VIRTIO_RING_F_EVENT_IDX)
             | VhostUserVirtioFeatures::PROTOCOL_FEATURES.bits()
     }
 

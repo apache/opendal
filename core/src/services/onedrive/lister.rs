@@ -17,8 +17,6 @@
 
 use bytes::Buf;
 
-use chrono::Utc;
-
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::GraphApiOnedriveListResponse;
@@ -109,17 +107,10 @@ impl oio::PageList for OnedriveLister {
                 normalized_path.push('/');
             }
 
-            let mut meta = Metadata::new(entry_mode)
-                .with_last_modified(
-                    drive_item
-                        .last_modified_date_time
-                        .parse::<chrono::DateTime<Utc>>()
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                .set_source(e)
-                        })?,
-                )
-                .with_etag(drive_item.e_tag);
+            let mut meta = Metadata::new(entry_mode).with_etag(drive_item.e_tag);
+            let last_modified =
+                parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
+            meta.set_last_modified(last_modified);
             let content_length = if drive_item.size < 0 {
                 0
             } else {

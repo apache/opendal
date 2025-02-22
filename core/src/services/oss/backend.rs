@@ -518,7 +518,6 @@ impl Access for OssBackend {
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
-                presign_delete: true,
 
                 shared: true,
 

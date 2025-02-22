@@ -1993,7 +1993,7 @@ impl Operator {
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
     /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
     ///
-    /// We can upload file as this file via `curl` or other tools without credential:
+    /// We can delete file as this file via `curl` or other tools without credential:
     ///
     /// ```shell
     /// curl -X DELETE "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>"
@@ -2002,78 +2002,7 @@ impl Operator {
         self.presign_delete_with(path, expire).await
     }
 
-    /// Presign an operation for delete with extra options.
-    ///
-    /// # Options
-    ///
-    /// ## `content_type`
-    ///
-    /// Set the [`content-type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `content_disposition`
-    ///
-    /// Set the [`content-disposition`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `cache_control`
-    ///
-    /// Set the [`cache-control`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_delete_with("test", Duration::from_secs(3600))
-    ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
+    /// Presign an operation for delete without extra options.
     pub fn presign_delete_with(
         &self,
         path: &str,

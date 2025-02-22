@@ -144,7 +144,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
     if !(cap.presign && cap.delete && cap.presign_delete) {
-        Ok(())
+        return Ok(());
     }
 
     let path = uuid::Uuid::new_v4().to_string();

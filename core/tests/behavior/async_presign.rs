@@ -31,7 +31,7 @@ use crate::*;
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if cap.read && cap.write && cap.presign {
+    if cap.read && cap.write && cap.presign && cap.delete {
         tests.extend(async_trials!(
             op,
             test_presign_write,
@@ -142,6 +142,11 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !(cap.presign && cap.delete) {
+        Ok(())
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _size) = gen_bytes(op.info().full_capability());

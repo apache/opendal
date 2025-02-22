@@ -418,23 +418,22 @@ impl Access for CosBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        if let PresignOperation::Delete(_) = args.operation() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ));
-        };
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v)?,
+            PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v),
             PresignOperation::Read(v) => {
                 self.core
-                    .cos_get_object_request(path, BytesRange::default(), v)?
+                    .cos_get_object_request(path, BytesRange::default(), v)
             }
             PresignOperation::Write(v) => {
                 self.core
-                    .cos_put_object_request(path, None, v, Buffer::new())?
+                    .cos_put_object_request(path, None, v, Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+        let mut req = req?;
         self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.

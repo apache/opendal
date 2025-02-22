@@ -513,6 +513,12 @@ impl Access for GcsBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        if let PresignOperation::Delete(_) = args.operation() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        };
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
@@ -521,10 +527,6 @@ impl Access for GcsBackend {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())?
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
         };
 
         self.core.sign_query(&mut req, args.expire())?;

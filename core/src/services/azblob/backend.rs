@@ -634,6 +634,13 @@ impl Access for AzblobBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        if let PresignOperation::Delete(_) = args.operation() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        };
+
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v)?,
             PresignOperation::Read(v) => {
@@ -644,10 +651,6 @@ impl Access for AzblobBackend {
                 self.core
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())?
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
         };
 
         self.core.sign_query(&mut req).await?;

@@ -410,6 +410,12 @@ impl Access for ObsBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        if let PresignOperation::Delete(_) = args.operation() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        }
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
             PresignOperation::Read(v) => {
@@ -420,10 +426,6 @@ impl Access for ObsBackend {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())?
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

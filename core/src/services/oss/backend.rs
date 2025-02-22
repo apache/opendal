@@ -619,7 +619,7 @@ impl Access for OssBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
+        let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
             PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v),
             PresignOperation::Write(v) => {

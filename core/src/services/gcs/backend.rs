@@ -514,7 +514,7 @@ impl Access for GcsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
+        let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
             PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v),
             PresignOperation::Write(v) => {

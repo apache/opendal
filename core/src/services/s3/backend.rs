@@ -1100,7 +1100,7 @@ impl Access for S3Backend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
         // We will not send this request out, just for signing.
-        let mut req = match op {
+        let req = match op {
             PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
             PresignOperation::Read(v) => {
                 self.core

@@ -626,7 +626,10 @@ impl Access for OssBackend {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)?
             }
-            PresignOperation::Delete(_) => todo!(),
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;

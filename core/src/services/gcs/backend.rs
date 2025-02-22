@@ -521,7 +521,10 @@ impl Access for GcsBackend {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())?
             }
-            PresignOperation::Delete(_) => todo!(),
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
 
         self.core.sign_query(&mut req, args.expire())?;

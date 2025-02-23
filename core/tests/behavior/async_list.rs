@@ -146,7 +146,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create_dir(&dir).await.expect("write must succeed");
+    op.create_dir(&dir).await?;
 
     // List "dir/" should return "dir/".
     let mut obs = op.lister(&dir).await?;

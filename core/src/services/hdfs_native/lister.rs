@@ -77,7 +77,7 @@ impl oio::List for HdfsNativeLister {
             }
             Some(Err(e)) => {
                 error!("hdfs_native lister error: {}", e);
-                Err(parse_hdfs_error(e))
+                Err(parse_hdfs_error(e))?
             }
             None => Ok(None),
         }

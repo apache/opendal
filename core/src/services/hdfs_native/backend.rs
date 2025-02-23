@@ -68,16 +68,16 @@ impl HdfsNativeBuilder {
         self
     }
 
-    /// Set url of this backend.
+    /// Set name_node of this backend.
     ///
     /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn url(mut self, url: &str) -> Self {
-        if !url.is_empty() {
+    pub fn name_node(mut self, name_node: &str) -> Self {
+        if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.url = Some(url.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
         }
 
         self
@@ -99,10 +99,10 @@ impl Builder for HdfsNativeBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let url = match &self.config.url {
+        let name_node = match &self.config.name_node {
             Some(v) => v,
             None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "url is empty")
+                return Err(Error::new(ErrorKind::ConfigInvalid, "name_node is empty")
                     .with_context("service", Scheme::HdfsNative));
             }
         };
@@ -110,7 +110,7 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(url).map_err(parse_hdfs_error)?;
+        let client = hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
 

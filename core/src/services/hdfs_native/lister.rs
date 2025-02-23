@@ -23,6 +23,8 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
+use log::error;
+
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
 use hdfs_native::client::FileStatus;
@@ -73,7 +75,10 @@ impl oio::List for HdfsNativeLister {
 
                 Ok(Some(entry))
             }
-            Some(Err(e)) => Err(parse_hdfs_error(e)),
+            Some(Err(e)) => {
+                error!("hdfs_native lister error: {}", e);
+                Err(parse_hdfs_error(e))
+            }
             None => Ok(None),
         }
     }

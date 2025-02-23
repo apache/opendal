@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
+use log::info;
 
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
@@ -249,6 +250,7 @@ impl Access for HdfsNativeBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        info!("backend list started. path {}", &path);
         let iter = self.client.list_status_iter(path, args.recursive());
         let stream = iter.into_stream();
 

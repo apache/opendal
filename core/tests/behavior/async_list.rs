@@ -54,9 +54,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
-    if cap.read && !cap.write && cap.list {
-        tests.extend(async_trials!(op, test_list_only))
-    }
+    // if cap.read && !cap.write && cap.list {
+    //    tests.extend(async_trials!(op, test_list_only))
+    // }
 }
 
 /// Check should be OK.

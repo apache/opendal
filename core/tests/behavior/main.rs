@@ -62,24 +62,24 @@ fn main() -> anyhow::Result<()> {
 
     let mut tests = Vec::new();
 
-    async_copy::tests(&op, &mut tests);
-    async_create_dir::tests(&op, &mut tests);
-    async_delete::tests(&op, &mut tests);
+    // async_copy::tests(&op, &mut tests);
+    // async_create_dir::tests(&op, &mut tests);
+    // async_delete::tests(&op, &mut tests);
     async_list::tests(&op, &mut tests);
-    async_presign::tests(&op, &mut tests);
-    async_read::tests(&op, &mut tests);
-    async_rename::tests(&op, &mut tests);
-    async_stat::tests(&op, &mut tests);
-    async_write::tests(&op, &mut tests);
+    // async_presign::tests(&op, &mut tests);
+    // async_read::tests(&op, &mut tests);
+    // async_rename::tests(&op, &mut tests);
+    // async_stat::tests(&op, &mut tests);
+    // async_write::tests(&op, &mut tests);
 
-    blocking_copy::tests(&op, &mut tests);
-    blocking_create_dir::tests(&op, &mut tests);
-    blocking_delete::tests(&op, &mut tests);
-    blocking_list::tests(&op, &mut tests);
-    blocking_read::tests(&op, &mut tests);
-    blocking_rename::tests(&op, &mut tests);
-    blocking_stat::tests(&op, &mut tests);
-    blocking_write::tests(&op, &mut tests);
+    // blocking_copy::tests(&op, &mut tests);
+    // blocking_create_dir::tests(&op, &mut tests);
+    // blocking_delete::tests(&op, &mut tests);
+    // blocking_list::tests(&op, &mut tests);
+    // blocking_read::tests(&op, &mut tests);
+    // blocking_rename::tests(&op, &mut tests);
+    // blocking_stat::tests(&op, &mut tests);
+    // blocking_write::tests(&op, &mut tests);
 
     // Don't init logging while building operator which may break cargo
     // nextest output

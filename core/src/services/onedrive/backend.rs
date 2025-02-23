@@ -147,12 +147,7 @@ impl Access for OnedriveBackend {
 
             Ok(RpStat::new(meta))
         } else {
-            match status {
-                StatusCode::NOT_FOUND if path.ends_with('/') => {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                }
-                _ => Err(parse_error(resp)),
-            }
+            Err(parse_error(resp))
         }
     }
 

@@ -250,8 +250,9 @@ impl Access for HdfsNativeBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        info!("backend list started. path {}", &path);
-        let iter = self.client.list_status_iter(path, args.recursive());
+        let p = build_rooted_abs_path(&self.root, path);
+        info!("backend list started. path {} p {}", &path, &p);
+        let iter = self.client.list_status_iter(&p, args.recursive());
         let stream = iter.into_stream();
 
         Ok((

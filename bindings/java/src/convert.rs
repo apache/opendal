@@ -69,6 +69,24 @@ pub(crate) fn string_to_jstring<'a>(
     )
 }
 
+pub(crate) fn get_optional_string_from_object<'a>(env: &mut JNIEnv<'a>, obj: &JObject, method: &str) -> crate::Result<Option<String>> {
+    let result = env.call_method(obj, method, "()Ljava/lang/String;", &[])?.l()?;
+    if result.is_null() {
+        Ok(None)
+    } else {
+        Ok(Some(jstring_to_string(env, &JString::from(result))?))
+    }
+}
+
+pub(crate) fn get_optional_map_from_object<'a>(env: &mut JNIEnv<'a>, obj: &JObject, method: &str) -> crate::Result<Option<HashMap<String, String>>> {
+    let result = env.call_method(obj, method, "()Ljava/util/Map;", &[])?.l()?;
+    if result.is_null() {
+        Ok(None)
+    } else {
+        Ok(Some(jmap_to_hashmap(env, &result)?))
+    }
+}
+
 /// # Safety
 ///
 /// The caller must guarantee that the Object passed in is an instance

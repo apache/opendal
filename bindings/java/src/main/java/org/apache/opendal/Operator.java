@@ -76,7 +76,15 @@ public class Operator extends NativeObject {
     }
 
     public void write(String path, byte[] content) {
-        write(nativeHandle, path, content);
+        write(nativeHandle, path, content, WriteOptions.builder().build());
+    }
+
+    public void write(String path, String content, WriteOptions options) {
+        write(path, content.getBytes(StandardCharsets.UTF_8), options);
+    }
+
+    public void write(String path, byte[] content, WriteOptions options) {
+        write(nativeHandle, path, content, options);
     }
 
     public OperatorOutputStream createOutputStream(String path) {
@@ -128,7 +136,7 @@ public class Operator extends NativeObject {
 
     private static native long duplicate(long op);
 
-    private static native void write(long op, String path, byte[] content);
+    private static native void write(long op, String path, byte[] content, WriteOptions options);
 
     private static native byte[] read(long op, String path);
 

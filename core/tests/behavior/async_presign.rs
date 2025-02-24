@@ -31,7 +31,7 @@ use crate::*;
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
 
-    if cap.read && cap.write && cap.presign && cap.delete {
+    if cap.read && cap.write && cap.presign {
         tests.extend(async_trials!(
             op,
             test_presign_write,
@@ -143,7 +143,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
-    if !(cap.presign && cap.delete && cap.presign_delete) {
+    if !cap.presign_delete {
         return Ok(());
     }
 

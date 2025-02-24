@@ -39,4 +39,3 @@ opendal = { version = "0.52.0", path = "../../core", features = [
   "services-fs",
 ] }
 tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "io-std"] }
-tempfile = "3.17.1"

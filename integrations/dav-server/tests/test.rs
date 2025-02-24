@@ -25,7 +25,7 @@ use futures::StreamExt;
 use opendal::services::Fs;
 use opendal::Operator;
 use std::fs;
-use tempfile::TempDir;
+use std::path::Path;
 
 #[tokio::test]
 async fn test() -> Result<()> {
@@ -44,16 +44,11 @@ async fn test() -> Result<()> {
     Ok(())
 }
 
-fn setup_temp() -> (Box<OpendalFs>, TempDir) {
-    let tmp_dir = TempDir::with_prefix("test").unwrap();
-
-    let builder = Fs::default().root(tmp_dir.path().to_str().unwrap());
-
+fn setup_temp(path: &str) -> Box<OpendalFs> {
+    let _ = fs::remove_dir_all(path);
+    let builder = Fs::default().root(path);
     let op = Operator::new(builder).unwrap().finish();
-
-    let webdavfs = OpendalFs::new(op);
-
-    (webdavfs, tmp_dir)
+    OpendalFs::new(op)
 }
 
 const TEST_PATH_ENCODED_1: &str = "test_%CE%B1%CE%BB%CF%86%CE%AC";
@@ -63,23 +58,26 @@ const TEST_PATH_DECODED_2: &str = "test_βητο";
 
 #[tokio::test]
 async fn test_create_dir_metadata() {
-    let (webdavfs, tmp_dir) = setup_temp();
+    const TMP_PATH: &str = "/tmp/test_create_dir_metadata";
+    let webdavfs = setup_temp(TMP_PATH);
     webdavfs
         .create_dir(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}/")).unwrap())
         .await
         .unwrap();
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
-    assert!(!fs::exists(tmp_dir.path().join(TEST_PATH_ENCODED_1)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(!fs::exists(Path::new(TMP_PATH).join(TEST_PATH_ENCODED_1)).unwrap());
 
     webdavfs
         .metadata(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}/")).unwrap())
         .await
         .unwrap();
+    fs::remove_dir_all(TMP_PATH).unwrap();
 }
 
 #[tokio::test]
 async fn test_remove_dir() {
-    let (webdavfs, tmp_dir) = setup_temp();
+    const TMP_PATH: &str = "/tmp/test_remove_dir";
+    let webdavfs = setup_temp(TMP_PATH);
     webdavfs
         .create_dir(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}/")).unwrap())
         .await
@@ -88,12 +86,14 @@ async fn test_remove_dir() {
         .remove_dir(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}/")).unwrap())
         .await
         .unwrap();
-    assert!(!fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
-    assert!(!fs::exists(tmp_dir.path().join(TEST_PATH_ENCODED_1)).unwrap());
+    assert!(!fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(!fs::exists(Path::new(TMP_PATH).join(TEST_PATH_ENCODED_1)).unwrap());
+    fs::remove_dir_all("/tmp/test_remove_dir").unwrap();
 }
 #[tokio::test]
 async fn test_file() {
-    let (webdavfs, tmp_dir) = setup_temp();
+    const TMP_PATH: &str = "/tmp/test_file";
+    let webdavfs = setup_temp(TMP_PATH);
 
     let mut f1 = webdavfs
         .open(
@@ -109,7 +109,7 @@ async fn test_file() {
     f1.write_buf(Box::new(Bytes::from("test"))).await.unwrap();
     f1.flush().await.unwrap();
     drop(f1);
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
 
     let mut f1 = webdavfs
         .open(
@@ -131,8 +131,8 @@ async fn test_file() {
         )
         .await
         .unwrap();
-    assert!(!fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_2)).unwrap());
+    assert!(!fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_2)).unwrap());
 
     webdavfs
         .copy(
@@ -141,20 +141,23 @@ async fn test_file() {
         )
         .await
         .unwrap();
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_2)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_2)).unwrap());
 
     webdavfs
         .remove_file(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}")).unwrap())
         .await
         .unwrap();
-    assert!(!fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_1)).unwrap());
-    assert!(fs::exists(tmp_dir.path().join(TEST_PATH_DECODED_2)).unwrap());
+    assert!(!fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_1)).unwrap());
+    assert!(fs::exists(Path::new(TMP_PATH).join(TEST_PATH_DECODED_2)).unwrap());
+
+    fs::remove_dir_all(TMP_PATH).unwrap();
 }
 
 #[tokio::test]
 async fn test_read_dir() {
-    let (webdavfs, _) = setup_temp();
+    const TMP_PATH: &str = "/tmp/test_read_dir";
+    let webdavfs = setup_temp(TMP_PATH);
     webdavfs
         .create_dir(&DavPath::new(&format!("/{TEST_PATH_ENCODED_1}/")).unwrap())
         .await
@@ -188,4 +191,6 @@ async fn test_read_dir() {
     assert_eq!(entries.len(), 2);
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_1}/")));
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));
+
+    fs::remove_dir_all(TMP_PATH).unwrap();
 }

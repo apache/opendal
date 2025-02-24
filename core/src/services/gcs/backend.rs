@@ -374,6 +374,7 @@ impl Access for GcsBackend {
                 write: true,
                 write_can_empty: true,
                 write_can_multi: true,
+                write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_encoding: true,
                 write_with_user_metadata: true,

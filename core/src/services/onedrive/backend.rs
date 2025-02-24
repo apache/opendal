@@ -94,6 +94,11 @@ impl Access for OnedriveBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        if path == "/" {
+            // skip, the root path exists in the personal OneDrive.
+            return Ok(RpCreateDir::default());
+        }
+
         let path = build_rooted_abs_path(&self.root, path);
         let path_before_last_slash = get_parent(&path);
         let encoded_path = percent_encode_path(path_before_last_slash);
@@ -147,12 +152,7 @@ impl Access for OnedriveBackend {
 
             Ok(RpStat::new(meta))
         } else {
-            match status {
-                StatusCode::NOT_FOUND if path.ends_with('/') => {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                }
-                _ => Err(parse_error(resp)),
-            }
+            Err(parse_error(resp))
         }
     }
 

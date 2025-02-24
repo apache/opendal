@@ -50,12 +50,9 @@ impl oio::PageList for OnedriveLister {
             let url: String = if path == "." || path == "/" {
                 "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
             } else {
-                // According to OneDrive API examples, the path should not end with a slash.
-                // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
-                let path = path.strip_suffix('/').unwrap_or("");
                 format!(
-                    "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
-                    percent_encode_path(path),
+                    "https://graph.microsoft.com/v1.0/me/drive/root:/{}:/children",
+                    percent_encode_path(&path),
                 )
             };
             url
@@ -81,6 +78,14 @@ impl oio::PageList for OnedriveLister {
         let bytes = resp.into_body();
         let decoded_response: GraphApiOnedriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+
+        // Include the current directory itself when handling the first page of the listing.
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_abs_path(&self.root, self.path.as_str());
+            let path = build_rel_path(&self.root, &path);
+            let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
+            ctx.entries.push_back(e);
+        }
 
         if let Some(next_link) = decoded_response.next_link {
             ctx.token = next_link;

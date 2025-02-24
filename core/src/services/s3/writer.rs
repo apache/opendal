@@ -239,7 +239,7 @@ impl oio::AppendWrite for S3Writer {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -250,8 +250,10 @@ impl oio::AppendWrite for S3Writer {
 
         let status = resp.status();
 
+        let meta = S3Writer::parse_header_into_meta(&self.path, resp.headers())?;
+
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

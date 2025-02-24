@@ -548,12 +548,16 @@ impl S3Core {
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
-
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
         let mut req = Request::put(&url);
 
-        req = self.insert_metadata_headers(req, Some(size), args);
+        // Only include full metadata headers when creating a new object via append (position == 0)
+        // For existing objects or subsequent appends, only include content-length
+        if position == 0 {
+            req = self.insert_metadata_headers(req, Some(size), args);
+        } else {
+            req = req.header(CONTENT_LENGTH, size.to_string());
+        }
 
         req = req.header(constants::X_AMZ_WRITE_OFFSET_BYTES, position.to_string());
 

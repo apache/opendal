@@ -225,6 +225,70 @@ impl Builder for ObsBuilder {
         debug!("backend build finished");
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Obs)
+                        .set_root(&root)
+                        .set_name(&bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_content_type: true,
+                            write_with_cache_control: true,
+                            // The min multipart size of OBS is 5 MiB.
+                            //
+                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of OBS is 5 GiB.
+                            //
+                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 bucket,
                 root,
                 endpoint: format!("{}://{}", &scheme, &endpoint),
@@ -253,68 +317,7 @@ impl Access for ObsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Obs)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-                stat_has_user_metadata: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                write_with_cache_control: true,
-                // The min multipart size of OBS is 5 MiB.
-                //
-                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of OBS is 5 GiB.
-                //
-                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                write_with_user_metadata: true,
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

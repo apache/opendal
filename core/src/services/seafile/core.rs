@@ -35,6 +35,7 @@ use crate::*;
 /// Core of [seafile](https://www.seafile.com) services support.
 #[derive(Clone)]
 pub struct SeafileCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.

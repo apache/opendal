@@ -60,6 +60,8 @@ pub struct AliyunDriveSigner {
 }
 
 pub struct AliyunDriveCore {
+    pub info: Arc<AccessorInfo>,
+
     pub endpoint: String,
     pub root: String,
     pub drive_type: DriveType,

@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
@@ -28,6 +25,9 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -36,6 +36,7 @@ use crate::*;
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]
 pub struct GithubCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Github access_token.

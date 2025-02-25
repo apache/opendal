@@ -20,8 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use std::sync::{atomic, Arc};
 use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
@@ -85,6 +85,8 @@ pub mod constants {
 }
 
 pub struct S3Core {
+    pub info: Arc<AccessorInfo>,
+
     pub bucket: String,
     pub endpoint: String,
     pub root: String,
@@ -95,17 +97,12 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
-    pub disable_stat_with_override: bool,
-    pub enable_versioning: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub client: HttpClient,
-    pub delete_max_size: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
-    pub disable_write_with_if_match: bool,
-    pub enable_write_with_append: bool,
 }
 
 impl Debug for S3Core {

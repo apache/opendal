@@ -112,28 +112,7 @@ impl Access for MonoiofsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Monoiofs)
-            .set_root(&self.core.root().to_string_lossy())
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_append: true,
-                write_has_last_modified: true,
-
-                delete: true,
-                rename: true,
-                create_dir: true,
-                copy: true,
-                shared: true,
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

@@ -235,7 +235,7 @@ impl Access for IcloudBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
+        let ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Icloud)
             .set_root(&self.core.root)
             .set_native_capability(Capability {

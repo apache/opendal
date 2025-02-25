@@ -15,70 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-#[derive(Debug, Serialize)]
-struct CreateFileRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    recursive: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateDirRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    recursive: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    allow_exists: Option<bool>,
-}
-
-/// Metadata of alluxio object
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct FileInfo {
-    /// The path of the object
-    pub path: String,
-    /// The last modification time of the object
-    pub last_modification_time_ms: i64,
-    /// Whether the object is a folder
-    pub folder: bool,
-    /// The length of the object in bytes
-    pub length: u64,
-}
-
-impl TryFrom<FileInfo> for Metadata {
-    type Error = Error;
-
-    fn try_from(file_info: FileInfo) -> Result<Metadata> {
-        let mut metadata = if file_info.folder {
-            Metadata::new(EntryMode::DIR)
-        } else {
-            Metadata::new(EntryMode::FILE)
-        };
-        metadata
-            .set_content_length(file_info.length)
-            .set_last_modified(parse_datetime_from_from_timestamp_millis(
-                file_info.last_modification_time_ms,
-            )?);
-        Ok(metadata)
-    }
-}
-
 /// Alluxio core
 #[derive(Clone)]
 pub struct AlluxioCore {
+    pub info: Arc<AccessorInfo>,
     /// root of this backend.
     pub root: String,
     /// endpoint of alluxio
@@ -339,5 +293,52 @@ impl AlluxioCore {
             StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct CreateFileRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recursive: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateDirRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recursive: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allow_exists: Option<bool>,
+}
+
+/// Metadata of alluxio object
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct FileInfo {
+    /// The path of the object
+    pub path: String,
+    /// The last modification time of the object
+    pub last_modification_time_ms: i64,
+    /// Whether the object is a folder
+    pub folder: bool,
+    /// The length of the object in bytes
+    pub length: u64,
+}
+
+impl TryFrom<FileInfo> for Metadata {
+    type Error = Error;
+
+    fn try_from(file_info: FileInfo) -> Result<Metadata> {
+        let mut metadata = if file_info.folder {
+            Metadata::new(EntryMode::DIR)
+        } else {
+            Metadata::new(EntryMode::FILE)
+        };
+        metadata
+            .set_content_length(file_info.length)
+            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+                file_info.last_modification_time_ms,
+            )?);
+        Ok(metadata)
     }
 }

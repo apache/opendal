@@ -37,6 +37,8 @@ use crate::raw::*;
 use crate::*;
 
 pub struct GdriveCore {
+    pub info: Arc<AccessorInfo>,
+
     pub root: String,
 
     pub client: HttpClient,

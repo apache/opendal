@@ -171,6 +171,36 @@ impl Builder for PcloudBuilder {
 
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Pcloud)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            list: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 endpoint: self.config.endpoint.clone(),
                 username,
@@ -198,34 +228,7 @@ impl Access for PcloudBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Pcloud)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-
-                delete: true,
-                rename: true,
-                copy: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

@@ -187,6 +187,34 @@ impl Builder for WebhdfsBuilder {
         let client = HttpClient::new()?;
 
         let backend = WebhdfsBackend {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Webhdfs)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_append: true,
+                        write_can_multi: atomic_write_dir.is_some(),
+
+                        create_dir: true,
+                        delete: true,
+
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_last_modified: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+                am.into()
+            },
             root,
             endpoint,
             user_name: self.config.user_name,
@@ -204,6 +232,7 @@ impl Builder for WebhdfsBuilder {
 /// Backend for WebHDFS service
 #[derive(Debug, Clone)]
 pub struct WebhdfsBackend {
+    info: Arc<AccessorInfo>,
     root: String,
     endpoint: String,
     user_name: Option<String>,
@@ -564,32 +593,7 @@ impl Access for WebhdfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Webhdfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_append: true,
-                write_can_multi: self.atomic_write_dir.is_some(),
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-        am.into()
+        self.info.clone()
     }
 
     /// Create a file or directory

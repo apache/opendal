@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -61,6 +62,8 @@ pub mod constants {
 }
 
 pub struct OssCore {
+    pub info: Arc<AccessorInfo>,
+
     pub root: String,
     pub bucket: String,
     /// buffered host string
@@ -70,7 +73,6 @@ pub struct OssCore {
     pub endpoint: String,
     pub presign_endpoint: String,
     pub allow_anonymous: bool,
-    pub enable_versioning: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
@@ -78,7 +80,6 @@ pub struct OssCore {
     pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
-    pub delete_max_size: usize,
 }
 
 impl Debug for OssCore {

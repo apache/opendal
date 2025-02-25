@@ -38,6 +38,7 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct KoofrCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.

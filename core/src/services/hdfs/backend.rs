@@ -174,10 +174,40 @@ impl Builder for HdfsBuilder {
         }
 
         Ok(HdfsBackend {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Hdfs)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_append: self.config.enable_append,
+
+                        create_dir: true,
+                        delete: true,
+
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_last_modified: true,
+
+                        rename: true,
+                        blocking: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                am.into()
+            },
             root,
             atomic_write_dir,
             client: Arc::new(client),
-            enable_append: self.config.enable_append,
         })
     }
 }
@@ -193,10 +223,10 @@ fn tmp_file_of(path: &str) -> String {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
     atomic_write_dir: Option<String>,
     pub client: Arc<hdrs::Client>,
-    enable_append: bool,
 }
 
 /// hdrs::Client is thread-safe.
@@ -214,35 +244,7 @@ impl Access for HdfsBackend {
     type BlockingDeleter = oio::OneShotDeleter<HdfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Hdfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_append: self.enable_append,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                rename: true,
-                blocking: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

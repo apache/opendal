@@ -176,6 +176,28 @@ impl Builder for LakefsBuilder {
 
         Ok(LakefsBackend {
             core: Arc::new(LakefsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Lakefs)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_disposition: true,
+                            stat_has_last_modified: true,
+
+                            list: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            read: true,
+                            write: true,
+                            delete: true,
+                            copy: true,
+                            shared: true,
+                            ..Default::default()
+                        });
+                    am.into()
+                },
                 endpoint,
                 repository,
                 branch,
@@ -205,26 +227,7 @@ impl Access for LakefsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Lakefs)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_disposition: true,
-                stat_has_last_modified: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                read: true,
-                write: true,
-                delete: true,
-                copy: true,
-                shared: true,
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

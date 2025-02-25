@@ -883,6 +883,106 @@ impl Builder for S3Builder {
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::S3)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_encoding: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+                            stat_with_override_cache_control: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_override_content_disposition: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_override_content_type: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_version: self.config.enable_versioning,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+                            stat_has_version: true,
+
+                            read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+                            read_with_override_cache_control: true,
+                            read_with_override_content_disposition: true,
+                            read_with_override_content_type: true,
+                            read_with_version: self.config.enable_versioning,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_can_append: self.config.enable_write_with_append,
+
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_if_match: !self.config.disable_write_with_if_match,
+                            write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
+                            write_has_content_length: true,
+                            write_has_etag: true,
+                            write_has_version: self.config.enable_versioning,
+
+                            // The min multipart size of S3 is 5 MiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of S3 is 5 GiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            delete_max_size: Some(delete_max_size),
+                            delete_with_version: self.config.enable_versioning,
+
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 bucket: bucket.to_string(),
                 endpoint,
                 root,
@@ -893,16 +993,11 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
-                disable_stat_with_override: self.config.disable_stat_with_override,
-                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 client,
                 checksum_algorithm,
-                delete_max_size,
-                disable_write_with_if_match: self.config.disable_write_with_if_match,
-                enable_write_with_append: self.config.enable_write_with_append,
             }),
         })
     }
@@ -925,98 +1020,7 @@ impl Access for S3Backend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::S3)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_encoding: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_with_if_modified_since: true,
-                stat_with_if_unmodified_since: true,
-                stat_with_override_cache_control: !self.core.disable_stat_with_override,
-                stat_with_override_content_disposition: !self.core.disable_stat_with_override,
-                stat_with_override_content_type: !self.core.disable_stat_with_override,
-                stat_with_version: self.core.enable_versioning,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-                stat_has_user_metadata: true,
-                stat_has_version: true,
-
-                read: true,
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_if_modified_since: true,
-                read_with_if_unmodified_since: true,
-                read_with_override_cache_control: true,
-                read_with_override_content_disposition: true,
-                read_with_override_content_type: true,
-                read_with_version: self.core.enable_versioning,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_can_append: self.core.enable_write_with_append,
-
-                write_with_cache_control: true,
-                write_with_content_type: true,
-                write_with_content_encoding: true,
-                write_with_if_match: !self.core.disable_write_with_if_match,
-                write_with_if_not_exists: true,
-                write_with_user_metadata: true,
-                write_has_content_length: true,
-                write_has_etag: true,
-                write_has_version: self.core.enable_versioning,
-
-                // The min multipart size of S3 is 5 MiB.
-                //
-                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of S3 is 5 GiB.
-                //
-                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                delete_max_size: Some(self.core.delete_max_size),
-                delete_with_version: self.core.enable_versioning,
-
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_with_versions: self.core.enable_versioning,
-                list_with_deleted: self.core.enable_versioning,
-                list_has_etag: true,
-                list_has_content_md5: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

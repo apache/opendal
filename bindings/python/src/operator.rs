@@ -579,6 +579,26 @@ impl AsyncOperator {
         })
     }
 
+    /// Presign an operation for delete which expires after `expire_second` seconds.
+    pub fn presign_delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        expire_second: u64,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+        future_into_py(py, async move {
+            let res = this
+                .presign_delete(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
+        })
+    }
+
     pub fn capability(&self) -> PyResult<capability::Capability> {
         Ok(capability::Capability::new(
             self.core.info().full_capability(),

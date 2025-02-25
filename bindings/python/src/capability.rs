@@ -97,6 +97,8 @@ pub struct Capability {
     pub presign_stat: bool,
     /// If operator supports presign write.
     pub presign_write: bool,
+    /// If operator supports presign delete.
+    pub presign_delete: bool,
 
     /// If operator supports shared.
     pub shared: bool,
@@ -140,6 +142,7 @@ impl Capability {
             presign_read: capability.presign_read,
             presign_stat: capability.presign_stat,
             presign_write: capability.presign_write,
+            presign_delete: capability.presign_delete,
             shared: capability.shared,
             blocking: capability.blocking,
         }

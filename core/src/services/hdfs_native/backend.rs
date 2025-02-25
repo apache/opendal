@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use hdfs_native::WriteOptions;
 use log::debug;
+use log::info;
 
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
@@ -68,16 +69,16 @@ impl HdfsNativeBuilder {
         self
     }
 
-    /// Set url of this backend.
+    /// Set name_node of this backend.
     ///
     /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn url(mut self, url: &str) -> Self {
-        if !url.is_empty() {
+    pub fn name_node(mut self, name_node: &str) -> Self {
+        if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.url = Some(url.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
         }
 
         self
@@ -99,10 +100,10 @@ impl Builder for HdfsNativeBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let url = match &self.config.url {
+        let name_node = match &self.config.name_node {
             Some(v) => v,
             None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "url is empty")
+                return Err(Error::new(ErrorKind::ConfigInvalid, "name_node is empty")
                     .with_context("service", Scheme::HdfsNative));
             }
         };
@@ -110,14 +111,14 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(url).map_err(parse_hdfs_error)?;
+        let client = hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
 
         Ok(HdfsNativeBackend {
             root,
             client: Arc::new(client),
-            _enable_append: self.config.enable_append,
+            enable_append: self.config.enable_append,
         })
     }
 }
@@ -135,7 +136,7 @@ impl Builder for HdfsNativeBuilder {
 pub struct HdfsNativeBackend {
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
-    _enable_append: bool,
+    enable_append: bool,
 }
 
 /// hdfs_native::Client is thread-safe.
@@ -161,7 +162,17 @@ impl Access for HdfsNativeBackend {
                 stat_has_last_modified: true,
                 stat_has_content_length: true,
 
+                read: true,
+
+                write: true,
+                write_can_append: self.enable_append,
+
                 delete: true,
+
+                list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+
                 rename: true,
 
                 shared: true,
@@ -207,12 +218,12 @@ impl Access for HdfsNativeBackend {
         Ok(RpStat::new(metadata))
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
-        let r = HdfsNativeReader::new(f);
+        let r = HdfsNativeReader::new(f, args.range().size().unwrap_or(u64::MAX) as _);
 
         Ok((RpRead::new(), r))
     }
@@ -238,10 +249,16 @@ impl Access for HdfsNativeBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        let l = HdfsNativeLister::new(p, self.client.clone());
-        Ok((RpList::default(), Some(l)))
+        info!("backend list started. path {} p {}", &path, &p);
+        let iter = self.client.list_status_iter(&p, args.recursive());
+        let stream = iter.into_stream();
+
+        Ok((
+            RpList::default(),
+            Some(HdfsNativeLister::new(&self.root, stream, path)),
+        ))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

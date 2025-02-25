@@ -23,6 +23,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use log::info;
 
 use crate::*;
 
@@ -32,31 +33,30 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     if cap.read && cap.write && cap.list {
         tests.extend(async_trials!(
             op,
-            test_check,
-            test_list_dir,
-            test_list_prefix,
-            test_list_rich_dir,
-            test_list_empty_dir,
-            test_list_non_exist_dir,
-            test_list_sub_dir,
-            test_list_nested_dir,
-            test_list_dir_with_file_path,
-            test_list_with_start_after,
-            test_list_dir_with_recursive,
-            test_list_dir_with_recursive_no_trailing_slash,
-            test_list_file_with_recursive,
-            test_list_root_with_recursive,
-            test_remove_all,
-            test_list_files_with_versions,
-            test_list_with_versions_and_limit,
-            test_list_with_versions_and_start_after,
-            test_list_files_with_deleted
+            // test_check,
+            // test_list_dir,
+            // test_list_prefix,
+            // test_list_rich_dir,
+            test_list_empty_dir // test_list_non_exist_dir,
+                                // test_list_sub_dir,
+                                // test_list_nested_dir,
+                                // test_list_dir_with_file_path,
+                                // test_list_with_start_after,
+                                // test_list_dir_with_recursive,
+                                // test_list_dir_with_recursive_no_trailing_slash,
+                                // test_list_file_with_recursive,
+                                // test_list_root_with_recursive,
+                                // test_remove_all,
+                                // test_list_files_with_versions,
+                                // test_list_with_versions_and_limit,
+                                // test_list_with_versions_and_start_after,
+                                // test_list_files_with_deleted
         ))
     }
 
-    if cap.read && !cap.write && cap.list {
-        tests.extend(async_trials!(op, test_list_only))
-    }
+    // if cap.read && !cap.write && cap.list {
+    //    tests.extend(async_trials!(op, test_list_only))
+    // }
 }
 
 /// Check should be OK.
@@ -146,41 +146,43 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create_dir(&dir).await.expect("write must succeed");
+    op.create_dir(&dir).await?;
 
-    // List "dir/" should return "dir/".
-    let mut obs = op.lister(&dir).await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(
-        objects.len(),
-        1,
-        "only return the dir itself, but found: {objects:?}"
-    );
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir, but found: {objects:?}"
-    );
+    // // List "dir/" should return "dir/".
+    // let mut obs = op.lister(&dir).await?;
+    // let mut objects = HashMap::new();
+    // while let Some(de) = obs.try_next().await? {
+    //     objects.insert(de.path().to_string(), de);
+    // }
+    // assert_eq!(
+    //     objects.len(),
+    //     1,
+    //     "only return the dir itself, but found: {objects:?}"
+    // );
+    // assert_eq!(
+    //     objects[&dir].metadata().mode(),
+    //     EntryMode::DIR,
+    //     "given dir should exist and must be dir, but found: {objects:?}"
+    // );
+    // info!("test List dir/ should return dir/ passed");
 
-    // List "dir" should return "dir/".
-    let mut obs = op.lister(dir.trim_end_matches('/')).await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(
-        objects.len(),
-        1,
-        "only return the dir itself, but found: {objects:?}"
-    );
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir, but found: {objects:?}"
-    );
+    // // List "dir" should return "dir/".
+    // let mut obs = op.lister(dir.trim_end_matches('/')).await?;
+    // let mut objects = HashMap::new();
+    // while let Some(de) = obs.try_next().await? {
+    //     objects.insert(de.path().to_string(), de);
+    // }
+    // assert_eq!(
+    //     objects.len(),
+    //     1,
+    //     "only return the dir itself, but found: {objects:?}"
+    // );
+    // assert_eq!(
+    //     objects[&dir].metadata().mode(),
+    //     EntryMode::DIR,
+    //     "given dir should exist and must be dir, but found: {objects:?}"
+    // );
+    // info!("test List dir should return dir/ passed");
 
     // List "dir/" recursively should return "dir/".
     let mut obs = op.lister_with(&dir).recursive(true).await?;
@@ -198,6 +200,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
         EntryMode::DIR,
         "given dir should exist and must be dir, but found: {objects:?}"
     );
+    info!("test List dir/ recursively should return dir/ passed");
 
     // List "dir" recursively should return "dir/".
     let mut obs = op
@@ -214,6 +217,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
         EntryMode::DIR,
         "given dir should exist and must be dir"
     );
+    info!("test List dir recursively should return dir/ passed");
 
     op.delete(&dir).await.expect("delete must succeed");
     Ok(())

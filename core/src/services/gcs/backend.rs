@@ -365,6 +365,7 @@ impl Access for GcsBackend {
                 stat_has_content_encoding: true,
                 stat_has_last_modified: true,
                 stat_has_user_metadata: true,
+                stat_has_cache_control: true,
 
                 read: true,
 

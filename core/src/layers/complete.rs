@@ -342,19 +342,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         &self.inner
     }
 
-    // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
     fn info(&self) -> Arc<AccessorInfo> {
-        let meta = self.info.clone();
-
-        meta.update_full_capability(|cap| {
-            if cap.list && cap.write_can_empty {
-                cap.create_dir = true;
-            }
-            // write operations should always return content length
-            cap.write_has_content_length = true;
-        });
-
-        meta
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

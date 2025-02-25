@@ -78,10 +78,6 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
         &self.inner
     }
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
-    }
-
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await.map_err(|err| {
             err.with_operation(Operation::CreateDir)

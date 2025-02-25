@@ -17,7 +17,6 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::vec::IntoIter;
 
 use crate::raw::*;
@@ -74,6 +73,12 @@ impl<A: Access> Layer<A> for ImmutableIndexLayer {
     type LayeredAccess = ImmutableIndexAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_full_capability(|cap| {
+            cap.list = true;
+            cap.list_with_recursive = true;
+        });
+
         ImmutableIndexAccessor {
             vec: self.vec.clone(),
             inner,
@@ -148,17 +153,6 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
-    }
-
-    /// Add list capabilities for underlying storage services.
-    fn info(&self) -> Arc<AccessorInfo> {
-        let meta = self.inner.info();
-
-        meta.update_full_capability(|cap| {
-            cap.list = true;
-            cap.list_with_recursive = true;
-        });
-        meta
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

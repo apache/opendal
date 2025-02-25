@@ -163,7 +163,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -205,7 +205,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -250,7 +250,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
-        let cap = self.info.full_capability();
+        let cap = self.info.native_capability();
 
         let recursive = args.recursive();
 
@@ -295,7 +295,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
-        let cap = self.info.full_capability();
+        let cap = self.info.native_capability();
 
         let recursive = args.recursive();
 

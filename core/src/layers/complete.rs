@@ -133,7 +133,7 @@ impl<A: Access> Debug for CompleteAccessor<A> {
 
 impl<A: Access> CompleteAccessor<A> {
     async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
         if capability.create_dir {
             return self.inner().create_dir(path, args).await;
         }
@@ -148,7 +148,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
         if capability.create_dir && capability.blocking {
             return self.inner().blocking_create_dir(path, args);
         }

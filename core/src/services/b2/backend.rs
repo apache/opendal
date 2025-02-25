@@ -471,6 +471,10 @@ impl Access for B2Backend {
                     parts.headers,
                 )))
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         }
     }
 }

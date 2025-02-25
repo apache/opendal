@@ -1114,19 +1114,23 @@ impl Access for S3Backend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
-
         // We will not send this request out, just for signing.
-        let mut req = match op {
-            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v)?,
+        let req = match op {
+            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
             PresignOperation::Read(v) => {
                 self.core
-                    .s3_get_object_request(path, BytesRange::default(), &v)?
+                    .s3_get_object_request(path, BytesRange::default(), &v)
             }
             PresignOperation::Write(_) => {
                 self.core
-                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())?
+                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+        let mut req = req?;
 
         self.core.sign_query(&mut req, expire).await?;
 

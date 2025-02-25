@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use dashmap::DashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
-use dashmap::DashMap;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
@@ -88,7 +87,7 @@ impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(
             Scheme::Dashmap,
-            &format!("{:?}", &self.inner as *const _),
+            "dashmap",
             typed_kv::Capability {
                 get: true,
                 set: true,
@@ -141,19 +140,5 @@ impl typed_kv::Adapter for Adapter {
         } else {
             Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_accessor_metadata_name() {
-        let b1 = DashmapBuilder::default().build().unwrap();
-        assert_eq!(b1.info().name(), b1.info().name());
-
-        let b2 = DashmapBuilder::default().build().unwrap();
-        assert_ne!(b1.info().name(), b2.info().name())
     }
 }

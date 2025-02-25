@@ -51,35 +51,7 @@ impl Access for GdriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Gdrive)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                list: true,
-                list_has_content_type: true,
-                list_has_content_length: true,
-                list_has_etag: true,
-
-                write: true,
-
-                create_dir: true,
-                delete: true,
-                rename: true,
-                copy: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

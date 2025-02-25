@@ -17,7 +17,7 @@
 
 use std::mem;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use flume::Receiver;
@@ -37,6 +37,8 @@ type TaskSpawner = Box<dyn FnOnce() + Send>;
 
 #[derive(Debug)]
 pub struct MonoiofsCore {
+    pub info: Arc<AccessorInfo>,
+
     root: PathBuf,
     /// sender that sends [`TaskSpawner`] to worker threads
     tx: Sender<TaskSpawner>,
@@ -64,15 +66,35 @@ impl MonoiofsCore {
         let threads = Mutex::new(threads);
 
         Self {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Monoiofs)
+                    .set_root(&root.to_string_lossy())
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_append: true,
+                        write_has_last_modified: true,
+
+                        delete: true,
+                        rename: true,
+                        create_dir: true,
+                        copy: true,
+                        shared: true,
+                        ..Default::default()
+                    });
+                am.into()
+            },
             root,
             tx,
             threads,
             buf_pool: oio::PooledBuf::new(16).with_initial_capacity(BUFFER_SIZE),
         }
-    }
-
-    pub fn root(&self) -> &PathBuf {
-        &self.root
     }
 
     /// join root and path

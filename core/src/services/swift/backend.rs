@@ -156,6 +156,43 @@ impl Builder for SwiftBuilder {
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Swift)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_with_user_metadata: true,
+
+                            delete: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+                    am.into()
+                },
                 root,
                 endpoint,
                 container,
@@ -183,41 +220,7 @@ impl Access for SwiftBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Swift)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-                stat_has_user_metadata: true,
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_with_user_metadata: true,
-
-                delete: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

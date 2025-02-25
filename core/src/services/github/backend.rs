@@ -152,6 +152,36 @@ impl Builder for GithubBuilder {
 
         Ok(GithubBackend {
             core: Arc::new(GithubCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Github)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_etag: true,
+
+                            read: true,
+
+                            create_dir: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_etag: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 token: self.config.token.clone(),
                 owner: self.config.owner.clone(),
@@ -179,34 +209,7 @@ impl Access for GithubBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Github)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_etag: true,
-
-                read: true,
-
-                create_dir: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-                list_has_etag: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

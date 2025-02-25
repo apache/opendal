@@ -164,6 +164,40 @@ impl Builder for HttpBuilder {
         }
 
         Ok(HttpBackend {
+            info: {
+                let ma = AccessorInfo::default();
+                ma.set_scheme(Scheme::Http)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_with_if_match: true,
+                        stat_with_if_none_match: true,
+                        stat_has_cache_control: true,
+                        stat_has_content_length: true,
+                        stat_has_content_type: true,
+                        stat_has_content_encoding: true,
+                        stat_has_content_range: true,
+                        stat_has_etag: true,
+                        stat_has_content_md5: true,
+                        stat_has_last_modified: true,
+                        stat_has_content_disposition: true,
+
+                        read: true,
+
+                        read_with_if_match: true,
+                        read_with_if_none_match: true,
+
+                        presign: auth.is_none(),
+                        presign_read: auth.is_none(),
+                        presign_stat: auth.is_none(),
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                ma.into()
+            },
             endpoint: endpoint.to_string(),
             authorization: auth,
             root,
@@ -175,6 +209,8 @@ impl Builder for HttpBuilder {
 /// Backend is used to serve `Accessor` support for http.
 #[derive(Clone)]
 pub struct HttpBackend {
+    info: Arc<AccessorInfo>,
+
     endpoint: String,
     root: String,
     client: HttpClient,
@@ -203,38 +239,7 @@ impl Access for HttpBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Http)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                presign: !self.has_authorization(),
-                presign_read: !self.has_authorization(),
-                presign_stat: !self.has_authorization(),
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        ma.into()
+        self.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

@@ -434,6 +434,68 @@ impl Builder for AzblobBuilder {
 
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Azblob)
+                        .set_root(&root)
+                        .set_name(container)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_override_content_disposition: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+
+                            write: true,
+                            write_can_append: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_if_not_exists: true,
+                            write_with_if_none_match: true,
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            delete_max_size: Some(AZBLOB_BATCH_LIMIT),
+
+                            copy: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_length: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            presign: self.config.sas_token.is_some(),
+                            presign_stat: self.config.sas_token.is_some(),
+                            presign_read: self.config.sas_token.is_some(),
+                            presign_write: self.config.sas_token.is_some(),
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 endpoint,
                 encryption_key,
@@ -445,7 +507,6 @@ impl Builder for AzblobBuilder {
                 loader: cred_loader,
                 signer,
             }),
-            has_sas_token: self.config.sas_token.is_some(),
         })
     }
 }
@@ -478,7 +539,6 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     core: Arc<AzblobCore>,
-    has_sas_token: bool,
 }
 
 impl Access for AzblobBackend {
@@ -492,66 +552,7 @@ impl Access for AzblobBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azblob)
-            .set_root(&self.core.root)
-            .set_name(&self.core.container)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_override_content_disposition: true,
-                read_with_if_modified_since: true,
-                read_with_if_unmodified_since: true,
-
-                write: true,
-                write_can_append: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_cache_control: true,
-                write_with_content_type: true,
-                write_with_if_not_exists: true,
-                write_with_if_none_match: true,
-                write_with_user_metadata: true,
-
-                delete: true,
-                delete_max_size: Some(AZBLOB_BATCH_LIMIT),
-
-                copy: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_etag: true,
-                list_has_content_length: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-
-                presign: self.has_sas_token,
-                presign_stat: self.has_sas_token,
-                presign_read: self.has_sas_token,
-                presign_write: self.has_sas_token,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

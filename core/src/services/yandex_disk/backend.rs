@@ -131,6 +131,42 @@ impl Builder for YandexDiskBuilder {
 
         Ok(YandexDiskBackend {
             core: Arc::new(YandexDiskCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::YandexDisk)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_type: true,
+                            stat_has_content_length: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_has_last_modified: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+                            list_has_content_length: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 access_token: self.config.access_token.clone(),
                 client,
@@ -156,40 +192,7 @@ impl Access for YandexDiskBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::YandexDisk)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_last_modified: true,
-                stat_has_content_md5: true,
-                stat_has_content_type: true,
-                stat_has_content_length: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-                rename: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_has_last_modified: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-                list_has_content_length: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

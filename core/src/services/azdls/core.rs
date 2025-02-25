@@ -15,11 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::{CONTENT_DISPOSITION, IF_NONE_MATCH};
@@ -30,6 +25,11 @@ use http::Response;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+use std::sync::Arc;
 
 use crate::raw::*;
 use crate::*;
@@ -38,6 +38,7 @@ const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 
 pub struct AzdlsCore {
+    pub info: Arc<AccessorInfo>,
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,

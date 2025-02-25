@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -43,10 +44,10 @@ pub mod constants {
 }
 
 pub struct CosCore {
+    pub info: Arc<AccessorInfo>,
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
-    pub enable_versioning: bool,
 
     pub signer: TencentCosSigner,
     pub loader: TencentCosCredentialLoader,

@@ -31,6 +31,7 @@ use crate::*;
 #[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct VercelArtifactsBackend {
+    pub info: Arc<AccessorInfo>,
     pub(crate) access_token: String,
     pub(crate) client: HttpClient,
 }
@@ -54,30 +55,7 @@ impl Access for VercelArtifactsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::VercelArtifacts)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        ma.into()
+        self.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

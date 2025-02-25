@@ -181,6 +181,39 @@ impl Builder for AliyunDriveBuilder {
 
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::AliyunDrive)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            create_dir: true,
+                            read: true,
+                            write: true,
+                            write_can_multi: true,
+                            // The min multipart size of AliyunDrive is 100 KiB.
+                            write_multi_min_size: Some(100 * 1024),
+                            // The max multipart size of AliyunDrive is 5 GiB.
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            delete: true,
+                            copy: true,
+                            rename: true,
+                            list: true,
+                            list_with_limit: true,
+                            shared: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            list_has_last_modified: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            ..Default::default()
+                        });
+                    am.into()
+                },
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
                 drive_type,
@@ -211,37 +244,7 @@ impl Access for AliyunDriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::AliyunDrive)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                create_dir: true,
-                read: true,
-                write: true,
-                write_can_multi: true,
-                // The min multipart size of AliyunDrive is 100 KiB.
-                write_multi_min_size: Some(100 * 1024),
-                // The max multipart size of AliyunDrive is 5 GiB.
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                delete: true,
-                copy: true,
-                rename: true,
-                list: true,
-                list_with_limit: true,
-                shared: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                list_has_last_modified: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

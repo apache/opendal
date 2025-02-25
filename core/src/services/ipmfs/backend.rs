@@ -37,6 +37,7 @@ use crate::*;
 #[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct IpmfsBackend {
+    info: Arc<AccessorInfo>,
     root: String,
     endpoint: String,
     client: HttpClient,
@@ -54,6 +55,29 @@ impl fmt::Debug for IpmfsBackend {
 impl IpmfsBackend {
     pub(crate) fn new(root: String, client: HttpClient, endpoint: String) -> Self {
         Self {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Ipmfs)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+
+                        read: true,
+
+                        write: true,
+                        delete: true,
+
+                        list: true,
+                        list_has_content_length: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                am.into()
+            },
             root,
             client,
             endpoint,
@@ -72,27 +96,7 @@ impl Access for IpmfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Ipmfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-
-                read: true,
-
-                write: true,
-                delete: true,
-
-                list: true,
-                list_has_content_length: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

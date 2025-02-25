@@ -39,6 +39,7 @@ use crate::raw::*;
 use crate::*;
 
 pub struct DropboxCore {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
 
     pub client: HttpClient,

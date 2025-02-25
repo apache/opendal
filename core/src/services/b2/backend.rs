@@ -196,6 +196,58 @@ impl Builder for B2Builder {
 
         Ok(B2Backend {
             core: Arc::new(B2Core {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::B2)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_type: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_content_type: true,
+                            // The min multipart size of b2 is 5 MiB.
+                            //
+                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of b2 is 5 Gb.
+                            //
+                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+
+                            presign: true,
+                            presign_read: true,
+                            presign_write: true,
+                            presign_stat: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 signer: Arc::new(RwLock::new(signer)),
                 root,
 
@@ -224,56 +276,7 @@ impl Access for B2Backend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::B2)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_md5: true,
-                stat_has_content_type: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                // The min multipart size of b2 is 5 MiB.
-                //
-                // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of b2 is 5 Gb.
-                //
-                // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-
-                presign: true,
-                presign_read: true,
-                presign_write: true,
-                presign_stat: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info

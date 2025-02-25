@@ -129,6 +129,40 @@ impl Builder for VercelBlobBuilder {
 
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::VercelBlob)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_type: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_has_content_type: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+                            list_has_content_disposition: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 token,
                 client,
@@ -154,38 +188,7 @@ impl Access for VercelBlobBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(Scheme::VercelBlob)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_type: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_multi_min_size: Some(5 * 1024 * 1024),
-
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_has_content_type: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-                list_has_content_disposition: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

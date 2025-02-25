@@ -448,6 +448,10 @@ impl Access for GcsBackend {
             m.set_content_encoding(&meta.content_encoding);
         }
 
+        if !meta.cache_control.is_empty() {
+            m.set_cache_control(&meta.cache_control);
+        }
+
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
         if !meta.metadata.is_empty() {
@@ -564,6 +568,8 @@ struct GetObjectJsonResponse {
     ///
     /// For example: "contentEncoding": "br"
     content_encoding: String,
+    /// Cache-Control directive for the object data.
+    cache_control: String,
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`
@@ -587,6 +593,7 @@ mod tests {
   "metageneration": "1",
   "contentType": "image/png",
   "contentEncoding": "br",
+  "cacheControl": "public, max-age=3600",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -609,6 +616,7 @@ mod tests {
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
         assert_eq!(meta.content_encoding, "br".to_string());
+        assert_eq!(meta.cache_control, "public, max-age=3600".to_string());
         assert_eq!(
             meta.metadata,
             HashMap::from_iter([("location".to_string(), "everywhere".to_string())])

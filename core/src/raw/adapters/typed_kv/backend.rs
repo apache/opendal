@@ -63,7 +63,7 @@ impl<S: Adapter> Access for Backend<S> {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let kv_info = self.kv.info();
-        let mut am: AccessorInfo = AccessorInfo::default();
+        let am: AccessorInfo = AccessorInfo::default();
         am.set_root(&self.root);
         am.set_scheme(kv_info.scheme());
         am.set_name(kv_info.name());

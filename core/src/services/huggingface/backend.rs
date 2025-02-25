@@ -201,7 +201,7 @@ impl Access for HuggingfaceBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Huggingface)
             .set_native_capability(Capability {
                 stat: true,

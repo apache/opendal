@@ -669,14 +669,12 @@ impl Access for () {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        AccessorInfo {
-            scheme: Scheme::Custom("dummy"),
-            root: "".to_string(),
-            name: "dummy".to_string(),
-            native_capability: Capability::default(),
-            full_capability: Capability::default(),
-        }
-        .into()
+        let ai = AccessorInfo::default();
+        ai.set_scheme(Scheme::Custom("dummy"))
+            .set_root("")
+            .set_name("dummy")
+            .set_native_capability(Capability::default());
+        ai.into()
     }
 }
 
@@ -801,39 +799,65 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type Accessor = Arc<dyn AccessDyn>;
 
-/// Metadata for accessor, users can use this metadata to get information of underlying backend.
-#[derive(Clone, Debug, Default)]
-pub struct AccessorInfo {
+#[derive(Debug, Default)]
+struct AccessorInfoInner {
     scheme: Scheme,
     root: String,
     name: String,
 
     native_capability: Capability,
     full_capability: Capability,
+
+    http_client: HttpClient,
+    executor: Executor,
+}
+
+/// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.
+///
+/// This struct is intentionally not implemented with `Clone` to ensure that all accesses
+/// within the same operator, access layers, and services use the same instance of `AccessorInfo`.
+/// This is especially important for `HttpClient` and `Executor`.
+#[derive(Debug, Default)]
+pub struct AccessorInfo {
+    inner: std::sync::RwLock<AccessorInfoInner>,
 }
 
 impl AccessorInfo {
     /// [`Scheme`] of backend.
     pub fn scheme(&self) -> Scheme {
-        self.scheme
+        match self.inner.read() {
+            Ok(v) => v.scheme,
+            Err(err) => err.get_ref().scheme,
+        }
     }
 
     /// Set [`Scheme`] for backend.
-    pub fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
-        self.scheme = scheme;
+    pub fn set_scheme(&self, scheme: Scheme) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => v.scheme = scheme,
+            Err(mut err) => err.get_mut().scheme = scheme,
+        }
+
         self
     }
 
     /// Root of backend, will be in format like `/path/to/dir/`
-    pub fn root(&self) -> &str {
-        &self.root
+    pub fn root(&self) -> String {
+        match self.inner.read() {
+            Ok(v) => v.root.clone(),
+            Err(err) => err.get_ref().root.clone(),
+        }
     }
 
     /// Set root for backend.
     ///
     /// Note: input root must be normalized.
-    pub fn set_root(&mut self, root: &str) -> &mut Self {
-        self.root = root.to_string();
+    pub fn set_root(&self, root: &str) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => v.root = root.to_string(),
+            Err(mut err) => err.get_mut().root = root.to_string(),
+        }
+
         self
     }
 
@@ -843,19 +867,29 @@ impl AccessorInfo {
     ///
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> String {
+        match self.inner.read() {
+            Ok(v) => v.name.to_string(),
+            Err(err) => err.get_ref().name.clone(),
+        }
     }
 
     /// Set name of this backend.
-    pub fn set_name(&mut self, name: &str) -> &mut Self {
-        self.name = name.to_string();
+    pub fn set_name(&self, name: &str) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => v.name = name.to_string(),
+            Err(mut err) => err.get_mut().name = name.to_string(),
+        }
+
         self
     }
 
     /// Get backend's native capabilities.
     pub fn native_capability(&self) -> Capability {
-        self.native_capability
+        match self.inner.read() {
+            Ok(v) => v.native_capability,
+            Err(err) => err.get_ref().native_capability,
+        }
     }
 
     /// Set native capabilities for service.
@@ -863,20 +897,71 @@ impl AccessorInfo {
     /// # NOTES
     ///
     /// Set native capability will also flush the full capability. The only way to change
-    /// full_capability is via `full_capability_mut`.
-    pub fn set_native_capability(&mut self, capability: Capability) -> &mut Self {
-        self.native_capability = capability;
-        self.full_capability = capability;
+    /// full_capability is via `update_full_capability`.
+    pub fn set_native_capability(&self, capability: Capability) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => {
+                v.native_capability = capability;
+                v.full_capability = capability;
+            }
+            Err(mut err) => {
+                err.get_mut().native_capability = capability;
+                err.get_mut().full_capability = capability;
+            }
+        }
+
         self
     }
 
     /// Get service's full capabilities.
     pub fn full_capability(&self) -> Capability {
-        self.full_capability
+        match self.inner.read() {
+            Ok(v) => v.full_capability,
+            Err(err) => err.get_ref().full_capability,
+        }
     }
 
     /// Get service's full capabilities.
-    pub fn full_capability_mut(&mut self) -> &mut Capability {
-        &mut self.full_capability
+    pub fn update_full_capability(&self, mut f: impl FnMut(&mut Capability)) {
+        match self.inner.write() {
+            Ok(mut v) => f(&mut v.full_capability),
+            Err(mut err) => f(&mut err.get_mut().full_capability),
+        }
+    }
+
+    /// Get http client from the context.
+    pub fn http_client(&self) -> HttpClient {
+        match self.inner.read() {
+            Ok(v) => v.http_client.clone(),
+            Err(err) => err.get_ref().http_client.clone(),
+        }
+    }
+
+    /// Set http client for the context.
+    pub fn set_http_client(&self, client: HttpClient) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => v.http_client = client,
+            Err(mut err) => err.get_mut().http_client = client,
+        }
+
+        self
+    }
+
+    /// Get executor from the context.
+    pub fn executor(&self) -> Executor {
+        match self.inner.read() {
+            Ok(v) => v.executor.clone(),
+            Err(err) => err.get_ref().executor.clone(),
+        }
+    }
+
+    /// Set executor for the context.
+    pub fn set_executor(&self, executor: Executor) -> &Self {
+        match self.inner.write() {
+            Ok(mut v) => v.executor = executor,
+            Err(mut err) => err.get_mut().executor = executor,
+        }
+
+        self
     }
 }

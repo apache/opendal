@@ -54,7 +54,7 @@ impl Access for VercelArtifactsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
+        let ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
             .set_native_capability(Capability {
                 stat: true,

@@ -58,6 +58,12 @@ impl Debug for HttpClient {
     }
 }
 
+impl Default for HttpClient {
+    fn default() -> Self {
+        Self::new().expect("create http client must succeed")
+    }
+}
+
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {

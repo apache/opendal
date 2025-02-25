@@ -344,14 +344,17 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
     // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut meta = (*self.info).clone();
-        let cap = meta.full_capability_mut();
-        if cap.list && cap.write_can_empty {
-            cap.create_dir = true;
-        }
-        // write operations should always return content length
-        cap.write_has_content_length = true;
-        meta.into()
+        let meta = self.info.clone();
+
+        meta.update_full_capability(|cap| {
+            if cap.list && cap.write_can_empty {
+                cap.create_dir = true;
+            }
+            // write operations should always return content length
+            cap.write_has_content_length = true;
+        });
+
+        meta
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

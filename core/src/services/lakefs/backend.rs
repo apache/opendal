@@ -205,7 +205,7 @@ impl Access for LakefsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Lakefs)
             .set_native_capability(Capability {
                 stat: true,

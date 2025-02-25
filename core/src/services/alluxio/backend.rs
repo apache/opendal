@@ -152,7 +152,7 @@ impl Access for AlluxioBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Alluxio)
             .set_root(&self.core.root)
             .set_native_capability(Capability {

@@ -115,7 +115,7 @@ impl Access for CompfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Compfs)
             .set_root(&self.core.root.to_string_lossy())
             .set_native_capability(Capability {

@@ -176,9 +176,9 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     }
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut meta = self.inner.info().as_ref().clone();
-        meta.full_capability_mut().blocking = true;
-        meta.into()
+        let info = self.inner.info();
+        info.update_full_capability(|cap| cap.blocking = true);
+        info
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

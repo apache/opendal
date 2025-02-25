@@ -152,13 +152,13 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
 
     /// Add list capabilities for underlying storage services.
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut meta = (*self.inner.info()).clone();
+        let meta = self.inner.info();
 
-        let cap = meta.full_capability_mut();
-        cap.list = true;
-        cap.list_with_recursive = true;
-
-        meta.into()
+        meta.update_full_capability(|cap| {
+            cap.list = true;
+            cap.list_with_recursive = true;
+        });
+        meta
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

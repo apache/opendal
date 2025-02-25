@@ -73,7 +73,7 @@ impl Access for OnedriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
+        let ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
             .set_native_capability(Capability {

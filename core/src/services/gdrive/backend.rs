@@ -51,7 +51,7 @@ impl Access for GdriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
+        let ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
             .set_native_capability(Capability {

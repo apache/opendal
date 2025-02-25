@@ -817,6 +817,33 @@ struct AccessorInfoInner {
 /// This struct is intentionally not implemented with `Clone` to ensure that all accesses
 /// within the same operator, access layers, and services use the same instance of `AccessorInfo`.
 /// This is especially important for `HttpClient` and `Executor`.
+///
+/// ## Maintain Notes
+///
+/// We are using `std::sync::RwLock` to provide thread-safe access to the inner data.
+///
+/// I have performed [the bench across different arc-swap alike crates](https://github.com/krdln/arc-swap-benches):
+///
+/// ```txt
+/// test arcswap                    ... bench:          14.85 ns/iter (+/- 0.33)
+/// test arcswap_full               ... bench:         128.27 ns/iter (+/- 4.30)
+/// test baseline                   ... bench:          11.33 ns/iter (+/- 0.76)
+/// test mutex_4                    ... bench:         296.73 ns/iter (+/- 49.96)
+/// test mutex_unconteded           ... bench:          13.26 ns/iter (+/- 0.56)
+/// test rwlock_fast_4              ... bench:         201.60 ns/iter (+/- 7.47)
+/// test rwlock_fast_uncontended    ... bench:          12.77 ns/iter (+/- 0.37)
+/// test rwlock_parking_4           ... bench:         232.02 ns/iter (+/- 11.14)
+/// test rwlock_parking_uncontended ... bench:          13.18 ns/iter (+/- 0.39)
+/// test rwlock_std_4               ... bench:         219.56 ns/iter (+/- 5.56)
+/// test rwlock_std_uncontended     ... bench:          13.55 ns/iter (+/- 0.33)
+/// ```
+///
+/// The results show that as long as there aren't too many uncontended accesses, `RwLock` is the
+/// best choice, allowing for fast access and the ability to modify partial data without cloning
+/// everything.
+///
+/// And it's true: we only update and modify the internal data in a few instances, such as when
+/// building an operator or applying new layers.
 #[derive(Debug, Default)]
 pub struct AccessorInfo {
     inner: std::sync::RwLock<AccessorInfoInner>,

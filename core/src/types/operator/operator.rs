@@ -1964,4 +1964,61 @@ impl Operator {
             },
         )
     }
+
+    /// Presign an operation for delete.
+    ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// `presign_delete` is a wrapper of [`Self::presign_delete_with`] without any options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_delete("test.txt", Duration::from_secs(3600))
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `DELETE`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can delete file as this file via `curl` or other tools without credential:
+    ///
+    /// ```shell
+    /// curl -X DELETE "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>"
+    /// ```
+    pub async fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.presign_delete_with(path, expire).await
+    }
+
+    /// Presign an operation for delete without extra options.
+    pub fn presign_delete_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignDelete<impl Future<Output = Result<PresignedRequest>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpDelete::default(), expire),
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
+            },
+        )
+    }
 }

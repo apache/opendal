@@ -187,9 +187,6 @@ pub use self::sled::*;
 mod sqlite;
 pub use self::sqlite::*;
 
-mod supabase;
-pub use supabase::*;
-
 mod surrealdb;
 pub use surrealdb::*;
 

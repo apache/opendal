@@ -135,6 +135,28 @@ impl Builder for IpfsBuilder {
         };
 
         Ok(IpfsBackend {
+            info: {
+                let ma = AccessorInfo::default();
+                ma.set_scheme(Scheme::Ipfs)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_content_type: true,
+                        stat_has_etag: true,
+                        stat_has_content_disposition: true,
+
+                        read: true,
+
+                        list: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                ma.into()
+            },
             root,
             endpoint,
             client,
@@ -145,6 +167,7 @@ impl Builder for IpfsBuilder {
 /// Backend for IPFS.
 #[derive(Clone)]
 pub struct IpfsBackend {
+    info: Arc<AccessorInfo>,
     endpoint: String,
     root: String,
     client: HttpClient,
@@ -171,26 +194,7 @@ impl Access for IpfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Ipfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_etag: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                list: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        ma.into()
+        self.info.clone()
     }
 
     /// IPFS's stat behavior highly depends on its implementation.

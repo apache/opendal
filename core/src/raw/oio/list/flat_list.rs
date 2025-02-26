@@ -211,9 +211,8 @@ mod tests {
         type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.full_capability_mut().list = true;
-
+            let am = AccessorInfo::default();
+            am.update_full_capability(|cap| cap.list = true);
             am.into()
         }
 

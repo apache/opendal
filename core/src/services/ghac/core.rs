@@ -18,7 +18,7 @@
 use super::error::parse_error;
 use crate::raw::{
     build_abs_path, new_json_deserialize_error, new_json_serialize_error, new_request_build_error,
-    percent_encode_path, HttpClient,
+    percent_encode_path, AccessorInfo, HttpClient,
 };
 use crate::*;
 use ::ghac::v1 as ghac_types;
@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
+use std::sync::Arc;
 
 /// The base url for cache url.
 pub const CACHE_URL_BASE: &str = "_apis/artifactcache";
@@ -65,6 +66,8 @@ pub enum GhacVersion {
 /// Core for github action cache services.
 #[derive(Clone)]
 pub struct GhacCore {
+    pub info: Arc<AccessorInfo>,
+
     // root should end with "/"
     pub root: String,
 

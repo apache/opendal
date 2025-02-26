@@ -47,6 +47,7 @@ pub(super) mod constants {
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
 #[derive(Clone)]
 pub struct B2Core {
+    pub info: Arc<AccessorInfo>,
     pub signer: Arc<RwLock<B2Signer>>,
 
     /// The root of this core.

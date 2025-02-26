@@ -153,7 +153,7 @@ impl Access for HdfsNativeBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::HdfsNative)
             .set_root(&self.root)
             .set_native_capability(Capability {

@@ -67,6 +67,60 @@ impl GhacWriter {
                     .with_context("url", &url));
                 };
                 let azure_core = Arc::new(AzblobCore {
+                    info: {
+                        let am = AccessorInfo::default();
+                        am.set_scheme(Scheme::Azblob)
+                            .set_root("/")
+                            .set_name(container)
+                            .set_native_capability(Capability {
+                                stat: true,
+                                stat_with_if_match: true,
+                                stat_with_if_none_match: true,
+                                stat_has_cache_control: true,
+                                stat_has_content_length: true,
+                                stat_has_content_type: true,
+                                stat_has_content_encoding: true,
+                                stat_has_content_range: true,
+                                stat_has_etag: true,
+                                stat_has_content_md5: true,
+                                stat_has_last_modified: true,
+                                stat_has_content_disposition: true,
+
+                                read: true,
+
+                                read_with_if_match: true,
+                                read_with_if_none_match: true,
+                                read_with_override_content_disposition: true,
+                                read_with_if_modified_since: true,
+                                read_with_if_unmodified_since: true,
+
+                                write: true,
+                                write_can_append: true,
+                                write_can_empty: true,
+                                write_can_multi: true,
+                                write_with_cache_control: true,
+                                write_with_content_type: true,
+                                write_with_if_not_exists: true,
+                                write_with_if_none_match: true,
+                                write_with_user_metadata: true,
+
+                                copy: true,
+
+                                list: true,
+                                list_with_recursive: true,
+                                list_has_etag: true,
+                                list_has_content_length: true,
+                                list_has_content_md5: true,
+                                list_has_content_type: true,
+                                list_has_last_modified: true,
+
+                                shared: true,
+
+                                ..Default::default()
+                            });
+
+                        am.into()
+                    },
                     container: container.to_string(),
                     root: "/".to_string(),
                     endpoint,

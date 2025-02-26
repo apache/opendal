@@ -15,11 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -32,6 +27,11 @@ use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -45,6 +45,7 @@ const X_MS_TYPE: &str = "x-ms-type";
 const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 
 pub struct AzfileCore {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
     pub endpoint: String,
     pub share_name: String,

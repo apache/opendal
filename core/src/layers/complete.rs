@@ -103,8 +103,17 @@ impl<A: Access> Layer<A> for CompleteLayer {
     type LayeredAccess = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_full_capability(|cap| {
+            if cap.list && cap.write_can_empty {
+                cap.create_dir = true;
+            }
+            // write operations should always return content length
+            cap.write_has_content_length = true;
+        });
+
         CompleteAccessor {
-            info: inner.info(),
+            info,
             inner: Arc::new(inner),
         }
     }
@@ -124,7 +133,7 @@ impl<A: Access> Debug for CompleteAccessor<A> {
 
 impl<A: Access> CompleteAccessor<A> {
     async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
         if capability.create_dir {
             return self.inner().create_dir(path, args).await;
         }
@@ -139,7 +148,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
         if capability.create_dir && capability.blocking {
             return self.inner().blocking_create_dir(path, args);
         }
@@ -154,7 +163,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -196,7 +205,7 @@ impl<A: Access> CompleteAccessor<A> {
     }
 
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+        let capability = self.info.native_capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -241,7 +250,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
-        let cap = self.info.full_capability();
+        let cap = self.info.native_capability();
 
         let recursive = args.recursive();
 
@@ -286,7 +295,7 @@ impl<A: Access> CompleteAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
-        let cap = self.info.full_capability();
+        let cap = self.info.native_capability();
 
         let recursive = args.recursive();
 
@@ -342,16 +351,8 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         &self.inner
     }
 
-    // Todo: May move the logic to the implement of Layer::layer of CompleteAccessor<A>
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut meta = (*self.info).clone();
-        let cap = meta.full_capability_mut();
-        if cap.list && cap.write_can_empty {
-            cap.create_dir = true;
-        }
-        // write operations should always return content length
-        cap.write_has_content_length = true;
-        meta.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

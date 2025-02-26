@@ -220,10 +220,82 @@ impl Builder for CosBuilder {
 
         Ok(CosBackend {
             core: Arc::new(CosCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Cos)
+                        .set_root(&root)
+                        .set_name(&bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_with_version: self.config.enable_versioning,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_version: true,
+                            stat_has_user_metadata: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_version: self.config.enable_versioning,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_content_type: true,
+                            write_with_cache_control: true,
+                            write_with_content_disposition: true,
+                            // Cos doesn't support forbid overwrite while version has been enabled.
+                            write_with_if_not_exists: !self.config.enable_versioning,
+                            // The min multipart size of COS is 1 MiB.
+                            //
+                            // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                            write_multi_min_size: Some(1024 * 1024),
+                            // The max multipart size of COS is 5 GiB.
+                            //
+                            // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            delete_with_version: self.config.enable_versioning,
+                            copy: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
+                            list_has_content_length: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 bucket: bucket.clone(),
                 root,
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
-                enable_versioning: self.config.enable_versioning,
                 signer,
                 loader: cred_loader,
                 client,
@@ -249,77 +321,7 @@ impl Access for CosBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Cos)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_with_version: self.core.enable_versioning,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-                stat_has_version: true,
-                stat_has_user_metadata: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_version: self.core.enable_versioning,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                write_with_cache_control: true,
-                write_with_content_disposition: true,
-                // Cos doesn't support forbid overwrite while version has been enabled.
-                write_with_if_not_exists: !self.core.enable_versioning,
-                // The min multipart size of COS is 1 MiB.
-                //
-                // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                write_multi_min_size: Some(1024 * 1024),
-                // The max multipart size of COS is 5 GiB.
-                //
-                // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                write_with_user_metadata: true,
-
-                delete: true,
-                delete_with_version: self.core.enable_versioning,
-                copy: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_with_versions: self.core.enable_versioning,
-                list_with_deleted: self.core.enable_versioning,
-                list_has_content_length: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

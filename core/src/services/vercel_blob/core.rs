@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Buf;
 use bytes::Bytes;
 use http::header;
@@ -28,6 +25,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use self::constants::*;
 use super::error::parse_error;
@@ -56,6 +56,7 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct VercelBlobCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Vercel Blob token.

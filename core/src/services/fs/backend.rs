@@ -148,6 +148,40 @@ impl Builder for FsBuilder {
 
         Ok(FsBackend {
             core: Arc::new(FsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Fs)
+                        .set_root(&root.to_string_lossy())
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_if_not_exists: true,
+                            write_has_last_modified: true,
+
+                            create_dir: true,
+                            delete: true,
+
+                            list: true,
+
+                            copy: true,
+                            rename: true,
+                            blocking: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 atomic_write_dir,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
@@ -173,38 +207,7 @@ impl Access for FsBackend {
     type BlockingDeleter = oio::OneShotDeleter<FsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Fs)
-            .set_root(&self.core.root.to_string_lossy())
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                write_with_if_not_exists: true,
-                write_has_last_modified: true,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-
-                copy: true,
-                rename: true,
-                blocking: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

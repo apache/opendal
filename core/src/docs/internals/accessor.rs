@@ -124,7 +124,7 @@
 //! ```ignore
 //! impl Access for MyBackend {
 //!     fn metadata(&self) -> AccessorInfo {
-//!         let mut am = AccessorInfo::default();
+//!         let am = AccessorInfo::default();
 //!         am.set_capability(
 //!             Capability {
 //!                 read: true,
@@ -297,7 +297,7 @@
 //!     type BlockingLister = ();
 //!
 //!     fn metadata(&self) -> AccessorInfo {
-//!         let mut am = AccessorInfo::default();
+//!         let am = AccessorInfo::default();
 //!         am.set_scheme(Scheme::Duck)
 //!             .set_root(&self.root)
 //!             .set_capability(

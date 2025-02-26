@@ -349,7 +349,7 @@ mod tests {
         type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut info = AccessorInfo::default();
+            let info = AccessorInfo::default();
             info.set_native_capability(self.capability);
 
             info.into()

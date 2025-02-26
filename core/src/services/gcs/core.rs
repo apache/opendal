@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
@@ -55,6 +56,7 @@ pub mod constants {
 }
 
 pub struct GcsCore {
+    pub info: Arc<AccessorInfo>,
     pub endpoint: String,
     pub bucket: String,
     pub root: String,

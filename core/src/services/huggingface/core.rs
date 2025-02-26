@@ -15,19 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use super::backend::RepoType;
 use crate::raw::*;
 use crate::*;
 
 pub struct HuggingfaceCore {
+    pub info: Arc<AccessorInfo>,
+
     pub repo_type: RepoType,
     pub repo_id: String,
     pub revision: String,

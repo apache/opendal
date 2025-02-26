@@ -35,7 +35,7 @@ impl OperatorInfo {
     }
 
     /// Root of operator, will be in format like `/path/to/dir/`
-    pub fn root(&self) -> &str {
+    pub fn root(&self) -> String {
         self.0.root()
     }
 
@@ -45,7 +45,7 @@ impl OperatorInfo {
     ///
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         self.0.name()
     }
 

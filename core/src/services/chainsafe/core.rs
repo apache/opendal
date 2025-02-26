@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
 use serde_json::json;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use crate::raw::*;
 use crate::*;
@@ -31,6 +31,7 @@ use crate::*;
 /// Core of [chainsafe](https://storage.chainsafe.io/) services support.
 #[derive(Clone)]
 pub struct ChainsafeCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// The api_key of this core.

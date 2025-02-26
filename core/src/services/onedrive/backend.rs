@@ -38,6 +38,7 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
+    info: Arc<AccessorInfo>,
     root: String,
     access_token: String,
     client: HttpClient,
@@ -46,6 +47,26 @@ pub struct OnedriveBackend {
 impl OnedriveBackend {
     pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
         Self {
+            info: {
+                let ma = AccessorInfo::default();
+                ma.set_scheme(Scheme::Onedrive)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        read: true,
+                        write: true,
+                        stat: true,
+                        stat_has_etag: true,
+                        stat_has_last_modified: true,
+                        stat_has_content_length: true,
+                        delete: true,
+                        create_dir: true,
+                        list: true,
+                        shared: true,
+                        ..Default::default()
+                    });
+
+                ma.into()
+            },
             root,
             access_token,
             client: http_client,
@@ -73,24 +94,7 @@ impl Access for OnedriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Onedrive)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                read: true,
-                write: true,
-                stat: true,
-                stat_has_etag: true,
-                stat_has_last_modified: true,
-                stat_has_content_length: true,
-                delete: true,
-                create_dir: true,
-                list: true,
-                shared: true,
-                ..Default::default()
-            });
-
-        ma.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

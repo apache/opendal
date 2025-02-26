@@ -28,10 +28,10 @@ use super::backend::GdriveBackend;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
-use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
+use crate::raw::{normalize_root, AccessorInfo};
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
@@ -192,6 +192,37 @@ impl Builder for GdriveBuilder {
         let signer = Arc::new(Mutex::new(signer));
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
+                info: {
+                    let ma = AccessorInfo::default();
+                    ma.set_scheme(Scheme::Gdrive)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            list: true,
+                            list_has_content_type: true,
+                            list_has_content_length: true,
+                            list_has_etag: true,
+
+                            write: true,
+
+                            create_dir: true,
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    ma.into()
+                },
                 root,
                 signer: signer.clone(),
                 client: client.clone(),

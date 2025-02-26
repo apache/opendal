@@ -46,36 +46,7 @@ impl Access for DropboxBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Dropbox)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_last_modified: true,
-                stat_has_content_length: true,
-
-                read: true,
-
-                write: true,
-
-                create_dir: true,
-
-                delete: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_last_modified: true,
-                list_has_content_length: true,
-
-                copy: true,
-
-                rename: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {

@@ -187,12 +187,43 @@ impl Builder for SftpBuilder {
         debug!("sftp backend finished: {:?}", &self);
 
         Ok(SftpBackend {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_root(root.as_str())
+                    .set_scheme(Scheme::Sftp)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_multi: true,
+
+                        create_dir: true,
+                        delete: true,
+
+                        list: true,
+                        list_with_limit: true,
+                        list_has_content_length: true,
+                        list_has_last_modified: true,
+
+                        copy: self.config.enable_copy,
+                        rename: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                am.into()
+            },
             endpoint,
             root,
             user,
             key: self.config.key.clone(),
             known_hosts_strategy,
-            copyable: self.config.enable_copy,
 
             client: OnceCell::new(),
         })
@@ -202,7 +233,7 @@ impl Builder for SftpBuilder {
 /// Backend is used to serve `Accessor` support for sftp.
 #[derive(Clone)]
 pub struct SftpBackend {
-    copyable: bool,
+    info: Arc<AccessorInfo>,
     endpoint: String,
     pub root: String,
     user: Option<String>,
@@ -327,36 +358,7 @@ impl Access for SftpBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_root(self.root.as_str())
-            .set_scheme(Scheme::Sftp)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_multi: true,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-                list_with_limit: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                copy: self.copyable,
-                rename: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -69,10 +69,10 @@ static HEADER_DESTINATION: &str = "Destination";
 static HEADER_OVERWRITE: &str = "Overwrite";
 
 pub struct WebdavCore {
+    pub info: Arc<AccessorInfo>,
     pub endpoint: String,
     pub server_path: String,
     pub root: String,
-    pub disable_copy: bool,
     pub authorization: Option<String>,
 
     pub client: HttpClient,

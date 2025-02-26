@@ -78,7 +78,6 @@ services-all = [
   # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
   # "services-rocksdb",
   "services-sled",
-  "services-supabase",
   "services-tikv",
   "services-vercel-artifacts",
   "services-mongodb",
@@ -143,7 +142,6 @@ services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
-services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]

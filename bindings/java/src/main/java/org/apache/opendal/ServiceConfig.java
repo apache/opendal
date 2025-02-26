@@ -3193,52 +3193,6 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service supabase.
-     */
-    @Builder
-    @Data
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    class Supabase implements ServiceConfig {
-        /**
-         * <p>The bucket for supabase service.</p>
-         */
-        public final @NonNull String bucket;
-        /**
-         * <p>The root for supabase service.</p>
-         */
-        public final String root;
-        /**
-         * <p>The endpoint for supabase service.</p>
-         */
-        public final String endpoint;
-        /**
-         * <p>The key for supabase service.</p>
-         */
-        public final String key;
-
-        @Override
-        public String scheme() {
-            return "supabase";
-        }
-
-        @Override
-        public Map<String, String> configMap() {
-            final HashMap<String, String> map = new HashMap<>();
-            map.put("bucket", bucket);
-            if (root != null) {
-                map.put("root", root);
-            }
-            if (endpoint != null) {
-                map.put("endpoint", endpoint);
-            }
-            if (key != null) {
-                map.put("key", key);
-            }
-            return map;
-        }
-    }
-
-    /**
      * Configuration for service surrealdb.
      */
     @Builder

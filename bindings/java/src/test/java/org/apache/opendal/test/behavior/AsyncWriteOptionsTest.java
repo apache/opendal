@@ -104,9 +104,9 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
         final String path = UUID.randomUUID().toString();
         final byte[] contentOne = "Test".getBytes();
         final byte[] contentTwo = " Data".getBytes();
-        asyncOp().write(path, contentOne).join();
 
         WriteOptions appendOptions = WriteOptions.builder().append(true).build();
+        asyncOp().write(path, contentOne, appendOptions).join();
         asyncOp().write(path, contentTwo, appendOptions).join();
 
         byte[] result = asyncOp().read(path).join();

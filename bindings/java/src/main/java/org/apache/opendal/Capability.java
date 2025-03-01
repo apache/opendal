@@ -99,6 +99,27 @@ public class Capability {
     public final boolean writeWithCacheControl;
 
     /**
+     * If operator supports write with if match.
+     */
+    public final boolean writeWithIfMatch;
+
+    /**
+     * If operator supports write with if none match.
+     *
+     */
+    public final boolean writeWithIfNoneMatch;
+
+    /**
+     * If operator supports write with if not exists.
+     */
+    public final boolean writeWithIfNotExists;
+
+    /**
+     * If operator supports write with user metadata.
+     */
+    public final boolean writeWithUserMetadata;
+
+    /**
      * write_multi_max_size is the max size that services support in write_multi.
      * For example, AWS S3 supports 5GiB as max in write_multi.
      */
@@ -196,6 +217,10 @@ public class Capability {
             boolean writeWithContentType,
             boolean writeWithContentDisposition,
             boolean writeWithCacheControl,
+            boolean writeWithIfMatch,
+            boolean writeWithIfNoneMatch,
+            boolean writeWithIfNotExists,
+            boolean writeWithUserMetadata,
             long writeMultiMaxSize,
             long writeMultiMinSize,
             boolean createDir,
@@ -227,6 +252,10 @@ public class Capability {
         this.writeWithContentType = writeWithContentType;
         this.writeWithContentDisposition = writeWithContentDisposition;
         this.writeWithCacheControl = writeWithCacheControl;
+        this.writeWithIfMatch = writeWithIfMatch;
+        this.writeWithIfNoneMatch = writeWithIfNoneMatch;
+        this.writeWithIfNotExists = writeWithIfNotExists;
+        this.writeWithUserMetadata = writeWithUserMetadata;
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
         this.createDir = createDir;

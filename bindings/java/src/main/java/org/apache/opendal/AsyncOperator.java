@@ -190,11 +190,22 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, String content) {
-        return write(path, content.getBytes(StandardCharsets.UTF_8));
+        return write(
+                path,
+                content.getBytes(StandardCharsets.UTF_8),
+                WriteOptions.builder().build());
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
-        final long requestId = write(nativeHandle, executorHandle, path, content);
+        return write(path, content, WriteOptions.builder().build());
+    }
+
+    public CompletableFuture<Void> write(String path, String content, WriteOptions options) {
+        return write(path, content.getBytes(StandardCharsets.UTF_8), options);
+    }
+
+    public CompletableFuture<Void> write(String path, byte[] content, WriteOptions options) {
+        final long requestId = write(nativeHandle, executorHandle, path, content, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -272,7 +283,8 @@ public class AsyncOperator extends NativeObject {
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 
-    private static native long write(long nativeHandle, long executorHandle, String path, byte[] content);
+    private static native long write(
+            long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 

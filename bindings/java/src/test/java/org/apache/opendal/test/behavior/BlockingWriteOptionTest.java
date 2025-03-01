@@ -80,9 +80,9 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
         final String path = UUID.randomUUID().toString();
         final byte[] contentOne = "Test".getBytes();
         final byte[] contentTwo = " Data".getBytes();
-
-        op().write(path, contentOne);
         WriteOptions appendOptions = WriteOptions.builder().append(true).build();
+
+        op().write(path, contentOne, appendOptions);
         op().write(path, contentTwo, appendOptions);
 
         byte[] result = op().read(path);

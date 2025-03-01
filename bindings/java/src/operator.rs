@@ -90,7 +90,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     op: *mut BlockingOperator,
     path: JString,
     content: JByteArray,
-    write_options: JObject
+    write_options: JObject,
 ) {
     intern_write(&mut env, &mut *op, path, content, write_options).unwrap_or_else(|e| {
         e.throw(&mut env);
@@ -102,15 +102,18 @@ fn intern_write(
     op: &mut BlockingOperator,
     path: JString,
     content: JByteArray,
-    write_options: JObject
+    write_options: JObject,
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
     let content_type = get_optional_string_from_object(env, &write_options, "getContentType")?;
-    let content_disposition = get_optional_string_from_object(env, &write_options, "getContentDisposition")?;
+    let content_disposition =
+        get_optional_string_from_object(env, &write_options, "getContentDisposition")?;
     let cache_control = get_optional_string_from_object(env, &write_options, "getCacheControl")?;
-    let append = env.call_method(&write_options, "isAppend", "()Z", &[])?.z()?;
+    let append = env
+        .call_method(&write_options, "isAppend", "()Z", &[])?
+        .z()?;
 
     let mut write_op = op.write_with(&path, content);
     if let Some(ct) = content_type {

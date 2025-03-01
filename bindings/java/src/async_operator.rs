@@ -30,13 +30,15 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
-use opendal::raw::PresignedRequest;
-use opendal::{Metadata, Operator};
 use opendal::operator_futures::FutureWrite;
+use opendal::raw::PresignedRequest;
 use opendal::Scheme;
+use opendal::{Metadata, Operator};
 
-use crate::convert::{get_optional_map_from_object, get_optional_string_from_object, jmap_to_hashmap};
 use crate::convert::jstring_to_string;
+use crate::convert::{
+    get_optional_map_from_object, get_optional_string_from_object, jmap_to_hashmap,
+};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
@@ -112,7 +114,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write(
     executor: *const Executor,
     path: JString,
     content: JByteArray,
-    write_options: JObject
+    write_options: JObject,
 ) -> jlong {
     intern_write(&mut env, op, executor, path, content, write_options).unwrap_or_else(|e| {
         e.throw(&mut env);
@@ -134,13 +136,16 @@ fn intern_write(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
     let content_type = get_optional_string_from_object(env, &options, "getContentType")?;
-    let content_disposition = get_optional_string_from_object(env, &options, "getContentDisposition")?;
+    let content_disposition =
+        get_optional_string_from_object(env, &options, "getContentDisposition")?;
     let content_encoding = get_optional_string_from_object(env, &options, "getContentEncoding")?;
     let cache_control = get_optional_string_from_object(env, &options, "getCacheControl")?;
     let if_match = get_optional_string_from_object(env, &options, "getIfMatch")?;
     let if_none_match = get_optional_string_from_object(env, &options, "getIfNoneMatch")?;
     let append = env.call_method(&options, "isAppend", "()Z", &[])?.z()?;
-    let if_not_exists = env.call_method(&options, "isIfNotExists", "()Z", &[])?.z()?;
+    let if_not_exists = env
+        .call_method(&options, "isIfNotExists", "()Z", &[])?
+        .z()?;
     let user_metadata = get_optional_map_from_object(env, &options, "getUserMetadata");
 
     let mut write_op = op.write_with(&path, content);
@@ -169,15 +174,14 @@ fn intern_write(
     write_op = write_op.append(append);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_write(write_op).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = write_op
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(|e| e.into());
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_write(writer: FutureWrite<impl Future<Output =opendal::Result<Metadata>>>) -> Result<()> {
-    Ok(writer.await.map(|_| ())?)
 }
 
 /// # Safety

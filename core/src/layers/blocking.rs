@@ -145,7 +145,10 @@ impl<A: Access> Layer<A> for BlockingLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
-        info.update_full_capability(|cap| cap.blocking = true);
+        info.update_full_capability(|mut cap| {
+            cap.blocking = true;
+            cap
+        });
 
         BlockingAccessor {
             inner,

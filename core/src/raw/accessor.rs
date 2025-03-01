@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::future::ready;
+use std::mem;
 use std::sync::Arc;
 
 use futures::Future;
@@ -818,6 +819,15 @@ struct AccessorInfoInner {
 /// within the same operator, access layers, and services use the same instance of `AccessorInfo`.
 /// This is especially important for `HttpClient` and `Executor`.
 ///
+/// ## Panic Safety
+///
+/// All methods provided by `AccessorInfo` will safely handle lock poisoning scenarios.
+/// If the inner `RwLock` is poisoned (which happens when another thread panicked while holding
+/// the write lock), this method will gracefully continue execution.
+///
+/// - For read operations, the method will return the current state.
+/// - For write operations, the method will do nothing.
+///
 /// ## Maintain Notes
 ///
 /// We are using `std::sync::RwLock` to provide thread-safe access to the inner data.
@@ -851,6 +861,11 @@ pub struct AccessorInfo {
 
 impl AccessorInfo {
     /// [`Scheme`] of backend.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current scheme.
     pub fn scheme(&self) -> Scheme {
         match self.inner.read() {
             Ok(v) => v.scheme,
@@ -859,16 +874,26 @@ impl AccessorInfo {
     }
 
     /// Set [`Scheme`] for backend.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
     pub fn set_scheme(&self, scheme: Scheme) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => v.scheme = scheme,
-            Err(mut err) => err.get_mut().scheme = scheme,
+        if let Ok(mut v) = self.inner.write() {
+            v.scheme = scheme;
         }
 
         self
     }
 
     /// Root of backend, will be in format like `/path/to/dir/`
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current root.
     pub fn root(&self) -> String {
         match self.inner.read() {
             Ok(v) => v.root.clone(),
@@ -879,10 +904,15 @@ impl AccessorInfo {
     /// Set root for backend.
     ///
     /// Note: input root must be normalized.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
     pub fn set_root(&self, root: &str) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => v.root = root.to_string(),
-            Err(mut err) => err.get_mut().root = root.to_string(),
+        if let Ok(mut v) = self.inner.write() {
+            v.root = root.to_string();
         }
 
         self
@@ -894,6 +924,11 @@ impl AccessorInfo {
     ///
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current scheme.
     pub fn name(&self) -> String {
         match self.inner.read() {
             Ok(v) => v.name.to_string(),
@@ -902,16 +937,26 @@ impl AccessorInfo {
     }
 
     /// Set name of this backend.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
     pub fn set_name(&self, name: &str) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => v.name = name.to_string(),
-            Err(mut err) => err.get_mut().name = name.to_string(),
+        if let Ok(mut v) = self.inner.write() {
+            v.name = name.to_string()
         }
 
         self
     }
 
     /// Get backend's native capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current native capability.
     pub fn native_capability(&self) -> Capability {
         match self.inner.read() {
             Ok(v) => v.native_capability,
@@ -925,22 +970,27 @@ impl AccessorInfo {
     ///
     /// Set native capability will also flush the full capability. The only way to change
     /// full_capability is via `update_full_capability`.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
     pub fn set_native_capability(&self, capability: Capability) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => {
-                v.native_capability = capability;
-                v.full_capability = capability;
-            }
-            Err(mut err) => {
-                err.get_mut().native_capability = capability;
-                err.get_mut().full_capability = capability;
-            }
+        if let Ok(mut v) = self.inner.write() {
+            v.native_capability = capability;
+            v.full_capability = capability;
         }
 
         self
     }
 
     /// Get service's full capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current native capability.
     pub fn full_capability(&self) -> Capability {
         match self.inner.read() {
             Ok(v) => v.full_capability,
@@ -949,14 +999,26 @@ impl AccessorInfo {
     }
 
     /// Get service's full capabilities.
-    pub fn update_full_capability(&self, mut f: impl FnMut(&mut Capability)) {
-        match self.inner.write() {
-            Ok(mut v) => f(&mut v.full_capability),
-            Err(mut err) => f(&mut err.get_mut().full_capability),
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn update_full_capability(&self, f: impl FnOnce(Capability) -> Capability) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.full_capability = f(v.full_capability);
         }
+
+        self
     }
 
     /// Get http client from the context.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current http client.
     pub fn http_client(&self) -> HttpClient {
         match self.inner.read() {
             Ok(v) => v.http_client.clone(),
@@ -964,17 +1026,31 @@ impl AccessorInfo {
         }
     }
 
-    /// Set http client for the context.
-    pub fn set_http_client(&self, client: HttpClient) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => v.http_client = client,
-            Err(mut err) => err.get_mut().http_client = client,
+    /// Update http client for the context.
+    ///
+    /// # Note
+    ///
+    /// Requests must be forwarded to the old HTTP client after the update. Otherwise, features such as retry, tracing, and metrics may not function properly.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation.
+    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            let client = mem::take(&mut v.http_client);
+            v.http_client = f(client);
         }
 
         self
     }
 
     /// Get executor from the context.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current executor.
     pub fn executor(&self) -> Executor {
         match self.inner.read() {
             Ok(v) => v.executor.clone(),
@@ -983,10 +1059,19 @@ impl AccessorInfo {
     }
 
     /// Set executor for the context.
-    pub fn set_executor(&self, executor: Executor) -> &Self {
-        match self.inner.write() {
-            Ok(mut v) => v.executor = executor,
-            Err(mut err) => err.get_mut().executor = executor,
+    ///
+    /// # Note
+    ///
+    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation.
+    pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            let executor = mem::take(&mut v.executor);
+            v.executor = f(executor);
         }
 
         self

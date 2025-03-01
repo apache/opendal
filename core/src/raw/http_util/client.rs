@@ -60,15 +60,16 @@ impl Debug for HttpClient {
 
 impl Default for HttpClient {
     fn default() -> Self {
-        Self::new().expect("create http client must succeed")
+        Self {
+            fetcher: Arc::new(GLOBAL_REQWEST_CLIENT.clone()),
+        }
     }
 }
 
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let fetcher = Arc::new(GLOBAL_REQWEST_CLIENT.clone());
-        Ok(Self { fetcher })
+        Ok(Self::default())
     }
 
     /// Construct `Self` with given [`reqwest::Client`]

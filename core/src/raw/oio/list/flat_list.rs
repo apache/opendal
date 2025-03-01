@@ -212,7 +212,10 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
-            am.update_full_capability(|cap| cap.list = true);
+            am.update_full_capability(|mut cap| {
+                cap.list = true;
+                cap
+            });
             am.into()
         }
 

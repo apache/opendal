@@ -74,9 +74,10 @@ impl<A: Access> Layer<A> for ImmutableIndexLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
-        info.update_full_capability(|cap| {
+        info.update_full_capability(|mut cap| {
             cap.list = true;
             cap.list_with_recursive = true;
+            cap
         });
 
         ImmutableIndexAccessor {

@@ -55,7 +55,7 @@ I believe we should perfect production adoption in 2025 to get OpenDAL ready for
 
 ## What to do in 2025?
 
-In 2025, we plan to do the following changes.
+Our plans for 2025 include the following:
 
 ### Features Needed in Production
 

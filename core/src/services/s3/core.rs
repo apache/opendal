@@ -101,7 +101,6 @@ pub struct S3Core {
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
-    pub client: HttpClient,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
@@ -198,7 +197,7 @@ impl S3Core {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// # Note
@@ -503,7 +502,7 @@ impl S3Core {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn s3_put_object_request(

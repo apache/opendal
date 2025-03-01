@@ -67,10 +67,13 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for S3Config {
     type Builder = S3Builder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
             customized_credential_load: None,
+
             http_client: None,
         }
     }
@@ -85,6 +88,8 @@ pub struct S3Builder {
     config: S3Config,
 
     customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -454,6 +459,8 @@ impl S3Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -810,15 +817,6 @@ impl Builder for S3Builder {
             cfg.session_token = Some(v)
         }
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
-            })?
-        };
-
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
         // If customized_credential_load is set, we will use it.
         if let Some(v) = self.customized_credential_load {
@@ -981,6 +979,12 @@ impl Builder for S3Builder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 bucket: bucket.to_string(),
@@ -996,7 +1000,6 @@ impl Builder for S3Builder {
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
-                client,
                 checksum_algorithm,
             }),
         })

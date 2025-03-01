@@ -104,12 +104,13 @@ impl<A: Access> Layer<A> for CompleteLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
-        info.update_full_capability(|cap| {
+        info.update_full_capability(|mut cap| {
             if cap.list && cap.write_can_empty {
                 cap.create_dir = true;
             }
             // write operations should always return content length
             cap.write_has_content_length = true;
+            cap
         });
 
         CompleteAccessor {

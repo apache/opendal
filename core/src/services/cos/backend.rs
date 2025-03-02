@@ -39,9 +39,12 @@ use crate::*;
 
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         CosBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -52,6 +55,8 @@ impl Configurator for CosConfig {
 #[derive(Default, Clone)]
 pub struct CosBuilder {
     config: CosConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -148,6 +153,8 @@ impl CosBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -192,15 +199,6 @@ impl Builder for CosBuilder {
         // If endpoint contains bucket name, we should trim them.
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Cos)
-            })?
-        };
 
         let mut cfg = TencentCosConfig::default();
         if !self.config.disable_config_load {
@@ -291,6 +289,12 @@ impl Builder for CosBuilder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 bucket: bucket.clone(),
@@ -298,7 +302,6 @@ impl Builder for CosBuilder {
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
                 signer,
                 loader: cred_loader,
-                client,
             }),
         })
     }

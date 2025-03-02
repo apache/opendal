@@ -77,7 +77,6 @@ pub struct OssCore {
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
-    pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
 }
@@ -140,7 +139,7 @@ impl OssCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Set sse headers
@@ -475,7 +474,7 @@ impl OssCore {
     pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
         let mut req = self.oss_get_object_request(path, false, args)?;
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {

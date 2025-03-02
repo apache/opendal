@@ -41,9 +41,12 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for OssConfig {
     type Builder = OssBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         OssBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -54,6 +57,8 @@ impl Configurator for OssConfig {
 #[derive(Default)]
 pub struct OssBuilder {
     config: OssConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -151,6 +156,8 @@ impl OssBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -389,15 +396,6 @@ impl Builder for OssBuilder {
             cfg.sts_endpoint = Some(v);
         }
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Oss)
-            })?
-        };
-
         let loader = AliyunLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
 
         let signer = AliyunOssSigner::new(bucket);
@@ -490,6 +488,12 @@ impl Builder for OssBuilder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 root,
@@ -500,7 +504,6 @@ impl Builder for OssBuilder {
                 allow_anonymous: self.config.allow_anonymous,
                 signer,
                 loader,
-                client,
                 server_side_encryption,
                 server_side_encryption_key_id,
             }),

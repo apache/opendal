@@ -1024,6 +1024,7 @@ pub struct DeleteObjectsResult {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
+    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1032,6 +1033,7 @@ pub struct DeleteObjectsResultError {
     pub code: String,
     pub key: String,
     pub message: String,
+    pub version_id: Option<String>,
 }
 
 /// Output of ListBucket/ListObjects.
@@ -1306,6 +1308,30 @@ mod tests {
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
+    }
+
+    #[test]
+    fn test_deserialize_delete_objects_with_version_id() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                    <Deleted>
+                      <Key>SampleDocument.txt</Key>
+                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
+                    </Deleted>
+                  </DeleteResult>"#,
+        );
+
+        let out: DeleteObjectsResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!(out.deleted.len(), 1);
+        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
+        assert_eq!(
+            out.deleted[0].version_id,
+            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
+        );
+        assert_eq!(out.error.len(), 0);
     }
 
     #[test]

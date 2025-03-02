@@ -339,8 +339,11 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         .await
         .expect("batch delete must succeed");
 
-    for (path, _) in files {
-        let stat = op.stat(path.as_str()).await;
+    for (path, args) in files {
+        let stat = op
+            .stat_with(path.as_str())
+            .version(args.version().unwrap())
+            .await;
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
     }

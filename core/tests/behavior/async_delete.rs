@@ -316,7 +316,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
     if !cap.delete_with_version {
         return Ok(());
     }
-    if cap.delete_max_size.unwrap_or(1) {
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
         return Ok(());
     }
 

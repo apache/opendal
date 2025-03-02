@@ -40,9 +40,12 @@ use crate::*;
 
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         ObsBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -53,6 +56,8 @@ impl Configurator for ObsConfig {
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
     config: ObsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -132,6 +137,8 @@ impl ObsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -183,15 +190,6 @@ impl Builder for ObsBuilder {
             }
         };
         debug!("backend use endpoint {}", &endpoint);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Obs)
-            })?
-        };
 
         let mut cfg = HuaweicloudObsConfig::default();
         // Load cfg from env first.
@@ -287,6 +285,12 @@ impl Builder for ObsBuilder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 bucket,
@@ -294,7 +298,6 @@ impl Builder for ObsBuilder {
                 endpoint: format!("{}://{}", &scheme, &endpoint),
                 signer,
                 loader,
-                client,
             }),
         })
     }

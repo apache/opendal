@@ -1116,9 +1116,9 @@ impl Operator {
     ///
     /// Also see:
     ///
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_iter<I, D>(&self, iter: I) -> Result<()>
     where
         I: IntoIterator<Item = D>,
@@ -1136,7 +1136,7 @@ impl Operator {
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
     where
         I: IntoIterator<Item = Result<D>>,
@@ -1153,8 +1153,8 @@ impl Operator {
     /// Also see:
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_stream<S, D>(&self, stream: S) -> Result<()>
     where
         S: Stream<Item = D>,
@@ -1166,12 +1166,12 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete an fallible stream of paths.
+    /// Delete a fallible stream of paths.
     ///
     /// Also see:
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
     pub async fn delete_try_stream<S, D>(&self, try_stream: S) -> Result<()>
     where

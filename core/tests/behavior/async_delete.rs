@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::*;
 use anyhow::Result;
 use futures::TryStreamExt;
 use log::warn;
-
-use crate::*;
+use opendal::raw::{Access, OpDelete};
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -34,7 +34,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_stream,
             test_remove_one_file,
             test_delete_with_version,
-            test_delete_with_not_existing_version
+            test_delete_with_not_existing_version,
+            test_batch_delete,
+            test_batch_delete_with_version
         ));
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -274,6 +276,74 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
         .version(version.as_str())
         .await;
     assert!(ret.is_ok());
+
+    Ok(())
+}
+
+pub async fn test_batch_delete(op: Operator) -> Result<()> {
+    let mut cap = op.info().full_capability();
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    op.inner().info().update_full_capability(|_| cap);
+
+    let mut files = Vec::new();
+    for _ in 0..5 {
+        let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+        op.write(path.as_str(), content)
+            .await
+            .expect("write must succeed");
+        files.push(path);
+    }
+
+    op.delete_iter(files.clone())
+        .await
+        .expect("batch delete must succeed");
+
+    for path in files {
+        let stat = op.stat(path.as_str()).await;
+        assert!(stat.is_err());
+        assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
+    }
+
+    Ok(())
+}
+
+pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
+    let mut cap = op.info().full_capability();
+    if !cap.delete_with_version {
+        return Ok(());
+    }
+    if cap.delete_max_size.unwrap_or(1) {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    op.inner().info().update_full_capability(|_| cap);
+
+    let mut files = Vec::new();
+    for _ in 0..5 {
+        let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+        op.write(path.as_str(), content)
+            .await
+            .expect("write must succeed");
+        let meta = op.stat(path.as_str()).await.expect("stat must succeed");
+        let version = meta.version().expect("must have version");
+        let op_args = OpDelete::new().with_version(version);
+        files.push((path, op_args));
+    }
+
+    op.delete_iter(files.clone())
+        .await
+        .expect("batch delete must succeed");
+
+    for (path, _) in files {
+        let stat = op.stat(path.as_str()).await;
+        assert!(stat.is_err());
+        assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
+    }
 
     Ok(())
 }

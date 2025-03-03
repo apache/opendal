@@ -13,12 +13,12 @@ I hope this post serves as a guide for our development, encourages more people t
 
 ## What's OpenDAL?
 
-OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services. Our VISION is [**One Layer, All Storage**](https://opendal.apache.org/vision), and our core principles are Open Community, Solid Foundation, Fast Access, Object Storage First, and Extensible Architecture.
+Apache OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services. Our VISION is [**One Layer, All Storage**](https://opendal.apache.org/vision), and our core principles are Open Community, Solid Foundation, Fast Access, Object Storage First, and Extensible Architecture.
 
 We are building:
 
 - [A core library built in Rust](https://crates.io/crates/opendal) that supports all services at zero cost and offers unified retry, concurrency, logging, tracing, metrics, timeout and more layers.
-- Language bindings for [Python](https://pypi.org/project/opendal/), [Java](https://central.sonatype.com/artifact/org.apache.opendal/opendal-java), [Node.js](https://www.npmjs.com/package/opendal), C/C++, and more.
+- Language bindings for [Python](https://pypi.org/project/opendal/), [Java](https://central.sonatype.com/artifact/org.apache.opendal/opendal), [Node.js](https://www.npmjs.com/package/opendal), C/C++, and more.
 - Integrations with various frameworks, including [Parquet](https://crates.io/crates/parquet-opendal), [FUSE](https://crates.io/crates/fuse3_opendal), [DAV server](https://github.com/messense/dav-server-rs), and others.
 - Binaries for different use cases, such as [CLI](https://crates.io/crates/oli) and [FUSE](https://crates.io/crates/ofs).
 
@@ -28,11 +28,11 @@ In short, through OpenDAL, users can access ALL storage services within ONE laye
 
 OpenDAL's rust core has already released 143 versions, has [67 reverse dependencies](https://crates.io/crates/opendal/reverse_dependencies) listed on [crates.io](http://crates.io/), and is used by [612 projects](https://github.com/apache/opendal/network/dependents) as recorded on GitHub.
 
-OpenDAL's production users include databases such as [Databend](https://github.com/databendlabs/databend), [Greptime](https://github.com/GreptimeTeam/greptime), and [RisingWave](https://github.com/risingwavelabs/risingwave), as well as tools like [Loco](https://loco.rs/), [sccache](https://github.com/mozilla/sccache), and [Vector](https://vector.dev/).
+OpenDAL's production users include databases such as [Databend](https://github.com/databendlabs/databend), [GreptimeDB](https://github.com/GreptimeTeam/greptimedb), and [RisingWave](https://github.com/risingwavelabs/risingwave), as well as tools like [Loco](https://loco.rs/), [sccache](https://github.com/mozilla/sccache), and [Vector](https://vector.dev/).
 
 ![](opendal-rust-downloads.png)
 
-Apart from OpenDAL's Rust core, its various language bindings have also seen significant growth over the past year. Take python binding as an example. [Dify](https://github.com/langgenius/dify/), an LLM app development platform, is using opendal python to access different storage services.
+Apart from OpenDAL's Rust core, its various language bindings have also seen significant growth over the past year. Take python binding as an example. [Dify](https://github.com/langgenius/dify/), an LLM app development platform, is using OpenDAL to access different storage services.
 
 ![](opendal-python-downloads.png)
 
@@ -43,7 +43,7 @@ The following is the famous technology adoption lifecycle curve. If I were to in
 ![](adoption-curve.png)
 (picture from TechTarget [technology adoption lifecycle](https://www.techtarget.com/searchcio/definition/technology-adoption-lifecycle))
 
-Innovators are adopting OpenDAL. Projects like Databend, RisingWave, Greptime, and sccache have been using OpenDAL in production for years. However, early adopters are still hesitant to use OpenDAL—and they have valid reasons.
+Innovators are adopting OpenDAL. Projects like Databend, RisingWave, GreptimeDB, and sccache have been using OpenDAL in production for years. However, early adopters are still hesitant to use OpenDAL—and they have valid reasons.
 
 For examples:
 

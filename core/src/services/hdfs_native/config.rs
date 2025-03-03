@@ -28,8 +28,8 @@ use serde::Serialize;
 pub struct HdfsNativeConfig {
     /// work dir of this backend
     pub root: Option<String>,
-    /// url of this backend
-    pub url: Option<String>,
+    /// name_node of this backend
+    pub name_node: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
 }
@@ -38,7 +38,7 @@ impl Debug for HdfsNativeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeConfig")
             .field("root", &self.root)
-            .field("url", &self.url)
+            .field("name_node", &self.name_node)
             .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
     }

@@ -65,14 +65,14 @@ In 2025, we plan to implement the following features that are importmant for pro
 - [Versioning](https://github.com/apache/opendal/issues/2611): Introduce full file versioning support in OpenDAL, enabling users to read, write, delete, list, and restore versioned files. This functionality will allow users to recover mistakenly deleted files and facilitate disaster recovery.
 - [Checksum](https://github.com/apache/opendal/issues/5549): Introduce end-to-end checksum support in OpenDAL, enabling users to perform checksums during reading and writing without worrying about bit flips in memory or over the network.
 - [Caching](https://github.com/apache/opendal/issues/5678): Provide high-quality built-in cache support in OpenDAL while ensuring users have the flexibility to implement their own caching logic.
-- [Initialization From Uri](https://github.com/apache/opendal/issues/3022): Allow users to initialize OpenDAL from a URI string, making it easier to configure and use OpenDAL in various environments.
+- [Initialization From URI](https://github.com/apache/opendal/issues/3022): Allow users to initialize OpenDAL from a URI string, making it easier to configure and use OpenDAL in various environments.
 
 ### Improvements Needed for Production
 
 In 2025, we plan to improve the following aspects of OpenDAL to ensure users can confidently use it in production.
 
 - Documentation: Improve the documentation for OpenDAL, particularly for bindings like Python, Node.js, and Java. The first step is to generate well-structured documentation for the configuration values of each service.
-- Communitation: Bring Back Our Community Meetings. OpenDAL used to hold regular tri-weekly meetings, but we have been unable to maintain them for years. We now plan to revive these meetings and encourage more face-to-face discussions in the coming years.
+- Communitation: Bring Back Our Community Meetings. OpenDAL used to hold regular tri-weekly meetings, but we have been unable to maintain them in the last year. We now plan to revive these meetings and encourage more face-to-face discussions in the coming years.
 
 ## Conclusion
 

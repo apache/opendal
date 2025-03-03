@@ -27,11 +27,19 @@ pub struct GraphApiOnedriveListResponse {
     pub value: Vec<OneDriveItem>,
 }
 
-/// DriveItem representation
-/// https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/list?view=odsp-graph-online#json-representation
+/// mapping for a DriveItem representation
+/// read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/driveitem
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OneDriveItem {
     pub name: String,
+
+    #[serde(rename = "lastModifiedDateTime")]
+    pub last_modified_date_time: String,
+
+    #[serde(rename = "eTag")]
+    pub e_tag: String,
+
+    pub size: i64,
 
     #[serde(rename = "parentReference")]
     pub parent_reference: ParentReference,
@@ -45,6 +53,9 @@ pub struct ParentReference {
     pub path: String,
 }
 
+/// Additional properties when represents a facet of a "DriveItem":
+/// - "file", read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/file
+/// - "folder", read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/folder
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum ItemType {

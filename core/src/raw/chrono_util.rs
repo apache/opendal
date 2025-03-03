@@ -36,7 +36,31 @@ pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
 
 /// Parse datetime from rfc3339.
 ///
-/// For example: `2014-11-28T21:00:09+09:00`
+/// # Examples
+///
+/// With a time zone:
+///
+/// ```
+/// use chrono::Datelike;
+/// use opendal::Error;
+/// use opendal::raw::parse_datetime_from_rfc3339;
+///
+/// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09+09:00")?;
+/// assert_eq!(date_time.date_naive().day(), 28);
+/// # Ok::<(), Error>(())
+/// ```
+///
+/// With the UTC offset of 00:00:
+///
+/// ```
+/// use chrono::Timelike;
+/// # use opendal::Error;
+/// # use opendal::raw::parse_datetime_from_rfc3339;
+///
+/// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09Z")?;
+/// assert_eq!(date_time.hour(), 21);
+/// # Ok::<(), Error>(())
+/// ```
 pub fn parse_datetime_from_rfc3339(s: &str) -> Result<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(s)
         .map(|v| v.into())

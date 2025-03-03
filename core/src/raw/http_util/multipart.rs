@@ -530,6 +530,12 @@ pub struct RelatedPart {
     content: Buffer,
 }
 
+impl Default for RelatedPart {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RelatedPart {
     /// Create a new related
     pub fn new() -> Self {

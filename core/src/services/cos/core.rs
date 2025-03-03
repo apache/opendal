@@ -51,7 +51,6 @@ pub struct CosCore {
 
     pub signer: TencentCosSigner,
     pub loader: TencentCosCredentialLoader,
-    pub client: HttpClient,
 }
 
 impl Debug for CosCore {
@@ -106,7 +105,7 @@ impl CosCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -121,7 +120,7 @@ impl CosCore {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn cos_get_object_request(

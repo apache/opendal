@@ -998,7 +998,7 @@ impl AccessorInfo {
         }
     }
 
-    /// Get service's full capabilities.
+    /// Update service's full capabilities.
     ///
     /// # Panic Safety
     ///

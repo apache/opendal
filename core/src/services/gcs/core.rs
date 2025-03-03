@@ -319,7 +319,9 @@ impl GcsCore {
             multipart = multipart.part(metadata_part);
 
             // Content-Type must be set, even if it is set in the metadata part
-            let content_type = op.content_type().unwrap_or("application/octet-stream")
+            let content_type = op
+                .content_type()
+                .unwrap_or("application/octet-stream")
                 .parse()
                 .expect("Failed to parse content-type");
             let media_part = RelatedPart::new()

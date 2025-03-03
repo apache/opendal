@@ -1116,9 +1116,9 @@ impl Operator {
     ///
     /// Also see:
     ///
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_iter<I, D>(&self, iter: I) -> Result<()>
     where
         I: IntoIterator<Item = D>,
@@ -1136,7 +1136,7 @@ impl Operator {
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_try_iter<I, D>(&self, try_iter: I) -> Result<()>
     where
         I: IntoIterator<Item = Result<D>>,
@@ -1153,8 +1153,8 @@ impl Operator {
     /// Also see:
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
-    /// - [`Operator::delete_try_stream`]: delete an fallible stream of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
+    /// - [`Operator::delete_try_stream`]: delete a fallible stream of paths.
     pub async fn delete_stream<S, D>(&self, stream: S) -> Result<()>
     where
         S: Stream<Item = D>,
@@ -1166,12 +1166,12 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete an fallible stream of paths.
+    /// Delete a fallible stream of paths.
     ///
     /// Also see:
     ///
     /// - [`Operator::delete_iter`]: delete an infallible iterator of paths.
-    /// - [`Operator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Operator::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Operator::delete_stream`]: delete an infallible stream of paths.
     pub async fn delete_try_stream<S, D>(&self, try_stream: S) -> Result<()>
     where
@@ -1957,6 +1957,63 @@ impl Operator {
             self.inner().clone(),
             path,
             (OpWrite::default(), expire),
+            |inner, path, (args, dur)| async move {
+                let op = OpPresign::new(args, dur);
+                let rp = inner.presign(&path, op).await?;
+                Ok(rp.into_presigned_request())
+            },
+        )
+    }
+
+    /// Presign an operation for delete.
+    ///
+    /// # Notes
+    ///
+    /// ## Extra Options
+    ///
+    /// `presign_delete` is a wrapper of [`Self::presign_delete_with`] without any options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::time::Duration;
+    ///
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op
+    ///         .presign_delete("test.txt", Duration::from_secs(3600))
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `DELETE`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can delete file as this file via `curl` or other tools without credential:
+    ///
+    /// ```shell
+    /// curl -X DELETE "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>"
+    /// ```
+    pub async fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.presign_delete_with(path, expire).await
+    }
+
+    /// Presign an operation for delete without extra options.
+    pub fn presign_delete_with(
+        &self,
+        path: &str,
+        expire: Duration,
+    ) -> FuturePresignDelete<impl Future<Output = Result<PresignedRequest>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpDelete::default(), expire),
             |inner, path, (args, dur)| async move {
                 let op = OpPresign::new(args, dur);
                 let rp = inner.presign(&path, op).await?;

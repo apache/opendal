@@ -35,6 +35,7 @@ use crate::*;
 pub struct Backend<S: Adapter> {
     kv: Arc<S>,
     root: String,
+    info: Arc<AccessorInfo>,
 }
 
 impl<S> Backend<S>
@@ -43,9 +44,34 @@ where
 {
     /// Create a new kv backend.
     pub fn new(kv: S) -> Self {
+        let kv_info = kv.info();
         Self {
             kv: Arc::new(kv),
             root: "/".to_string(),
+            info: {
+                let am: AccessorInfo = AccessorInfo::default();
+                am.set_root("/");
+                am.set_scheme(kv_info.scheme());
+                am.set_name(kv_info.name());
+
+                let mut cap = kv_info.capabilities();
+                if cap.read {
+                    cap.stat = true;
+                }
+
+                if cap.write {
+                    cap.write_can_empty = true;
+                    cap.delete = true;
+                }
+
+                if cap.list {
+                    cap.list_with_recursive = true;
+                }
+
+                am.set_native_capability(cap);
+
+                am.into()
+            },
         }
     }
 
@@ -58,6 +84,8 @@ where
     ///
     /// This method assumes root is normalized.
     pub(crate) fn with_normalized_root(mut self, root: String) -> Self {
+        let root = normalize_root(&root);
+        self.info.set_root(&root);
         self.root = root;
         self
     }
@@ -74,29 +102,7 @@ impl<S: Adapter> Access for Backend<S> {
     type BlockingDeleter = oio::OneShotDeleter<KvDeleter<S>>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let kv_info = self.kv.info();
-        let mut am: AccessorInfo = AccessorInfo::default();
-        am.set_root(&self.root);
-        am.set_scheme(kv_info.scheme());
-        am.set_name(kv_info.name());
-
-        let mut cap = kv_info.capabilities();
-        if cap.read {
-            cap.stat = true;
-        }
-
-        if cap.write {
-            cap.write_can_empty = true;
-            cap.delete = true;
-        }
-
-        if cap.list {
-            cap.list_with_recursive = true;
-        }
-
-        am.set_native_capability(cap);
-
-        am.into()
+        self.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -273,6 +273,8 @@ pub enum PresignOperation {
     Read(OpRead),
     /// Presign a write operation.
     Write(OpWrite),
+    /// Presign a delete operation.
+    Delete(OpDelete),
 }
 
 impl From<OpStat> for PresignOperation {
@@ -290,6 +292,12 @@ impl From<OpRead> for PresignOperation {
 impl From<OpWrite> for PresignOperation {
     fn from(v: OpWrite) -> Self {
         Self::Write(v)
+    }
+}
+
+impl From<OpDelete> for PresignOperation {
+    fn from(v: OpDelete) -> Self {
+        Self::Delete(v)
     }
 }
 

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -61,6 +62,8 @@ pub mod constants {
 }
 
 pub struct OssCore {
+    pub info: Arc<AccessorInfo>,
+
     pub root: String,
     pub bucket: String,
     /// buffered host string
@@ -70,15 +73,12 @@ pub struct OssCore {
     pub endpoint: String,
     pub presign_endpoint: String,
     pub allow_anonymous: bool,
-    pub enable_versioning: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
-    pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
-    pub delete_max_size: usize,
 }
 
 impl Debug for OssCore {
@@ -139,7 +139,7 @@ impl OssCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Set sse headers
@@ -474,7 +474,7 @@ impl OssCore {
     pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
         let mut req = self.oss_get_object_request(path, false, args)?;
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
@@ -571,7 +571,10 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn oss_delete_objects(
+        &self,
+        paths: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -579,8 +582,9 @@ impl OssCore {
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
                 .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
+                .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),
+                    version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -735,6 +739,8 @@ pub struct DeleteObjectsRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -748,6 +754,7 @@ pub struct DeleteObjectsResult {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
+    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -866,12 +873,15 @@ mod tests {
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "multipart.data".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "test.jpg".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "demo.jpg".to_string(),
+                    version_id: None,
                 },
             ],
         };

@@ -268,8 +268,6 @@ impl Operator {
             Scheme::Sled => Self::from_iter::<services::Sled>(iter)?.finish(),
             #[cfg(feature = "services-sqlite")]
             Scheme::Sqlite => Self::from_iter::<services::Sqlite>(iter)?.finish(),
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase => Self::from_iter::<services::Supabase>(iter)?.finish(),
             #[cfg(feature = "services-swift")]
             Scheme::Swift => Self::from_iter::<services::Swift>(iter)?.finish(),
             #[cfg(feature = "services-tikv")]

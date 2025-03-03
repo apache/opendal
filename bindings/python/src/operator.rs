@@ -121,7 +121,7 @@ impl Operator {
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs.unwrap_or_default();
+        let mut kwargs = kwargs.unwrap_or_default();
         let mut write = self
             .core
             .write_with(&path, bs)
@@ -137,6 +137,9 @@ impl Operator {
         }
         if let Some(cache_control) = &kwargs.cache_control {
             write = write.cache_control(cache_control);
+        }
+        if let Some(user_metadata) = kwargs.user_metadata.take() {
+            write = write.user_metadata(user_metadata);
         }
 
         write.call().map(|_| ()).map_err(format_pyerr)
@@ -358,7 +361,7 @@ impl AsyncOperator {
         bs: &Bound<PyBytes>,
         kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
-        let kwargs = kwargs.unwrap_or_default();
+        let mut kwargs = kwargs.unwrap_or_default();
         let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
         let path = path.to_string_lossy().to_string();
@@ -378,6 +381,10 @@ impl AsyncOperator {
             if let Some(cache_control) = &kwargs.cache_control {
                 write = write.cache_control(cache_control);
             }
+            if let Some(user_metadata) = kwargs.user_metadata.take() {
+                write = write.user_metadata(user_metadata);
+            }
+
             write.await.map(|_| ()).map_err(format_pyerr)
         })
     }
@@ -564,6 +571,26 @@ impl AsyncOperator {
         future_into_py(py, async move {
             let res = this
                 .presign_write(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
+        })
+    }
+
+    /// Presign an operation for delete which expires after `expire_second` seconds.
+    pub fn presign_delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        expire_second: u64,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+        future_into_py(py, async move {
+            let res = this
+                .presign_delete(&path, Duration::from_secs(expire_second))
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;

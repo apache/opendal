@@ -177,10 +177,47 @@ impl Builder for WebdavBuilder {
         }
 
         let core = Arc::new(WebdavCore {
+            info: {
+                let ma = AccessorInfo::default();
+                ma.set_scheme(Scheme::Webdav)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_content_type: true,
+                        stat_has_etag: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_empty: true,
+
+                        create_dir: true,
+                        delete: true,
+
+                        copy: !self.config.disable_copy,
+
+                        rename: true,
+
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_content_type: true,
+                        list_has_etag: true,
+                        list_has_last_modified: true,
+
+                        // We already support recursive list but some details still need to polish.
+                        // list_with_recursive: true,
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                ma.into()
+            },
             endpoint: endpoint.to_string(),
             server_path,
             authorization,
-            disable_copy: self.config.disable_copy,
             root,
             client,
         });
@@ -213,42 +250,7 @@ impl Access for WebdavBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Webdav)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_etag: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                create_dir: true,
-                delete: true,
-
-                copy: !self.core.disable_copy,
-
-                rename: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                list_has_etag: true,
-                list_has_last_modified: true,
-
-                // We already support recursive list but some details still need to polish.
-                // list_with_recursive: true,
-                shared: true,
-
-                ..Default::default()
-            });
-
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

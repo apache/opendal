@@ -837,7 +837,7 @@ mod tests {
         type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
+            let am = AccessorInfo::default();
             am.set_scheme(Scheme::Custom("mock"))
                 .set_native_capability(Capability {
                     read: true,

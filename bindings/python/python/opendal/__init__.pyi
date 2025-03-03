@@ -85,6 +85,9 @@ class AsyncOperator(_Base):
     async def presign_write(
         self, path: PathBuf, expire_second: int
     ) -> PresignedRequest: ...
+    async def presign_delete(
+        self, path: PathBuf, expire_second: int
+    ) -> PresignedRequest: ...
     def capability(self) -> Capability: ...
     async def copy(self, source: PathBuf, target: PathBuf) -> None: ...
     async def rename(self, source: PathBuf, target: PathBuf) -> None: ...
@@ -207,6 +210,7 @@ class Capability:
     presign_read: bool
     presign_stat: bool
     presign_write: bool
+    presign_delete: bool
 
     shared: bool
     blocking: bool

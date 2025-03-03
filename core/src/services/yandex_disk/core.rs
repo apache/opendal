@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Buf;
 use http::header;
 use http::request;
@@ -25,6 +22,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -32,6 +32,7 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Yandex Disk oauth access_token.

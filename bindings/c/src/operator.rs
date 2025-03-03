@@ -108,7 +108,7 @@ fn build_operator(
 /// reference the [documentation](https://opendal.apache.org/docs/category/services/) for
 /// each service, especially for the **Configuration Part**.
 ///
-/// @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+/// @param scheme the service scheme you want to specify, e.g. "fs", "s3"
 /// @param options the pointer to the options for this operator, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options

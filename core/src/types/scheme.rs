@@ -135,8 +135,6 @@ pub enum Scheme {
     Sftp,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
-    /// [Supabase][crate::services::Supabase]: Supabase storage service
-    Supabase,
     /// [swift][crate::services::Swift]: Swift backend support.
     Swift,
     /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
@@ -289,8 +287,6 @@ impl Scheme {
             Scheme::Sled,
             #[cfg(feature = "services-sqlite")]
             Scheme::Sqlite,
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase,
             #[cfg(feature = "services-swift")]
             Scheme::Swift,
             #[cfg(feature = "services-tikv")]
@@ -392,7 +388,6 @@ impl FromStr for Scheme {
             "pcloud" => Ok(Scheme::Pcloud),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
-            "supabase" => Ok(Scheme::Supabase),
             "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
@@ -460,7 +455,6 @@ impl From<Scheme> for &'static str {
             Scheme::Seafile => "seafile",
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
-            Scheme::Supabase => "supabase",
             Scheme::Swift => "swift",
             Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::VercelBlob => "vercel_blob",

@@ -60,10 +60,9 @@ impl<A: Access> Layer<A> for CapabilityCheckLayer {
     type LayeredAccess = CapabilityAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        CapabilityAccessor {
-            info: inner.info(),
-            inner,
-        }
+        let info = inner.info();
+
+        CapabilityAccessor { info, inner }
     }
 }
 pub struct CapabilityAccessor<A: Access> {
@@ -224,7 +223,7 @@ mod tests {
         type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut info = AccessorInfo::default();
+            let info = AccessorInfo::default();
             info.set_native_capability(self.capability);
 
             info.into()

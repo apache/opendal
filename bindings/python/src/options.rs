@@ -17,6 +17,7 @@
 
 use dict_derive::FromPyObject;
 use pyo3::pyclass;
+use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
@@ -26,4 +27,5 @@ pub struct WriteOptions {
     pub content_type: Option<String>,
     pub content_disposition: Option<String>,
     pub cache_control: Option<String>,
+    pub user_metadata: Option<HashMap<String, String>>,
 }

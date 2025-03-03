@@ -191,6 +191,33 @@ impl Builder for SeafileBuilder {
 
         Ok(SeafileBackend {
             core: Arc::new(SeafileCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Seafile)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+
+                            list: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 endpoint,
                 username,
@@ -220,31 +247,7 @@ impl Access for SeafileBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Seafile)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

@@ -207,7 +207,6 @@ jobs:
             # services-sftp
             services-sled
             services-swift
-            services-supabase
             services-tikv
             services-vercel-artifacts
             services-webdav

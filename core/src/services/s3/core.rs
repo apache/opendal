@@ -20,8 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use std::sync::{atomic, Arc};
 use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
@@ -70,6 +70,8 @@ pub mod constants {
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
+    pub const X_AMZ_WRITE_OFFSET_BYTES: &str = "x-amz-write-offset-bytes";
+
     pub const X_AMZ_META_PREFIX: &str = "x-amz-meta-";
 
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
@@ -83,6 +85,8 @@ pub mod constants {
 }
 
 pub struct S3Core {
+    pub info: Arc<AccessorInfo>,
+
     pub bucket: String,
     pub endpoint: String,
     pub root: String,
@@ -93,16 +97,11 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
-    pub disable_stat_with_override: bool,
-    pub enable_versioning: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
-    pub client: HttpClient,
-    pub delete_max_size: usize,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
-    pub disable_write_with_if_match: bool,
 }
 
 impl Debug for S3Core {
@@ -198,7 +197,7 @@ impl S3Core {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// # Note
@@ -289,6 +288,54 @@ impl S3Core {
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
             req = req.header("x-amz-checksum-algorithm", checksum_algorithm.to_string());
+        }
+        req
+    }
+
+    pub fn insert_metadata_headers(
+        &self,
+        mut req: http::request::Builder,
+        size: Option<u64>,
+        args: &OpWrite,
+    ) -> http::request::Builder {
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size.to_string())
+        }
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
+            }
         }
         req
     }
@@ -455,7 +502,7 @@ impl S3Core {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn s3_put_object_request(
@@ -471,45 +518,7 @@ impl S3Core {
 
         let mut req = Request::put(&url);
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size.to_string())
-        }
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos)
-        }
-
-        if let Some(encoding) = args.content_encoding() {
-            req = req.header(CONTENT_ENCODING, encoding);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
-        }
-
-        // Set storage class header
-        if let Some(v) = &self.default_storage_class {
-            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
-        }
-
-        // Set user metadata headers.
-        if let Some(user_metadata) = args.user_metadata() {
-            for (key, value) in user_metadata {
-                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
-            }
-        }
+        req = self.insert_metadata_headers(req, size, args);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -519,6 +528,37 @@ impl S3Core {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
         }
+
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub fn s3_append_object_request(
+        &self,
+        path: &str,
+        position: u64,
+        size: u64,
+        args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut req = Request::put(&url);
+
+        // Only include full metadata headers when creating a new object via append (position == 0)
+        // For existing objects or subsequent appends, only include content-length
+        if position == 0 {
+            req = self.insert_metadata_headers(req, Some(size), args);
+        } else {
+            req = req.header(CONTENT_LENGTH, size.to_string());
+        }
+
+        req = req.header(constants::X_AMZ_WRITE_OFFSET_BYTES, position.to_string());
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -984,6 +1024,7 @@ pub struct DeleteObjectsResult {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
+    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -992,6 +1033,7 @@ pub struct DeleteObjectsResultError {
     pub code: String,
     pub key: String,
     pub message: String,
+    pub version_id: Option<String>,
 }
 
 /// Output of ListBucket/ListObjects.
@@ -1266,6 +1308,30 @@ mod tests {
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
+    }
+
+    #[test]
+    fn test_deserialize_delete_objects_with_version_id() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                    <Deleted>
+                      <Key>SampleDocument.txt</Key>
+                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
+                    </Deleted>
+                  </DeleteResult>"#,
+        );
+
+        let out: DeleteObjectsResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!(out.deleted.len(), 1);
+        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
+        assert_eq!(
+            out.deleted[0].version_id,
+            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
+        );
+        assert_eq!(out.error.len(), 0);
     }
 
     #[test]

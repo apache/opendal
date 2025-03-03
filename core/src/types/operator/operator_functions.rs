@@ -19,6 +19,7 @@
 //!
 //! By using functions, users can add more options for operation.
 
+use std::collections::HashMap;
 use std::ops::RangeBounds;
 
 use crate::raw::*;
@@ -130,6 +131,14 @@ impl FunctionWrite {
         self.0 = self
             .0
             .map_args(|(args, options, bs)| (args.with_cache_control(v), options, bs));
+        self
+    }
+
+    /// Sets user metadata for this write request.
+    pub fn user_metadata(mut self, v: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.0 = self.0.map_args(|(args, options, bs)| {
+            (args.with_user_metadata(HashMap::from_iter(v)), options, bs)
+        });
         self
     }
 

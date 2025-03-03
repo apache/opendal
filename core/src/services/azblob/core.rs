@@ -19,6 +19,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
@@ -61,6 +62,7 @@ pub mod constants {
 }
 
 pub struct AzblobCore {
+    pub info: Arc<AccessorInfo>,
     pub container: String,
     pub root: String,
     pub endpoint: String,

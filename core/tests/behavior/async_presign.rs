@@ -36,7 +36,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_presign_write,
             test_presign_read,
-            test_presign_stat
+            test_presign_stat,
+            test_presign_delete
         ))
     }
 }
@@ -136,5 +137,39 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Presign delete should succeed.
+pub async fn test_presign_delete(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !cap.presign_delete {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _size) = gen_bytes(op.info().full_capability());
+    // create a file
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // presign delete it
+    let signed_req = op.presign_delete(&path, Duration::from_secs(3600)).await?;
+    debug!("Generated request: {signed_req:?}");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let _resp = req.send().await.expect("send request must succeed");
+
+    assert!(!op.exists(&path).await.expect("delete must succeed"));
     Ok(())
 }

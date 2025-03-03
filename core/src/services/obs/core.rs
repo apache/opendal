@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -42,13 +43,13 @@ pub mod constants {
 }
 
 pub struct ObsCore {
+    pub info: Arc<AccessorInfo>,
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
 
     pub signer: HuaweicloudObsSigner,
     pub loader: HuaweicloudObsCredentialLoader,
-    pub client: HttpClient,
 }
 
 impl Debug for ObsCore {
@@ -100,7 +101,7 @@ impl ObsCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -115,7 +116,7 @@ impl ObsCore {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn obs_get_object_request(

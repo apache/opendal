@@ -78,7 +78,6 @@ services-all = [
   # FIXME how to support rocksdb services in bindings?
   # "services-rocksdb",
   "services-sled",
-  "services-supabase",
   "services-swift",
   # FIXME this service need protoc
   # "services-tikv",
@@ -144,7 +143,6 @@ services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
-services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]

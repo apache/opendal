@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::VercelArtifactsBackend;
-use crate::raw::Access;
 use crate::raw::HttpClient;
+use crate::raw::{Access, AccessorInfo};
 use crate::services::VercelArtifactsConfig;
 use crate::Scheme;
 use crate::*;
@@ -88,6 +88,32 @@ impl Builder for VercelArtifactsBuilder {
 
         match self.config.access_token.clone() {
             Some(access_token) => Ok(VercelArtifactsBackend {
+                info: {
+                    let ma = AccessorInfo::default();
+                    ma.set_scheme(Scheme::VercelArtifacts)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    ma.into()
+                },
                 access_token,
                 client,
             }),

@@ -720,18 +720,6 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["supabase"],
-        /,
-        *,
-        bucket: str,
-        root: str = ...,
-        endpoint: str = ...,
-        key: str = ...,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
         scheme: Literal["surrealdb"],
         /,
         *,

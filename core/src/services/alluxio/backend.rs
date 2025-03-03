@@ -128,6 +128,38 @@ impl Builder for AlluxioBuilder {
 
         Ok(AlluxioBackend {
             core: Arc::new(AlluxioCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Alluxio)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+
+                            // FIXME:
+                            //
+                            // alluxio's read support is not implemented correctly
+                            // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+                            read: false,
+
+                            write: true,
+                            write_can_multi: true,
+
+                            create_dir: true,
+                            delete: true,
+
+                            list: true,
+
+                            shared: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 endpoint,
                 client,
@@ -152,36 +184,7 @@ impl Access for AlluxioBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Alluxio)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                // FIXME:
-                //
-                // alluxio's read support is not implemented correctly
-                // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-                read: false,
-
-                write: true,
-                write_can_multi: true,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-
-                shared: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

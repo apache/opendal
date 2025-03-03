@@ -38,6 +38,7 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
+    info: Arc<AccessorInfo>,
     root: String,
     access_token: String,
     client: HttpClient,
@@ -46,6 +47,29 @@ pub struct OnedriveBackend {
 impl OnedriveBackend {
     pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
         Self {
+            info: {
+                let ma = AccessorInfo::default();
+                ma.set_scheme(Scheme::Onedrive)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        read: true,
+                        write: true,
+                        stat: true,
+                        stat_has_etag: true,
+                        stat_has_last_modified: true,
+                        stat_has_content_length: true,
+                        delete: true,
+                        create_dir: true,
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_etag: true,
+                        list_has_last_modified: true,
+                        shared: true,
+                        ..Default::default()
+                    });
+
+                ma.into()
+            },
             root,
             access_token,
             client: http_client,
@@ -73,27 +97,15 @@ impl Access for OnedriveBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Onedrive)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                read: true,
-                write: true,
-                stat: true,
-                stat_has_etag: true,
-                stat_has_last_modified: true,
-                stat_has_content_length: true,
-                delete: true,
-                create_dir: true,
-                list: true,
-                shared: true,
-                ..Default::default()
-            });
-
-        ma.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        if path == "/" {
+            // skip, the root path exists in the personal OneDrive.
+            return Ok(RpCreateDir::default());
+        }
+
         let path = build_rooted_abs_path(&self.root, path);
         let path_before_last_slash = get_parent(&path);
         let encoded_path = percent_encode_path(path_before_last_slash);
@@ -147,12 +159,7 @@ impl Access for OnedriveBackend {
 
             Ok(RpStat::new(meta))
         } else {
-            match status {
-                StatusCode::NOT_FOUND if path.ends_with('/') => {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-                }
-                _ => Err(parse_error(resp)),
-            }
+            Err(parse_error(resp))
         }
     }
 

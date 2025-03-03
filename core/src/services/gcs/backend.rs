@@ -314,6 +314,76 @@ impl Builder for GcsBuilder {
 
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Gcs)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_last_modified: true,
+                            stat_has_user_metadata: true,
+                            stat_has_cache_control: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_user_metadata: true,
+                            write_with_if_not_exists: true,
+
+                            // The min multipart size of Gcs is 5 MiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of Gcs is 5 GiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            delete_max_size: Some(100),
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+                    am.into()
+                },
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
@@ -350,72 +420,7 @@ impl Access for GcsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Gcs)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_last_modified: true,
-                stat_has_user_metadata: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                write_with_content_encoding: true,
-                write_with_user_metadata: true,
-                write_with_if_not_exists: true,
-
-                // The min multipart size of Gcs is 5 MiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of Gcs is 5 GiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                delete_max_size: Some(100),
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_has_etag: true,
-                list_has_content_md5: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -446,6 +451,10 @@ impl Access for GcsBackend {
 
         if !meta.content_encoding.is_empty() {
             m.set_content_encoding(&meta.content_encoding);
+        }
+
+        if !meta.cache_control.is_empty() {
+            m.set_cache_control(&meta.cache_control);
         }
 
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
@@ -514,15 +523,19 @@ impl Access for GcsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v),
             PresignOperation::Write(v) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, v, Buffer::new())?
+                    .gcs_insert_object_xml_request(path, v, Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
-
+        let mut req = req?;
         self.core.sign_query(&mut req, args.expire())?;
 
         // We don't need this request anymore, consume it directly.
@@ -564,6 +577,8 @@ struct GetObjectJsonResponse {
     ///
     /// For example: "contentEncoding": "br"
     content_encoding: String,
+    /// Cache-Control directive for the object data.
+    cache_control: String,
     /// Custom metadata of this object.
     ///
     /// For example: `"metadata" : { "my-key": "my-value" }`
@@ -587,6 +602,7 @@ mod tests {
   "metageneration": "1",
   "contentType": "image/png",
   "contentEncoding": "br",
+  "cacheControl": "public, max-age=3600",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -609,6 +625,7 @@ mod tests {
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
         assert_eq!(meta.content_encoding, "br".to_string());
+        assert_eq!(meta.cache_control, "public, max-age=3600".to_string());
         assert_eq!(
             meta.metadata,
             HashMap::from_iter([("location".to_string(), "everywhere".to_string())])

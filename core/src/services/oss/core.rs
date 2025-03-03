@@ -54,6 +54,8 @@ pub mod constants {
 
     pub const X_OSS_FORBID_OVERWRITE: &str = "x-oss-forbid-overwrite";
 
+    pub const X_OSS_VERSION_ID: &str = "x-oss-version-id";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";

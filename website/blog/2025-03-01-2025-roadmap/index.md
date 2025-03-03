@@ -59,12 +59,13 @@ Our plans for 2025 include the following:
 
 ### Features Needed in Production
 
-In 2025, we plan to implement the following features that importmant for production adoption:
+In 2025, we plan to implement the following features that are importmant for production adoption:
 
 - [Context](https://github.com/apache/opendal/issues/5480): Introduce context in OpenDAL so that services and layers can share the same context. This enables users to gain deeper insights into OpenDAL's internal operations by incorporating metrics, logging, and tracing into the underlying HTTP client we use.
 - [Versioning](https://github.com/apache/opendal/issues/2611): Introduce full file versioning support in OpenDAL, enabling users to read, write, delete, list, and restore versioned files. This functionality will allow users to recover mistakenly deleted files and facilitate disaster recovery.
 - [Checksum](https://github.com/apache/opendal/issues/5549): Introduce end-to-end checksum support in OpenDAL, enabling users to perform checksums during reading and writing without worrying about bit flips in memory or over the network.
 - [Caching](https://github.com/apache/opendal/issues/5678): Provide high-quality built-in cache support in OpenDAL while ensuring users have the flexibility to implement their own caching logic.
+- [Initialization From Uri](https://github.com/apache/opendal/issues/3022): Allow users to initialize OpenDAL from a URI string, making it easier to configure and use OpenDAL in various environments.
 
 ### Improvements Needed for Production
 

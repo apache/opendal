@@ -571,7 +571,10 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn oss_delete_objects(
+        &self,
+        paths: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -579,8 +582,9 @@ impl OssCore {
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
                 .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
+                .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),
+                    version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -735,6 +739,8 @@ pub struct DeleteObjectsRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -748,6 +754,7 @@ pub struct DeleteObjectsResult {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
+    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -866,12 +873,15 @@ mod tests {
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "multipart.data".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "test.jpg".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "demo.jpg".to_string(),
+                    version_id: None,
                 },
             ],
         };

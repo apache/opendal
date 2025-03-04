@@ -273,6 +273,9 @@ pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
     if cap.write_has_version {
         assert_eq!(stat_meta.version(), meta.version());
     }
+    if cap.write_has_content_md5 {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
 
     Ok(())
 }
@@ -599,6 +602,9 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
     if cap.write_has_version {
         assert_eq!(stat_meta.version(), meta.version());
     }
+    if cap.write_has_content_md5 {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
 
     Ok(())
 }
@@ -664,6 +670,9 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
     }
     if cap.write_has_version {
         assert_eq!(stat_meta.version(), meta.version());
+    }
+    if cap.write_has_content_md5 {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
 
     Ok(())

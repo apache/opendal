@@ -166,6 +166,8 @@ pub struct Capability {
     pub write_has_etag: bool,
     /// Indicates whether version information is available in write response
     pub write_has_version: bool,
+    /// Indicates whether content MD5 checksum is available in write response
+    pub write_has_content_md5: bool,
 
     /// Indicates if directory creation is supported.
     pub create_dir: bool,

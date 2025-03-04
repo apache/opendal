@@ -109,6 +109,9 @@ pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> 
     if cap.write_has_version {
         assert_eq!(meta.version(), stat_meta.version());
     }
+    if cap.write_has_content_md5 {
+        assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    }
 
     Ok(())
 }
@@ -165,6 +168,9 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
     }
     if cap.write_has_version {
         assert_eq!(meta.version(), stat_meta.version());
+    }
+    if cap.write_has_content_md5 {
+        assert_eq!(meta.content_md5(), stat_meta.content_md5());
     }
 
     Ok(())

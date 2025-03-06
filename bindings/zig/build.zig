@@ -23,6 +23,8 @@ pub fn build(b: *std.Build) void {
 
     const use_llvm = b.option(bool, "use-llvm", "Use LLVM backend (default: true)") orelse true;
     const use_clang = b.option(bool, "use-clang", "Use libclang in translate-c (default: true)") orelse true;
+    // WIP
+    const enable_coroutine = b.option(bool, "use-coro", "Enable zigoro support (default: false)") orelse false;
 
     // Generate the Zig bindings for OpenDAL C bindings
     const opendal_binding = b.addTranslateC(.{
@@ -33,9 +35,6 @@ pub fn build(b: *std.Build) void {
         .use_clang = use_clang, // TODO: set 'false' use fno-llvm/fno-clang (may be zig v1.0)
     });
 
-    // ZigCoro - (stackful) Coroutine for Zig (library)
-    const zigcoro = b.dependency("zigcoro", .{}).module("libcoro");
-
     // This function creates a module and adds it to the package's module set, making
     // it available to other packages which depend on this one.
     const opendal_module = b.addModule("opendal", .{
@@ -45,7 +44,15 @@ pub fn build(b: *std.Build) void {
         .link_libcpp = true,
     });
     opendal_module.addImport("opendal_c_header", opendal_binding.addModule("opendal_c_header"));
-    opendal_module.addImport("libcoro", zigcoro);
+
+    // ZigCoro - (stackful) Coroutine for Zig (library)
+    if (enable_coroutine) {
+        if (b.lazyDependency("zigcoro", .{})) |dep| {
+            const zigcoro = dep.module("libcoro");
+            opendal_module.addImport("libcoro", zigcoro);
+        }
+    }
+
     opendal_module.addLibraryPath(switch (optimize) {
         .Debug => b.path("../c/target/debug"),
         else => b.path("../c/target/release"),
@@ -68,13 +75,18 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
 
+    const custom_test_runner: std.Build.Step.Compile.TestRunner = .{
+        .path = b.dependency("test_runner", .{}).path("test_runner.zig"),
+        .mode = .simple,
+    };
+
     // Test library
     const lib_test = b.addTest(.{
         .root_source_file = b.path("src/opendal.zig"),
         .target = target,
         .optimize = optimize,
         .use_llvm = use_llvm,
-        .test_runner = b.dependency("test_runner", .{}).path("test_runner.zig"),
+        .test_runner = custom_test_runner,
     });
     lib_test.addLibraryPath(switch (optimize) {
         .Debug => b.path("../c/target/debug"),
@@ -83,7 +95,14 @@ pub fn build(b: *std.Build) void {
     lib_test.linkLibCpp();
     lib_test.linkSystemLibrary("opendal_c");
     lib_test.root_module.addImport("opendal_c_header", opendal_binding.addModule("opendal_c_header"));
-    lib_test.root_module.addImport("libcoro", zigcoro);
+
+    // ZigCoro - (stackful) Coroutine for Zig (library)
+    if (enable_coroutine) {
+        if (b.lazyDependency("zigcoro", .{})) |dep| {
+            const zigcoro = dep.module("libcoro");
+            lib_test.root_module.addImport("libcoro", zigcoro);
+        }
+    }
 
     // BDD sample test
     const bdd_test = b.addTest(.{
@@ -92,7 +111,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .use_llvm = use_llvm,
-        .test_runner = b.dependency("test_runner", .{}).path("test_runner.zig"),
+        .test_runner = custom_test_runner,
     });
     bdd_test.root_module.addImport("opendal", opendal_module);
 

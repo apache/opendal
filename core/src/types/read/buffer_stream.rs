@@ -129,16 +129,16 @@ impl oio::Read for ChunkedReader {
 ///
 /// `BufferStream` implements `Stream` trait.
 pub struct BufferStream {
+    /// # Notes to maintainers
+    ///
+    /// The underlying reader is either a StreamingReader or a ChunkedReader.
+    ///
+    /// - If chunk is None, BufferStream will use StreamingReader to iterate
+    ///   data in streaming way.
+    /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
     state: State,
 }
 
-/// # Notes
-///
-/// The underlying reader is either a StreamingReader or a ChunkedReader.
-///
-/// - If chunk is None, BufferStream will use StreamingReader to iterate
-///   data in streaming way.
-/// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),

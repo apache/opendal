@@ -121,8 +121,6 @@ struct EmptyStruct {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FileUploadItem {
-    #[serde(rename = "@odata.type")]
-    odata_type: String,
     #[serde(rename = "@microsoft.graph.conflictBehavior")]
     microsoft_graph_conflict_behavior: String,
     name: String,
@@ -145,7 +143,6 @@ impl OneDriveUploadSessionCreationRequestBody {
     pub fn new(path: String) -> Self {
         OneDriveUploadSessionCreationRequestBody {
             item: FileUploadItem {
-                odata_type: "microsoft.graph.driveItemUploadableProperties".to_string(),
                 microsoft_graph_conflict_behavior: "replace".to_string(),
                 name: path,
             },

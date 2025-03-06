@@ -8,7 +8,7 @@
 
 To compile OpenDAL from source code, you need:
 
-- [Zig](https://ziglang.org/download) 0.13.0 or higher
+- [Zig](https://ziglang.org/download) 0.14.0 or higher
 
 ```bash
 # build libopendal_c (underneath call make -C ../c)

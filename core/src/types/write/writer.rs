@@ -179,6 +179,63 @@ impl Writer {
         self.inner.close().await
     }
 
+    /// Convert writer into [`BufferSink`] which implements [`Sink<Buffer>`].
+    ///
+    /// # Notes
+    ///
+    /// BufferSink is a zero-cost abstraction. The underlying writer
+    /// will reuse the Bytes and won't perform any copy operation over data.
+    ///
+    /// # Examples
+    ///
+    /// ## Basic Usage
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::SinkExt;
+    /// use opendal::{Buffer, Operator};
+    /// use opendal::Result;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut s = op.writer("hello.txt").await?.into_sink();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     s.send(Buffer::from(bs)).await?;
+    ///     s.close().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## Concurrent Write
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::SinkExt;
+    /// use opendal::{Buffer, Operator};
+    /// use opendal::Result;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut w = op
+    ///         .writer_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
+    ///         .await?
+    ///         .into_sink();
+    ///     let bs = "Hello, World!".as_bytes();
+    ///     w.send(Buffer::from(bs)).await?;
+    ///     w.close().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn into_sink(self) -> BufferSink {
+        BufferSink::new(self.inner)
+    }
+
     /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
     ///
     /// # Notes

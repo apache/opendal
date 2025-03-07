@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
@@ -231,11 +232,33 @@ impl Access for HdfsNativeBackend {
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self
-            .client
-            .create(&p, WriteOptions::default())
-            .await
-            .map_err(parse_hdfs_error)?;
+        let target_exists = match self.client.get_file_info(&p).await {
+            Ok(_) => {
+                true
+            }
+            Err(err) => {
+                let kind = match &err {
+                    HdfsError::FileNotFound(_) => ErrorKind::NotFound,
+                    _ => ErrorKind::Unexpected,
+                };
+                if kind != ErrorKind::NotFound {
+                    return Err(parse_hdfs_error(err));
+                }
+                false
+            }
+        };
+
+        let should_append = _args.append() && target_exists;
+
+        let f = if should_append && self.enable_append {
+            // If append is enabled and requested, open the file in append mode
+            self.client.append(&p).await.map_err(parse_hdfs_error)?
+        } else {
+            self.client
+                .create(&p, WriteOptions::default())
+                .await
+                .map_err(parse_hdfs_error)?
+        };
 
         let w = HdfsNativeWriter::new(f);
 

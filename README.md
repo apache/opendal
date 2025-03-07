@@ -258,6 +258,10 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 - [CrateDB](https://github.com/crate/crate): An open-source, distributed SQL database  for Real-Time Analytics and Hybrid Search
 
+### Python Binding
+
+- [Dify](https://github.com/langgenius/dify): An open-source LLM app development platform. 
+
 ## Branding
 
 The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.

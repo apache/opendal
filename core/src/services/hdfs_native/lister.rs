@@ -41,10 +41,14 @@ impl HdfsNativeLister {
         stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
         path: &str,
     ) -> Self {
+        let mut p = path.to_string();
+        if !p.ends_with("/") {
+            p = p + "/";
+        } 
         HdfsNativeLister {
             root: root.to_string(),
             stream,
-            current_path: Some(path.to_string()),
+            current_path: Some(p),
         }
     }
 }

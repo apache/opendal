@@ -171,6 +171,7 @@ impl Access for HdfsNativeBackend {
                 list: true,
                 list_has_content_length: true,
                 list_has_last_modified: true,
+                list_with_recursive: true,
 
                 rename: true,
 
@@ -249,12 +250,17 @@ impl Access for HdfsNativeBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let iter = self.client.list_status_iter(path, args.recursive());
+        let mut p = path.to_string();
+        if !path.ends_with("/") {
+            p = format!("{}/", path);
+        }
+
+        let iter = self.client.list_status_iter(&p, args.recursive());
         let stream = iter.into_stream();
 
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, stream, path)),
+            Some(HdfsNativeLister::new(&self.root, stream, &p)),
         ))
     }
 

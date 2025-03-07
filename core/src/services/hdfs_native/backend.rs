@@ -69,16 +69,16 @@ impl HdfsNativeBuilder {
         self
     }
 
-    /// Set url of this backend.
+    /// Set name_node of this backend.
     ///
     /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    pub fn url(mut self, url: &str) -> Self {
-        if !url.is_empty() {
+    pub fn name_node(mut self, name_node: &str) -> Self {
+        if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.name_node = Some(url.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
         }
 
         self
@@ -233,9 +233,7 @@ impl Access for HdfsNativeBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         let target_exists = match self.client.get_file_info(&p).await {
-            Ok(_) => {
-                true
-            }
+            Ok(_) => true,
             Err(err) => {
                 let kind = match &err {
                     HdfsError::FileNotFound(_) => ErrorKind::NotFound,
@@ -273,17 +271,13 @@ impl Access for HdfsNativeBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let mut p = path.to_string();
-        if !path.ends_with("/") {
-            p = format!("{}/", path);
-        }
-
+        let p = build_rooted_abs_path(&self.root, path);
         let iter = self.client.list_status_iter(&p, args.recursive());
         let stream = iter.into_stream();
 
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, stream, &p)),
+            Some(HdfsNativeLister::new(&self.root, stream, path)),
         ))
     }
 

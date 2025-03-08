@@ -73,7 +73,7 @@ impl Operator {
             .unwrap_or_default();
 
         Ok(Operator {
-            core: build_operator(scheme.clone(), map.clone())?.blocking(),
+            core: build_operator(scheme, map.clone())?.blocking(),
             __scheme: scheme,
             __map: map,
         })
@@ -84,7 +84,7 @@ impl Operator {
         let op = layer.0.layer(self.core.clone().into());
         Ok(Self {
             core: op.blocking(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -239,7 +239,7 @@ impl Operator {
     pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
         Ok(AsyncOperator {
             core: self.core.clone().into(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -262,7 +262,7 @@ impl Operator {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
+        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
     }
 }
 
@@ -295,7 +295,7 @@ impl AsyncOperator {
             .unwrap_or_default();
 
         Ok(AsyncOperator {
-            core: build_operator(scheme.clone(), map.clone())?.into(),
+            core: build_operator(scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
         })
@@ -306,7 +306,7 @@ impl AsyncOperator {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
             core: op,
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -608,7 +608,7 @@ impl AsyncOperator {
     pub fn to_operator(&self) -> PyResult<Operator> {
         Ok(Operator {
             core: self.core.clone().blocking(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -635,7 +635,7 @@ impl AsyncOperator {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
+        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
     }
 }
 

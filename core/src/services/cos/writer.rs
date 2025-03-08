@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
+use http::{HeaderMap, HeaderValue, StatusCode};
 
 use super::core::*;
 use super::error::parse_error;
@@ -41,6 +41,20 @@ impl CosWriter {
             op,
         }
     }
+    fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
+        let mut meta = Metadata::default();
+        if let Some(etag) = parse_etag(headers)? {
+            meta.set_etag(etag);
+        }
+        if let Some(md5) = parse_content_md5(headers)? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
+            meta.set_version(version);
+        }
+
+        Ok(meta)
+    }
 }
 
 impl oio::MultipartWrite for CosWriter {
@@ -53,10 +67,11 @@ impl oio::MultipartWrite for CosWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -139,10 +154,11 @@ impl oio::MultipartWrite for CosWriter {
             .cos_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -193,10 +209,11 @@ impl oio::AppendWrite for CosWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

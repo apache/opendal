@@ -34,16 +34,17 @@ dynamic = ['version']
 
 [project.optional-dependencies]
 benchmark = [
-  "gevent",
-  "greenify",
-  "greenlet",
-  "boto3",
-  "pydantic",
-  "boto3-stubs[essential]",
+  "boto3>=1.37.9",
+  "boto3-stubs[essential]>=1.37.9",
+  "gevent>=24.11.1",
+  "greenify>=0.4.3",
+  "greenlet>=3.1.1",
+  "pydantic>=2.10.6",
 ]
-docs = ["pdoc"]
-lint = ["ruff"]
-test = ["pytest", "python-dotenv", "pytest-asyncio"]
+dev = ["maturin[patchelf]>=1.8.2"]
+docs = ["pdoc>=15.0.1"]
+lint = ["ruff>=0.9.10"]
+test = ["pytest>=8.3.5", "pytest-asyncio>=0.25.3", "python-dotenv>=1.0.1"]
 
 [project.urls]
 Documentation = "https://opendal.apache.org/docs/python/opendal.html"
@@ -55,6 +56,14 @@ features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
 strip = true
+
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "src/**/*.rs" },
+  { file = "../../core/**/*.rs" },
+]
 
 [tool.ruff.lint]
 ignore = ["F403", "F405"]

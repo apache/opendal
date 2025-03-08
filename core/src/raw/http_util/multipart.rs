@@ -1152,12 +1152,22 @@ This is a text file.
 
         let multipart = Multipart::new()
             .with_boundary("separator_string")
-            .part(RelatedPart::new()
-                .header("Content-Type".parse().unwrap(), "application/json; charset=UTF-8".parse().unwrap())
-                .content(r#"{"name":"my-document.txt"}"#)
-            ).part(RelatedPart::new()
-                .header("Content-Type".parse().unwrap(), "text/plain".parse().unwrap())
-                .content("This is a text file."));
+            .part(
+                RelatedPart::new()
+                    .header(
+                        "Content-Type".parse().unwrap(),
+                        "application/json; charset=UTF-8".parse().unwrap(),
+                    )
+                    .content(r#"{"name":"my-document.txt"}"#),
+            )
+            .part(
+                RelatedPart::new()
+                    .header(
+                        "Content-Type".parse().unwrap(),
+                        "text/plain".parse().unwrap(),
+                    )
+                    .content("This is a text file."),
+            );
 
         let bs = multipart.build();
 

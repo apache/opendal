@@ -41,6 +41,8 @@ use crate::*;
 
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
+
+    pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
 }
 
 pub struct CosCore {

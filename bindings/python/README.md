@@ -70,41 +70,26 @@ asyncio.run(main())
 Setup virtualenv:
 
 ```shell
-python -m venv venv
+uv venv --python 3.10
 ```
 
-Activate venv:
+Install all the dependencies:
 
 ```shell
-source venv/bin/activate
-````
-
-Install `maturin`:
-
-```shell
-pip install maturin
-```
-
-Build bindings:
-
-```shell
-maturin develop
+uv sync --all-groups --all-extras
 ```
 
 Run some tests:
 
 ```shell
-# Ensure the dependencies are installed
-maturin develop -E test
 # To run `test_write.py` and use `fs` operator
-OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp pytest -vk test_write
+OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -vk test_write
 ```
 
 Build API docs:
 
 ```shell
-maturin develop -E docs
-pdoc -t ./template opendal
+uv run pdoc -t ./template opendal
 ```
 
 ## License and Trademarks

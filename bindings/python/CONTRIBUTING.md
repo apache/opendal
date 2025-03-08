@@ -27,26 +27,19 @@ The fastest way is:
 
 The `python` binding requires `Python` to be built. We recommend using the latest stable version for development.
 
-Most operating systems and distributions already have Python installed. If not, please install Python and its development tools first.
-
-For Ubuntu and Debian:
-
-```shell
-sudo apt install -y python3-dev python3-pip python3-venv
-```
+> [!TIP]
+> We recommend to use [`uv`](https://github.com/astral-sh/uv) to manage the Python packages and environments. You can install it by `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 ## Prepare
 
 All operations were performed within a Python virtual environment (venv) to prevent conflicts with the system's Python environment or other project venvs.
 
-OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.10`. You can use `python -m venv venv` to setup virtualenv to start development.
+OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.10`. You can use `uv venv --python 3.10` to setup the virtualenv for development.
 
-After `venv` has been prepared, you can activate it by `source venv/bin/activate`.
-
-To simplify our work, we will utilize the tool [`maturin`](https://github.com/PyO3/maturin). Kindly install it beforehand.
+To get ready for the development, kindly install all the required dependencies:
 
 ```shell
-pip install maturin
+uv sync --all-groups --all-extras
 ```
 
 ## Build
@@ -54,25 +47,22 @@ pip install maturin
 To build python binding only:
 
 ```shell
-maturin build
+uv build
 ```
 
-To build and install python binding directly in the current virtualenv:
+Note that `uv` will detect the related files and re-build this package when necessary.
 
-```shell
-maturin develop
-```
-
-Note: `maturin develop` will be faster, but doesn't support all the features. In most development cases, we recommend using `maturin develop`.
+> [!NOTE]
+> If you want to have a full-featured opendal, you can run `uv build` and install the
+> wheel file in the `dist` directory.
 
 ## Test
 
 OpenDAL adopts `pytest` for behavior tests:
 
 ```shell
-maturin develop -E test
 # To run `test_write.py` and use `fs` operator
-OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp pytest -vk test_write
+OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -vk test_write
 ```
 
 ## Docs
@@ -80,6 +70,5 @@ OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp pytest -vk test_write
 Build API docs:
 
 ```shell
-maturin develop -E docs
-pdoc opendal
+uv run pdoc opendal
 ```

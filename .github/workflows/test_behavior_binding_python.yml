@@ -55,17 +55,17 @@ jobs:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          enable-cache: true
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install maturin[patchelf]
-          maturin develop -E test -F ${{ matrix.cases.feature }}
+          uv venv --python=python3.10
+          uv sync --all-groups --all-extras
+          uv run -- maturin develop -F ${{ matrix.cases.feature }}
 
       - name: Test Core
         uses: ./.github/actions/test_behavior_binding_python

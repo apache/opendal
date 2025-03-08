@@ -309,18 +309,26 @@ impl GcsCore {
             Ok(req)
         } else {
             let mut multipart = Multipart::new();
-            let metadata_part = FormDataPart::new("metadata")
+            let metadata_part = RelatedPart::new()
                 .header(
                     CONTENT_TYPE,
                     "application/json; charset=UTF-8".parse().unwrap(),
                 )
                 .content(
                     serde_json::to_vec(&request_metadata)
-                        .expect("metadata serialization should success"),
+                        .expect("metadata serialization should succeed"),
                 );
             multipart = multipart.part(metadata_part);
 
-            let media_part = FormDataPart::new("media").content(body);
+            // Content-Type must be set, even if it is set in the metadata part
+            let content_type = op
+                .content_type()
+                .unwrap_or("application/octet-stream")
+                .parse()
+                .expect("Failed to parse content-type");
+            let media_part = RelatedPart::new()
+                .header(CONTENT_TYPE, content_type)
+                .content(body);
             multipart = multipart.part(media_part);
 
             let req = multipart.apply(Request::post(url))?;
@@ -662,6 +670,8 @@ impl InsertRequestMetadata<'_> {
             && self.content_encoding.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
+            // We could also put content-encoding in the url parameters
+            && self.content_encoding.is_none()
             && self.metadata.is_none()
     }
 }

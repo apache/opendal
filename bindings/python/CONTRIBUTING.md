@@ -39,14 +39,14 @@ sudo apt install -y python3-dev python3-pip python3-venv
 
 All operations were performed within a Python virtual environment (venv) to prevent conflicts with the system's Python environment or other project venvs.
 
-OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.7`. You can use `python -m venv venv` to setup virtualenv to start development.
+OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.10`. You can use `python -m venv venv` to setup virtualenv to start development.
 
 After `venv` has been prepared, you can activate it by `source venv/bin/activate`.
 
 To simplify our work, we will utilize the tool [`maturin`](https://github.com/PyO3/maturin). Kindly install it beforehand.
 
 ```shell
-pip install 'maturin[patchelf]'
+pip install maturin
 ```
 
 ## Build

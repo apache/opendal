@@ -1134,4 +1134,37 @@ Content-Length: 846
             Some(StatusCode::from_u16(200).unwrap())
         );
     }
+
+    #[test]
+    fn test_multipart_related_gcs_simple() {
+        // This is what multipart/related body might look for an insert in GCS
+        // https://cloud.google.com/storage/docs/uploading-objects
+        let expected = r#"--separator_string
+content-type: application/json; charset=UTF-8
+
+{"name":"my-document.txt"}
+--separator_string
+content-type: text/plain
+
+This is a text file.
+--separator_string--
+"#;
+
+        let multipart = Multipart::new()
+            .with_boundary("separator_string")
+            .part(RelatedPart::new()
+                .header("Content-Type".parse().unwrap(), "application/json; charset=UTF-8".parse().unwrap())
+                .content(r#"{"name":"my-document.txt"}"#)
+            ).part(RelatedPart::new()
+                .header("Content-Type".parse().unwrap(), "text/plain".parse().unwrap())
+                .content("This is a text file."));
+
+        let bs = multipart.build();
+
+        let output = String::from_utf8(bs.to_bytes().to_vec())
+            .unwrap()
+            .replace("\r\n", "\n");
+
+        assert_eq!(output, expected);
+    }
 }

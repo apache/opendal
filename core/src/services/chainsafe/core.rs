@@ -166,7 +166,7 @@ impl ChainsafeCore {
     }
 
     pub async fn list_objects(&self, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
             "https://api.chainsafe.io/api/v1/bucket/{}/ls",

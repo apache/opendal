@@ -22,15 +22,16 @@ use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
 use hdfs_native::client::FileStatus;
+use log::error;
 
 pub struct HdfsNativeLister {
     root: String,
     stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
     current_path: Option<String>,
+    iter_to_end: bool,
 }
 
 unsafe impl Sync for HdfsNativeLister {}
@@ -39,29 +40,36 @@ impl HdfsNativeLister {
     pub fn new(
         root: &str,
         stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
-        path: &str,
+        path: Option<String>,
     ) -> Self {
-        let mut p = path.to_string();
-        if !p.ends_with("/") {
-            p = p + "/";
-        } 
         HdfsNativeLister {
             root: root.to_string(),
             stream,
-            current_path: Some(p),
+            current_path: path,
+            iter_to_end: false,
         }
     }
 }
 
 impl oio::List for HdfsNativeLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if self.iter_to_end {
+            return Ok(None);
+        }
+
         if let Some(path) = self.current_path.take() {
             return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
         }
 
+        error!(
+            "HdfsNativeLister root: {} current_path: {}",
+            self.root,
+            self.current_path.clone().unwrap_or_default()
+        );
         match self.stream.next().await {
             Some(Ok(status)) => {
                 let path = build_rel_path(&self.root, &status.path);
+                error!("stream.next path: {}", path);
 
                 let entry = if status.isdir {
                     // Make sure we are returning the correct path.
@@ -78,7 +86,11 @@ impl oio::List for HdfsNativeLister {
                 Ok(Some(entry))
             }
             Some(Err(e)) => Err(parse_hdfs_error(e)),
-            None => Ok(None),
+            None => {
+                error!("stream.next None");
+                self.iter_to_end = true;
+                Ok(None)
+            }
         }
     }
 }

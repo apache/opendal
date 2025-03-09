@@ -15,14 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
-use hdfs_native::HdfsError;
-use hdfs_native::WriteOptions;
-use log::debug;
-
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
@@ -31,6 +23,13 @@ use super::writer::HdfsNativeWriter;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
+use hdfs_native::HdfsError;
+use hdfs_native::WriteOptions;
+use log::debug;
+use log::error;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
@@ -231,13 +230,17 @@ impl Access for HdfsNativeBackend {
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
+        error!("hdfs native backend write path: {}", p);
 
         let target_exists = match self.client.get_file_info(&p).await {
             Ok(_) => true,
             Err(err) => {
                 let kind = match &err {
                     HdfsError::FileNotFound(_) => ErrorKind::NotFound,
-                    _ => ErrorKind::Unexpected,
+                    _ => {
+                        error!("write error: {:?}", err);
+                        ErrorKind::Unexpected
+                    }
                 };
                 if kind != ErrorKind::NotFound {
                     return Err(parse_hdfs_error(err));
@@ -272,12 +275,27 @@ impl Access for HdfsNativeBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
+
         let iter = self.client.list_status_iter(&p, args.recursive());
         let stream = iter.into_stream();
 
+        let status = self
+            .client
+            .get_file_info(&p)
+            .await
+            .map_err(parse_hdfs_error)?;
+        let current_path = if status.isdir {
+            if !path.ends_with("/") {
+                Some(path.to_string() + "/")
+            } else {
+                Some(path.to_string())
+            }
+        } else {
+            None
+        };
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, stream, path)),
+            Some(HdfsNativeLister::new(&self.root, stream, current_path)),
         ))
     }
 

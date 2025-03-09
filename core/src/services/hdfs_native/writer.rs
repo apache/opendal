@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use hdfs_native::file::FileWriter;
-
 use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
+use hdfs_native::file::FileWriter;
+use log::error;
 
 pub struct HdfsNativeWriter {
     f: FileWriter,
@@ -33,10 +33,17 @@ impl HdfsNativeWriter {
 
 impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, mut buf: Buffer) -> Result<()> {
+        error!("HdfsNativeWriter write start");
         for bs in buf.by_ref() {
-            self.f.write(bs).await.map_err(parse_hdfs_error)?;
+            error!("HdfsNativeWriter buf write start");
+            self.f.write(bs).await.map_err(|e| {
+                error!("write error: {:?}", e);
+                parse_hdfs_error(e)
+            })?;
+            error!("HdfsNativeWriter buf write end");
         }
 
+        error!("HdfsNativeWriter write end");
         Ok(())
     }
 

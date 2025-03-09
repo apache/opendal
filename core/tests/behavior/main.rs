@@ -24,7 +24,6 @@ pub use utils::*;
 mod async_copy;
 mod async_create_dir;
 mod async_delete;
-// mod async_fuzz;
 mod async_list;
 mod async_presign;
 mod async_read;

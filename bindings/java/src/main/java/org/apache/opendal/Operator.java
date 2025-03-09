@@ -127,8 +127,8 @@ public class Operator extends NativeObject {
         removeAll(nativeHandle, path);
     }
 
-    public List<Entry> list(String path) {
-        return Arrays.asList(list(nativeHandle, path));
+    public List<Entry> list(String path, boolean recursive) {
+        return Arrays.asList(list(nativeHandle, path, recursive));
     }
 
     @Override
@@ -152,5 +152,5 @@ public class Operator extends NativeObject {
 
     private static native void removeAll(long op, String path);
 
-    private static native Entry[] list(long op, String path);
+    private static native Entry[] list(long op, String path, boolean recursive);
 }

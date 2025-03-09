@@ -68,7 +68,7 @@ fn operator_new<'a>(
     operator.set("read", lua.create_function(operator_read)?)?;
     operator.set("write", lua.create_function(operator_write)?)?;
     operator.set("delete", lua.create_function(operator_delete)?)?;
-    operator.set("is_exist", lua.create_function(operator_is_exist)?)?;  // FIXME(yihong0618) use the same api exists
+    operator.set("is_exist", lua.create_function(operator_is_exist)?)?; // FIXME(yihong0618) use the same api exists
     operator.set("create_dir", lua.create_function(operator_create_dir)?)?;
     operator.set("rename", lua.create_function(operator_rename)?)?;
     operator.set("stat", lua.create_function(operator_stat)?)?;

@@ -27,10 +27,10 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 use log::error;
+use std::backtrace::Backtrace;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 impl Configurator for HdfsNativeConfig {
@@ -171,7 +171,6 @@ impl Access for HdfsNativeBackend {
                 list: true,
                 list_has_content_length: true,
                 list_has_last_modified: true,
-                list_with_recursive: true,
 
                 rename: true,
 
@@ -230,22 +229,30 @@ impl Access for HdfsNativeBackend {
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
+        let mut initial_size = 0;
         error!("hdfs native backend write path: {}", p);
 
         let target_exists = match self.client.get_file_info(&p).await {
-            Ok(_) => true,
+            Ok(status) => {
+                initial_size = status.length as u64;
+                true
+            }
             Err(err) => {
-                let kind = match &err {
-                    HdfsError::FileNotFound(_) => ErrorKind::NotFound,
-                    _ => {
-                        error!("write error: {:?}", err);
-                        ErrorKind::Unexpected
-                    }
-                };
-                if kind != ErrorKind::NotFound {
-                    return Err(parse_hdfs_error(err));
+                match &err {
+                    HdfsError::FileNotFound(_) => false,
+                    _ => return Err(parse_hdfs_error(err)),
                 }
-                false
+                // let kind = match &err {
+                //     HdfsError::FileNotFound(_) => ErrorKind::NotFound,
+                //     _ => {
+                //         error!("write error: {:?}", err);
+                //         ErrorKind::Unexpected
+                //     }
+                // };
+                // if kind != ErrorKind::NotFound {
+                //     return Err(parse_hdfs_error(err));
+                // }
+                // false
             }
         };
 
@@ -255,13 +262,14 @@ impl Access for HdfsNativeBackend {
             // If append is enabled and requested, open the file in append mode
             self.client.append(&p).await.map_err(parse_hdfs_error)?
         } else {
+            initial_size = 0;
             self.client
                 .create(&p, WriteOptions::default())
                 .await
                 .map_err(parse_hdfs_error)?
         };
 
-        let w = HdfsNativeWriter::new(f);
+        let w = HdfsNativeWriter::new(f, initial_size);
 
         Ok((RpWrite::new(), w))
     }
@@ -275,16 +283,22 @@ impl Access for HdfsNativeBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
+        let bt = Backtrace::capture();
+        error!("list path: {} p: {} bt: {}", path, p, bt);
 
-        let iter = self.client.list_status_iter(&p, args.recursive());
+        let iter = self.client.list_status_iter(&p, false);
         let stream = iter.into_stream();
 
-        let status = self
-            .client
-            .get_file_info(&p)
-            .await
-            .map_err(parse_hdfs_error)?;
-        let current_path = if status.isdir {
+        let isdir = match self.client.get_file_info(&p).await {
+            Ok(status) => status.isdir,
+            Err(err) => {
+                return match &err {
+                    HdfsError::FileNotFound(_) => Ok((RpList::default(), None)),
+                    _ => Err(parse_hdfs_error(err)),
+                };
+            }
+        };
+        let current_path = if isdir {
             if !path.ends_with("/") {
                 Some(path.to_string() + "/")
             } else {

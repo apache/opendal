@@ -23,27 +23,31 @@ use log::error;
 
 pub struct HdfsNativeWriter {
     f: FileWriter,
+    size: u64,
 }
 
 impl HdfsNativeWriter {
-    pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { f }
+    pub fn new(f: FileWriter, size: u64) -> Self {
+        HdfsNativeWriter { f, size }
     }
 }
 
 impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, mut buf: Buffer) -> Result<()> {
-        error!("HdfsNativeWriter write start");
+        let len = buf.len() as u64;
+
+        // error!("HdfsNativeWriter write start");
         for bs in buf.by_ref() {
-            error!("HdfsNativeWriter buf write start");
+            // error!("HdfsNativeWriter buf write start");
             self.f.write(bs).await.map_err(|e| {
                 error!("write error: {:?}", e);
                 parse_hdfs_error(e)
             })?;
-            error!("HdfsNativeWriter buf write end");
+            // error!("HdfsNativeWriter buf write end");
         }
 
-        error!("HdfsNativeWriter write end");
+        // error!("HdfsNativeWriter write end");
+        self.size += len;
         Ok(())
     }
 
@@ -51,7 +55,7 @@ impl oio::Write for HdfsNativeWriter {
         self.f.close().await.map_err(parse_hdfs_error)?;
 
         // todo: get content length from hdfs native client
-        Ok(Metadata::default().with_content_length(0))
+        Ok(Metadata::default().with_content_length(self.size))
     }
 
     async fn abort(&mut self) -> Result<()> {

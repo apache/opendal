@@ -131,7 +131,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn is_exist(&self, path: String) -> Result<bool> {
-        self.0.is_exist(&path).await.map_err(format_napi_error)
+        self.0.exists(&path).await.map_err(format_napi_error)
     }
 
     /// Check if this path exists or not synchronously.
@@ -142,7 +142,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn is_exist_sync(&self, path: String) -> Result<bool> {
-        self.0.blocking().is_exist(&path).map_err(format_napi_error)
+        self.0.blocking().exists(&path).map_err(format_napi_error)
     }
 
     /// Create dir with a given path.
@@ -464,7 +464,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.0.remove(paths).await.map_err(format_napi_error)
+        self.0.delete_iter(paths).await.map_err(format_napi_error)
     }
 
     /// Remove the path and all nested dirs and files recursively.

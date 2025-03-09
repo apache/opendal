@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use bytes::Buf;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::OnedriveBackend;
+use super::core::OneDriveCore;
 use super::error::parse_error;
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
@@ -27,7 +29,7 @@ use crate::raw::*;
 use crate::*;
 
 pub struct OneDriveWriter {
-    backend: OnedriveBackend,
+    core: Arc<OneDriveCore>,
 
     op: OpWrite,
     path: String,
@@ -38,8 +40,8 @@ impl OneDriveWriter {
     // If your app splits a file into multiple byte ranges, the size of each byte range MUST be a multiple of 320 KiB (327,680 bytes). Using a fragment size that does not divide evenly by 320 KiB will result in errors committing some files.
     // https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
     const CHUNK_SIZE_FACTOR: usize = 327_680;
-    pub fn new(backend: OnedriveBackend, op: OpWrite, path: String) -> Self {
-        OneDriveWriter { backend, op, path }
+    pub fn new(core: Arc<OneDriveCore>, op: OpWrite, path: String) -> Self {
+        OneDriveWriter { core, op, path }
     }
 }
 
@@ -59,18 +61,18 @@ impl oio::OneShotWrite for OneDriveWriter {
 
 impl OneDriveWriter {
     async fn write_simple(&self, bs: Buffer) -> Result<()> {
-        let resp = self
-            .backend
+        let response = self
+            .core
             .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, bs)
             .await?;
 
-        let status = resp.status();
+        let status = response.status();
 
         match status {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(response)),
         }
     }
 
@@ -94,8 +96,8 @@ impl OneDriveWriter {
             let total_len = total_bytes.len();
             let chunk_end = end - 1;
 
-            let resp = self
-                .backend
+            let response = self
+                .core
                 .onedrive_chunked_upload(
                     &session_response.upload_url,
                     &OpWrite::default(),
@@ -106,13 +108,13 @@ impl OneDriveWriter {
                 )
                 .await?;
 
-            let status = resp.status();
+            let status = response.status();
 
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
                 StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {}
-                _ => return Err(parse_error(resp)),
+                _ => return Err(parse_error(response)),
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
@@ -129,28 +131,25 @@ impl OneDriveWriter {
             )
         })?;
         let url = format!(
-            "{}/drive/root:{}:/createUploadSession",
-            OnedriveBackend::BASE_URL,
+            "{}:{}:/createUploadSession",
+            OneDriveCore::DRIVE_ROOT_URL,
             percent_encode_path(&self.path)
         );
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name_from_path.to_string());
 
-        let resp = self
-            .backend
-            .onedrive_create_upload_session(&url, body)
-            .await?;
+        let response = self.core.onedrive_create_upload_session(&url, body).await?;
 
-        let status = resp.status();
+        let status = response.status();
 
         match status {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
-                let bs = resp.into_body();
+                let bs = response.into_body();
                 let result: OneDriveUploadSessionCreationResponseBody =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(response)),
         }
     }
 }

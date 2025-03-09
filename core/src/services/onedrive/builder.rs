@@ -17,12 +17,15 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use log::debug;
+use services::onedrive::core::OneDriveCore;
 
-use super::backend::OnedriveBackend;
+use super::backend::OneDriveBackend;
 use crate::raw::normalize_root;
 use crate::raw::Access;
+use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::services::OnedriveConfig;
 use crate::Scheme;
@@ -38,7 +41,7 @@ impl Configurator for OnedriveConfig {
     }
 }
 
-/// [OneDrive](https://onedrive.com) backend support.
+/// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
@@ -94,6 +97,36 @@ impl Builder for OnedriveBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
+        let access_token = self
+            .config
+            .access_token
+            .ok_or(Error::new(ErrorKind::ConfigInvalid, "access_token not set"))?;
+
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Onedrive)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                read: true,
+                write: true,
+
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_etag: true,
+                stat_has_last_modified: true,
+
+                delete: true,
+                create_dir: true,
+
+                list: true,
+                list_has_content_length: true,
+                list_has_etag: true,
+                list_has_last_modified: true,
+
+                shared: true,
+
+                ..Default::default()
+            });
+
         let client = if let Some(client) = self.http_client {
             client
         } else {
@@ -102,10 +135,13 @@ impl Builder for OnedriveBuilder {
                     .with_context("service", Scheme::Onedrive)
             })?
         };
+        let core = Arc::new(OneDriveCore {
+            info: Arc::new(info),
+            root,
+            access_token,
+            client,
+        });
 
-        match self.config.access_token.clone() {
-            Some(access_token) => Ok(OnedriveBackend::new(root, access_token, client)),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
-        }
+        Ok(OneDriveBackend { core })
     }
 }

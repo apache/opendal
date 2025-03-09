@@ -165,7 +165,7 @@ fn operator_read<'a>(
     let path = path.as_str();
     let data = op.read(path);
     match data {
-        Ok(data) => Ok(lua.create_string(&data.to_vec())?),
+        Ok(data) => Ok(lua.create_string(data.to_vec())?),
         Err(e) => Err(LuaError::external(e)),
     }
 }

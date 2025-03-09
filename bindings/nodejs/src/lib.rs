@@ -130,7 +130,8 @@ impl Operator {
     /// await op.isExist("test");
     /// ```
     #[napi]
-    pub async fn is_exist(&self, path: String) -> Result<bool> { // FIXME(yihong0618) use the same api exists
+    pub async fn is_exist(&self, path: String) -> Result<bool> {
+        // FIXME(yihong0618) use the same api exists
         self.0.exists(&path).await.map_err(format_napi_error)
     }
 
@@ -141,7 +142,8 @@ impl Operator {
     /// op.isExistSync("test");
     /// ```
     #[napi]
-    pub fn is_exist_sync(&self, path: String) -> Result<bool> { // FIXME(yihong0618) use the same api exists
+    pub fn is_exist_sync(&self, path: String) -> Result<bool> {
+        // FIXME(yihong0618) use the same api exists
         self.0.blocking().exists(&path).map_err(format_napi_error)
     }
 

@@ -59,7 +59,7 @@ services-all = [
   # FIXME this requires a preinstalled fdb library
   # "services-foundationdb",
   # FIXME requires openssl.
-  # "services-ftp",
+  "services-ftp",
   "services-gdrive",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",

@@ -60,7 +60,7 @@ services-all = [
   # "services-etcd",
   # FIXME this requires a preinstalled fdb library
   # "services-foundationdb",
-  # "services-ftp",
+  "services-ftp",
   "services-gdrive",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",

@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.opendal.layer.CompleteLayer;
+
 /**
  * Operator represents an underneath OpenDAL operator that accesses data synchronously.
  */
@@ -53,7 +55,7 @@ public class Operator extends NativeObject {
      */
     public static Operator of(String scheme, Map<String, String> map) {
         try (final AsyncOperator operator = AsyncOperator.of(scheme, map)) {
-            return operator.blocking();
+            return operator.layer(new CompleteLayer()).blocking();
         }
     }
 
@@ -128,7 +130,11 @@ public class Operator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return Arrays.asList(list(nativeHandle, path));
+        return Arrays.asList(list(nativeHandle, path, ListOptions.builder().build()));
+    }
+
+    public List<Entry> list(String path, ListOptions options) {
+        return Arrays.asList(list(nativeHandle, path, options));
     }
 
     @Override
@@ -152,5 +158,5 @@ public class Operator extends NativeObject {
 
     private static native void removeAll(long op, String path);
 
-    private static native Entry[] list(long op, String path);
+    private static native Entry[] list(long op, String path, ListOptions options);
 }

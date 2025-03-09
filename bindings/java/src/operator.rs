@@ -277,16 +277,28 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
+    options: JObject,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_list(&mut env, &mut *op, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+fn intern_list(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    path: JString,
+    options: JObject,
+) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let obs = op.list(&path)?;
+
+    let mut list_op = op.list_with(&path);
+    if env.call_method(&options, "isRecursive", "()Z", &[])?.z()? {
+        list_op = list_op.recursive(true);
+    }
+
+    let obs = list_op.recursive(true).call()?;
 
     let jarray = env.new_object_array(
         obs.len() as jsize,

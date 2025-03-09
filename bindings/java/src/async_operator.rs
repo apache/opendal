@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -29,6 +30,7 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
+use opendal::layers::CompleteLayer;
 use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
@@ -564,8 +566,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> jlong {
-    intern_list(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_list(&mut env, op, executor, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -576,22 +579,41 @@ fn intern_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
+    let recursive = if env.call_method(&options, "isRecursive", "()Z", &[])?.z()? {
+        "true"
+    } else {
+        "false"
+    };
+
+    let opts = HashMap::from([("recursive", recursive)]);
+
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_list(op, path).await;
+        let result = do_list(op, path, opts).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let obs = op.list(&path).await?;
+async fn do_list<'local>(
+    op: &mut Operator,
+    path: String,
+    options: HashMap<&str, &str>,
+) -> Result<JObject<'local>> {
+    let layered_op = op.clone().layer(CompleteLayer);
+
+    let mut list_op = layered_op.list_with(&path);
+    if let Some(&"true") = options.get("recursive") {
+        list_op = list_op.recursive(true);
+    }
+    let obs = list_op.await?;
 
     let mut env = unsafe { get_current_env() };
     let jarray = env.new_object_array(

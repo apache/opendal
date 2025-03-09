@@ -83,6 +83,8 @@ impl OnedriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
@@ -127,19 +129,16 @@ impl Builder for OnedriveBuilder {
                 ..Default::default()
             });
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Onedrive)
-            })?
-        };
+        // allow deprecated api here for compatibility
+        #[allow(deprecated)]
+        if let Some(client) = self.http_client {
+            info.update_http_client(|_| client);
+        }
+
         let core = Arc::new(OneDriveCore {
             info: Arc::new(info),
             root,
             access_token,
-            client,
         });
 
         Ok(OneDriveBackend { core })

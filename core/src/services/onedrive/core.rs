@@ -39,8 +39,6 @@ pub struct OneDriveCore {
     pub root: String,
 
     pub access_token: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for OneDriveCore {
@@ -124,7 +122,7 @@ impl OneDriveCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
@@ -137,7 +135,7 @@ impl OneDriveCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_get_content(
@@ -161,7 +159,7 @@ impl OneDriveCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(request).await
+        self.info.http_client().fetch(request).await
     }
 
     pub async fn onedrive_upload_simple(
@@ -192,7 +190,7 @@ impl OneDriveCore {
 
         let request = request.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_chunked_upload(
@@ -221,7 +219,7 @@ impl OneDriveCore {
 
         let request = request.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_create_upload_session(
@@ -240,7 +238,7 @@ impl OneDriveCore {
         let body = Buffer::from(Bytes::from(body_bytes));
         let request = request.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     /// Create a directory
@@ -272,7 +270,7 @@ impl OneDriveCore {
         let body = Buffer::from(bytes::Bytes::from(body_bytes));
         let request = request.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -288,6 +286,6 @@ impl OneDriveCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 }

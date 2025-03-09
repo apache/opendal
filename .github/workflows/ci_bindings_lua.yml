@@ -55,3 +55,7 @@ jobs:
         run: |
           sudo "PATH=$PATH" luarocks make
           busted test/opendal_test.lua
+      - name: Clippy Check
+        working-directory: "bindings/lua"
+        run: |
+          cargo clippy -- -D warnings

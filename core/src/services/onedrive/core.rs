@@ -347,9 +347,7 @@ impl OneDriveSigner {
                     - chrono::TimeDelta::minutes(2); // assumes 2 mins graceful transmission for implementation simplicity
                 Ok(())
             }
-            _ => {
-                Err(parse_error(response))
-            }
+            _ => Err(parse_error(response)),
         }
     }
 

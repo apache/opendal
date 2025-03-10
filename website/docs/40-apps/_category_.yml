@@ -1,0 +1,6 @@
+label: "Applications"
+collapsible: true
+collapsed: false
+link:
+  type: generated-index
+  title: Applications Overview

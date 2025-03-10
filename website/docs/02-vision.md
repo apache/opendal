@@ -1,7 +1,6 @@
 ---
 title: Vision
 sidebar_label: Vision
-sidebar_position: 2
 ---
 
 ## Charter

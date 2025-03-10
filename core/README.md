@@ -212,11 +212,11 @@ async fn main() -> Result<()> {
 
 ## Contributing
 
-Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
+Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
 
 ## Used by
 
-Check out the [users](users.md) list for more details on who is using OpenDAL.
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
 
 ## Branding
 

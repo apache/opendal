@@ -1,0 +1,6 @@
+label: "Integrations"
+collapsible: true
+collapsed: false
+link:
+  type: generated-index
+  title: Integrations Overview

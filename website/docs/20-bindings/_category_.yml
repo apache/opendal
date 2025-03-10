@@ -1,0 +1,6 @@
+label: "Bindings"
+collapsible: true
+collapsed: false
+link:
+  type: generated-index
+  title: Bindings Overview

@@ -141,7 +141,7 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
-services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
+services-ftp = ["dep:suppaftp", "dep:bb8", "dep:futures-rustls"]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -226,7 +226,7 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
-async-tls = { version = "0.13.0", optional = true }
+futures-rustls = { version = "^0.26", optional = true } 
 
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
@@ -328,7 +328,7 @@ rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-sled
 sled = { version = "0.34.7", optional = true }
 # for services-ftp
-suppaftp = { version = "6.0.3", default-features = false, features = [
+suppaftp = { version = "6.1.0", default-features = false, features = [
   "async-secure",
   "rustls",
   "async-rustls",

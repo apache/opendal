@@ -92,8 +92,22 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, l) = self.acc.list(de.path(), OpList::new()).await?;
-                self.active_lister.push((Some(de), l));
+                let (_, mut l) = self.acc.list(de.path(), OpList::new()).await?;
+                if let Some(v) = l.next().await? {
+                    self.active_lister.push((Some(de.clone()), l));
+
+                    if v.mode().is_dir() {
+                        // should not loop itself again
+                        if v.path() != de.path() {
+                            self.next_dir = Some(v);
+                            continue;
+                        }
+                    } else {
+                        return Ok(Some(v));
+                    }
+                } else {
+                    return Ok(None);
+                }
             }
 
             let (de, lister) = match self.active_lister.last_mut() {

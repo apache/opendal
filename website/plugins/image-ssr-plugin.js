@@ -101,7 +101,6 @@ module.exports = function () {
           `Processing ${externalImages.length} images in ${htmlFile}`,
         );
 
-        // 替换图片链接
         const promises = [];
 
         externalImages.each((_, img) => {

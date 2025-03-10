@@ -73,7 +73,7 @@ local _M = {}
 --- Check whether the path exists.
 -- @param string path the designated path you want to write your delete
 -- @return bool, error true or false depend on operator instance and path, error nil if success, otherwise error message
--- @function is_exist
+-- @function exists
 
 --- Stat the path, return its metadata.
 -- @param string ,path the designated path you want to write your delete

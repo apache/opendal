@@ -27,8 +27,8 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.75"
 
 [features]
-default = ["mlua/lua52"]
-lua52 = ["mlua", "mlua/lua52"]
+default = ["mlua/lua54"]
+lua54 = ["mlua", "mlua/lua54"]
 
 [lib]
 crate-type = ["cdylib"]

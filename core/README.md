@@ -214,6 +214,10 @@ async fn main() -> Result<()> {
 
 Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
 
+## Used by
+
+Check out the [users](users.md) list for more details on who is using OpenDAL.
+
 ## Branding
 
 The first and most prominent mentions must use the full form: **Apache OpenDAL™** of the name for any individual usage (webpage, handout, slides, etc.) Depending on the context and writing style, you should use the full form of the name sufficiently often to ensure that readers clearly understand the association of both the OpenDAL project and the OpenDAL software product to the ASF as the parent organization.

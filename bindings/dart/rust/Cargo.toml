@@ -15,35 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
+[package]
+edition = "2021"
+name = "opendal-dart"
+version = "0.1.0"
 
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
+[dependencies]
+flutter_rust_bridge = "2.8.0"
+opendal = { path = "../../../core", features = [
+  # These are default features before v0.46. TODO: change to optional features
+  "services-azblob",
+  "services-azdls",
+  "services-cos",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+  "services-azfile",
+] }
 
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/pnpm-lock.yaml",
-
-  # Generated files to list all dependencies
-  "**/DEPENDENCIES.*.tsv",
-  "**/DEPENDENCIES.*.csv",
-
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Test files
-  "**/tests/data/**",
-  "**/fixtures/data/**",
-  # dart binding generated file
-  "bindings/dart/opendal_api.dart",
-  "*generated*",
-]
+[lib]
+crate-type = ["staticlib", "cdylib"]

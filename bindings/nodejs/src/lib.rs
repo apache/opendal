@@ -130,7 +130,7 @@ impl Operator {
     /// await op.isExist("test");
     /// ```
     #[napi]
-    pub async fn is_exist(&self, path: String) -> Result<bool> {
+    pub async fn exists(&self, path: String) -> Result<bool> {
         self.0.exists(&path).await.map_err(format_napi_error)
     }
 
@@ -141,7 +141,7 @@ impl Operator {
     /// op.isExistSync("test");
     /// ```
     #[napi]
-    pub fn is_exist_sync(&self, path: String) -> Result<bool> {
+    pub fn exists_sync(&self, path: String) -> Result<bool> {
         self.0.blocking().exists(&path).map_err(format_napi_error)
     }
 

@@ -22,105 +22,136 @@ const fs = require("fs-extra");
 const axios = require("axios");
 const { createHash } = require("crypto");
 const cheerio = require("cheerio");
+const url = require("url");
 
-module.exports = function () {
+module.exports = function (context) {
+  const processedImages = new Map();
+
+  function getImageFilename(imageUrl) {
+    const hash = createHash("md5").update(imageUrl).digest("hex");
+    let ext = ".jpg";
+
+    try {
+      const parsedUrl = url.parse(imageUrl);
+      const pathname = parsedUrl.pathname || "";
+
+      const pathExt = path.extname(pathname);
+      if (pathExt) ext = pathExt;
+
+      if (
+        imageUrl.includes("img.shields.io") ||
+        imageUrl.includes("actions?query")
+      ) {
+        ext = ".svg";
+      }
+    } catch (e) {}
+
+    return `${hash}${ext}`;
+  }
+
+  async function downloadImage(imageUrl, buildDir) {
+    if (processedImages.has(imageUrl)) {
+      return processedImages.get(imageUrl);
+    }
+
+    try {
+      const filename = getImageFilename(imageUrl);
+      const buildImagesDir = path.join(buildDir, "img/external");
+      const buildOutputPath = path.join(buildImagesDir, filename);
+
+      fs.ensureDirSync(buildImagesDir);
+
+      if (!fs.existsSync(buildOutputPath)) {
+        console.log(`Downloading image: ${imageUrl}`);
+
+        const response = await axios({
+          url: imageUrl,
+          responseType: "arraybuffer",
+          timeout: 20000,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+          },
+          maxRedirects: 5,
+          validateStatus: (status) => status < 400,
+        });
+
+        await fs.writeFile(buildOutputPath, response.data);
+      }
+
+      const localUrl = `/img/external/${filename}`;
+      processedImages.set(imageUrl, localUrl);
+      return localUrl;
+    } catch (error) {
+      console.error(`Error downloading image ${imageUrl}: ${error.message}`);
+      return imageUrl;
+    }
+  }
+
   return {
-    name: "docusaurus-image-ssr",
+    name: "docusaurus-ssr-image-plugin",
 
     async postBuild({ outDir }) {
-      console.log("Localizing external images in build output...");
-
-      const imagesDir = path.join(outDir, "img/external");
-      await fs.ensureDir(imagesDir);
-
-      const imageCache = new Map();
-
-      async function downloadImage(url) {
-        if (imageCache.has(url)) {
-          return imageCache.get(url);
-        }
-
-        try {
-          const hash = createHash("md5").update(url).digest("hex");
-          const ext = path.extname(url) || ".jpg";
-          const filename = `${hash}${ext}`;
-          const imagePath = path.join(imagesDir, filename);
-
-          if (!fs.existsSync(imagePath)) {
-            console.log(`Downloading: ${url}`);
-            const response = await axios({
-              url: url,
-              responseType: "arraybuffer",
-              timeout: 15000,
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              },
-            });
-
-            await fs.writeFile(imagePath, response.data);
-          }
-
-          const localUrl = `/img/external/${filename}`;
-          imageCache.set(url, localUrl);
-          return localUrl;
-        } catch (error) {
-          console.error(`Failed to download ${url}: ${error.message}`);
-          return url;
-        }
-      }
+      console.log("Processing HTML files for external images...");
 
       const htmlFiles = [];
 
       async function findHtmlFiles(dir) {
-        const files = await fs.readdir(dir);
+        const entries = await fs.readdir(dir, { withFileTypes: true });
 
-        for (const file of files) {
-          const filePath = path.join(dir, file);
-          const stat = await fs.stat(filePath);
-
-          if (stat.isDirectory()) {
-            await findHtmlFiles(filePath);
-          } else if (file.endsWith(".html")) {
-            htmlFiles.push(filePath);
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await findHtmlFiles(fullPath);
+          } else if (entry.name.endsWith(".html")) {
+            htmlFiles.push(fullPath);
           }
         }
       }
 
       await findHtmlFiles(outDir);
-      console.log(`Found ${htmlFiles.length} HTML files`);
 
       for (const htmlFile of htmlFiles) {
         const html = await fs.readFile(htmlFile, "utf8");
-        const $ = cheerio.load(html);
+        let $ = cheerio.load(html);
+        let modified = false;
 
-        const externalImages = $('img[src^="http"]');
+        const externalImages = $("img").filter((_, el) => {
+          const src = $(el).attr("src");
+          return src && src.startsWith("http");
+        });
+
         if (externalImages.length === 0) continue;
 
-        console.log(
-          `Processing ${externalImages.length} images in ${htmlFile}`,
-        );
-
-        const promises = [];
+        const downloadPromises = [];
 
         externalImages.each((_, img) => {
           const element = $(img);
-          const url = element.attr("src");
+          const imageUrl = element.attr("src");
 
-          promises.push(
-            downloadImage(url).then((localUrl) => {
-              element.attr("src", localUrl);
-              element.attr("data-original-src", url);
-            }),
+          if (!imageUrl || !imageUrl.startsWith("http")) return;
+
+          downloadPromises.push(
+            downloadImage(imageUrl, outDir)
+              .then((localUrl) => {
+                if (localUrl !== imageUrl) {
+                  element.attr("src", localUrl);
+                  modified = true;
+                }
+              })
+              .catch(() => {}),
           );
         });
 
-        await Promise.all(promises);
+        await Promise.all(downloadPromises);
 
-        await fs.writeFile(htmlFile, $.html());
+        if (modified) {
+          await fs.writeFile(htmlFile, $.html());
+        }
       }
 
-      console.log("Image localization complete!");
+      console.log(`Processed ${processedImages.size} external images`);
     },
   };
 };

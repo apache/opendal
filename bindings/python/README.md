@@ -94,7 +94,7 @@ uv run pdoc -t ./template opendal
 
 ## Used by
 
-Check out the [users](users.md) list for more details on who is using OpenDAL.
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
 
 ## License and Trademarks
 

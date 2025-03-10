@@ -15,35 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
-
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
-
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/pnpm-lock.yaml",
-
-  # Generated files to list all dependencies
-  "**/DEPENDENCIES.*.tsv",
-  "**/DEPENDENCIES.*.csv",
-
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Test files
-  "**/tests/data/**",
-  "**/fixtures/data/**",
-  # dart binding generated file
-  "bindings/dart/opendal_api.dart",
-  "*generated*",
-]
+analyzer:
+  exclude:
+    - rust/target/**.dart # contains dumped debug info, instead of normal code

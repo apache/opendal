@@ -32,6 +32,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use uuid::Uuid;
+
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 impl Configurator for HdfsNativeConfig {
@@ -266,7 +267,11 @@ impl Access for HdfsNativeBackend {
         error!("hdfs native backend read path: {} args: {:?}", p, args);
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
-        let r = HdfsNativeReader::new(f, args.range().offset() as _, args.range().size().unwrap_or(u64::MAX) as _);
+        let r = HdfsNativeReader::new(
+            f,
+            args.range().offset() as _,
+            args.range().size().unwrap_or(u64::MAX) as _,
+        );
 
         Ok((RpRead::new(), r))
     }
@@ -381,9 +386,31 @@ impl Access for HdfsNativeBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         let to_path = build_rooted_abs_path(&self.root, to);
+        match self.client.get_file_info(&to_path).await {
+            Ok(status) => {
+                if status.isdir {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                } else {
+                    self.client
+                        .delete(&to_path, true)
+                        .await
+                        .map_err(parse_hdfs_error)?;
+                }
+            }
+            Err(err) => match &err {
+                HdfsError::FileNotFound(_) => {
+                    self.client
+                        .create(&to_path, WriteOptions::default().create_parent(true))
+                        .await
+                        .map_err(parse_hdfs_error)?;
+                }
+                _ => return Err(parse_hdfs_error(err)),
+            },
+        };
 
         self.client
-            .rename(&from_path, &to_path, false)
+            .rename(&from_path, &to_path, true)
             .await
             .map_err(parse_hdfs_error)?;
 

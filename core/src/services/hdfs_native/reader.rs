@@ -26,6 +26,7 @@ pub struct HdfsNativeReader {
     f: FileReader,
     read: usize,
     size: usize,
+    buf_size: usize,
     buf: Buffer,
 }
 
@@ -35,6 +36,8 @@ impl HdfsNativeReader {
             f,
             read: 0,
             size,
+            // Use 2 MiB as default value.
+            buf_size: 2 * 1024 * 1024,
             buf: Buffer::new(),
         }
     }
@@ -42,12 +45,18 @@ impl HdfsNativeReader {
 
 impl oio::Read for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
+        if self.read >= self.size {
+            return Ok(Buffer::new());
+        }
+
         if self.buf.is_empty() {
-            let mut stream = Box::pin(self.f.read_range_stream(self.read, self.size));
+            let size = (self.size - self.read).min(self.buf_size).min(self.f.file_length() - self.read);
+            let mut stream = Box::pin(self.f.read_range_stream(self.read, size));
 
             if let Some(bytes) = stream.next().await {
                 let bytes = bytes.map_err(parse_hdfs_error)?;
                 self.buf = Buffer::from(bytes);
+                self.read += self.buf.len();
             } else {
                 return Ok(Buffer::new());
             }

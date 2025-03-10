@@ -31,6 +31,7 @@ use std::backtrace::Backtrace;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use uuid::Uuid;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 impl Configurator for HdfsNativeConfig {
@@ -90,6 +91,22 @@ impl HdfsNativeBuilder {
         self.config.enable_append = enable_append;
         self
     }
+
+    /// Set temp dir for atomic write.
+    ///
+    /// # Notes
+    ///
+    /// - When append is enabled, we will not use atomic write
+    ///   to avoid data loss and performance issue.
+    pub fn atomic_write_dir(mut self, dir: &str) -> Self {
+        error!("HdfsNativeBuilder set atomic_write_dir: {}", dir);
+        self.config.atomic_write_dir = if dir.is_empty() {
+            None
+        } else {
+            Some(String::from(dir))
+        };
+        self
+    }
 }
 
 impl Builder for HdfsNativeBuilder {
@@ -114,26 +131,36 @@ impl Builder for HdfsNativeBuilder {
 
         // need to check if root dir exists, create if not
 
+        error!(
+            "HdfsNativeBuilder build atomic_write_dir: {}",
+            self.config
+                .atomic_write_dir
+                .as_ref()
+                .unwrap_or(&"".to_string())
+        );
+        let atomic_write_dir = self.config.atomic_write_dir;
         Ok(HdfsNativeBackend {
             root,
+            atomic_write_dir,
             client: Arc::new(client),
             enable_append: self.config.enable_append,
         })
     }
 }
 
-// #[inline]
-// fn tmp_file_of(path: &str) -> String {
-//     let name = get_basename(path);
-//     let uuid = Uuid::new_v4().to_string();
-//
-//     format!("{name}.{uuid}")
-// }
+#[inline]
+fn tmp_file_of(path: &str) -> String {
+    let name = get_basename(path);
+    let uuid = Uuid::new_v4().to_string();
+
+    format!("{name}.{uuid}")
+}
 
 /// Backend for hdfs-native services.
 #[derive(Debug, Clone)]
 pub struct HdfsNativeBackend {
     pub root: String,
+    atomic_write_dir: Option<String>,
     pub client: Arc<hdfs_native::Client>,
     enable_append: bool,
 }
@@ -189,6 +216,22 @@ impl Access for HdfsNativeBackend {
             .mkdirs(&p, 0o777, true)
             .await
             .map_err(parse_hdfs_error)?;
+
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &self.atomic_write_dir {
+            match self.client.get_file_info(d).await {
+                Ok(_) => {}
+                Err(err) => match &err {
+                    HdfsError::FileNotFound(_) => self
+                        .client
+                        .mkdirs(d, 0o777, true)
+                        .await
+                        .map_err(parse_hdfs_error)?,
+                    _ => return Err(parse_hdfs_error(err)),
+                },
+            }
+        }
+
         Ok(RpCreateDir::default())
     }
 
@@ -220,6 +263,7 @@ impl Access for HdfsNativeBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
+        error!("hdfs native backend read path: {} args: {:?}", p, args);
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
         let r = HdfsNativeReader::new(f, args.range().size().unwrap_or(u64::MAX) as _);
@@ -227,51 +271,72 @@ impl Access for HdfsNativeBackend {
         Ok((RpRead::new(), r))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_rooted_abs_path(&self.root, path);
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let target_path = build_rooted_abs_path(&self.root, path);
         let mut initial_size = 0;
-        error!("hdfs native backend write path: {}", p);
+        error!("hdfs native backend write path: {}", target_path);
 
-        let target_exists = match self.client.get_file_info(&p).await {
+        let target_exists = match self.client.get_file_info(&target_path).await {
             Ok(status) => {
                 initial_size = status.length as u64;
                 true
             }
-            Err(err) => {
-                match &err {
-                    HdfsError::FileNotFound(_) => false,
-                    _ => return Err(parse_hdfs_error(err)),
-                }
-                // let kind = match &err {
-                //     HdfsError::FileNotFound(_) => ErrorKind::NotFound,
-                //     _ => {
-                //         error!("write error: {:?}", err);
-                //         ErrorKind::Unexpected
-                //     }
-                // };
-                // if kind != ErrorKind::NotFound {
-                //     return Err(parse_hdfs_error(err));
-                // }
-                // false
-            }
+            Err(err) => match &err {
+                HdfsError::FileNotFound(_) => false,
+                _ => return Err(parse_hdfs_error(err)),
+            },
         };
 
-        let should_append = _args.append() && target_exists;
+        let should_append = args.append() && target_exists;
+        error!(
+            "atomic_write_dir: {}",
+            self.atomic_write_dir.as_ref().unwrap_or(&"".to_string())
+        );
+        let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
+            // If the target file exists, we should append to the end of it directly.
+            if should_append {
+                error!("should_append: {}", should_append);
+                None
+            } else {
+                error!("atomic_write_dir: {}", atomic_write_dir);
+                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
+            }
+        });
+        error!("tmp_path: {}", tmp_path.as_ref().unwrap_or(&"".to_string()));
 
-        let f = if should_append && self.enable_append {
-            // If append is enabled and requested, open the file in append mode
-            self.client.append(&p).await.map_err(parse_hdfs_error)?
+        let f = if target_exists {
+            if args.append() {
+                assert!(self.enable_append, "append is not enabled");
+                self.client
+                    .append(&target_path)
+                    .await
+                    .map_err(parse_hdfs_error)?
+            } else {
+                initial_size = 0;
+                self.client
+                    .create(&target_path, WriteOptions::default().overwrite(true))
+                    .await
+                    .map_err(parse_hdfs_error)?
+            }
         } else {
             initial_size = 0;
             self.client
-                .create(&p, WriteOptions::default())
+                .create(&target_path, WriteOptions::default())
                 .await
                 .map_err(parse_hdfs_error)?
         };
 
-        let w = HdfsNativeWriter::new(f, initial_size);
-
-        Ok((RpWrite::new(), w))
+        Ok((
+            RpWrite::new(),
+            HdfsNativeWriter::new(
+                target_path,
+                tmp_path,
+                f,
+                Arc::clone(&self.client),
+                target_exists,
+                initial_size,
+            ),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -281,7 +346,7 @@ impl Access for HdfsNativeBackend {
         ))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
         let bt = Backtrace::capture();
         error!("list path: {} p: {} bt: {}", path, p, bt);

@@ -92,6 +92,10 @@ Build API docs:
 uv run pdoc -t ./template opendal
 ```
 
+## Used by
+
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
+
 ## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0

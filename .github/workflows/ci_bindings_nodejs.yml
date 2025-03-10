@@ -83,6 +83,9 @@ jobs:
       - name: Test
         run: cargo test --no-fail-fast
 
+      - name: Check Clippy
+        run: cargo clippy -- -D warnings
+
   linux:
     name: linux - ${{ matrix.settings.target }}
     runs-on: ubuntu-latest

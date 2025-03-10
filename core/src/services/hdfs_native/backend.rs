@@ -266,7 +266,7 @@ impl Access for HdfsNativeBackend {
         error!("hdfs native backend read path: {} args: {:?}", p, args);
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
-        let r = HdfsNativeReader::new(f, args.range().size().unwrap_or(u64::MAX) as _);
+        let r = HdfsNativeReader::new(f, args.range().offset() as _, args.range().size().unwrap_or(u64::MAX) as _);
 
         Ok((RpRead::new(), r))
     }

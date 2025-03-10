@@ -24,6 +24,7 @@ use crate::*;
 
 pub struct HdfsNativeReader {
     f: FileReader,
+    offset: usize,
     read: usize,
     size: usize,
     buf_size: usize,
@@ -31,9 +32,10 @@ pub struct HdfsNativeReader {
 }
 
 impl HdfsNativeReader {
-    pub fn new(f: FileReader, size: usize) -> Self {
+    pub fn new(f: FileReader, offset: usize, size: usize) -> Self {
         HdfsNativeReader {
             f,
+            offset,
             read: 0,
             size,
             // Use 2 MiB as default value.
@@ -51,12 +53,13 @@ impl oio::Read for HdfsNativeReader {
 
         if self.buf.is_empty() {
             let size = (self.size - self.read).min(self.buf_size).min(self.f.file_length() - self.read);
-            let mut stream = Box::pin(self.f.read_range_stream(self.read, size));
+            let mut stream = Box::pin(self.f.read_range_stream(self.offset, size));
 
             if let Some(bytes) = stream.next().await {
                 let bytes = bytes.map_err(parse_hdfs_error)?;
                 self.buf = Buffer::from(bytes);
                 self.read += self.buf.len();
+                self.offset += self.buf.len();
             } else {
                 return Ok(Buffer::new());
             }

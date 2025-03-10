@@ -20,6 +20,13 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[derive(Debug, Deserialize)]
+pub struct GraphOAuthRefreshTokenResponseBody {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: i64, // in seconds
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphApiOneDriveListResponse {
     #[serde(rename = "@odata.nextLink")]

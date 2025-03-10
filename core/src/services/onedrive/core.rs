@@ -21,12 +21,18 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use http::header;
 use http::Request;
 use http::Response;
 
+use http::StatusCode;
+use tokio::sync::Mutex;
+
 use super::error::parse_error;
 use super::graph_model::CreateDirPayload;
+use super::graph_model::GraphOAuthRefreshTokenResponseBody;
 use super::graph_model::ItemType;
 use super::graph_model::OneDriveItem;
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
@@ -35,10 +41,8 @@ use crate::*;
 
 pub struct OneDriveCore {
     pub info: Arc<AccessorInfo>,
-
     pub root: String,
-
-    pub access_token: String,
+    pub signer: Arc<Mutex<OneDriveSigner>>,
 }
 
 impl Debug for OneDriveCore {
@@ -113,27 +117,21 @@ impl OneDriveCore {
     pub(crate) async fn onedrive_get_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let url: String = format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(&path));
 
-        let mut request = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
-        let request = request
+        let mut request = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
 
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
-        let mut request = Request::get(url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
-        let request = request
+        let mut request = Request::get(url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
@@ -150,14 +148,13 @@ impl OneDriveCore {
             percent_encode_path(&path),
         );
 
-        let mut request = Request::get(&url).header(header::RANGE, range.to_header());
+        let request = Request::get(&url).header(header::RANGE, range.to_header());
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
-        let request = request
+        let mut request = request
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().fetch(request).await
     }
@@ -177,9 +174,6 @@ impl OneDriveCore {
 
         let mut request = Request::put(&url);
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
         if let Some(size) = size {
             request = request.header(header::CONTENT_LENGTH, size)
         }
@@ -188,7 +182,9 @@ impl OneDriveCore {
             request = request.header(header::CONTENT_TYPE, mime)
         }
 
-        let request = request.body(body).map_err(new_request_build_error)?;
+        let mut request = request.body(body).map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
@@ -204,9 +200,6 @@ impl OneDriveCore {
     ) -> Result<Response<Buffer>> {
         let mut request = Request::put(url);
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
         let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
         request = request.header("Content-Range".to_string(), range);
 
@@ -217,7 +210,9 @@ impl OneDriveCore {
             request = request.header(header::CONTENT_TYPE, mime)
         }
 
-        let request = request.body(body).map_err(new_request_build_error)?;
+        let mut request = request.body(body).map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
@@ -227,16 +222,14 @@ impl OneDriveCore {
         url: &str,
         body: OneDriveUploadSessionCreationRequestBody,
     ) -> Result<Response<Buffer>> {
-        let mut request = Request::post(url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
-        request = request.header(header::CONTENT_TYPE, "application/json");
-
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        let request = request.body(body).map_err(new_request_build_error)?;
+        let mut request = Request::post(url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
@@ -258,17 +251,16 @@ impl OneDriveCore {
         let folder_name = get_basename(&path);
         let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
 
-        let body = CreateDirPayload::new(folder_name.to_string());
-
-        let mut request = Request::post(url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-        request = request.header(header::CONTENT_TYPE, "application/json");
-
-        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let payload = CreateDirPayload::new(folder_name.to_string());
+        let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
         let body = Buffer::from(bytes::Bytes::from(body_bytes));
-        let request = request.body(body).map_err(new_request_build_error)?;
+
+        let mut request = Request::post(url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
     }
@@ -277,15 +269,111 @@ impl OneDriveCore {
         let path = build_abs_path(&self.root, path);
         let url = format!("{}:/{}:", Self::DRIVE_ROOT_URL, percent_encode_path(&path));
 
-        let mut request = Request::delete(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        request = request.header(header::AUTHORIZATION, auth_header_content);
-
-        let request = request
+        let mut request = Request::delete(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
+        self.sign(&mut request).await?;
+
         self.info.http_client().send(request).await
+    }
+
+    pub async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
+        let mut signer = self.signer.lock().await;
+        signer.sign(request).await
+    }
+}
+
+// keeps track of OAuth 2.0 tokens and refreshes the access token.
+pub struct OneDriveSigner {
+    pub info: Arc<AccessorInfo>, // to use `http_client`
+
+    pub client_id: String,
+    pub client_secret: String,
+    pub refresh_token: String,
+
+    pub access_token: String,
+    pub expires_in: DateTime<Utc>,
+}
+
+// OneDrive is part of Graph API hence shares the same authentication and authorization processes.
+// `common` applies to account types:
+//
+// - consumers
+// - work and school account
+//
+// set to `common` for simplicity
+const ONEDRIVE_REFRESH_TOKEN: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+
+impl OneDriveSigner {
+    pub fn new(info: Arc<AccessorInfo>) -> Self {
+        OneDriveSigner {
+            info,
+
+            client_id: "".to_string(),
+            client_secret: "".to_string(),
+            refresh_token: "".to_string(),
+            access_token: "".to_string(),
+            expires_in: DateTime::<Utc>::MIN_UTC,
+        }
+    }
+
+    async fn refresh_tokens(&mut self) -> Result<()> {
+        // OneDrive users must provide at least this required permission scope
+        let encoded_payload = format!(
+            "client_id={}&client_secret={}&scope=Files.ReadWrite&refresh_token={}&grant_type=refresh_token",
+            percent_encode_path(self.client_id.as_str()),
+            percent_encode_path(self.client_secret.as_str()),
+            percent_encode_path(self.refresh_token.as_str())
+        );
+        let request = Request::post(ONEDRIVE_REFRESH_TOKEN)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Buffer::from(encoded_payload))
+            .map_err(new_request_build_error)?;
+
+        let response = self.info.http_client().send(request).await?;
+        let status = response.status();
+        match status {
+            StatusCode::OK => {
+                let resp_body = response.into_body();
+                let data: GraphOAuthRefreshTokenResponseBody =
+                    serde_json::from_reader(resp_body.reader())
+                        .map_err(new_json_deserialize_error)?;
+                self.access_token = data.access_token;
+                self.refresh_token = data.refresh_token;
+                self.expires_in = Utc::now()
+                    + chrono::TimeDelta::try_seconds(data.expires_in)
+                        .expect("expires_in must be valid seconds")
+                    - chrono::TimeDelta::minutes(2); // assumes 2 mins graceful transmission for implementation simplicity
+                Ok(())
+            }
+            _ => {
+                return Err(parse_error(response));
+            }
+        }
+    }
+
+    /// Sign a request.
+    pub async fn sign<T>(&mut self, request: &mut Request<T>) -> Result<()> {
+        if !self.access_token.is_empty() && self.expires_in > Utc::now() {
+            let value = format!("Bearer {}", self.access_token)
+                .parse()
+                .expect("access_token must be valid header value");
+
+            request.headers_mut().insert(header::AUTHORIZATION, value);
+            return Ok(());
+        }
+
+        self.refresh_tokens().await?;
+
+        let auth_header_content = format!("Bearer {}", self.access_token)
+            .parse()
+            .expect("Fetched access_token is invalid as a header value");
+
+        request
+            .headers_mut()
+            .insert(header::AUTHORIZATION, auth_header_content);
+
+        Ok(())
     }
 }

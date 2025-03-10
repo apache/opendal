@@ -12,14 +12,17 @@ This service can be used to:
 
 ## Notes
 
-Currently, only OneDrive Personal is supported.
+Currently, OpenDAL supports OneDrive Personal only.
 
 ## Configuration
 
-- `access_token`: set the access_token for Graph API
-- `root`: Set the work directory for backend
+- `access_token`: set a short-live access token for Microsoft Graph API (also, OneDrive API)
+- `refresh_token`: set a long term access token for Microsoft Graph API
+- `client_id`: set the client ID for a Microsoft Graph API application (available though Azure's registration portal)
+- `client_secret`: set the client secret for a Microsoft Graph API application
+- `root`: Set the work directory for OneDrive backend
 
-You can refer to [`OnedriveBuilder`]'s docs for more information
+Read more at [`OnedriveBuilder`].
 
 ## Example
 

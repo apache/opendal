@@ -80,9 +80,9 @@ impl OneDriveCore {
             Self::DRIVE_ROOT_URL.to_string()
         } else {
             // OneDrive returns 400 when try to access a folder with a ending slash
-            let path = build_rooted_abs_path(&root, &path);
+            let path = build_rooted_abs_path(root, path);
             let path = path.strip_suffix('/').unwrap_or(path.as_str());
-            format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(&path))
+            format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(path))
         }
     }
 
@@ -115,7 +115,7 @@ impl OneDriveCore {
     }
 
     pub(crate) async fn onedrive_get_stat(&self, path: &str) -> Result<Response<Buffer>> {
-        let url: String = format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(&path));
+        let url: String = format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(path));
 
         let mut request = Request::get(&url)
             .body(Buffer::new())
@@ -243,7 +243,7 @@ impl OneDriveCore {
         let path_before_last_slash = get_parent(&path);
         let normalized = path_before_last_slash
             .strip_suffix('/')
-            .unwrap_or(&path_before_last_slash);
+            .unwrap_or(path_before_last_slash);
         let encoded_path = percent_encode_path(normalized);
 
         let url = format!("{}:{}:/children", Self::DRIVE_ROOT_URL, encoded_path);
@@ -348,7 +348,7 @@ impl OneDriveSigner {
                 Ok(())
             }
             _ => {
-                return Err(parse_error(response));
+                Err(parse_error(response))
             }
         }
     }

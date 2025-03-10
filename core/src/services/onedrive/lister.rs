@@ -74,7 +74,7 @@ impl oio::PageList for OneDriveLister {
             let trimmed_full_path = full_path.strip_suffix('/').unwrap_or(&full_path);
             // TODO: when listing a directory directly, we could reuse the stat result,
             // cache the result when listing nested directory
-            let meta = self.core.onedrive_stat(&trimmed_full_path).await?;
+            let meta = self.core.onedrive_stat(trimmed_full_path).await?;
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
         }

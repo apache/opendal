@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkopendal_website=self.webpackChunkopendal_website||[]).push([[9746],{2514:e=>{e.exports=JSON.parse('{"categoryGeneratedIndex":{"title":"Bindings Overview","slug":"/category/bindings","permalink":"/category/bindings","sidebar":"docs","navigation":{"previous":{"title":"Core","permalink":"/core"},"next":{"title":"C","permalink":"/bindings/c"}}}}')}}]);

@@ -52,7 +52,9 @@ impl oio::Read for HdfsNativeReader {
         }
 
         if self.buf.is_empty() {
-            let size = (self.size - self.read).min(self.buf_size).min(self.f.file_length() - self.read);
+            let size = (self.size - self.read)
+                .min(self.buf_size)
+                .min(self.f.file_length() - self.read);
             let mut stream = Box::pin(self.f.read_range_stream(self.offset, size));
 
             if let Some(bytes) = stream.next().await {

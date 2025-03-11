@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::OnedriveBackend;
+use super::core::OneDriveCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -24,25 +24,25 @@ use std::sync::Arc;
 
 /// Delete operation
 /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online
-pub struct OnedriveDeleter {
-    core: Arc<OnedriveBackend>,
+pub struct OneDriveDeleter {
+    core: Arc<OneDriveCore>,
 }
 
-impl OnedriveDeleter {
-    pub fn new(core: Arc<OnedriveBackend>) -> Self {
+impl OneDriveDeleter {
+    pub fn new(core: Arc<OneDriveCore>) -> Self {
         Self { core }
     }
 }
 
-impl oio::OneShotDelete for OnedriveDeleter {
+impl oio::OneShotDelete for OneDriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.onedrive_delete(&path).await?;
+        let response = self.core.onedrive_delete(&path).await?;
 
-        let status = resp.status();
+        let status = response.status();
 
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(response)),
         }
     }
 }

@@ -26,10 +26,16 @@ use serde::Serialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct OnedriveConfig {
-    /// bearer access token for OneDrive
-    pub access_token: Option<String>,
-    /// root path of OneDrive folder.
+    /// The root path for the OneDrive service for the file access
     pub root: Option<String>,
+    /// Microsoft Graph API (also OneDrive API) access token
+    pub access_token: Option<String>,
+    ///  Microsoft Graph API (also OneDrive API) refresh token
+    pub refresh_token: Option<String>,
+    /// Microsoft Graph API Application (client) ID that is in the Azure's app registration portal
+    pub client_id: Option<String>,
+    /// Microsoft Graph API Application client secret that is in the Azure's app registration portal
+    pub client_secret: Option<String>,
 }
 
 impl Debug for OnedriveConfig {

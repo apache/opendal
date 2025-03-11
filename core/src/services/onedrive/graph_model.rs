@@ -20,8 +20,15 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[derive(Debug, Deserialize)]
+pub struct GraphOAuthRefreshTokenResponseBody {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: i64, // in seconds
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GraphApiOnedriveListResponse {
+pub struct GraphApiOneDriveListResponse {
     #[serde(rename = "@odata.nextLink")]
     pub next_link: Option<String>,
     pub value: Vec<OneDriveItem>,
@@ -30,20 +37,13 @@ pub struct GraphApiOnedriveListResponse {
 /// mapping for a DriveItem representation
 /// read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/driveitem
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OneDriveItem {
     pub name: String,
-
-    #[serde(rename = "lastModifiedDateTime")]
     pub last_modified_date_time: String,
-
-    #[serde(rename = "eTag")]
     pub e_tag: String,
-
     pub size: i64,
-
-    #[serde(rename = "parentReference")]
     pub parent_reference: ParentReference,
-
     #[serde(flatten)]
     pub item_type: ItemType,
 }
@@ -70,36 +70,24 @@ pub enum ItemType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct OnedriveGetItemBody {
-    #[serde(rename = "cTag")]
-    pub(crate) c_tag: String,
-    #[serde(rename = "eTag")]
-    pub(crate) e_tag: String,
-    id: String,
-    #[serde(rename = "lastModifiedDateTime")]
-    pub(crate) last_modified_date_time: String,
-    pub(crate) name: String,
-    pub(crate) size: u64,
-
-    #[serde(flatten)]
-    pub(crate) item_type: ItemType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct File {
-    #[serde(rename = "mimeType")]
     mime_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Folder {
-    #[serde(rename = "childCount")]
     child_count: i64,
 }
 
+// Microsoft's documentation wants developers to set this as URL parameters.
+// If we follow the documentation, we can't replace the directory (409 existed error).
+// Though, even with this declaration, behavior tests show **flaky behavior**.
+const REPLACE_EXISTING_ITEM_WHEN_CONFLICT: &str = "replace";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDirPayload {
-    // folder: String,
     #[serde(rename = "@microsoft.graph.conflictBehavior")]
     conflict_behavior: String,
     name: String,
@@ -109,7 +97,7 @@ pub struct CreateDirPayload {
 impl CreateDirPayload {
     pub fn new(name: String) -> Self {
         Self {
-            conflict_behavior: "replace".to_string(),
+            conflict_behavior: REPLACE_EXISTING_ITEM_WHEN_CONFLICT.to_string(),
             name,
             folder: EmptyStruct {},
         }
@@ -122,15 +110,14 @@ struct EmptyStruct {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FileUploadItem {
     #[serde(rename = "@microsoft.graph.conflictBehavior")]
-    microsoft_graph_conflict_behavior: String,
+    conflict_behavior: String,
     name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OneDriveUploadSessionCreationResponseBody {
-    #[serde(rename = "uploadUrl")]
     pub upload_url: String,
-    #[serde(rename = "expirationDateTime")]
     pub expiration_date_time: String,
 }
 
@@ -143,7 +130,7 @@ impl OneDriveUploadSessionCreationRequestBody {
     pub fn new(path: String) -> Self {
         OneDriveUploadSessionCreationRequestBody {
             item: FileUploadItem {
-                microsoft_graph_conflict_behavior: "replace".to_string(),
+                conflict_behavior: REPLACE_EXISTING_ITEM_WHEN_CONFLICT.to_string(),
                 name: path,
             },
         }
@@ -224,7 +211,7 @@ fn test_parse_one_drive_json() {
         ]
     }"#;
 
-    let response: GraphApiOnedriveListResponse = serde_json::from_str(data).unwrap();
+    let response: GraphApiOneDriveListResponse = serde_json::from_str(data).unwrap();
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
     assert_eq!(item.name, "name");
@@ -290,7 +277,7 @@ fn test_parse_folder_single() {
         ]
       }"#;
 
-    let response: GraphApiOnedriveListResponse = serde_json::from_str(response_json).unwrap();
+    let response: GraphApiOneDriveListResponse = serde_json::from_str(response_json).unwrap();
     assert_eq!(response.value.len(), 1);
     let item = &response.value[0];
     if let ItemType::Folder { folder, .. } = &item.item_type {

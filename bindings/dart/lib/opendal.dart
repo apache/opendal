@@ -1,5 +1,7 @@
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/opendal_api.dart';
+export 'src/rust/frb_generated.dart';
+export 'src/rust/api/opendal_api.dart';
 
 class FileManager {
   final Operator _operator;

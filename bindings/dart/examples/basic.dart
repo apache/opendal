@@ -1,6 +1,4 @@
-import 'src/rust/frb_generated.dart';
-import 'src/rust/api/opendal_api.dart';
-import 'opendal.dart';
+import '../lib/opendal.dart';
 
 void main() async {
   await RustLib.init();

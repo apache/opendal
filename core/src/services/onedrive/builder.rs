@@ -27,7 +27,7 @@ use services::onedrive::core::OneDriveSigner;
 
 use tokio::sync::Mutex;
 
-use super::backend::OneDriveBackend;
+use super::backend::OnedriveBackend;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
@@ -219,6 +219,6 @@ impl Builder for OnedriveBuilder {
             signer: Arc::new(Mutex::new(signer)),
         });
 
-        Ok(OneDriveBackend { core })
+        Ok(OnedriveBackend { core })
     }
 }

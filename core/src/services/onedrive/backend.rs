@@ -31,19 +31,19 @@ use crate::raw::*;
 use crate::*;
 
 #[derive(Clone)]
-pub struct OneDriveBackend {
+pub struct OnedriveBackend {
     pub core: Arc<OneDriveCore>,
 }
 
-impl Debug for OneDriveBackend {
+impl Debug for OnedriveBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OneDriveBackend")
+        f.debug_struct("OnedriveBackend")
             .field("core", &self.core)
             .finish()
     }
 }
 
-impl Access for OneDriveBackend {
+impl Access for OnedriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;

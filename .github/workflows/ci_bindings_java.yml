@@ -58,6 +58,7 @@ jobs:
           ./mvnw clean compile spotless:check
 
       - name: Check Clippy
+        working-directory: bindings/java
         run: cargo clippy -- -D warnings
 
   test:

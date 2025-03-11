@@ -1,4 +1,4 @@
-# Upgrade to v0.53
+# Upgrade to v0.48
 
 ## Breaking change
 

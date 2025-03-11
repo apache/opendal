@@ -30,6 +30,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_blocking_list_dir,
             test_blocking_list_non_exist_dir,
+            test_blocking_list_not_exist_dir_with_recursive,
             test_blocking_list_dir_with_recursive,
             test_blocking_list_dir_with_recursive_no_trailing_slash,
             test_blocking_list_file_with_recursive,
@@ -112,6 +113,21 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
         )
     }
 
+    Ok(())
+}
+
+pub fn test_blocking_list_not_exist_dir_with_recursive(op: BlockingOperator) -> Result<()> {
+    let dir = TEST_FIXTURE.new_dir_path();
+
+    let obs = op.lister_with(&dir).recursive(true).call()?;
+    let mut objects = HashMap::new();
+    for de in obs {
+        let de = de?;
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
 }
 

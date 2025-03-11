@@ -77,3 +77,4 @@ jobs:
         working-directory: bindings/dart
         run: |
           dart run tests/opendal_test.dart
+          dart run examples/basic.dart

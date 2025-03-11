@@ -27,7 +27,6 @@ use futures::Stream;
 use futures::StreamExt;
 use ouroboros::self_referencing;
 use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use tokio::sync::OnceCell;
 
@@ -137,12 +136,11 @@ impl Builder for SqliteBuilder {
             }
         };
 
-        let config: SqliteConnectOptions =
-            SqliteConnectOptions::from_str(&conn).map_err(|err| {
-                Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                    .with_context("service", Scheme::Sqlite)
-                    .set_source(err)
-            })?;
+        let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+                .with_context("service", Scheme::Sqlite)
+                .set_source(err)
+        })?;
 
         let table = match self.config.table {
             Some(v) => v,
@@ -188,9 +186,7 @@ impl Adapter {
     async fn get_client(&self) -> Result<&SqlitePool> {
         self.pool
             .get_or_try_init(|| async {
-                let pool = SqlitePoolOptions::new()
-                    .max_connections(1)
-                    .connect_with(self.config.clone())
+                let pool = SqlitePool::connect_with(self.config.clone())
                     .await
                     .map_err(parse_sqlite_error)?;
                 Ok(pool)
@@ -312,5 +308,28 @@ impl kv::Adapter for Adapter {
 }
 
 fn parse_sqlite_error(err: sqlx::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from sqlite").set_source(err)
+    let (message, is_temporary) = match &err {
+        sqlx::Error::Database(db_err) => {
+            let error_code = db_err.code();
+            if let Some(code) = error_code {
+                match code.as_ref() {
+                    "5" => ("database is locked, retry may succeed", true),
+                    "6" => ("database is busy, retry may succeed", true),
+                    _ => ("unhandled error from sqlite", false),
+                }
+            } else {
+                ("unhandled error from sqlite", false)
+            }
+        }
+        _ => ("unhandled error from sqlite", false),
+    };
+
+    let mut error = Error::new(ErrorKind::Unexpected, message)
+        .set_source(err);
+    
+    if is_temporary {
+        error = error.set_temporary();
+    }
+    
+    error
 }

@@ -4,11 +4,15 @@
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/python/)
 
-Documentation: [main](https://opendal.apache.org/docs/python/)
-
 This package intends to build a native python binding for Apache OpenDAL.
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
+## Useful Links
+
+- [Documentation](https://opendal.apache.org/docs/python/)
+- [Examples](./examples)
+- [Upgrade Guide](./upgrade.md)
 
 ## Installation
 

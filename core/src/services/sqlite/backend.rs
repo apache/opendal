@@ -310,7 +310,7 @@ impl kv::Adapter for Adapter {
 fn parse_sqlite_error(err: sqlx::Error) -> Error {
     let is_temporary = matches!(
         &err,
-        sqlx::Error::Database(db_err) if db_err.code().map_or(false, |c| c == "5" || c == "6")
+        sqlx::Error::Database(db_err) if db_err.code().is_some_and(|c| c == "5" || c == "6")
     );
 
     let message = if is_temporary {

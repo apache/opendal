@@ -8,7 +8,7 @@
 
 ## Useful Links
 
-- [Documentation](https://opendal.apache.org/docs/js/)
+- [Documentation](https://opendal.apache.org/docs/nodejs/)
 - [Upgrade Guide](./upgrade.md)
 
 ## Installation

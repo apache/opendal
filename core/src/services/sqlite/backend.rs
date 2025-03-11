@@ -137,11 +137,12 @@ impl Builder for SqliteBuilder {
             }
         };
 
-        let config: SqliteConnectOptions = SqliteConnectOptions::from_str(&conn).map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Sqlite)
-                .set_source(err)
-        })?;
+        let config: SqliteConnectOptions =
+            SqliteConnectOptions::from_str(&conn).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+                    .with_context("service", Scheme::Sqlite)
+                    .set_source(err)
+            })?;
 
         let table = match self.config.table {
             Some(v) => v,

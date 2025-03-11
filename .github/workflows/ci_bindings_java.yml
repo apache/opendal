@@ -57,6 +57,9 @@ jobs:
         run: |
           ./mvnw clean compile spotless:check
 
+      - name: Check Clippy
+        run: cargo clippy -- -D warnings
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

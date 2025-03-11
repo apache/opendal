@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -30,10 +29,9 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
-use opendal::operator_futures::FutureWrite;
 use opendal::raw::PresignedRequest;
+use opendal::Operator;
 use opendal::Scheme;
-use opendal::{Metadata, Operator};
 
 use crate::convert::jstring_to_string;
 use crate::convert::{

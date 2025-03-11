@@ -5,16 +5,16 @@ void main() {
   group('opendal unit test', () {
     group('opendal fs schema', () {
       test('File and Directory functions in fs schema', () async {
-        await RustLib.init();
-        final File = FileManager.initOp(schemeStr: "fs", map: {"root": "/tmp"});
+        final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+        final File = storage.initFile();
         var testFile = File("test_1.txt");
         expect(await testFile.exists(), false);
 
         var anotherFile = File("test.txt");
         expect(await anotherFile.exists(), false);
 
-        final Directory =
-            DirectoryManager.initOp(schemeStr: "fs", map: {"root": "/tmp"});
+        final Directory = storage.initDir();
+
         var testDir = Directory("test_dir/");
         await testDir.create();
         expect(await testDir.exists(), true);
@@ -23,10 +23,9 @@ void main() {
 
     group('opendal memory schema', () {
       test('File and Directory functions in memory schema', () async {
-        final File =
-            FileManager.initOp(schemeStr: "memory", map: {"root": "/tmp"});
-        final Directory =
-            DirectoryManager.initOp(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final Directory = storage.initDir();
+
         var testDir = Directory("test/");
         await testDir.create();
         expect(

@@ -20,33 +20,29 @@ import 'src/rust/api/opendal_api.dart';
 export 'src/rust/frb_generated.dart';
 export 'src/rust/api/opendal_api.dart';
 
-class FileManager {
+class Storage {
   final Operator _operator;
 
-  FileManager._(this._operator);
+  Storage._(this._operator);
 
-  static FileManager initOp(
-      {required String schemeStr, required Map<String, String> map}) {
-    return FileManager._(Operator(schemeStr: schemeStr, map: map));
+  static Future<Storage> init({
+    required String schemeStr,
+    required Map<String, String> map,
+  }) async {
+    if (!RustLib.instance.initialized) {
+      await RustLib.init();
+    }
+    return Storage._(Operator(schemeStr: schemeStr, map: map));
   }
 
-  File call(String path) {
-    return File._(path: path, operator: _operator);
-  }
-}
-
-class DirectoryManager {
-  final Operator _operator;
-
-  DirectoryManager._(this._operator);
-
-  static DirectoryManager initOp(
-      {required String schemeStr, required Map<String, String> map}) {
-    return DirectoryManager._(Operator(schemeStr: schemeStr, map: map));
+  /// Creates a factory function for creating File objects
+  Function(String) initFile() {
+    return (String path) => File._(path: path, operator: _operator);
   }
 
-  Directory call(String path) {
-    return Directory._(path: path, operator: _operator);
+  /// Creates a factory function for creating Directory objects
+  Function(String) initDir() {
+    return (String path) => Directory._(path: path, operator: _operator);
   }
 }
 

@@ -10,7 +10,7 @@ Api is designed to be like stdlib style.
 
 This is stdlib
 
-```
+```dart
 import 'dart:io';
 
 void main() async {
@@ -22,12 +22,12 @@ void main() async {
 
 This is opendal
 
-```
-import 'opendal.dart';
+```dart
+import 'package:opendal/opendal.dart';
 
 void main() async {
-  await RustLib.init();
-  final File = FileManager.initOp(schemeStr: "fs", map: {"root": "/tmp"});
+  final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final File = storage.initFile();
   // drop-in
   final file = File('file.txt');
   var is_exists = await file.exists();

@@ -105,8 +105,6 @@ where
                     } else {
                         return Ok(Some(v));
                     }
-                } else {
-                    return Ok(None);
                 }
             }
 
@@ -159,8 +157,6 @@ where
                     } else {
                         return Ok(Some(v));
                     }
-                } else {
-                    return Ok(None);
                 }
             }
 

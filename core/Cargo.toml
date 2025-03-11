@@ -56,16 +56,16 @@ default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
 #
 # You should never enable this feature unless you are developing opendal.
 tests = [
-  "dep:rand",
-  "dep:sha2",
-  "dep:dotenvy",
-  "layers-blocking",
-  "services-azblob",
-  "services-fs",
-  "services-http",
-  "services-memory",
-  "internal-tokio-rt",
-  "services-s3",
+    "dep:rand",
+    "dep:sha2",
+    "dep:dotenvy",
+    "layers-blocking",
+    "services-azblob",
+    "services-fs",
+    "services-http",
+    "services-memory",
+    "internal-tokio-rt",
+    "services-s3",
 ]
 
 # Enable path cache.
@@ -109,29 +109,29 @@ services-aliyun-drive = []
 services-alluxio = []
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
-  "dep:sha2",
-  "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+    "dep:sha2",
+    "dep:reqsign",
+    "reqsign?/services-azblob",
+    "reqsign?/reqwest_request",
 ]
 services-azdls = [
-  "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-azblob",
+    "reqsign?/reqwest_request",
 ]
 services-azfile = [
-  "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-azblob",
+    "reqsign?/reqwest_request",
 ]
 services-b2 = []
 services-cacache = ["dep:cacache"]
 services-cloudflare-kv = []
 services-compfs = ["dep:compio"]
 services-cos = [
-  "dep:reqsign",
-  "reqsign?/services-tencent",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-tencent",
+    "reqsign?/reqwest_request",
 ]
 services-d1 = []
 services-dashmap = ["dep:dashmap"]
@@ -142,9 +142,9 @@ services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
 services-ftp = ["dep:suppaftp", "dep:bb8", "dep:async-tls"]
 services-gcs = [
-  "dep:reqsign",
-  "reqsign?/services-google",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-google",
+    "reqsign?/reqwest_request",
 ]
 services-gdrive = ["internal-path-cache"]
 services-ghac = ["dep:ghac", "dep:prost", "services-azblob"]
@@ -168,15 +168,15 @@ services-monoiofs = ["dep:monoio", "dep:flume"]
 services-mysql = ["dep:sqlx", "sqlx?/mysql"]
 services-nebula-graph = ["dep:rust-nebula", "dep:bb8", "dep:snowflaked"]
 services-obs = [
-  "dep:reqsign",
-  "reqsign?/services-huaweicloud",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-huaweicloud",
+    "reqsign?/reqwest_request",
 ]
 services-onedrive = []
 services-oss = [
-  "dep:reqsign",
-  "reqsign?/services-aliyun",
-  "reqsign?/reqwest_request",
+    "dep:reqsign",
+    "reqsign?/services-aliyun",
+    "reqsign?/reqwest_request",
 ]
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
@@ -186,10 +186,10 @@ services-redis = ["dep:redis", "dep:bb8", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
-  "dep:crc32c",
+    "dep:reqsign",
+    "reqsign?/services-aws",
+    "reqsign?/reqwest_request",
+    "dep:crc32c",
 ]
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:bb8"]
@@ -234,12 +234,12 @@ backon = { version = "1.2", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
-  "clock",
-  "std",
+    "clock",
+    "std",
 ] }
 futures = { version = "0.3", default-features = false, features = [
-  "std",
-  "async-await",
+    "std",
+    "async-await",
 ] }
 http = "1.1"
 log = "0.4"
@@ -250,7 +250,7 @@ once_cell = "1"
 percent-encoding = "2"
 quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.2", features = [
-  "stream",
+    "stream",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -270,7 +270,7 @@ prost = { version = "0.13", optional = true }
 sha1 = { version = "0.10.6", optional = true }
 sha2 = { version = "0.10", optional = true }
 sqlx = { version = "0.8.0", features = [
-  "runtime-tokio-rustls",
+    "runtime-tokio-rustls",
 ], optional = true }
 
 # For http based services.
@@ -283,8 +283,8 @@ ouroboros = { version = "0.18.4", optional = true }
 atomic_lib = { version = "0.39.0", optional = true }
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
-  "tokio-runtime",
-  "mmap",
+    "tokio-runtime",
+    "mmap",
 ], optional = true }
 # for services-dashmap
 dashmap = { version = "6", optional = true }
@@ -292,8 +292,8 @@ dashmap = { version = "6", optional = true }
 etcd-client = { version = "0.14", optional = true, features = ["tls"] }
 # for services-foundationdb
 foundationdb = { version = "0.9.0", features = [
-  "embedded-fdb-include",
-  "fdb-7_3",
+    "embedded-fdb-include",
+    "fdb-7_3",
 ], optional = true }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
@@ -309,18 +309,18 @@ mongodb-internal-macros = { version = "3.2.2", optional = true }
 # for services-sftp
 openssh = { version = "0.11.0", optional = true }
 openssh-sftp-client = { version = "0.15.2", optional = true, features = [
-  "openssh",
-  "tracing",
+    "openssh",
+    "tracing",
 ] }
 # for services-persy
 persy = { version = "1.4.6", optional = true }
 # for services-redb
 redb = { version = "2", optional = true }
 # for services-redis
-redis = { version = "0.27", features = [
-  "cluster-async",
-  "tokio-comp",
-  "connection-manager",
+redis = { version = "0.29", features = [
+    "cluster-async",
+    "tokio-comp",
+    "connection-manager",
 ], optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
@@ -328,9 +328,9 @@ rocksdb = { version = "0.21.0", default-features = false, optional = true }
 sled = { version = "0.34.7", optional = true }
 # for services-ftp
 suppaftp = { version = "6.0.3", default-features = false, features = [
-  "async-secure",
-  "rustls",
-  "async-rustls",
+    "async-secure",
+    "rustls",
+    "async-rustls",
 ], optional = true }
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
@@ -340,10 +340,10 @@ hdfs-native = { version = "0.10", optional = true }
 surrealdb = { version = "2", optional = true, features = ["protocol-http"] }
 # for services-compfs
 compio = { version = "0.12.0", optional = true, features = [
-  "runtime",
-  "bytes",
-  "polling",
-  "dispatcher",
+    "runtime",
+    "bytes",
+    "polling",
+    "dispatcher",
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
@@ -353,10 +353,10 @@ snowflaked = { version = "1", optional = true, features = ["sync"] }
 # for services-monoiofs
 flume = { version = "0.11", optional = true }
 monoio = { version = "0.2.4", optional = true, features = [
-  "sync",
-  "mkdirat",
-  "unlinkat",
-  "renameat",
+    "sync",
+    "mkdirat",
+    "unlinkat",
+    "renameat",
 ] }
 
 # Layers
@@ -395,7 +395,7 @@ fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
 libtest-mimic = "0.8"
 opentelemetry = { version = "0.28", default-features = false, features = [
-  "trace",
+    "trace",
 ] }
 opentelemetry-otlp = { version = "0.28", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"] }
@@ -406,6 +406,6 @@ size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.29.0"
 tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
+    "env-filter",
+    "tracing-log",
 ] }

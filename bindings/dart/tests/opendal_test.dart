@@ -12,8 +12,8 @@ void main() {
         var anotherFile = File("test.txt");
         expect(await anotherFile.exists(), false);
 
-        final Directory =
-            await DirectoryManager.init(schemeStr: "fs", map: {"root": "/tmp"});
+        final op = Operator(schemeStr: "fs", map: {"root": "/tmp"});
+        final Directory = await DirectoryManager.fromOperator(op);
         var testDir = Directory("test_dir/");
         await testDir.create();
         expect(await testDir.exists(), true);

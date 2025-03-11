@@ -33,6 +33,14 @@ class FileManager {
     return FileManager._(Operator(schemeStr: schemeStr, map: map));
   }
 
+  static Future<FileManager> fromOperator(
+      {required Operator operator}) async {
+    if(!RustLib.instance.initialized) {
+      await RustLib.init();
+    }
+    return FileManager._(operator);
+  }
+
   File call(String path) {
     return File._(path: path, operator: _operator);
   }
@@ -49,6 +57,14 @@ class DirectoryManager {
       await RustLib.init();
     }
     return DirectoryManager._(Operator(schemeStr: schemeStr, map: map));
+  }
+
+  static Future<DirectoryManager> fromOperator(
+      {required Operator operator}) async {
+    if(!RustLib.instance.initialized) {
+      await RustLib.init();
+    }
+    return DirectoryManager._(operator);
   }
 
   Directory call(String path) {

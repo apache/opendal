@@ -255,7 +255,7 @@ const config = {
         additionalLanguages: ["rust", "java", "groovy"],
       },
       zoom: {
-        selector: ".markdown img",
+        selector: "img:not(a img)",
         background: "rgba(255, 255, 255, 0.8)",
         config: {},
       },

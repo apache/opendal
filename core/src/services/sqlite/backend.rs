@@ -324,12 +324,11 @@ fn parse_sqlite_error(err: sqlx::Error) -> Error {
         _ => ("unhandled error from sqlite", false),
     };
 
-    let mut error = Error::new(ErrorKind::Unexpected, message)
-        .set_source(err);
-    
+    let mut error = Error::new(ErrorKind::Unexpected, message).set_source(err);
+
     if is_temporary {
         error = error.set_temporary();
     }
-    
+
     error
 }

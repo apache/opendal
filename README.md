@@ -60,7 +60,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
 [Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
 [Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
-[Java Binding Users Image]: https://github.com/user-attachments/assets/1f8d6f87-b930-4fa5-9351-a6b780d184f3
+[Java Binding Users Image]: https://github.com/user-attachments/assets/f20a59a9-8f23-4919-a165-980ed4e6e0d0
 [Java Binding Users]: bindings/java/users.md
 [Lua Binding]: bindings/lua/README.md
 [Node.js Binding]: bindings/nodejs/README.md

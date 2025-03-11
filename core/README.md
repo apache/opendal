@@ -1,4 +1,4 @@
-# Apache OpenDAL™: One Layer, All Storage.
+# Apache OpenDAL™ Rust Core: One Layer, All Storage.
 
 [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 

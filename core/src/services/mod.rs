@@ -43,9 +43,6 @@ pub use b2::*;
 mod cacache;
 pub use self::cacache::*;
 
-mod chainsafe;
-pub use chainsafe::*;
-
 mod cloudflare_kv;
 pub use self::cloudflare_kv::*;
 

@@ -56,8 +56,6 @@ pub enum Scheme {
     Pcloud,
     /// [Koofr][crate::services::Koofr]: Koofr Services.
     Koofr,
-    /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
-    Chainsafe,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -343,7 +341,6 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "b2" => Ok(Scheme::B2),
-            "chainsafe" => Ok(Scheme::Chainsafe),
             "cacache" => Ok(Scheme::Cacache),
             "compfs" => Ok(Scheme::Compfs),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
@@ -414,7 +411,6 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::B2 => "b2",
-            Scheme::Chainsafe => "chainsafe",
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",

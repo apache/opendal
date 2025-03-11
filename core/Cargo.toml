@@ -126,7 +126,6 @@ services-azfile = [
 ]
 services-b2 = []
 services-cacache = ["dep:cacache"]
-services-chainsafe = []
 services-cloudflare-kv = []
 services-compfs = ["dep:compio"]
 services-cos = [

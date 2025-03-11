@@ -151,17 +151,6 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["chainsafe"],
-        /,
-        *,
-        bucket_id: str,
-        root: str = ...,
-        api_key: str = ...,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
         scheme: Literal["cloudflare_kv"],
         /,
         *,

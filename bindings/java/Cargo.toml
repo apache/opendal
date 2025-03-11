@@ -52,7 +52,6 @@ services-all = [
   "default",
   "services-aliyun-drive",
   "services-cacache",
-  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
   "services-etcd",
@@ -96,7 +95,6 @@ services-all = [
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
-services-chainsafe = ["opendal/services-chainsafe"]
 services-cos = ["opendal/services-cos"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]

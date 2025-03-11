@@ -20,55 +20,29 @@ import 'src/rust/api/opendal_api.dart';
 export 'src/rust/frb_generated.dart';
 export 'src/rust/api/opendal_api.dart';
 
-class FileManager {
+class Storage {
   final Operator _operator;
 
-  FileManager._(this._operator);
+  Storage._(this._operator);
 
-  static Future<FileManager> init(
-      {required String schemeStr, required Map<String, String> map}) async {
-    if(!RustLib.instance.initialized) {
+  static Future<Storage> init({
+    required String schemeStr,
+    required Map<String, String> map,
+  }) async {
+    if (!RustLib.instance.initialized) {
       await RustLib.init();
     }
-    return FileManager._(Operator(schemeStr: schemeStr, map: map));
+    return Storage._(Operator(schemeStr: schemeStr, map: map));
   }
 
-  static Future<FileManager> fromOperator(
-      {required Operator operator}) async {
-    if(!RustLib.instance.initialized) {
-      await RustLib.init();
-    }
-    return FileManager._(operator);
+  /// Creates a factory function for creating File objects
+  Function(String) initFile() {
+    return (String path) => File._(path: path, operator: _operator);
   }
 
-  File call(String path) {
-    return File._(path: path, operator: _operator);
-  }
-}
-
-class DirectoryManager {
-  final Operator _operator;
-
-  DirectoryManager._(this._operator);
-
-  static Future<DirectoryManager> init(
-      {required String schemeStr, required Map<String, String> map}) async {
-    if(!RustLib.instance.initialized) {
-      await RustLib.init();
-    }
-    return DirectoryManager._(Operator(schemeStr: schemeStr, map: map));
-  }
-
-  static Future<DirectoryManager> fromOperator(
-      {required Operator operator}) async {
-    if(!RustLib.instance.initialized) {
-      await RustLib.init();
-    }
-    return DirectoryManager._(operator);
-  }
-
-  Directory call(String path) {
-    return Directory._(path: path, operator: _operator);
+  /// Creates a factory function for creating Directory objects
+  Function(String) initDir() {
+    return (String path) => Directory._(path: path, operator: _operator);
   }
 }
 

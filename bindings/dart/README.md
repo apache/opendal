@@ -26,7 +26,8 @@ This is opendal
 import 'package:opendal/opendal.dart';
 
 void main() async {
-  final File = await FileManager.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final File = storage.initFile();
   // drop-in
   final file = File('file.txt');
   var is_exists = await file.exists();

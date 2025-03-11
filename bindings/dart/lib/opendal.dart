@@ -25,8 +25,11 @@ class FileManager {
 
   FileManager._(this._operator);
 
-  static FileManager initOp(
-      {required String schemeStr, required Map<String, String> map}) {
+  static Future<FileManager> init(
+      {required String schemeStr, required Map<String, String> map}) async {
+    if(!RustLib.instance.initialized) {
+      await RustLib.init();
+    }
     return FileManager._(Operator(schemeStr: schemeStr, map: map));
   }
 
@@ -40,8 +43,11 @@ class DirectoryManager {
 
   DirectoryManager._(this._operator);
 
-  static DirectoryManager initOp(
-      {required String schemeStr, required Map<String, String> map}) {
+  static Future<DirectoryManager> init(
+      {required String schemeStr, required Map<String, String> map}) async {
+    if(!RustLib.instance.initialized) {
+      await RustLib.init();
+    }
     return DirectoryManager._(Operator(schemeStr: schemeStr, map: map));
   }
 

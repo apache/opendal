@@ -56,13 +56,6 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
-  
-      - name: Install flutter_rust_bridge_codegen and cargo-expand and fvm
-        working-directory: bindings/dart
-        run: |
-          set -eux -o pipefail
-          # cargo install cargo-expand
-          # cargo install flutter_rust_bridge_codegen --version "2.7.1"
 
       - name: Check generated bridge code is sync
         working-directory: bindings/dart
@@ -84,3 +77,4 @@ jobs:
         working-directory: bindings/dart
         run: |
           dart run lib/opendal_test.dart
+

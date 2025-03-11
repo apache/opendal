@@ -27,6 +27,7 @@ use futures::Stream;
 use futures::StreamExt;
 use ouroboros::self_referencing;
 use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use tokio::sync::OnceCell;
 
@@ -136,7 +137,7 @@ impl Builder for SqliteBuilder {
             }
         };
 
-        let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
+        let config: SqliteConnectOptions = SqliteConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
                 .with_context("service", Scheme::Sqlite)
                 .set_source(err)
@@ -186,7 +187,9 @@ impl Adapter {
     async fn get_client(&self) -> Result<&SqlitePool> {
         self.pool
             .get_or_try_init(|| async {
-                let pool = SqlitePool::connect_with(self.config.clone())
+                let pool = SqlitePoolOptions::new()
+                    .max_connections(1)
+                    .connect_with(self.config.clone())
                     .await
                     .map_err(parse_sqlite_error)?;
                 Ok(pool)

@@ -117,7 +117,7 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_list_not_exist_dir_with_recursive(op: BlockingOperator) -> Result<()> {
-    let dir = TEST_FIXTURE.new_dir_path();
+    let dir = format!("{}/", uuid::Uuid::new_v4());
 
     let obs = op.lister_with(&dir).recursive(true).call()?;
     let mut objects = HashMap::new();

@@ -53,7 +53,7 @@ cargo build -r
 
 ## Update generated code
 
-This binding uses <https://github.com/fzyzcjy/flutter_rust_bridge>, when updating the codegen. First check `FLUTTER_RUST_BRIDGE_CODEGEN_VERSION`, then pin the version of `flutter_rust_bridge` in `pubspec.yaml` and `rust/flutter_rust_bridge`. Make sure the runtime versions are matched.
+This binding uses <https://github.com/fzyzcjy/flutter_rust_bridge>, when updating the codegen. First check `FLUTTER_RUST_BRIDGE_CODEGEN_VERSION`, then pin the version of `flutter_rust_bridge` in `pubspec.yaml` and `rust/Cargo.toml`. Make sure the runtime versions are matched.
 
 ## License and Trademarks
 

@@ -13,7 +13,7 @@ void main() {
         expect(await anotherFile.exists(), false);
 
         final op = Operator(schemeStr: "fs", map: {"root": "/tmp"});
-        final Directory = await DirectoryManager.fromOperator(op);
+        final Directory = await DirectoryManager.fromOperator(operator: op);
         var testDir = Directory("test_dir/");
         await testDir.create();
         expect(await testDir.exists(), true);

@@ -182,8 +182,6 @@ impl Operator {
             Scheme::YandexDisk => Self::from_iter::<services::YandexDisk>(iter)?.finish(),
             #[cfg(feature = "services-pcloud")]
             Scheme::Pcloud => Self::from_iter::<services::Pcloud>(iter)?.finish(),
-            #[cfg(feature = "services-chainsafe")]
-            Scheme::Chainsafe => Self::from_iter::<services::Chainsafe>(iter)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_iter::<services::Azblob>(iter)?.finish(),
             #[cfg(feature = "services-azdls")]

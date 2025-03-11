@@ -509,47 +509,6 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service chainsafe.
-     */
-    @Builder
-    @Data
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    class Chainsafe implements ServiceConfig {
-        /**
-         * <p>bucket_id of this backend.</p>
-         * <p>required.</p>
-         */
-        public final @NonNull String bucketId;
-        /**
-         * <p>root of this backend.</p>
-         * <p>All operations will happen under this root.</p>
-         */
-        public final String root;
-        /**
-         * <p>api_key of this backend.</p>
-         */
-        public final String apiKey;
-
-        @Override
-        public String scheme() {
-            return "chainsafe";
-        }
-
-        @Override
-        public Map<String, String> configMap() {
-            final HashMap<String, String> map = new HashMap<>();
-            map.put("bucket_id", bucketId);
-            if (root != null) {
-                map.put("root", root);
-            }
-            if (apiKey != null) {
-                map.put("api_key", apiKey);
-            }
-            return map;
-        }
-    }
-
-    /**
      * Configuration for service cloudflare_kv.
      */
     @Builder

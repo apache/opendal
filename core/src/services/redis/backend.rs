@@ -16,26 +16,27 @@
 // under the License.
 
 use bb8::RunError;
+use bytes::Bytes;
 use http::Uri;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
-use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
+use redis::{AsyncCommands, Client};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::OnceCell;
 
+use super::core::*;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
 
-use super::core::*;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
@@ -345,26 +346,33 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let mut conn = self.conn().await?;
-        let result = conn.get(key).await?;
-        Ok(result)
+        let result: Option<Bytes> = conn.get(key).await.map_err(format_redis_error)?;
+        Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut conn = self.conn().await?;
         let value = value.to_vec();
-        conn.set(key, value, self.default_ttl).await?;
+        if let Some(dur) = self.default_ttl {
+            let _: () = conn
+                .set_ex(key, value, dur.as_secs())
+                .await
+                .map_err(format_redis_error)?;
+        } else {
+            let _: () = conn.set(key, value).await.map_err(format_redis_error)?;
+        }
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let mut conn = self.conn().await?;
-        conn.delete(key).await?;
+        let _: () = conn.del(key).await.map_err(format_redis_error)?;
         Ok(())
     }
 
     async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
         let mut conn = self.conn().await?;
-        conn.append(key, value).await?;
+        let _: () = conn.append(key, value).await.map_err(format_redis_error)?;
         Ok(())
     }
 }

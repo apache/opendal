@@ -33,7 +33,7 @@ use tokio::task::JoinHandle;
 
 use crate::Result;
 
-static RUNTIME: OnceLock<Executor> = OnceLock::new();
+static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
 thread_local! {
     static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = const { RefCell::new(None) };
 }
@@ -41,8 +41,11 @@ thread_local! {
 /// # Safety
 ///
 /// This function could be only called by java vm when unload this lib.
+#[allow(static_mut_refs)]
 #[no_mangle]
-pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {}
+pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
+    RUNTIME.take();
+}
 
 /// # Safety
 ///
@@ -183,6 +186,7 @@ pub(crate) fn executor_or_default<'a>(
 /// # Safety
 ///
 /// This function could be only when the lib is loaded.
+#[allow(static_mut_refs)]
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
     // Return the executor if it's already initialized
     if let Some(runtime) = RUNTIME.get() {

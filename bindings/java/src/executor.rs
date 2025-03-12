@@ -42,10 +42,7 @@ thread_local! {
 ///
 /// This function could be only called by java vm when unload this lib.
 #[no_mangle]
-pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    // This is fine as the JVM is shutting down anyway
-    // The runtime will be dropped when the process exits
-}
+pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {}
 
 /// # Safety
 ///

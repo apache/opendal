@@ -89,7 +89,6 @@ pub fn all_packages() -> Vec<Package> {
     vec![
         core,
         cloud_filter,
-        compact,
         dav_server,
         fuse3,
         object_store,

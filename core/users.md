@@ -10,3 +10,4 @@
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
+- [rustic](https://github.com/rustic-rs/rustic): About rustic - fast, encrypted, and deduplicated backups powered by Rust

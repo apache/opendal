@@ -197,10 +197,10 @@ unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
         env,
         available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
     )?;
-    
+
     // It's okay if another thread initialized it first
     let _ = RUNTIME.set(executor);
-    
+
     // Now RUNTIME should be initialized
     Ok(RUNTIME.get().ok_or_else(|| {
         opendal::Error::new(

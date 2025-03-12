@@ -69,8 +69,8 @@ pub(crate) fn string_to_jstring<'a>(
     )
 }
 
-pub(crate) fn get_optional_string_from_object<'a>(
-    env: &mut JNIEnv<'a>,
+pub(crate) fn get_optional_string_from_object(
+    env: &mut JNIEnv<'_>,
     obj: &JObject,
     method: &str,
 ) -> crate::Result<Option<String>> {
@@ -84,8 +84,8 @@ pub(crate) fn get_optional_string_from_object<'a>(
     }
 }
 
-pub(crate) fn get_optional_map_from_object<'a>(
-    env: &mut JNIEnv<'a>,
+pub(crate) fn get_optional_map_from_object(
+    env: &mut JNIEnv<'_>,
     obj: &JObject,
     method: &str,
 ) -> crate::Result<Option<HashMap<String, String>>> {

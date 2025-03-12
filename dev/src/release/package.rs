@@ -64,7 +64,6 @@ pub fn all_packages() -> Vec<Package> {
 
     // Integrations
     let cloud_filter = make_package("integrations/cloud_filter", "0.0.6", vec![core.clone()]);
-    let compact = make_package("integrations/compat", "1.0.4", vec![core.clone()]);
     let dav_server = make_package("integrations/dav-server", "0.4.0", vec![core.clone()]);
     let fuse3 = make_package("integrations/fuse3", "0.0.13", vec![core.clone()]);
     let object_store = make_package("integrations/object_store", "0.50.0", vec![core.clone()]);
@@ -111,7 +110,6 @@ pub fn update_package_version(package: &Package) -> bool {
     match package.name.as_str() {
         "core" => update_cargo_version(&package.path, &package.version),
         "integrations/cloud_filter" => update_cargo_version(&package.path, &package.version),
-        "integrations/compat" => update_cargo_version(&package.path, &package.version),
         "integrations/dav-server" => update_cargo_version(&package.path, &package.version),
         "integrations/fuse3" => update_cargo_version(&package.path, &package.version),
         "integrations/object_store" => update_cargo_version(&package.path, &package.version),

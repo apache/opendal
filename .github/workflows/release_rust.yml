@@ -41,7 +41,6 @@ jobs:
         # Order here is sensitive, as it will be used to determine the order of publishing
         package:
           - "core"
-          - "integrations/compat"
           - "integrations/object_store"
           - "integrations/parquet"
           - "integrations/dav-server"

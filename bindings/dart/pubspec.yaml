@@ -17,8 +17,10 @@
 
 name: opendal
 description: Apache OpenDAL™ Dart Binding
-version: 0.0.0
-publish_to: none
+version: 0.0.1
+homepage: https://opendal.apache.org/
+repository: https://github.com/apache/opendal
+issue_tracker: https://github.com/apache/opendal/issues
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:

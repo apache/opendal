@@ -73,7 +73,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Python Binding Image]: https://img.shields.io/pypi/v/opendal
 [Python Binding Link]: https://pypi.org/project/opendal/
 [Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
-[Python Binding Users Image]: https://github.com/user-attachments/assets/bafa7978-3d99-4bb8-98bf-e362b25e7cfc
+[Python Binding Users Image]: https://github.com/user-attachments/assets/6bba7e5b-cada-4cf2-81e3-09d4e4535dcb 
 [Python Binding Users]: bindings/python/users.md
 [Ruby Binding]: bindings/ruby/README.md
 [Swift Binding]: bindings/swift/README.md

@@ -136,10 +136,20 @@ impl OneDriveCore {
         self.info.http_client().send(request).await
     }
 
+    /// Download a file
+    ///
+    /// OneDrive handles a download in 2 steps:
+    /// 1. Returns a 302 with a presigned URL. If `If-None-Match` succeed, returns 304.
+    /// 2. With the presigned URL, we can send a GET:
+    ///   1. When getting an item succeed with a `Range` header, we get a 206 Partial Content response.
+    ///   2. When succeed, we get a 200 response.
+    ///
+    /// Read more at https://learn.microsoft.com/en-us/graph/api/driveitem-get-content
     pub(crate) async fn onedrive_get_content(
         &self,
         path: &str,
         range: BytesRange,
+        etag: Option<&str>,
     ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
@@ -148,7 +158,10 @@ impl OneDriveCore {
             percent_encode_path(&path),
         );
 
-        let request = Request::get(&url).header(header::RANGE, range.to_header());
+        let mut request = Request::get(&url).header(header::RANGE, range.to_header());
+        if let Some(etag) = etag {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
 
         let mut request = request
             .body(Buffer::new())

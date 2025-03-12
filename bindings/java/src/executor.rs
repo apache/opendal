@@ -187,11 +187,25 @@ pub(crate) fn executor_or_default<'a>(
 ///
 /// This function could be only when the lib is loaded.
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
-    Ok(RUNTIME.get_or_init(|| {
-        make_tokio_executor(
-            env,
-            available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
+    // Return the executor if it's already initialized
+    if let Some(runtime) = RUNTIME.get() {
+        return Ok(runtime);
+    }
+
+    // Try to initialize the executor
+    let executor = make_tokio_executor(
+        env,
+        available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
+    )?;
+    
+    // It's okay if another thread initialized it first
+    let _ = RUNTIME.set(executor);
+    
+    // Now RUNTIME should be initialized
+    Ok(RUNTIME.get().ok_or_else(|| {
+        opendal::Error::new(
+            opendal::ErrorKind::Unexpected,
+            "Failed to initialize default executor",
         )
-        .expect("Failed to initialize default executor")
-    }))
+    })?)
 }

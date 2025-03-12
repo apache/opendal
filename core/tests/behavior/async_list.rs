@@ -42,6 +42,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_nested_dir,
             test_list_dir_with_file_path,
             test_list_with_start_after,
+            test_list_non_exist_dir_with_recursive,
             test_list_dir_with_recursive,
             test_list_dir_with_recursive_no_trailing_slash,
             test_list_file_with_recursive,
@@ -400,6 +401,20 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
 
     op.remove_all(dir).await?;
 
+    Ok(())
+}
+
+pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let mut obs = op.lister_with(&dir).recursive(true).await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
 }
 

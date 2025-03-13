@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
+use crate::Error;
 use crate::Result;
+use std::fmt::Debug;
+use tokio::task::spawn_local;
 
 use web_sys::{
     window, File, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions,
@@ -27,6 +28,7 @@ use web_sys::{
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
+#[derive(Default, Clone)]
 pub struct OpfsCore {}
 
 impl Debug for OpfsCore {
@@ -36,8 +38,10 @@ impl Debug for OpfsCore {
 }
 
 impl OpfsCore {
-    /// write whole file
-    pub async fn store_file(file_name: &str, content: &[u8]) -> Result<(), JsValue> {
+    /// Write whole file
+    ///
+    /// Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    async fn store_file(&self, file_name: &str, content: &[u8]) -> Result<(), JsValue> {
         // Access the OPFS
         let navigator = window().unwrap().navigator();
         let storage_manager = navigator.storage();
@@ -72,8 +76,20 @@ impl OpfsCore {
 
         Ok(())
     }
-    /// read whole file
-    pub async fn read_file(file_name: &str) -> Result<Vec<u8>, JsValue> {
+    pub async fn store_file_send(self, filename: String, content: Vec<u8>) -> Result<(), Error> {
+        spawn_local(async move {
+            self.store_file(&filename, &content)
+                .await
+                .map_err(Error::from)
+        })
+        .await
+        .unwrap()
+    }
+
+    /// Read whole file
+    ///
+    /// Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    async fn read_file(&self, file_name: &str) -> Result<Vec<u8>, JsValue> {
         // Access the OPFS
         let navigator = window()
             .ok_or_else(|| JsValue::from_str("\"Windows\" not found"))?
@@ -98,5 +114,10 @@ impl OpfsCore {
         u8_array.copy_to(&mut vec[..]);
 
         Ok(vec)
+    }
+    pub async fn read_file_send(self, file_name: String) -> Result<Vec<u8>, Error> {
+        spawn_local(async move { self.read_file(&file_name).await.map_err(Error::from) })
+            .await
+            .unwrap()
     }
 }

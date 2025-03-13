@@ -15,24 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::raw::BytesRange;
+use crate::services::opfs::core::OpfsCore;
 use crate::{raw::oio, Buffer, Result};
 
-pub struct OpfsReader {}
+pub struct OpfsReader {
+    range: BytesRange,
+    core: OpfsCore,
+    file_name: String,
+}
 
-// impl oio::Read for OpfsReader
-impl oio::Read for OpfsReader {
-    async fn read(&mut self) -> Result<Buffer> {
-        panic!()
-    }
-
-    async fn read_all(&mut self) -> Result<Buffer> {
-        panic!()
+impl OpfsReader {
+    pub(crate) fn new(range: BytesRange, file_name: String) -> Self {
+        Self {
+            range,
+            core: OpfsCore::default(),
+            file_name,
+        }
     }
 }
 
-// impl oio::BlockingRead for OpfsReader
-impl oio::BlockingRead for OpfsReader {
-    fn read(&mut self) -> Result<Buffer> {
-        panic!()
+impl oio::Read for OpfsReader {
+    async fn read(&mut self) -> Result<Buffer> {
+        let core = self.core.clone();
+        let buf = core.read_file_send(self.file_name.clone()).await?;
+
+        let start = self.range.offset() as usize;
+        let end = self.range.size().unwrap_or(0) as usize + start;
+
+        Ok(Buffer::from(buf[start..end].to_vec()))
     }
 }

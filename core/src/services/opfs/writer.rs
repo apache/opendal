@@ -15,30 +15,50 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::services::opfs::core::OpfsCore;
 use crate::{raw::oio, Buffer, Metadata, Result};
+use bytes::Buf;
+use std::io::Read;
 
-pub struct OpfsWriter {}
+pub struct OpfsWriter {
+    append: bool,
+    file_name: String,
+    core: OpfsCore,
+}
+
+impl OpfsWriter {
+    pub fn new(file_name: String, append: bool) -> Self {
+        Self {
+            append,
+            file_name,
+            core: OpfsCore::default(),
+        }
+    }
+}
 
 impl oio::Write for OpfsWriter {
-    async fn abort(&mut self) -> Result<()> {
-        panic!()
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let core = self.core.clone();
+        let mut buffer = match self.append {
+            true => {
+                let core = self.core.clone();
+                core.read_file_send(self.file_name.clone()).await?
+            }
+            false => Vec::new(),
+        };
+
+        bs.reader().read_to_end(&mut buffer).unwrap();
+
+        core.store_file_send(self.file_name.clone(), buffer).await?;
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         Ok(Metadata::default())
     }
 
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        panic!()
-    }
-}
-
-impl oio::BlockingWrite for OpfsWriter {
-    fn close(&mut self) -> Result<Metadata> {
-        Ok(Metadata::default())
-    }
-
-    fn write(&mut self, _bs: Buffer) -> Result<()> {
-        panic!()
+    async fn abort(&mut self) -> Result<()> {
+        todo!()
     }
 }

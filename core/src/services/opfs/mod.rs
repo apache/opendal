@@ -15,12 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "services-opfs")]
 mod backend;
+#[cfg(feature = "services-opfs")]
 mod core;
+#[cfg(feature = "services-opfs")]
 mod error;
+#[cfg(feature = "services-opfs")]
 mod helper;
+#[cfg(feature = "services-opfs")]
 mod lister;
+#[cfg(feature = "services-opfs")]
 mod reader;
+#[cfg(feature = "services-opfs")]
 mod writer;
 
+#[cfg(feature = "services-opfs")]
 pub use backend::OpfsBuilder as Opfs;

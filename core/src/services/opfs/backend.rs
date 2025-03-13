@@ -18,16 +18,12 @@
 use serde::Deserialize;
 use std::sync::Arc;
 
-use super::{core::OpfsCore, lister::OpfsLister, reader::OpfsReader, writer::OpfsWriter};
+use super::{lister::OpfsLister, reader::OpfsReader, writer::OpfsWriter};
 use crate::{
-    raw::{
-        Access, AccessorInfo, OpCopy, OpCreateDir, OpDelete, OpList, OpRead, OpRename, OpStat,
-        OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpRead, RpRename, RpStat, RpWrite,
-    },
-    types, Builder, Capability, Error, Result, Scheme,
+    raw::{Access, AccessorInfo, OpRead, OpWrite, RpRead, RpWrite},
+    Builder, Capability, Error, Result, Scheme,
 };
 use std::fmt::Debug;
-use wasm_bindgen_futures::spawn_local;
 
 /// Origin private file system (OPFS) configuration
 #[derive(Default, Deserialize)]
@@ -36,7 +32,7 @@ use wasm_bindgen_futures::spawn_local;
 pub struct OpfsConfig {}
 
 impl Debug for OpfsConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         panic!()
     }
 }
@@ -51,7 +47,7 @@ pub struct OpfsBuilder {
 impl OpfsBuilder {}
 
 impl Debug for OpfsBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         panic!()
     }
 }
@@ -79,9 +75,9 @@ impl Access for OpfsBackend {
 
     type Deleter = ();
 
-    type BlockingReader = OpfsReader;
+    type BlockingReader = ();
 
-    type BlockingWriter = OpfsWriter;
+    type BlockingWriter = ();
 
     type BlockingLister = OpfsLister;
 
@@ -112,24 +108,16 @@ impl Access for OpfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = path.to_owned();
 
-        // OpfsHelper::read_file_with_local_set(path).await;
-        let out_buf = OpfsCore::read_file(path.as_str()).await?;
-        Ok::<(RpRead, Self::Reader), Error>((RpRead::default(), Self::Reader {}))
+        Ok::<(RpRead, Self::Reader), Error>((
+            RpRead::default(),
+            OpfsReader::new(args.range(), path),
+        ))
     }
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // Access the OPFS
         let path = path.to_owned();
 
-        spawn_local(async move {
-            // panic won't return
-            OpfsCore::store_file(path.as_str(), &[1, 2, 3, 4])
-                .await
-                .expect("store file error");
-        })
-        .await
-        .unwrap()?;
-
-        Ok((RpWrite::default(), Self::Writer {}))
+        Ok((RpWrite::default(), OpfsWriter::new(path, args.append())))
     }
 }
 

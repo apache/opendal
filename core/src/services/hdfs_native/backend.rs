@@ -26,8 +26,6 @@ use crate::*;
 use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
-use log::error;
-use std::backtrace::Backtrace;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -221,7 +219,6 @@ impl Access for HdfsNativeBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        error!("hdfs native backend read path: {} args: {:?}", p, args);
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
         let r = HdfsNativeReader::new(
@@ -282,10 +279,6 @@ impl Access for HdfsNativeBackend {
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
-        let bt = Backtrace::capture();
-        error!("list path: {} p: {} bt: {}", path, p, bt);
-
-        let iter = self.client.list_status_iter(&p, false);
 
         let isdir = match self.client.get_file_info(&p).await {
             Ok(status) => status.isdir,
@@ -305,6 +298,8 @@ impl Access for HdfsNativeBackend {
         } else {
             None
         };
+
+        let iter = self.client.list_status_iter(&p, false);
         Ok((
             RpList::default(),
             Some(HdfsNativeLister::new(&self.root, iter, current_path)),

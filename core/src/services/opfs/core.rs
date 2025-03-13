@@ -29,17 +29,17 @@ use web_sys::{
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-async fn spawn_local<F, T>(fut: F) -> T
+fn spawn_local<F, T>(fut: F) -> impl Future<Output = T> + Send
 where
     F: Future<Output = T> + 'static,
-    T: 'static,
+    T: 'static + Send + Sync,
 {
     let (tx, rx) = oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
         let item = fut.await;
         tx.send(item).expect_err("Failed to send completion signal");
     });
-    rx.await.unwrap()
+    async move { rx.await.unwrap() }
 }
 
 #[derive(Default, Clone)]

@@ -212,6 +212,9 @@ impl Builder for B2Builder {
                             write_can_empty: true,
                             write_can_multi: true,
                             write_with_content_type: true,
+                            write_has_content_md5: true,
+                            write_has_content_length: true,
+                            write_has_content_type: true,
                             // The min multipart size of b2 is 5 MiB.
                             //
                             // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>

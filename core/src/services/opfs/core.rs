@@ -18,7 +18,8 @@
 use crate::Error;
 use crate::Result;
 use std::fmt::Debug;
-use tokio::task::spawn_local;
+use std::future::Future;
+use tokio::sync::oneshot;
 
 use web_sys::{
     window, File, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions,
@@ -27,6 +28,19 @@ use web_sys::{
 
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+
+async fn spawn_local<F, T>(fut: F) -> T
+where
+    F: Future<Output = T> + 'static,
+    T: 'static,
+{
+    let (tx, rx) = oneshot::channel();
+    wasm_bindgen_futures::spawn_local(async move {
+        let item = fut.await;
+        tx.send(item).expect_err("Failed to send completion signal");
+    });
+    rx.await.unwrap()
+}
 
 #[derive(Default, Clone)]
 pub struct OpfsCore {}
@@ -83,7 +97,6 @@ impl OpfsCore {
                 .map_err(Error::from)
         })
         .await
-        .unwrap()
     }
 
     /// Read whole file
@@ -116,8 +129,6 @@ impl OpfsCore {
         Ok(vec)
     }
     pub async fn read_file_send(self, file_name: String) -> Result<Vec<u8>, Error> {
-        spawn_local(async move { self.read_file(&file_name).await.map_err(Error::from) })
-            .await
-            .unwrap()
+        spawn_local(async move { self.read_file(&file_name).await.map_err(Error::from) }).await
     }
 }

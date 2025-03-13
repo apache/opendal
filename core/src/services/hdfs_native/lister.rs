@@ -22,13 +22,11 @@ use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use futures::stream::BoxStream;
-use futures::stream::StreamExt;
-use hdfs_native::client::FileStatus;
+use hdfs_native::client::ListStatusIterator;
 
 pub struct HdfsNativeLister {
     root: String,
-    stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
+    iter: ListStatusIterator,
     current_path: Option<String>,
     iter_to_end: bool,
 }
@@ -36,14 +34,10 @@ pub struct HdfsNativeLister {
 unsafe impl Sync for HdfsNativeLister {}
 
 impl HdfsNativeLister {
-    pub fn new(
-        root: &str,
-        stream: BoxStream<'static, Result<FileStatus, hdfs_native::HdfsError>>,
-        path: Option<String>,
-    ) -> Self {
+    pub fn new(root: &str, iter: ListStatusIterator, path: Option<String>) -> Self {
         HdfsNativeLister {
             root: root.to_string(),
-            stream,
+            iter,
             current_path: path,
             iter_to_end: false,
         }
@@ -60,7 +54,7 @@ impl oio::List for HdfsNativeLister {
             return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
         }
 
-        match self.stream.next().await {
+        match self.iter.next().await {
             Some(Ok(status)) => {
                 let path = build_rel_path(&self.root, &status.path);
 

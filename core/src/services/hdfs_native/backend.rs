@@ -286,7 +286,6 @@ impl Access for HdfsNativeBackend {
         error!("list path: {} p: {} bt: {}", path, p, bt);
 
         let iter = self.client.list_status_iter(&p, false);
-        let stream = iter.into_stream();
 
         let isdir = match self.client.get_file_info(&p).await {
             Ok(status) => status.isdir,
@@ -308,7 +307,7 @@ impl Access for HdfsNativeBackend {
         };
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, stream, current_path)),
+            Some(HdfsNativeLister::new(&self.root, iter, current_path)),
         ))
     }
 

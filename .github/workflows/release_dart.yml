@@ -1,0 +1,89 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# This workflow is used for publish all rust based packages
+
+name: Release Dart
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bindings/dart/rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Build
+        run: |
+          cd bindings/dart/rust
+          cargo build --release
+
+      - name: Upload build artifact (per platform)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: bindings/dart/rust/target/release/*opendal*
+
+  combine-artifacts:
+      needs: build
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+        - name: create release dir
+          run: |
+            cd bindings/dart/rust
+            mkdir -p target/release/
+
+        - name: Download all artifacts
+          uses: actions/download-artifact@v4
+          with:
+            path: artifacts
+
+        - name: Move artifacts to release
+          run: |
+            find . -name "*opendal*.dll" -print -exec mv {} bindings/dart/rust/target/release/ \;
+            find . -name "*opendal*.dylib" -print -exec mv {} bindings/dart/rust/target/release/ \;
+            find . -name "*opendal*.so" -print -exec mv {} bindings/dart/rust/target/release/ \;
+        - name: Show Result
+          run: |
+            cd bindings/dart/rust
+            ls -R .
+        - name: Upload combined build artifacts
+          uses: actions/upload-artifact@v4
+          with:
+              name: combined-release
+              path: bindings/dart/rust/target/release/
+# todo: add pub step

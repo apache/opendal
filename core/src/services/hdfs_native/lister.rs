@@ -25,7 +25,6 @@ use crate::Result;
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
 use hdfs_native::client::FileStatus;
-use log::error;
 
 pub struct HdfsNativeLister {
     root: String,
@@ -61,15 +60,9 @@ impl oio::List for HdfsNativeLister {
             return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
         }
 
-        error!(
-            "HdfsNativeLister root: {} current_path: {}",
-            self.root,
-            self.current_path.clone().unwrap_or_default()
-        );
         match self.stream.next().await {
             Some(Ok(status)) => {
                 let path = build_rel_path(&self.root, &status.path);
-                error!("stream.next path: {}", path);
 
                 let entry = if status.isdir {
                     // Make sure we are returning the correct path.
@@ -87,7 +80,6 @@ impl oio::List for HdfsNativeLister {
             }
             Some(Err(e)) => Err(parse_hdfs_error(e)),
             None => {
-                error!("stream.next None");
                 self.iter_to_end = true;
                 Ok(None)
             }

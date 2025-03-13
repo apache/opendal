@@ -32,8 +32,6 @@ pub struct HdfsNativeConfig {
     pub name_node: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
-    /// atomic write dir of this backend
-    pub atomic_write_dir: Option<String>,
 }
 
 impl Debug for HdfsNativeConfig {
@@ -42,7 +40,6 @@ impl Debug for HdfsNativeConfig {
             .field("root", &self.root)
             .field("name_node", &self.name_node)
             .field("enable_append", &self.enable_append)
-            .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }
 }

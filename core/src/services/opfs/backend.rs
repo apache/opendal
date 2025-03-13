@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::sync::Arc;
 
+use super::{core::OpfsCore, lister::OpfsLister, reader::OpfsReader, writer::OpfsWriter};
 use crate::{
     raw::{
         Access, AccessorInfo, OpCopy, OpCreateDir, OpDelete, OpList, OpRead, OpRename, OpStat,
@@ -9,8 +10,7 @@ use crate::{
     types, Builder, Capability, Error, Result, Scheme,
 };
 use std::fmt::Debug;
-
-use super::{core::OpfsCore, lister::OpfsLister, reader::OpfsReader, writer::OpfsWriter};
+use wasm_bindgen_futures::spawn_local;
 
 /// Origin private file system (OPFS) configuration
 #[derive(Default, Deserialize)]
@@ -60,46 +60,36 @@ impl Access for OpfsBackend {
 
     type Lister = OpfsLister;
 
-    type BlockingLister = OpfsLister;
+    type Deleter = ();
 
     type BlockingReader = OpfsReader;
 
     type BlockingWriter = OpfsWriter;
 
+    type BlockingLister = OpfsLister;
+
+    type BlockingDeleter = ();
+
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut access_info = AccessorInfo::default();
+        let access_info = AccessorInfo::default();
         access_info
             .set_scheme(Scheme::Opfs)
             .set_native_capability(Capability {
-                stat: true,
+                stat: false,
                 read: true,
                 write: true,
                 write_can_empty: true,
                 write_can_append: true,
                 write_can_multi: true,
-                create_dir: true,
-                delete: true,
-                list: true,
-                copy: true,
-                rename: true,
+                create_dir: false,
+                delete: false,
+                list: false,
+                copy: false,
+                rename: false,
                 blocking: true,
                 ..Default::default()
             });
         Arc::new(access_info)
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -109,103 +99,20 @@ impl Access for OpfsBackend {
         let out_buf = OpfsCore::read_file(path.as_str()).await?;
         Ok::<(RpRead, Self::Reader), Error>((RpRead::default(), Self::Reader {}))
     }
-
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // Access the OPFS
-        // let path = path.to_owned();
+        let path = path.to_owned();
 
-        // spawn_local(async move {
-        //     OpfsCore::store_file(path.as_str(), &[1, 2, 3, 4]).await?;
-        //     Ok::<(), Error>(())
-        // })
-        // .await
-        // .unwrap()?;
+        spawn_local(async move {
+            // panic won't return
+            OpfsCore::store_file(path.as_str(), &[1, 2, 3, 4])
+                .await
+                .expect("store file error");
+        })
+        .await
+        .unwrap()?;
 
         Ok((RpWrite::default(), Self::Writer {}))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        Err(Error::new(
-            types::ErrorKind::Unsupported,
-            "Operation not supported yet",
-        ))
     }
 }
 

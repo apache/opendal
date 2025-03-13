@@ -13,12 +13,13 @@ use wasm_bindgen_futures::JsFuture;
 pub struct OpfsCore {}
 
 impl Debug for OpfsCore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         panic!()
     }
 }
 
 impl OpfsCore {
+    /// write whole file
     pub async fn store_file(file_name: &str, content: &[u8]) -> Result<(), JsValue> {
         // Access the OPFS
         let navigator = window().unwrap().navigator();
@@ -54,10 +55,12 @@ impl OpfsCore {
 
         Ok(())
     }
-
+    /// read whole file
     pub async fn read_file(file_name: &str) -> Result<Vec<u8>, JsValue> {
         // Access the OPFS
-        let navigator = window().unwrap().navigator();
+        let navigator = window()
+            .ok_or_else(|| JsValue::from_str("\"Windows\" not found"))?
+            .navigator();
         let storage_manager = navigator.storage();
         let root: FileSystemDirectoryHandle = JsFuture::from(storage_manager.get_directory())
             .await?

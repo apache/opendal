@@ -5,6 +5,9 @@ use crate::ErrorKind;
 
 impl From<JsValue> for Error {
     fn from(value: JsValue) -> Self {
-        Error::new(ErrorKind::Unexpected, "Error")
+        Error::new(
+            ErrorKind::Unexpected,
+            value.as_string().unwrap_or_else(|| "Error".to_owned()),
+        )
     }
 }

@@ -1,4 +1,4 @@
-use crate::{raw::oio, Buffer, Result};
+use crate::{raw::oio, Buffer, Metadata, Result};
 
 pub struct OpfsWriter {}
 
@@ -7,8 +7,8 @@ impl oio::Write for OpfsWriter {
         panic!()
     }
 
-    async fn close(&mut self) -> Result<()> {
-        panic!()
+    async fn close(&mut self) -> Result<Metadata> {
+        Ok(Metadata::default())
     }
 
     async fn write(&mut self, bs: Buffer) -> Result<()> {
@@ -17,11 +17,11 @@ impl oio::Write for OpfsWriter {
 }
 
 impl oio::BlockingWrite for OpfsWriter {
-    fn close(&mut self) -> Result<()> {
-        panic!()
+    fn close(&mut self) -> Result<Metadata> {
+        Ok(Metadata::default())
     }
 
-    fn write(&mut self, bs: Buffer) -> Result<()> {
+    fn write(&mut self, _bs: Buffer) -> Result<()> {
         panic!()
     }
 }

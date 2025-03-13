@@ -62,14 +62,14 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Build opendal-php extension
-        working-directory: "bindings/php"
-        run: cargo build
-
       - name: Clippy Check
         working-directory: "bindings/php"
         run: |
           cargo clippy -- -D warnings
+
+      - name: Build opendal-php extension
+        working-directory: "bindings/php"
+        run: cargo build
 
       - name: Enable opendal-php extension in php.ini
         run: |

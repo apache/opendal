@@ -27,14 +27,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(blocking_trials!(
             op,
             test_blocking_delete_file,
-            test_blocking_delete_one_file,
-            test_blocking_delete_all_basic
+            test_blocking_delete_one_file
         ));
-        if !cap.create_dir {
-            tests.extend(blocking_trials!(
-                op,
-                test_blocking_delete_all_with_prefix_exists
-            ));
+        if cap.list {
+            tests.extend(blocking_trials!(op, test_blocking_delete_all_basic));
+            if !cap.create_dir {
+                tests.extend(blocking_trials!(
+                    op,
+                    test_blocking_delete_all_with_prefix_exists
+                ));
+            }
         }
     }
 }

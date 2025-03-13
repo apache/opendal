@@ -37,12 +37,17 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_with_not_existing_version,
             test_batch_delete,
             test_batch_delete_with_version,
-            test_delete_all_basic,
-            test_delete_one_object_with_versions,
-            test_delete_all_objects_with_recursive_and_versions
+            test_delete_one_object_with_versions
         ));
-        if !cap.create_dir {
-            tests.extend(async_trials!(op, test_delete_all_with_prefix_exists));
+        if cap.list {
+            tests.extend(async_trials!(
+                op,
+                test_delete_all_basic,
+                test_delete_all_objects_with_recursive_and_versions
+            ));
+            if !cap.create_dir {
+                tests.extend(async_trials!(op, test_delete_all_with_prefix_exists));
+            }
         }
     }
 }

@@ -38,17 +38,13 @@ impl oio::Write for HdfsNativeWriter {
     async fn write(&mut self, mut buf: Buffer) -> Result<()> {
         let len = buf.len() as u64;
 
-        // error!("HdfsNativeWriter write start");
         for bs in buf.by_ref() {
-            // error!("HdfsNativeWriter buf write start");
             self.f.write(bs).await.map_err(|e| {
                 error!("write error: {:?}", e);
                 parse_hdfs_error(e)
             })?;
-            // error!("HdfsNativeWriter buf write end");
         }
 
-        // error!("HdfsNativeWriter write end");
         self.size += len;
         Ok(())
     }

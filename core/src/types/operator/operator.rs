@@ -24,7 +24,6 @@ use futures::TryStreamExt;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
 use crate::types::delete::Deleter;
 use crate::*;
@@ -1104,9 +1103,22 @@ impl Operator {
             path,
             OpDelete::default(),
             |inner, path, args| async move {
-                let (_, mut deleter) = inner.delete_dyn().await?;
-                deleter.delete_dyn(&path, args)?;
-                deleter.flush_dyn().await?;
+                let mut deleter = Deleter::create(inner.clone()).await?;
+                if args.recursive() {
+                    let op = OpList::new()
+                        .with_recursive(true)
+                        .with_versions(args.versions());
+                    let lister = Lister::create(inner.clone(), &path, op).await?;
+                    deleter.delete_try_stream(lister).await?;
+                } else if args.versions() {
+                    let lister =
+                        Lister::create(inner.clone(), &path, OpList::new().with_versions(true))
+                            .await?;
+                    deleter.delete_try_stream(lister).await?;
+                } else {
+                    deleter.delete((path, args)).await?;
+                }
+                deleter.close().await?;
                 Ok(())
             },
         )

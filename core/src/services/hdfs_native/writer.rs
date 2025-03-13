@@ -26,10 +26,7 @@ pub struct HdfsNativeWriter {
 }
 
 impl HdfsNativeWriter {
-    pub fn new(
-        f: FileWriter,
-        initial_size: u64,
-    ) -> Self {
+    pub fn new(f: FileWriter, initial_size: u64) -> Self {
         HdfsNativeWriter {
             f,
             size: initial_size,

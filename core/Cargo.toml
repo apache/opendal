@@ -204,6 +204,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-opfs = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]
 
 [lib]
 bench = false
@@ -358,6 +359,21 @@ monoio = { version = "0.2.4", optional = true, features = [
   "unlinkat",
   "renameat",
 ] }
+# for service-opfs
+wasm-bindgen = { version = "0.2.100", optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true}
+web-sys = { version = "0.3.77", optional = true, features = [
+  "Window",
+  "File",
+  "FileSystemDirectoryHandle",
+  "FileSystemFileHandle",
+  "FileSystemGetFileOptions",
+  "FileSystemWritableFileStream",
+  "Navigator",
+  "StorageManager",
+  "FileSystemGetFileOptions",
+] }
+js-sys = { version = "0.3.77", optional = true}
 
 # Layers
 # for layers-async-backtrace
@@ -382,20 +398,6 @@ prometheus-client = { version = "0.23.1", optional = true }
 tracing = { version = "0.1", optional = true }
 # for layers-dtrace
 probe = { version = "0.5.1", optional = true }
-wasm-bindgen = "0.2.95"
-wasm-bindgen-futures = "0.4.45"
-web-sys = { version = "0.3.72", features = [
-  "Window",
-  "File",
-  "FileSystemDirectoryHandle",
-  "FileSystemFileHandle",
-  "FileSystemGetFileOptions",
-  "FileSystemWritableFileStream",
-  "Navigator",
-  "StorageManager",
-  "FileSystemGetFileOptions",
-] }
-js-sys = "0.3.72"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.2", features = ["gloo-timers-sleep"] }

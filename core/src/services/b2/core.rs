@@ -622,6 +622,15 @@ pub struct ListFileNamesResponse {
     pub next_file_name: Option<String>,
 }
 
+/// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadResponse {
+    pub content_length: u64,
+    pub content_md5: Option<String>,
+    pub content_type: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct File {

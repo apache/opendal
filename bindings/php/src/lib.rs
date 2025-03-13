@@ -40,17 +40,26 @@ impl Operator {
 
     /// Write string into given path.
     pub fn write(&self, path: &str, content: String) -> PhpResult<()> {
-        self.0.write(path, content).map(|_| ()).map_err(format_php_err)
+        self.0
+            .write(path, content)
+            .map(|_| ())
+            .map_err(format_php_err)
     }
 
     /// Write bytes into given path, binary safe.
     pub fn write_binary(&self, path: &str, content: Vec<u8>) -> PhpResult<()> {
-        self.0.write(path, content).map(|_| ()).map_err(format_php_err)
+        self.0
+            .write(path, content)
+            .map(|_| ())
+            .map_err(format_php_err)
     }
 
     /// Read the whole path into bytes, binary safe.
     pub fn read(&self, path: &str) -> PhpResult<Binary<u8>> {
-        self.0.read(path).map_err(format_php_err).map(|buf| Binary::from(buf.to_vec()))
+        self.0
+            .read(path)
+            .map_err(format_php_err)
+            .map(|buf| Binary::from(buf.to_vec()))
     }
 
     /// Check if this path exists or not, return 1 if exists, 0 otherwise.

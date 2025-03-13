@@ -72,6 +72,7 @@ jobs:
         run: cargo build
 
       - name: Enable opendal-php extension in php.ini
+        working-directory: "bindings/php"
         run: |
           # 1. Find the extension_dir
           extension_dir=$(php -r "echo ini_get('extension_dir');")

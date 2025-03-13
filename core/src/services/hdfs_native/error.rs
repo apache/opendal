@@ -16,13 +16,11 @@
 // under the License.
 
 use hdfs_native::HdfsError;
-use log::error;
 
 use crate::*;
 
 /// Parse hdfs-native error into opendal::Error.
 pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
-    error!("parse_hdfs_error hdfs_error: {:?}", hdfs_error);
     let (kind, retryable, msg) = match &hdfs_error {
         HdfsError::IOError(err) => (ErrorKind::Unexpected, false, err.to_string()),
         HdfsError::DataTransferError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
@@ -35,10 +33,6 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
         HdfsError::AlreadyExists(msg) => (ErrorKind::AlreadyExists, false, msg.clone()),
         HdfsError::OperationFailed(msg) => (ErrorKind::Unexpected, false, msg.clone()),
         HdfsError::RPCError(msg0, msg1) => {
-            error!(
-                "parse_hdfs_error RPCError msg0: {:?}, msg1: {:?}",
-                msg0, msg1
-            );
             if msg0.contains("java.io.FileNotFoundException") {
                 (ErrorKind::NotFound, false, msg1.clone())
             } else {

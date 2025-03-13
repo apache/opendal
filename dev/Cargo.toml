@@ -30,7 +30,7 @@ version = "0.0.1"
 [dependencies]
 anyhow = { version = "1.0.95" }
 clap = { version = "4.5.23", features = ["derive"] }
-flate2 = { version = "1.0.35" }
+flate2 = { version = "1.1.0", default-features = false, features = ["zlib-rs"] }
 heck = { version = "0.5.0" }
 ignore = { version = "0.4.23" }
 log = { version = "0.4.22" }

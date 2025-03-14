@@ -30,7 +30,7 @@ rust-version = "1.75"
 crate-type = ["cdylib"]
 
 [dependencies]
-ext-php-rs = "0.11.2"
+ext-php-rs = "0.13.1"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features

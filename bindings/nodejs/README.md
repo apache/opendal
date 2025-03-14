@@ -1,6 +1,6 @@
 # Apache OpenDAL™ Node.js Binding
 
-![](https://img.shields.io/badge/status-released-blue)
+[![](https://img.shields.io/badge/status-released-blue)](https://www.npmjs.com/package/opendal)
 [![npm](https://img.shields.io/npm/v/opendal.svg?logo=npm)](https://www.npmjs.com/package/opendal)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/nodejs/)
 

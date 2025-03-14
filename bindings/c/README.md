@@ -1,6 +1,6 @@
 # Apache OpenDAL™ C Binding (WIP)
 
-![](https://img.shields.io/badge/status-unreleased-red)
+[![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/c/)
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 

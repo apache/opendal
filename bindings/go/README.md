@@ -1,6 +1,7 @@
 # Apache OpenDAL™ Go Binding
 
-![](https://img.shields.io/badge/status-released-blue) [![Go Reference](https://pkg.go.dev/badge/github.com/apache/opendal/bindings/go.svg)](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
+[![](https://img.shields.io/badge/status-released-blue)](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/apache/opendal/bindings/go.svg)](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 
 opendal-go is a **Native** support Go binding without CGO enabled and is built on top of opendal-c.
 

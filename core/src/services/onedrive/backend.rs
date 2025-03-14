@@ -80,18 +80,12 @@ impl Access for OnedriveBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let response = self
-            .core
-            .onedrive_get_content(path, args.range(), args.if_none_match())
-            .await?;
+        let response = self.core.onedrive_get_content(path, &args).await?;
 
         let status = response.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 Ok((RpRead::default(), response.into_body()))
-            }
-            StatusCode::NOT_MODIFIED => {
-                Err(Error::new(ErrorKind::ConditionNotMatch, "eTag matches"))
             }
             _ => {
                 let (part, mut body) = response.into_parts();

@@ -148,8 +148,7 @@ impl OneDriveCore {
     pub(crate) async fn onedrive_get_content(
         &self,
         path: &str,
-        range: BytesRange,
-        etag: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
@@ -158,8 +157,8 @@ impl OneDriveCore {
             percent_encode_path(&path),
         );
 
-        let mut request = Request::get(&url).header(header::RANGE, range.to_header());
-        if let Some(etag) = etag {
+        let mut request = Request::get(&url).header(header::RANGE, args.range().to_header());
+        if let Some(etag) = args.if_none_match() {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
 

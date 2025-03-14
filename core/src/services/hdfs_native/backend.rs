@@ -278,7 +278,7 @@ impl Access for HdfsNativeBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p: String = build_rooted_abs_path(&self.root, path);
 
         let isdir = match self.client.get_file_info(&p).await {
             Ok(status) => status.isdir,
@@ -299,10 +299,9 @@ impl Access for HdfsNativeBackend {
             None
         };
 
-        let iter = self.client.list_status_iter(&p, false);
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, iter, current_path)),
+            Some(HdfsNativeLister::new(&self.root, &self.client, &p, current_path)),
         ))
     }
 

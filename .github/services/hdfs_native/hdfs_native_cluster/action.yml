@@ -23,12 +23,8 @@ runs:
   steps:
     - name: Setup HDFS Native cluster
       shell: bash
-      working-directory: fixtures/hdfs_native
-      run: docker compose -f docker-compose-hdfs-native-cluster.yml up -d --wait
-    - name: Setup hadoop
-      uses: ./.github/actions/setup-hadoop
-      with:
-        need-hadoop: true
+      working-directory: fixtures/hdfs
+      run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
     - name: Setup opendal env
       shell: bash
       run: |

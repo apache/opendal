@@ -19,7 +19,6 @@ use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 use hdfs_native::file::FileWriter;
-use log::error;
 pub struct HdfsNativeWriter {
     f: FileWriter,
     size: u64,
@@ -39,10 +38,7 @@ impl oio::Write for HdfsNativeWriter {
         let len = buf.len() as u64;
 
         for bs in buf.by_ref() {
-            self.f.write(bs).await.map_err(|e| {
-                error!("write error: {:?}", e);
-                parse_hdfs_error(e)
-            })?;
+            self.f.write(bs).await.map_err(parse_hdfs_error)?;
         }
 
         self.size += len;

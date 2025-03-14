@@ -31,14 +31,17 @@ pub struct HdfsNativeLister {
     iter_to_end: bool,
 }
 
-unsafe impl Sync for HdfsNativeLister {}
-
 impl HdfsNativeLister {
-    pub fn new(root: &str, iter: ListStatusIterator, path: Option<String>) -> Self {
+    pub fn new(
+        root: &str,
+        client: &hdfs_native::Client,
+        abs_path: &str,
+        current_path: Option<String>,
+    ) -> Self {
         HdfsNativeLister {
             root: root.to_string(),
-            iter,
-            current_path: path,
+            iter: client.list_status_iter(abs_path, false),
+            current_path: current_path,
             iter_to_end: false,
         }
     }
@@ -59,7 +62,6 @@ impl oio::List for HdfsNativeLister {
                 let path = build_rel_path(&self.root, &status.path);
 
                 let entry = if status.isdir {
-                    // Make sure we are returning the correct path.
                     oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
                 } else {
                     let meta = Metadata::new(EntryMode::FILE)

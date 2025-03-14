@@ -15,32 +15,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use futures::StreamExt;
 use hdfs_native::file::FileReader;
+use hdfs_native::HdfsError;
 
 use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
 
 pub struct HdfsNativeReader {
-    f: FileReader,
-    offset: usize,
     read: usize,
     size: usize,
-    buf_size: usize,
-    buf: Buffer,
+    stream: futures::stream::BoxStream<'static, Result<Bytes, HdfsError>>,
 }
+
+unsafe impl Sync for HdfsNativeReader {}
 
 impl HdfsNativeReader {
     pub fn new(f: FileReader, offset: usize, size: usize) -> Self {
+        let size = size.min(f.file_length() - offset);
         HdfsNativeReader {
-            f,
-            offset,
             read: 0,
             size,
-            // Use 2 MiB as default value.
-            buf_size: 2 * 1024 * 1024,
-            buf: Buffer::new(),
+            stream: Box::pin(f.read_range_stream(offset, size)),
         }
     }
 }
@@ -51,22 +49,14 @@ impl oio::Read for HdfsNativeReader {
             return Ok(Buffer::new());
         }
 
-        if self.buf.is_empty() {
-            let size = (self.size - self.read)
-                .min(self.buf_size)
-                .min(self.f.file_length() - self.read);
-            let mut stream = Box::pin(self.f.read_range_stream(self.offset, size));
+        if let Some(bytes) = self.stream.as_mut().next().await {
+            let bytes = bytes.map_err(parse_hdfs_error)?;
+            let buf = Buffer::from(bytes);
+            self.read += buf.len();
 
-            if let Some(bytes) = stream.next().await {
-                let bytes = bytes.map_err(parse_hdfs_error)?;
-                self.buf = Buffer::from(bytes);
-                self.read += self.buf.len();
-                self.offset += self.buf.len();
-            } else {
-                return Ok(Buffer::new());
-            }
+            return Ok(buf);
+        } else {
+            return Ok(Buffer::new());
         }
-
-        Ok(std::mem::take(&mut self.buf))
     }
 }

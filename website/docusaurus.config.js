@@ -70,6 +70,8 @@ const config = {
 
   url: "https://opendal.apache.org/",
   baseUrl: "/",
+  // Always set trailingSlash to true to avoid redirecting to a URL with a trailing slash
+  trailingSlash: true,
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",

@@ -111,6 +111,7 @@ impl GithubBuilder {
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self

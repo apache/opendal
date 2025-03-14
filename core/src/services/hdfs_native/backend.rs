@@ -301,7 +301,12 @@ impl Access for HdfsNativeBackend {
 
         Ok((
             RpList::default(),
-            Some(HdfsNativeLister::new(&self.root, &self.client, &p, current_path)),
+            Some(HdfsNativeLister::new(
+                &self.root,
+                &self.client,
+                &p,
+                current_path,
+            )),
         ))
     }
 

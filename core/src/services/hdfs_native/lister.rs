@@ -41,7 +41,7 @@ impl HdfsNativeLister {
         HdfsNativeLister {
             root: root.to_string(),
             iter: client.list_status_iter(abs_path, false),
-            current_path: current_path,
+            current_path,
             iter_to_end: false,
         }
     }

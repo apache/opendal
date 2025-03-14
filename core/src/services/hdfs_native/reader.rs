@@ -54,9 +54,9 @@ impl oio::Read for HdfsNativeReader {
             let buf = Buffer::from(bytes);
             self.read += buf.len();
 
-            return Ok(buf);
+            Ok(buf)
         } else {
-            return Ok(Buffer::new());
+            Ok(Buffer::new())
         }
     }
 }

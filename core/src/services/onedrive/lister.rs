@@ -69,7 +69,7 @@ impl oio::PageList for OneDriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            let path = self.path.clone(); //build_rooted_abs_path(&self.core.root, &self.path);
+            let path = self.path.clone();
             let full_path = build_rooted_abs_path(&self.core.root, &self.path);
             let trimmed_full_path = full_path.strip_suffix('/').unwrap_or(&full_path);
             // TODO: when listing a directory directly, we could reuse the stat result,

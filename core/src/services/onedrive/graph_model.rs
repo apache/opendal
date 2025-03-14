@@ -39,6 +39,7 @@ pub struct GraphApiOneDriveListResponse {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OneDriveItem {
+    pub id: String,
     pub name: String,
     pub last_modified_date_time: String,
     pub e_tag: String,
@@ -48,9 +49,12 @@ pub struct OneDriveItem {
     pub item_type: ItemType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ParentReference {
     pub path: String,
+    pub drive_id: String,
+    pub id: String,
 }
 
 /// Additional properties when represents a facet of a "DriveItem":
@@ -84,7 +88,7 @@ pub struct Folder {
 // Microsoft's documentation wants developers to set this as URL parameters.
 // If we follow the documentation, we can't replace the directory (409 existed error).
 // Though, even with this declaration, behavior tests show **flaky behavior**.
-const REPLACE_EXISTING_ITEM_WHEN_CONFLICT: &str = "replace";
+pub const REPLACE_EXISTING_ITEM_WHEN_CONFLICT: &str = "replace";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDirPayload {
@@ -137,9 +141,27 @@ impl OneDriveUploadSessionCreationRequestBody {
     }
 }
 
-#[test]
-fn test_parse_one_drive_json() {
-    let data = r#"{
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneDriveCopyRequestBody {
+    pub parent_reference: ParentReference,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneDriveMonitorStatus {
+    pub percentage_complete: f64, // useful for debugging
+    pub status: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_one_drive_json() {
+        let data = r#"{
         "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('user_id')/drive/root/children",
         "value": [
             {
@@ -211,15 +233,15 @@ fn test_parse_one_drive_json() {
         ]
     }"#;
 
-    let response: GraphApiOneDriveListResponse = serde_json::from_str(data).unwrap();
-    assert_eq!(response.value.len(), 2);
-    let item = &response.value[0];
-    assert_eq!(item.name, "name");
-}
+        let response: GraphApiOneDriveListResponse = serde_json::from_str(data).unwrap();
+        assert_eq!(response.value.len(), 2);
+        let item = &response.value[0];
+        assert_eq!(item.name, "name");
+    }
 
-#[test]
-fn test_parse_folder_single() {
-    let response_json = r#"
+    #[test]
+    fn test_parse_folder_single() {
+        let response_json = r#"
     {
         "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children",
         "value": [
@@ -277,12 +299,26 @@ fn test_parse_folder_single() {
         ]
       }"#;
 
-    let response: GraphApiOneDriveListResponse = serde_json::from_str(response_json).unwrap();
-    assert_eq!(response.value.len(), 1);
-    let item = &response.value[0];
-    if let ItemType::Folder { folder, .. } = &item.item_type {
-        assert_eq!(folder.child_count, serde_json::Value::Number(9.into()));
-    } else {
-        panic!("item_type is not folder");
+        let response: GraphApiOneDriveListResponse = serde_json::from_str(response_json).unwrap();
+        assert_eq!(response.value.len(), 1);
+        let item = &response.value[0];
+        if let ItemType::Folder { folder, .. } = &item.item_type {
+            assert_eq!(folder.child_count, serde_json::Value::Number(9.into()));
+        } else {
+            panic!("item_type is not folder");
+        }
+    }
+
+    #[test]
+    fn test_parse_one_drive_monitor_status_json() {
+        let data = r#"{
+        "@odata.context": "https://my.microsoftpersonalcontent.com/personal/d0af7d813b131e1c/_api/v2.0/$metadata#oneDrive.asynchronousOperationStatus",
+        "percentageComplete": 100.0,
+        "resourceId": "01JP3NYHGSBJ7R42UN65HZ333HZFWQTGL4",
+        "status": "completed"
+    }"#;
+
+        let response: OneDriveMonitorStatus = serde_json::from_str(data).unwrap();
+        assert_eq!(response.status, "completed");
     }
 }

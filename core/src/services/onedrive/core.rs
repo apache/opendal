@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -28,14 +29,16 @@ use http::Request;
 use http::Response;
 
 use http::StatusCode;
+use services::onedrive::graph_model::ParentReference;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use super::graph_model::CreateDirPayload;
-use super::graph_model::GraphOAuthRefreshTokenResponseBody;
-use super::graph_model::ItemType;
-use super::graph_model::OneDriveItem;
-use super::graph_model::OneDriveUploadSessionCreationRequestBody;
+use super::graph_model::OneDriveMonitorStatus;
+use super::graph_model::REPLACE_EXISTING_ITEM_WHEN_CONFLICT;
+use super::graph_model::{
+    CreateDirPayload, GraphOAuthRefreshTokenResponseBody, ItemType, OneDriveCopyRequestBody,
+    OneDriveItem, OneDriveUploadSessionCreationRequestBody,
+};
 use crate::raw::*;
 use crate::*;
 
@@ -55,6 +58,11 @@ impl Debug for OneDriveCore {
 
 // OneDrive returns 400 when try to access a dir with the POSIX special directory entries
 const SPECIAL_POSIX_ENTRIES: [&str; 3] = [".", "/", ""];
+
+// OneDrive copy action is asynchronous. We query an endpoint and wait 1 second.
+// This is the maximum attempts we will wait.
+const MAX_MONITOR_ATTEMPT: i32 = 3600;
+const MONITOR_WAIT_SECOND: u64 = 1;
 
 // OneDrive API parameters allows using with a parameter of:
 //
@@ -288,7 +296,99 @@ impl OneDriveCore {
         self.info.http_client().send(request).await
     }
 
-    pub async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
+    pub(crate) async fn initialize_copy(&self, source: &str, destination: &str) -> Result<String> {
+        // We need to stat the parent folder to get a parent reference
+        let destination_parent = get_parent(destination).to_string();
+        let basename = get_basename(destination);
+        let absolute_parent = build_rooted_abs_path(&self.root, &destination_parent);
+
+        let response = self.onedrive_get_stat(&absolute_parent).await?;
+        let item: OneDriveItem = match response.status() {
+            StatusCode::OK => {
+                let bytes = response.into_body();
+                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?
+            }
+            StatusCode::NOT_FOUND => {
+                // We must create directory for the destination
+                let response = self.onedrive_create_dir(&destination_parent).await?;
+                match response.status() {
+                    StatusCode::CREATED | StatusCode::OK => {
+                        let bytes = response.into_body();
+                        serde_json::from_reader(bytes.reader())
+                            .map_err(new_json_deserialize_error)?
+                    }
+                    _ => return Err(parse_error(response)),
+                }
+            }
+            _ => return Err(parse_error(response)),
+        };
+
+        let absolute_source = build_rooted_abs_path(&self.root, source);
+        let url: String = format!(
+            "{}:{}:/copy?@microsoft.graph.conflictBehavior={}",
+            Self::DRIVE_ROOT_URL,
+            percent_encode_path(&absolute_source),
+            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
+        );
+
+        let body = OneDriveCopyRequestBody {
+            parent_reference: ParentReference {
+                path: "".to_string(), // irrelevant for copy
+                drive_id: item.parent_reference.drive_id,
+                id: item.id,
+            },
+            name: basename.to_string(),
+        };
+        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let buffer = Buffer::from(Bytes::from(body_bytes));
+        let mut request = Request::post(&url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(buffer)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        let response = self.info.http_client().send(request).await?;
+        match response.status() {
+            StatusCode::ACCEPTED => parse_location(response.headers())?
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "OneDrive didn't return a location URL",
+                    )
+                })
+                .map(String::from),
+            _ => Err(parse_error(response)),
+        }
+    }
+
+    pub(crate) async fn wait_until_complete(&self, monitor_url: String) -> Result<()> {
+        for _attempt in 0..MAX_MONITOR_ATTEMPT {
+            let mut request = Request::get(monitor_url.to_string())
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?;
+
+            self.sign(&mut request).await?;
+
+            let response = self.info.http_client().send(request).await?;
+            let status: OneDriveMonitorStatus =
+                serde_json::from_reader(response.into_body().reader())
+                    .map_err(new_json_deserialize_error)?;
+            if status.status == "completed" {
+                return Ok(());
+            }
+
+            tokio::time::sleep(Duration::from_secs(MONITOR_WAIT_SECOND)).await;
+        }
+
+        Err(Error::new(
+            ErrorKind::Unexpected,
+            "Exceed monitoring timeout",
+        ))
+    }
+
+    pub(crate) async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
         signer.sign(request).await
     }

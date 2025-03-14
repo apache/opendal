@@ -15,28 +15,40 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use hdfs_native::file::FileWriter;
-
-use crate::raw::oio;
+use crate::raw::*;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
-
+use hdfs_native::file::FileWriter;
 pub struct HdfsNativeWriter {
-    _f: FileWriter,
+    f: FileWriter,
+    size: u64,
 }
 
 impl HdfsNativeWriter {
-    pub fn new(f: FileWriter) -> Self {
-        HdfsNativeWriter { _f: f }
+    pub fn new(f: FileWriter, initial_size: u64) -> Self {
+        HdfsNativeWriter {
+            f,
+            size: initial_size,
+        }
     }
 }
 
 impl oio::Write for HdfsNativeWriter {
-    async fn write(&mut self, _bs: Buffer) -> Result<()> {
-        todo!()
+    async fn write(&mut self, mut buf: Buffer) -> Result<()> {
+        let len = buf.len() as u64;
+
+        for bs in buf.by_ref() {
+            self.f.write(bs).await.map_err(parse_hdfs_error)?;
+        }
+
+        self.size += len;
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        todo!()
+        self.f.close().await.map_err(parse_hdfs_error)?;
+
+        Ok(Metadata::default().with_content_length(self.size))
     }
 
     async fn abort(&mut self) -> Result<()> {

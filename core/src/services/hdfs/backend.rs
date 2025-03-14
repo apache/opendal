@@ -370,6 +370,7 @@ impl Access for HdfsBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
+            
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {

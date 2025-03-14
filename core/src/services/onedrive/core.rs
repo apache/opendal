@@ -94,8 +94,12 @@ impl OneDriveCore {
         }
     }
 
-    pub(crate) async fn onedrive_stat(&self, path: &str) -> Result<Metadata> {
-        let response = self.onedrive_get_stat(path).await?;
+    pub(crate) async fn onedrive_stat(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Metadata> {
+        let response = self.onedrive_get_stat(path, if_none_match).await?;
         let status = response.status();
 
         if !status.is_success() {
@@ -122,10 +126,19 @@ impl OneDriveCore {
         Ok(meta)
     }
 
-    pub(crate) async fn onedrive_get_stat(&self, path: &str) -> Result<Response<Buffer>> {
+    pub(crate) async fn onedrive_get_stat(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<Buffer>> {
         let url: String = format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(path));
 
-        let mut request = Request::get(&url)
+        let mut request = Request::get(&url);
+        if let Some(etag) = if_none_match {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
+
+        let mut request = request
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -302,7 +315,7 @@ impl OneDriveCore {
         let basename = get_basename(destination);
         let absolute_parent = build_rooted_abs_path(&self.root, &destination_parent);
 
-        let response = self.onedrive_get_stat(&absolute_parent).await?;
+        let response = self.onedrive_get_stat(&absolute_parent, None).await?;
         let item: OneDriveItem = match response.status() {
             StatusCode::OK => {
                 let bytes = response.into_body();

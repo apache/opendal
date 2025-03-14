@@ -150,6 +150,7 @@ impl Builder for OnedriveBuilder {
                 copy: true,
 
                 stat: true,
+                stat_with_if_none_match: true,
                 stat_has_content_length: true,
                 stat_has_etag: true,
                 stat_has_last_modified: true,

@@ -72,9 +72,12 @@ impl Access for OnedriveBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let path = build_rooted_abs_path(&self.core.root, path);
-        let meta = self.core.onedrive_stat(path.as_str()).await?;
+        let meta = self
+            .core
+            .onedrive_stat(path.as_str(), args.if_none_match())
+            .await?;
 
         Ok(RpStat::new(meta))
     }

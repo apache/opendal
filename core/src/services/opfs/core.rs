@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Error;
 use crate::Result;
 use std::fmt::Debug;
-use std::future::Future;
-use tokio::sync::oneshot;
 
 use web_sys::{
     window, File, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions,
@@ -27,34 +24,16 @@ use web_sys::{
 };
 
 use wasm_bindgen::{JsCast, JsValue};
+
 use wasm_bindgen_futures::JsFuture;
-
-fn spawn_local<F, T>(fut: F) -> impl Future<Output = T> + Send
-where
-    F: Future<Output = T> + 'static,
-    T: 'static + Send + Sync,
-{
-    let (tx, rx) = oneshot::channel();
-    wasm_bindgen_futures::spawn_local(async move {
-        let item = fut.await;
-        tx.send(item).expect_err("Failed to send completion signal");
-    });
-    async move { rx.await.unwrap() }
-}
-
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct OpfsCore {}
-
-impl Debug for OpfsCore {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        panic!()
-    }
-}
 
 impl OpfsCore {
     /// Write whole file
-    ///
-    /// Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    // Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    //
+    // consider using wasm_bindgen_futures::spawn_local
     async fn store_file(&self, file_name: &str, content: &[u8]) -> Result<(), JsValue> {
         // Access the OPFS
         let navigator = window().unwrap().navigator();
@@ -90,18 +69,11 @@ impl OpfsCore {
 
         Ok(())
     }
-    pub async fn store_file_send(self, filename: String, content: Vec<u8>) -> Result<(), Error> {
-        spawn_local(async move {
-            self.store_file(&filename, &content)
-                .await
-                .map_err(Error::from)
-        })
-        .await
-    }
 
     /// Read whole file
-    ///
-    /// Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    // Return future is not send, because JsValue rely on slab(table to map JsValue(rust) to js variable).
+    //
+    // consider using wasm_bindgen_futures::spawn_local
     async fn read_file(&self, file_name: &str) -> Result<Vec<u8>, JsValue> {
         // Access the OPFS
         let navigator = window()
@@ -127,8 +99,5 @@ impl OpfsCore {
         u8_array.copy_to(&mut vec[..]);
 
         Ok(vec)
-    }
-    pub async fn read_file_send(self, file_name: String) -> Result<Vec<u8>, Error> {
-        spawn_local(async move { self.read_file(&file_name).await.map_err(Error::from) }).await
     }
 }

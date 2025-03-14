@@ -18,11 +18,7 @@
 use serde::Deserialize;
 use std::sync::Arc;
 
-use super::{lister::OpfsLister, reader::OpfsReader, writer::OpfsWriter};
-use crate::{
-    raw::{Access, AccessorInfo, OpRead, OpWrite, RpRead, RpWrite},
-    Builder, Capability, Error, Result, Scheme,
-};
+use crate::raw::{Access, AccessorInfo};
 use std::fmt::Debug;
 
 /// Origin private file system (OPFS) configuration
@@ -52,26 +48,26 @@ impl Debug for OpfsBuilder {
     }
 }
 
-impl Builder for OpfsBuilder {
-    const SCHEME: Scheme = Scheme::Opfs;
-
-    type Config = ();
-
-    fn build(self) -> Result<impl Access> {
-        Ok(OpfsBackend {})
-    }
-}
+// impl Builder for OpfsBuilder {
+//     const SCHEME: Scheme = Scheme::Opfs;
+//
+//     type Config = ();
+//
+//     fn build(self) -> Result<impl Access> {
+//         Ok(OpfsBackend {})
+//     }
+// }
 
 /// OPFS Service backend
 #[derive(Debug, Clone)]
 pub struct OpfsBackend {}
 
 impl Access for OpfsBackend {
-    type Reader = OpfsReader;
+    type Reader = ();
 
-    type Writer = OpfsWriter;
+    type Writer = ();
 
-    type Lister = OpfsLister;
+    type Lister = ();
 
     type Deleter = ();
 
@@ -79,74 +75,11 @@ impl Access for OpfsBackend {
 
     type BlockingWriter = ();
 
-    type BlockingLister = OpfsLister;
+    type BlockingLister = ();
 
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let access_info = AccessorInfo::default();
-        access_info
-            .set_scheme(Scheme::Opfs)
-            .set_native_capability(Capability {
-                stat: false,
-                read: true,
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                create_dir: false,
-                delete: false,
-                list: false,
-                copy: false,
-                rename: false,
-                blocking: true,
-                ..Default::default()
-            });
-        Arc::new(access_info)
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = path.to_owned();
-
-        Ok::<(RpRead, Self::Reader), Error>((
-            RpRead::default(),
-            OpfsReader::new(args.range(), path),
-        ))
-    }
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // Access the OPFS
-        let path = path.to_owned();
-
-        Ok((RpWrite::default(), OpfsWriter::new(path, args.append())))
-    }
-}
-
-#[cfg(test)]
-#[cfg(target_arch = "wasm32")]
-mod opfs_tests {
-    use wasm_bindgen::prelude::*;
-    use wasm_bindgen_test::*;
-
-    use std::collections::HashMap;
-
-    use crate::Operator;
-
-    use super::*;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen]
-    pub async fn test_opfs() -> String {
-        let map = HashMap::new();
-        let op = Operator::via_map(Scheme::Opfs, map).unwrap();
-        let bs = op.read("path/to/file").await.unwrap();
-        "ok".to_string()
-    }
-
-    #[wasm_bindgen_test]
-    async fn basic_test() -> Result<()> {
-        let s = test_opfs().await;
-        assert_eq!(s, "ok".to_string());
-        Ok(())
+        todo!()
     }
 }

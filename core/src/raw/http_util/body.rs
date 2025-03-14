@@ -24,10 +24,10 @@ use oio::Read;
 use crate::raw::*;
 use crate::*;
 
-/// HttpBody is the streaming body that opendal's HttpClient returned.
+/// The streaming body that OpenDAL's HttpClient returned.
 ///
-/// It implements the `oio::Read` trait, service implementors can return it as
-/// `Access::Read`.
+/// We implement [`oio::Read`] for the `HttpBody`. Services can use `HttpBody` as
+/// [`Access::Read`].
 pub struct HttpBody {
     #[cfg(not(target_arch = "wasm32"))]
     stream: Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,

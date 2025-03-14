@@ -1,6 +1,6 @@
 # Apache OpenDAL™ Python Binding
 
-![](https://img.shields.io/badge/status-released-blue)
+[![](https://img.shields.io/badge/status-released-blue)](https://pypi.org/project/opendal/)
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/python/)
 

@@ -1,6 +1,6 @@
 # Apache OpenDAL™ Ruby Binding (WIP)
 
-![](https://img.shields.io/badge/status-unreleased-red)
+[![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/ruby/)
 
 This crate intends to build a native ruby binding.
 

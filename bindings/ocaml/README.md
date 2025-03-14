@@ -1,6 +1,6 @@
 # Apache OpenDAL™ OCaml Binding (WIP)
 
-![](https://img.shields.io/badge/status-unreleased-red)
+[![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/ocaml)
 
 ## Requirements
 
@@ -35,7 +35,7 @@ apt-get install opam
 
 After Installing OPAM, we need to initialize it
 
-For the general case, we can execute 
+For the general case, we can execute
 ```bash
 opam init --bare -a -y
 ```
@@ -47,7 +47,7 @@ opam init --bare -a -y --disable-sandboxing
 
 
 #### Create OPAM Switch
-Using opam, we can have multiple versions of ocaml at the same time; this is called switch. 
+Using opam, we can have multiple versions of ocaml at the same time; this is called switch.
 
 Due to the upstream `ocaml-rs`, we currently do not support OCaml5, and recommend using the latest version of OCaml4
 We can create use this command:

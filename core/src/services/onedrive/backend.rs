@@ -111,6 +111,12 @@ impl Access for OnedriveBackend {
         ))
     }
 
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let monitor_url = self.core.initialize_copy(from, to).await?;
+        self.core.wait_until_complete(monitor_url).await?;
+        Ok(RpCopy::default())
+    }
+
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = OneDriveLister::new(path.to_string(), self.core.clone());
         Ok((RpList::default(), oio::PageLister::new(l)))

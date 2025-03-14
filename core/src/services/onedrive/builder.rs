@@ -147,6 +147,7 @@ impl Builder for OnedriveBuilder {
                 read_with_if_none_match: true,
 
                 write: true,
+                copy: true,
 
                 stat: true,
                 stat_has_content_length: true,

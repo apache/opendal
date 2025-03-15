@@ -81,7 +81,7 @@ jobs:
         working-directory: bindings/dart/rust
         run: |
           set -eux -o pipefail
-          cargo build -r # frb will load the so in release/, so release build here
+          cargo build -r --target x86_64-unknown-linux-gnu # frb will load the so in release/, so release build here
 
       - name: test
         working-directory: bindings/dart

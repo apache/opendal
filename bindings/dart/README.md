@@ -48,7 +48,7 @@ dart run tests/opendal_test.dart
 flutter pub get
 flutter_rust_bridge_codegen generate
 cd rust
-cargo build -r
+cargo build -r --target x86_64-unknown-linux-gnu # change to your arch, refer to https://doc.rust-lang.org/beta/rustc/platform-support.html
 ```
 
 ## Update generated code

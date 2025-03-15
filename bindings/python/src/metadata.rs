@@ -90,6 +90,11 @@ impl Metadata {
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
     }
+    /// Last modified time
+    #[getter]
+    pub fn last_modified(&self) -> Option<String> {
+        self.0.last_modified().map(|ta| ta.to_rfc3339())
+    }
 }
 
 #[pyclass(module = "opendal")]

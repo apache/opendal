@@ -35,6 +35,7 @@ def test_sync_write(service_name, operator, async_operator):
     assert metadata is not None
     assert metadata.mode.is_file()
     assert metadata.content_length == size
+    assert metadata.last_modified is not None
 
     operator.delete(filename)
 
@@ -66,6 +67,7 @@ async def test_async_write(service_name, operator, async_operator):
     assert metadata is not None
     assert metadata.mode.is_file()
     assert metadata.content_length == size
+    assert metadata.last_modified is not None
 
     await async_operator.delete(filename)
 

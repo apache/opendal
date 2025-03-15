@@ -19,6 +19,8 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::jboolean;
+use jni::sys::JNI_TRUE;
 use jni::sys::jbyteArray;
 use jni::sys::jlong;
 use jni::sys::jobject;
@@ -277,16 +279,17 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
+    recursive: jboolean,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_list(&mut env, &mut *op, path, recursive).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString, recursive: jboolean) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let obs = op.list(&path)?;
+    let obs = op.list_with(&path).recursive(recursive == JNI_TRUE).call()?;
 
     let jarray = env.new_object_array(
         obs.len() as jsize,

@@ -24,6 +24,8 @@ use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
+use jni::sys::jboolean;
+use jni::sys::JNI_TRUE;
 use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
@@ -564,8 +566,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    recursive: jboolean,
 ) -> jlong {
-    intern_list(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_list(&mut env, op, executor, path, recursive).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -576,6 +579,7 @@ fn intern_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    recursive: jboolean,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
@@ -583,15 +587,15 @@ fn intern_list(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_list(op, path).await;
+        let result = do_list(op, path, recursive).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let obs = op.list(&path).await?;
+async fn do_list<'local>(op: &mut Operator, path: String, recursive: jboolean) -> Result<JObject<'local>> {
+    let obs = op.list_with(&path).recursive(recursive == JNI_TRUE).await?;
 
     let mut env = unsafe { get_current_env() };
     let jarray = env.new_object_array(

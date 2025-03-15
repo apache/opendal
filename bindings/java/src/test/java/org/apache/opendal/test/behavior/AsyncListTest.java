@@ -58,7 +58,7 @@ class AsyncListTest extends BehaviorTestBase {
 
         asyncOp().write(path, content).join();
 
-        final List<Entry> entries = asyncOp().list(parent + "/").join();
+        final List<Entry> entries = asyncOp().list(parent + "/", false).join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -89,7 +89,7 @@ class AsyncListTest extends BehaviorTestBase {
             asyncOp().write(path, parentPath).join();
         }
 
-        final List<Entry> entries = asyncOp().list(parentPath).join();
+        final List<Entry> entries = asyncOp().list(parentPath, false).join();
         final List<String> actual =
                 entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
 
@@ -107,7 +107,7 @@ class AsyncListTest extends BehaviorTestBase {
         final String dir = String.format("%s/", UUID.randomUUID());
         asyncOp().createDir(dir).join();
 
-        final List<Entry> entries = asyncOp().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir, false).join();
         final List<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toList());
         assertThat(actual).hasSize(1);
         assertThat(actual.get(0)).isEqualTo(dir);
@@ -122,7 +122,7 @@ class AsyncListTest extends BehaviorTestBase {
     public void testListNotExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
-        final List<Entry> entries = asyncOp().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir, false).join();
         assertThat(entries).isEmpty();
     }
 
@@ -134,7 +134,7 @@ class AsyncListTest extends BehaviorTestBase {
         final String path = String.format("%s/", UUID.randomUUID());
         asyncOp().createDir(path).join();
 
-        final List<Entry> entries = asyncOp().list("/").join();
+        final List<Entry> entries = asyncOp().list("/", false).join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -164,7 +164,7 @@ class AsyncListTest extends BehaviorTestBase {
         asyncOp().write(filePath, content).join();
         asyncOp().createDir(dirPath).join();
 
-        final List<Entry> entries = asyncOp().list(dir).join();
+        final List<Entry> entries = asyncOp().list(dir, false).join();
         assertThat(entries).hasSize(3);
 
         final List<String> expectedPaths = Lists.newArrayList(dir, dirPath, filePath);

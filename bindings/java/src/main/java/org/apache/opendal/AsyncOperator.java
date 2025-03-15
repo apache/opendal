@@ -268,8 +268,8 @@ public class AsyncOperator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<List<Entry>> list(String path) {
-        final long requestId = list(nativeHandle, executorHandle, path);
+    public CompletableFuture<List<Entry>> list(String path, boolean recursive) {
+        final long requestId = list(nativeHandle, executorHandle, path, recursive);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
@@ -310,5 +310,5 @@ public class AsyncOperator extends NativeObject {
 
     private static native long removeAll(long nativeHandle, long executorHandle, String path);
 
-    private static native long list(long nativeHandle, long executorHandle, String path);
+    private static native long list(long nativeHandle, long executorHandle, String path, boolean recursive);
 }

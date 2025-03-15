@@ -21,6 +21,7 @@ package org.apache.opendal.test.behavior;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.List;
@@ -55,7 +56,7 @@ public class BlockingListTest extends BehaviorTestBase {
 
         op().write(path, content);
 
-        final List<Entry> list = op().list(parent + "/");
+        final List<Entry> list = op().list(parent + "/", false);
         boolean found = false;
         for (Entry entry : list) {
             if (entry.getPath().equals(path)) {
@@ -75,8 +76,9 @@ public class BlockingListTest extends BehaviorTestBase {
     public void testBlockingListNonExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
-        final List<Entry> list = op().list(dir);
-        assertTrue(list.isEmpty());
+        final List<Entry> list = op().list(dir, false);
+        assertEquals(1, list.size());
+        assertEquals(dir, list.get(0).path);
     }
 
     /**

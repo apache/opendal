@@ -321,7 +321,7 @@ impl OneDriveSigner {
     async fn refresh_tokens(&mut self) -> Result<()> {
         // OneDrive users must provide at least this required permission scope
         let encoded_payload = format!(
-            "client_id={}&client_secret={}&scope=Files.ReadWrite&refresh_token={}&grant_type=refresh_token",
+            "client_id={}&client_secret={}&scope=offline_access%20Files.ReadWrite&refresh_token={}&grant_type=refresh_token",
             percent_encode_path(self.client_id.as_str()),
             percent_encode_path(self.client_secret.as_str()),
             percent_encode_path(self.refresh_token.as_str())

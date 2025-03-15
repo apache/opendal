@@ -81,8 +81,8 @@ jobs:
         working-directory: bindings/dart/rust
         run: |
           set -eux -o pipefail
-          cargo build -r --target x86_64-unknown-linux-gnu # frb will load the so in release/, so release build here
-          find . -name libopendal_dart.so -print -exec install -vDm755 {} -t target/x86_64-unknown-linux-gnu/release/ \;
+          cargo build -r
+          cargo build -r --target x86_64-unknown-linux-gnu
           ls -R .
 
       - name: test

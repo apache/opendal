@@ -42,8 +42,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            target_suffix: x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            target_suffix: aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            target_suffix: win_x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            target_suffix: macos_aarch64
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -55,20 +66,30 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             bindings/dart/rust/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}-${{ matrix.target }} # Include target in cache key
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Build
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --force
+
+      - name: Build on linux
+        if: runner.os == 'Linux'
         run: |
           cd bindings/dart/rust
-          cargo build --release
+          cross build --release --target ${{ matrix.target }}
+
+      - name: Build not on linux
+        if: runner.os != 'Linux'
+        run: |
+          cd bindings/dart/rust
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Upload build artifact (per platform)
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.os }}
-          path: bindings/dart/rust/target/release/*opendal*
+          name: ${{ matrix.os }}
+          path: bindings/dart/rust/target/${{ matrix.target }}/release/*opendal*
 
   combine-artifacts:
       needs: build
@@ -88,9 +109,12 @@ jobs:
 
         - name: Move artifacts to release
           run: |
-            find . -name "*opendal*.dll" -print -exec mv {} bindings/dart/rust/target/release/ \;
-            find . -name "*opendal*.dylib" -print -exec mv {} bindings/dart/rust/target/release/ \;
-            find . -name "*opendal*.so" -print -exec mv {} bindings/dart/rust/target/release/ \;
+            cp -av ./artifacts/* bindings/dart/rust/target/release/
+            find . -name "*.a" -print -delete
+            find . -name "*.d" -print -delete
+            find . -name "*.pdb" -print -delete
+            find . -name "*.exp" -print -delete
+            find . -name "*.lib" -print -delete
         - name: Show Result
           run: |
             cd bindings/dart/rust

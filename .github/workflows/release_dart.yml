@@ -88,7 +88,7 @@ jobs:
       - name: Upload build artifact (per platform)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}
+          name: ${{ matrix.target }}
           path: bindings/dart/rust/target/${{ matrix.target }}/release/*opendal*
 
   combine-artifacts:

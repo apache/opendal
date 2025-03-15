@@ -33,12 +33,12 @@ class Storage {
     required Map<String, String> map,
   }) async {
     if (!RustLib.instance.initialized) {
-      var path = "";
+      var path = "rust/target/release/";  // default path
       final name = Platform.operatingSystem;
       final arch = SysInfo.kernelArchitecture;
-      if (name == "linux" && arch == "x86_64"){
-        path = "rust/target/x86_64-unknown-linux-gnu/release/";
-      }
+      // if (name == "linux" && arch == "x86_64"){
+      //   path = "rust/target/x86_64-unknown-linux-gnu/release/";
+      // }
       // todo: more system and arch
 
       var config = ExternalLibraryLoaderConfig( // https://github.com/fzyzcjy/flutter_rust_bridge/issues/2460

@@ -41,6 +41,8 @@ use crate::*;
 
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
+
+    pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
 }
 
 pub struct CosCore {
@@ -583,6 +585,17 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Output of `CompleteMultipartUpload` operation
+#[derive(Debug, Default, Deserialize)]
+#[serde[default, rename_all = "PascalCase"]]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
 }

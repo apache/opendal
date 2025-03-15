@@ -28,6 +28,7 @@ dependencies:
   flutter_rust_bridge: 2.8.0
   freezed_annotation: ^2.2.0
   collection: ^1.18.0
+  system_info2: 4.0.0
 dev_dependencies:
   test: ^1.21.4
   freezed: ^2.1.0+1

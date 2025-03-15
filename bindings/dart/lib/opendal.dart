@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import 'dart:io';
+import 'package:system_info2/system_info2.dart';
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/opendal_api.dart';
 export 'src/rust/frb_generated.dart';
@@ -30,7 +32,14 @@ class Storage {
     required Map<String, String> map,
   }) async {
     if (!RustLib.instance.initialized) {
-      await RustLib.init();
+      var path = "";
+      final name = Platform.operatingSystem;
+      final arch = SysInfo.kernelArchitecture;
+      if (name == "linux" && arch == "x86_64"){
+        path = "rust/target/x86_64-unknown-linux-gnu/release/libopendal_dart.so"
+      }
+      // todo: more system and arch
+      await RustLib.init(externalLibrary: path);
     }
     return Storage._(Operator(schemeStr: schemeStr, map: map));
   }

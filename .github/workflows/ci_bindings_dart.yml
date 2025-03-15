@@ -51,6 +51,16 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bindings/dart/rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:

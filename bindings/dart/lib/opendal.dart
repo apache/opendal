@@ -39,7 +39,7 @@ class Storage {
         path = "rust/target/x86_64-unknown-linux-gnu/release/libopendal_dart.so"
       }
       // todo: more system and arch
-      await RustLib.init(externalLibrary: path);
+      await RustLib.init(externalLibrary: ExternalLibrary.open(path));
     }
     return Storage._(Operator(schemeStr: schemeStr, map: map));
   }

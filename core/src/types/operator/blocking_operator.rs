@@ -16,7 +16,6 @@
 // under the License.
 
 use super::operator_functions::*;
-use crate::raw::oio::BlockingDelete;
 use crate::raw::*;
 use crate::*;
 
@@ -758,9 +757,21 @@ impl BlockingOperator {
             path,
             OpDelete::new(),
             |inner, path, args| {
-                let (_, mut deleter) = inner.blocking_delete()?;
-                deleter.delete(&path, args)?;
-                deleter.flush()?;
+                let mut deleter = BlockingDeleter::create(inner.clone())?;
+                if args.recursive() {
+                    let op = OpList::new()
+                        .with_recursive(true)
+                        .with_versions(args.versions());
+                    let lister = BlockingLister::create(inner, path.as_str(), op)?;
+                    deleter.delete_try_iter(lister)?;
+                } else if args.versions() {
+                    let op = OpList::new().with_versions(true);
+                    let lister = BlockingLister::create(inner, path.as_str(), op)?;
+                    deleter.delete_try_iter(lister)?;
+                } else {
+                    deleter.delete((path, args))?;
+                }
+                deleter.close()?;
 
                 Ok(())
             },
@@ -771,7 +782,7 @@ impl BlockingOperator {
     ///
     /// Also see:
     ///
-    /// - [`BlockingOperator::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`BlockingOperator::delete_try_iter`]: delete a fallible iterator of paths.
     pub fn delete_iter<I, D>(&self, iter: I) -> Result<()>
     where
         I: IntoIterator<Item = D>,

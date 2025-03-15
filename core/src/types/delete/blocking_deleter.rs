@@ -62,7 +62,7 @@ impl BlockingDeleter {
     ///
     /// Also see:
     ///
-    /// - [`BlockingDeleter::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`BlockingDeleter::delete_try_iter`]: delete a fallible iterator of paths.
     pub fn delete_iter<I, D>(&mut self, iter: I) -> Result<()>
     where
         I: IntoIterator<Item = D>,
@@ -75,7 +75,7 @@ impl BlockingDeleter {
         Ok(())
     }
 
-    /// Delete an fallible iterator of paths.
+    /// Delete a fallible iterator of paths.
     ///
     /// Also see:
     ///

@@ -27,14 +27,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(blocking_trials!(
             op,
             test_blocking_delete_file,
-            test_blocking_remove_one_file
+            test_blocking_delete_one_file
         ));
-        if cap.list_with_recursive {
-            tests.extend(blocking_trials!(op, test_blocking_remove_all_basic));
+        if cap.list {
+            tests.extend(blocking_trials!(op, test_blocking_delete_all_basic));
             if !cap.create_dir {
                 tests.extend(blocking_trials!(
                     op,
-                    test_blocking_remove_all_with_prefix_exists
+                    test_blocking_delete_all_with_prefix_exists
                 ));
             }
         }
@@ -58,7 +58,7 @@ pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Remove one file
-pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_delete_one_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
 
@@ -83,7 +83,7 @@ fn test_blocking_remove_all_with_objects(
         op.write(&path, content).expect("write must succeed");
     }
 
-    op.remove_all(&parent)?;
+    op.delete_with(&parent).recursive(true).call()?;
 
     let found = op
         .lister_with(&format!("{parent}/"))
@@ -99,13 +99,13 @@ fn test_blocking_remove_all_with_objects(
 }
 
 /// Remove all under a prefix
-pub fn test_blocking_remove_all_basic(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_delete_all_basic(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"])
 }
 
 /// Remove all under a prefix, while the prefix itself is also an object
-pub fn test_blocking_remove_all_with_prefix_exists(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_delete_all_with_prefix_exists(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
     op.write(&parent, content).expect("write must succeed");

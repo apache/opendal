@@ -44,6 +44,21 @@ impl OpCreateDir {
 #[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
+    /// The `recursive` is used to control whether the delete operation is recursive.
+    ///
+    /// if `false`, delete operation will only delete the given path.
+    /// if `true`, delete operation will delete all entries that starts with given path.
+    ///
+    /// Default to `false`.
+    recursive: bool,
+    /// The `versions` is used to control whether the object versions should be deleted.
+    ///
+    /// if `false`, delete operation will only delete the latest version.
+    /// if `true`, delete operation will delete all the object versions if object versioning is supported
+    /// by the underlying service.
+    ///
+    /// Default to `false`.
+    versions: bool,
 }
 
 impl OpDelete {
@@ -63,6 +78,28 @@ impl OpDelete {
     /// Get the version of this delete operation.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+
+    /// Change the recursive flag of this delete operation.
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
+        self
+    }
+
+    /// Get the recursive flag of this delete operation.
+    pub fn recursive(&self) -> bool {
+        self.recursive
+    }
+
+    /// Change the versions flag of this delete operation.
+    pub fn with_versions(mut self, versions: bool) -> Self {
+        self.versions = versions;
+        self
+    }
+
+    /// Get the versions flag of this delete operation.
+    pub fn versions(&self) -> bool {
+        self.versions
     }
 }
 

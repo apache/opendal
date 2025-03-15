@@ -244,6 +244,18 @@ impl FunctionDelete {
         self
     }
 
+    /// Set the versions flag for this operation.
+    pub fn versions(mut self, v: bool) -> Self {
+        self.0 = self.0.map_args(|args| args.with_versions(v));
+        self
+    }
+
+    /// Set the recursive flag for this operation.
+    pub fn recursive(mut self, v: bool) -> Self {
+        self.0 = self.0.map_args(|args| args.with_recursive(v));
+        self
+    }
+
     /// Call the function to consume all the input and generate a
     /// result.
     pub fn call(self) -> Result<()> {

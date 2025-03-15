@@ -17,7 +17,7 @@
 
 use crate::*;
 use anyhow::Result;
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use log::warn;
 use opendal::raw::{Access, OpDelete};
 
@@ -32,16 +32,21 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_with_special_chars,
             test_delete_not_existing,
             test_delete_stream,
-            test_remove_one_file,
+            test_delete_one_file,
             test_delete_with_version,
             test_delete_with_not_existing_version,
             test_batch_delete,
-            test_batch_delete_with_version
+            test_batch_delete_with_version,
+            test_delete_one_object_with_versions
         ));
-        if cap.list_with_recursive {
-            tests.extend(async_trials!(op, test_remove_all_basic));
+        if cap.list {
+            tests.extend(async_trials!(
+                op,
+                test_delete_all_basic,
+                test_delete_all_objects_with_recursive_and_versions
+            ));
             if !cap.create_dir {
-                tests.extend(async_trials!(op, test_remove_all_with_prefix_exists));
+                tests.extend(async_trials!(op, test_delete_all_with_prefix_exists));
             }
         }
     }
@@ -107,7 +112,7 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
 }
 
 /// Remove one file
-pub async fn test_remove_one_file(op: Operator) -> Result<()> {
+pub async fn test_delete_one_file(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content.clone())
@@ -180,7 +185,7 @@ async fn test_blocking_remove_all_with_objects(
         op.write(&path, content).await.expect("write must succeed");
     }
 
-    op.remove_all(&parent).await?;
+    op.delete_with(&parent).recursive(true).await?;
 
     let found = op
         .lister_with(&format!("{parent}/"))
@@ -197,14 +202,14 @@ async fn test_blocking_remove_all_with_objects(
     Ok(())
 }
 
-/// Remove all under a prefix
-pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
+/// Delete all under a prefix
+pub async fn test_delete_all_basic(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
 }
 
-/// Remove all under a prefix, while the prefix itself is also an object
-pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
+/// Delete all under a prefix, while the prefix itself is also an object
+pub async fn test_delete_all_with_prefix_exists(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
     op.write(&parent, content)
@@ -347,6 +352,77 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
     }
+
+    Ok(())
+}
+
+pub async fn test_delete_all_objects_with_recursive_and_versions(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_version {
+        return Ok(());
+    }
+
+    let parent = uuid::Uuid::new_v4().to_string();
+    let paths = ["a/b", "a/d", "a/d/e", "b/c", "c/"];
+    for path in paths {
+        let path = format!("{parent}/{path}");
+        if path.ends_with('/') {
+            op.create_dir(path.as_str()).await?;
+        } else {
+            // generate two versions.
+            op.write(&path, "delete_with_version")
+                .await
+                .expect("write must succeed");
+            op.write(&path, "delete_with_version_2")
+                .await
+                .expect("write must succeed");
+        }
+    }
+
+    let data = op
+        .lister_with(parent.as_str())
+        .recursive(true)
+        .versions(true)
+        .await?
+        .collect::<Vec<_>>()
+        .await;
+    assert!(data.len() > paths.len());
+
+    op.delete_with(parent.as_str())
+        .recursive(true)
+        .versions(true)
+        .await?;
+
+    let found = op
+        .lister_with(parent.as_str())
+        .recursive(true)
+        .versions(true)
+        .await?
+        .next()
+        .await
+        .is_some();
+    assert!(found, "all objects should be removed");
+
+    Ok(())
+}
+
+pub async fn test_delete_one_object_with_versions(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_version {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    for _ in 0..3 {
+        op.write(path.as_str(), "delete_with_version")
+            .await
+            .expect("write must succeed");
+    }
+    let data = op.list_with(path.as_str()).versions(true).await?;
+    assert_eq!(data.len(), 3);
+
+    op.delete_with(path.as_str()).versions(true).await?;
+
+    let found = op.list_with(path.as_str()).versions(true).await?.len();
+    assert_eq!(found, 0, "all objects should be removed");
 
     Ok(())
 }

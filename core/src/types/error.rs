@@ -80,7 +80,7 @@ pub enum ErrorKind {
     /// 2. reading a file with If-None-Match header but the file's ETag is match (will get a 304 Not Modified).
     ///
     /// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
-    /// So users could to handle this error by themselves.
+    /// So users could handle this error by themselves.
     ConditionNotMatch,
     /// The range of the content is not satisfied.
     ///

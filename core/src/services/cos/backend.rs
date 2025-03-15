@@ -268,6 +268,8 @@ impl Builder for CosBuilder {
                                 Some(usize::MAX)
                             },
                             write_with_user_metadata: true,
+                            write_has_etag: true,
+                            write_has_version: self.config.enable_versioning,
 
                             delete: true,
                             delete_with_version: self.config.enable_versioning,
@@ -342,7 +344,7 @@ impl Access for CosBackend {
                     meta.with_user_metadata(user_meta);
                 }
 
-                if let Some(v) = parse_header_to_str(headers, "x-cos-version-id")? {
+                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
                     meta.set_version(v);
                 }
 

@@ -82,6 +82,7 @@ jobs:
         run: |
           set -eux -o pipefail
           cargo build -r --target x86_64-unknown-linux-gnu # frb will load the so in release/, so release build here
+          ls -R .
 
       - name: test
         working-directory: bindings/dart

@@ -34,6 +34,7 @@ pub(super) fn parse_error(response: Response<Buffer>) -> Error {
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        StatusCode::NOT_MODIFIED => (ErrorKind::ConditionNotMatch, false),
         _ => (ErrorKind::Unexpected, false),
     };
 

@@ -80,7 +80,7 @@ impl Access for OnedriveBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let response = self.core.onedrive_get_content(path, args.range()).await?;
+        let response = self.core.onedrive_get_content(path, &args).await?;
 
         let status = response.status();
         match status {

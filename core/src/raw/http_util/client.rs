@@ -45,7 +45,11 @@ pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwe
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
-/// HttpClient that used across opendal.
+/// A HTTP client instance for OpenDAL's services.
+///
+/// # Notes
+///
+/// * A http client must support redirections that follows 3xx response.
 #[derive(Clone)]
 pub struct HttpClient {
     fetcher: HttpFetcher,
@@ -88,14 +92,16 @@ impl HttpClient {
         Ok(Self { fetcher })
     }
 
-    /// Send a request in async way.
+    /// Send a request and consume response.
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         let (parts, mut body) = self.fetch(req).await?.into_parts();
         let buffer = body.read_all().await?;
         Ok(Response::from_parts(parts, buffer))
     }
 
-    /// Fetch a request in async way.
+    /// Fetch a request and return a streamable [`HttpBody`].
+    ///
+    /// Services can use [`HttpBody`] as [`Access::Read`].
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         self.fetcher.fetch(req).await
     }

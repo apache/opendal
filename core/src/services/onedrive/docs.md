@@ -44,11 +44,12 @@ You should consider [`RetryLayer`] and monitor your operations carefully.
 
 ## Configuration
 
-- `access_token`: set a short-live access token for Microsoft Graph API (also, OneDrive API)
-- `refresh_token`: set a long term access token for Microsoft Graph API
-- `client_id`: set the client ID for a Microsoft Graph API application (available though Azure's registration portal)
-- `client_secret`: set the client secret for a Microsoft Graph API application
+- `access_token`: Set a short-live access token for Microsoft Graph API (also, OneDrive API)
+- `refresh_token`: Set a long term access token for Microsoft Graph API
+- `client_id`: Set the client ID for a Microsoft Graph API application (available though Azure's registration portal)
+- `client_secret`: Set the client secret for a Microsoft Graph API application
 - `root`: Set the work directory for OneDrive backend
+- `enable_versioning`: Enable versioning support for OneDrive items
 
 The configuration for tokens is one of the following:
 * `access_token` only, for short-lived access. Once the `access_token` expires, you must recreate the operator with a new token.

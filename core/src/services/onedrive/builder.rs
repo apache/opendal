@@ -129,6 +129,12 @@ impl OnedriveBuilder {
         self.config.client_secret = Some(client_secret.to_string());
         self
     }
+
+    /// Enable versioning support for OneDrive
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+        self
+    }
 }
 
 impl Builder for OnedriveBuilder {
@@ -150,6 +156,7 @@ impl Builder for OnedriveBuilder {
                 write_has_content_length: true,
                 write_has_etag: true,
                 write_has_last_modified: true,
+                write_has_version: self.config.enable_versioning,
 
                 copy: true,
                 rename: true,
@@ -159,15 +166,18 @@ impl Builder for OnedriveBuilder {
                 stat_has_content_length: true,
                 stat_has_etag: true,
                 stat_has_last_modified: true,
+                stat_with_version: self.config.enable_versioning,
 
                 delete: true,
                 create_dir: true,
 
                 list: true,
                 list_with_limit: true,
+                list_with_versions: self.config.enable_versioning,
                 list_has_content_length: true,
                 list_has_etag: true,
                 list_has_last_modified: true,
+                list_has_version: self.config.enable_versioning, // same as `list_with_versions`?
 
                 shared: true,
 

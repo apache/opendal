@@ -31,6 +31,11 @@ pub struct GraphOAuthRefreshTokenResponseBody {
 pub const GENERAL_SELECT_PARAM: &str =
     "$select=id,name,lastModifiedDateTime,eTag,size,parentReference,folder,file";
 
+/// We `$select` some fields when listing versions.
+/// Please keep [`OneDriveItemVersion`] fields and this variable in sync.
+/// Read more at https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select-parameter
+pub const VERSION_SELECT_PARAM: &str = "$select=id,size,lastModifiedDateTime";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphApiOneDriveListResponse {
     #[serde(rename = "@odata.nextLink")]
@@ -51,6 +56,7 @@ pub struct OneDriveItem {
     pub parent_reference: ParentReference,
     #[serde(flatten)]
     pub item_type: ItemType,
+    pub versions: Option<Vec<OneDriveItemVersion>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +87,22 @@ pub struct File {
 #[serde(rename_all = "camelCase")]
 pub struct Folder {
     child_count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GraphApiOneDriveVersionsResponse {
+    pub value: Vec<OneDriveItemVersion>,
+}
+
+/// A `driveItemVersion`
+///
+/// Read more at https://learn.microsoft.com/en-us/graph/api/resources/driveitemversion
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneDriveItemVersion {
+    pub id: String,
+    pub last_modified_date_time: String,
+    pub size: i64,
 }
 
 // Microsoft's documentation wants developers to set this as URL parameters. Some APIs use
@@ -305,11 +327,61 @@ mod tests {
         assert_eq!(item.e_tag, "\"{3B131E1C-7D81-20AF-80D0-720000000000},2\"");
         assert_eq!(item.size, 3);
         assert_eq!(item.parent_reference.id, "A0AA0A000A000A0A!113");
+        assert!(item.versions.is_none());
         if let ItemType::File { file, .. } = &item.item_type {
             assert_eq!(file.mime_type, "text/plain");
         } else {
             panic!("item_type is not a file");
         }
+    }
+
+    #[test]
+    fn test_parse_one_drive_file_with_version_json() {
+        let data = r#"{
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('opendal%40outlook.com')/drive/root(id,name,lastModifiedDateTime,eTag,size,parentReference,folder,file)/$entity",
+            "@odata.etag": "\"{3B131E1C-7D81-20AF-80D0-720000000000},2\"",
+            "eTag": "\"{3B131E1C-7D81-20AF-80D0-720000000000},2\"",
+            "id": "A0AA0A000A000A0A!114",
+            "lastModifiedDateTime": "2025-02-16T19:49:05Z",
+            "name": "filename.txt",
+            "size": 3,
+            "parentReference": {
+                "driveType": "personal",
+                "driveId": "A0AA0A000A000A0A",
+                "id": "A0AA0A000A000A0A!113",
+                "name": "folder_a",
+                "path": "/drive/root:/folder_a",
+                "siteId": "5f1f11f3-a6b4-4414-aee0-215c774f80db"
+            },
+            "file": {
+                "mimeType": "text/plain",
+                "hashes": {
+                    "quickXorHash": "79jFLwAAAAAAAAAAAwAAAAAAAAA=",
+                    "sha1Hash": "57218C316B6921E2CD61027A2387EDC31A2D9471",
+                    "sha256Hash": "F1945CD6C19E56B3C1C78943EF5EC18116907A4CA1EFC40A57D48AB1DB7ADFC5"
+                }
+            },
+            "versions@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('opendal%40outlook.com')/drive/root/versions",
+            "versions": [
+                {
+                    "@microsoft.graph.downloadUrl": "https://my.microsoftpersonalcontent.com/personal/A0AA0A000A000A0A/_layouts/15/download.aspx?UniqueId=3b131e1c-7d81-20af-80d0-720000000000&Translate=false&tempauth=v1e.a&ApiVersion=2.0",
+                    "id": "1.0",
+                    "lastModifiedDateTime": "2025-02-16T19:49:05Z",
+                    "size": 3,
+                    "lastModifiedBy": {
+                        "user": {
+                            "email": "erickgdev@outlook.com",
+                            "displayName": "erickgdev@outlook.com"
+                        }
+                    }
+                }
+            ]
+        }"#;
+
+        let item: OneDriveItem = serde_json::from_str(data).unwrap();
+        let versions = item.versions.expect("Versions present");
+        assert_eq!("1.0", versions[0].id);
+        assert_eq!("2025-02-16T19:49:05Z", versions[0].last_modified_date_time);
     }
 
     #[test]
@@ -323,5 +395,31 @@ mod tests {
 
         let response: OneDriveMonitorStatus = serde_json::from_str(data).unwrap();
         assert_eq!(response.status, "completed");
+    }
+
+    #[test]
+    fn test_parse_one_drive_item_versions_json() {
+        let data = r#"{
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('erickgdev%40outlook.com')/drive/root/versions(id,size,lastModifiedDateTime)",
+            "value": [
+                {
+                    "id": "2.0",
+                    "lastModifiedDateTime": "2025-03-16T17:02:49Z",
+                    "size": 74758
+                },
+                {
+                    "id": "1.0",
+                    "lastModifiedDateTime": "2025-03-12T21:59:54Z",
+                    "size": 74756
+                }
+            ]
+        }"#;
+
+        let response: GraphApiOneDriveVersionsResponse = serde_json::from_str(data).unwrap();
+        assert_eq!(response.value.len(), 2);
+        let version = &response.value[0];
+        assert_eq!(version.id, "2.0");
+        assert_eq!(version.last_modified_date_time, "2025-03-16T17:02:49Z");
+        assert_eq!(version.size, 74758);
     }
 }

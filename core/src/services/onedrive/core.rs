@@ -83,17 +83,16 @@ impl OneDriveCore {
         }
     }
 
-    pub(crate) async fn onedrive_get_stat(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let url: String = self.onedrive_item_url(path, true);
-
-        let mut request = Request::get(&url);
-        if let Some(etag) = if_none_match {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
+    /// Send a simplest stat request about a particular path
+    ///
+    /// See also: [`onedrive_stat()`].
+    pub(crate) async fn onedrive_get_stat_plain(&self, path: &str) -> Result<Response<Buffer>> {
+        let url: String = format!(
+            "{}?{}",
+            self.onedrive_item_url(path, true),
+            GENERAL_SELECT_PARAM
+        );
+        let request = Request::get(&url);
 
         let mut request = request
             .body(Buffer::new())
@@ -106,11 +105,11 @@ impl OneDriveCore {
 
     /// Create a directory at path if not exist, return the metadata about the folder
     ///
-    /// When the folder exist, this function works exactly the same as [`onedrive_get_stat()`].
+    /// When the folder exist, this function works exactly the same as [`onedrive_get_stat_plain()`].
     ///
     /// * `path` - a relative folder path
     pub(crate) async fn ensure_directory(&self, path: &str) -> Result<OneDriveItem> {
-        let response = self.onedrive_get_stat(path, None).await?;
+        let response = self.onedrive_get_stat_plain(path).await?;
         let item: OneDriveItem = match response.status() {
             StatusCode::OK => {
                 let bytes = response.into_body();
@@ -153,15 +152,33 @@ const MONITOR_WAIT_SECOND: u64 = 1;
 // `services-onedrive` uses the file path based API for simplicity.
 // Read more at https://learn.microsoft.com/en-us/graph/onedrive-addressing-driveitems
 impl OneDriveCore {
-    pub(crate) async fn onedrive_stat(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Metadata> {
-        let response = self.onedrive_get_stat(path, if_none_match).await?;
-        let status = response.status();
+    /// Send a stat request about a particular path, including:
+    ///
+    /// - Get stat object only if ETag not matches
+    /// - whether to get the object version
+    ///
+    /// See also [`onedrive_get_stat_plain()`].
+    pub(crate) async fn onedrive_stat(&self, path: &str, args: OpStat) -> Result<Metadata> {
+        let mut url: String = self.onedrive_item_url(path, true);
+        if args.version().is_some() {
+            url += "?$expand=versions(";
+            url += VERSION_SELECT_PARAM;
+            url += ")";
+        }
 
-        if !status.is_success() {
+        let mut request = Request::get(&url);
+        if let Some(etag) = args.if_none_match() {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
+
+        let mut request = request
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        let response = self.info.http_client().send(request).await?;
+        if !response.status().is_success() {
             return Err(parse_error(response));
         }
 
@@ -178,11 +195,56 @@ impl OneDriveCore {
             .with_etag(decoded_response.e_tag)
             .with_content_length(decoded_response.size.max(0) as u64);
 
+        if let Some(version) = args.version() {
+            for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
+                if item_version.id == version {
+                    meta.set_version(version);
+                    break; // early exit
+                }
+            }
+
+            if meta.version().is_none() {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "cannot find this version of the item",
+                ));
+            }
+        }
+
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
         meta.set_last_modified(date_utc_last_modified);
 
         Ok(meta)
+    }
+
+    /// Return versions of an item
+    ///
+    /// A folder has no versions.
+    ///
+    /// * `path` - a relative path
+    pub(crate) async fn onedrive_list_versions(
+        &self,
+        path: &str,
+    ) -> Result<Vec<OneDriveItemVersion>> {
+        // don't `$select` this endpoint to get the download URL.
+        let url: String = format!(
+            "{}:/versions?{}",
+            self.onedrive_item_url(path, true),
+            VERSION_SELECT_PARAM
+        );
+
+        let mut request = Request::get(url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        let response = self.info.http_client().send(request).await?;
+        let decoded_response: GraphApiOneDriveVersionsResponse =
+            serde_json::from_reader(response.into_body().reader())
+                .map_err(new_json_deserialize_error)?;
+        Ok(decoded_response.value)
     }
 
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
@@ -364,7 +426,7 @@ impl OneDriveCore {
     /// See also: [`wait_until_complete()`]
     pub(crate) async fn initialize_copy(&self, source: &str, destination: &str) -> Result<String> {
         // we must validate if source exist
-        let response = self.onedrive_get_stat(source, None).await?;
+        let response = self.onedrive_get_stat_plain(source).await?;
         if !response.status().is_success() {
             return Err(parse_error(response));
         }
@@ -439,7 +501,7 @@ impl OneDriveCore {
 
     pub(crate) async fn onedrive_move(&self, source: &str, destination: &str) -> Result<()> {
         // We must validate if the source folder exists.
-        let response = self.onedrive_get_stat(source, None).await?;
+        let response = self.onedrive_get_stat_plain(source).await?;
         if !response.status().is_success() {
             return Err(Error::new(ErrorKind::NotFound, "source not found"));
         }

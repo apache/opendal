@@ -312,10 +312,21 @@ impl OneDriveCore {
             GENERAL_SELECT_PARAM
         );
 
-        let mut request = Request::put(&url).header(header::CONTENT_LENGTH, body.len());
+        // OneDrive upload API documentation requires "text/plain" as the content type.
+        // In practice, OneDrive ignores the content type,
+        // but decides the type (when stating) based on the extension name.
+        // Also, when the extension name is unknown to OneDrive,
+        // OneDrive sets the content type as "application/octet-stream".
+        // We keep the content type according to the documentation.
+        let mut request = Request::put(&url)
+            .header(header::CONTENT_LENGTH, body.len())
+            .header(header::CONTENT_TYPE, "text/plain");
 
-        if let Some(content_type) = args.content_type() {
-            request = request.header(header::CONTENT_TYPE, content_type);
+        // when creating a new file, `IF-Match` has no effect.
+        // when updating a file with the `If-Match`, and if the ETag mismatched,
+        // OneDrive will return 412 Precondition Failed
+        if let Some(if_match) = args.if_match() {
+            request = request.header(header::IF_MATCH, if_match);
         }
 
         let mut request = request.body(body).map_err(new_request_build_error)?;
@@ -347,13 +358,20 @@ impl OneDriveCore {
         }
 
         let request = request.body(body).map_err(new_request_build_error)?;
+        // OneDrive documentation requires not sending the `Authorization` header
 
         self.info.http_client().send(request).await
     }
 
+    /// Create a upload session for chunk uploads
+    ///
+    /// This endpoint supports `If-None-Match` but [`onedrive_upload_simple()`] doesn't.
+    ///
+    /// Read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
     pub(crate) async fn onedrive_create_upload_session(
         &self,
         path: &str,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let parent_path = get_parent(path);
         let file_name = get_basename(path);
@@ -361,14 +379,16 @@ impl OneDriveCore {
             "{}:/createUploadSession",
             self.onedrive_item_url(parent_path, true),
         );
-        let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
+        let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 
+        if let Some(if_match) = args.if_match() {
+            request = request.header(header::IF_MATCH, if_match);
+        }
+
+        let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        let mut request = Request::post(url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(body)
-            .map_err(new_request_build_error)?;
+        let mut request = request.body(body).map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
 

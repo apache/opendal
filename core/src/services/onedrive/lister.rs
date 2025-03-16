@@ -104,16 +104,12 @@ impl oio::PageList for OneDriveLister {
                 normalized_path.push('/');
             }
 
-            let mut meta = Metadata::new(entry_mode).with_etag(drive_item.e_tag);
+            let mut meta = Metadata::new(entry_mode)
+                .with_etag(drive_item.e_tag)
+                .with_content_length(drive_item.size.max(0) as u64);
             let last_modified =
                 parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
             meta.set_last_modified(last_modified);
-            let content_length = if drive_item.size < 0 {
-                0
-            } else {
-                drive_item.size as u64
-            };
-            meta.set_content_length(content_length);
 
             let entry = oio::Entry::new(&normalized_path, meta);
             ctx.entries.push_back(entry)

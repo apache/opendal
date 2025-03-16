@@ -140,9 +140,10 @@ impl OneDriveUploadSessionCreationRequestBody {
     }
 }
 
+/// represents copy and rename (update) operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OneDriveCopyRequestBody {
+pub struct OneDrivePatchRequestBody {
     pub parent_reference: ParentReference,
     pub name: String,
 }

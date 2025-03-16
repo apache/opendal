@@ -148,6 +148,7 @@ impl Builder for OnedriveBuilder {
 
                 write: true,
                 copy: true,
+                rename: true,
 
                 stat: true,
                 stat_with_if_none_match: true,

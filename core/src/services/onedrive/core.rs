@@ -33,9 +33,9 @@ use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use super::graph_model::{
-    CreateDirPayload, GraphOAuthRefreshTokenResponseBody, ItemType, OneDriveCopyRequestBody,
-    OneDriveItem, OneDriveMonitorStatus, OneDriveUploadSessionCreationRequestBody, ParentReference,
-    REPLACE_EXISTING_ITEM_WHEN_CONFLICT,
+    CreateDirPayload, GraphOAuthRefreshTokenResponseBody, ItemType, OneDriveItem,
+    OneDriveMonitorStatus, OneDrivePatchRequestBody, OneDriveUploadSessionCreationRequestBody,
+    ParentReference, REPLACE_EXISTING_ITEM_WHEN_CONFLICT,
 };
 use crate::raw::*;
 use crate::*;
@@ -106,6 +106,36 @@ impl OneDriveCore {
         self.sign(&mut request).await?;
 
         self.info.http_client().send(request).await
+    }
+
+    /// Create a directory at path if not exist, return the metadata about the folder
+    ///
+    /// When the folder exist, this function works exactly the same as [`onedrive_get_stat()`].
+    ///
+    /// * `path` - a relative folder path
+    pub(crate) async fn ensure_directory(&self, path: &str) -> Result<OneDriveItem> {
+        let response = self.onedrive_get_stat(path, None).await?;
+        let item: OneDriveItem = match response.status() {
+            StatusCode::OK => {
+                let bytes = response.into_body();
+                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?
+            }
+            StatusCode::NOT_FOUND => {
+                // We must create directory for the destination
+                let response = self.onedrive_create_dir(path).await?;
+                match response.status() {
+                    StatusCode::CREATED | StatusCode::OK => {
+                        let bytes = response.into_body();
+                        serde_json::from_reader(bytes.reader())
+                            .map_err(new_json_deserialize_error)?
+                    }
+                    _ => return Err(parse_error(response)),
+                }
+            }
+            _ => return Err(parse_error(response)),
+        };
+
+        Ok(item)
     }
 
     pub(crate) async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
@@ -277,8 +307,10 @@ impl OneDriveCore {
 
     /// Create a directory
     ///
-    /// When creates a folder, OneDrive returns a status code with 201.
+    /// When creating a folder, OneDrive returns a status code with 201.
     /// When using `microsoft.graph.conflictBehavior=replace` to replace a folder, OneDrive returns 200.
+    ///
+    /// * `path` - the path to the folder without the root
     pub(crate) async fn onedrive_create_dir(&self, path: &str) -> Result<Response<Buffer>> {
         let parent_path = get_parent(path);
         let basename = get_basename(path);
@@ -312,39 +344,25 @@ impl OneDriveCore {
         self.info.http_client().send(request).await
     }
 
+    /// Initialize a copy
+    ///
+    /// * `source` - the path to the source folder without the root
+    /// * `destination` - the path to the destination folder without the root
+    ///
+    /// See also: [`wait_until_complete()`]
     pub(crate) async fn initialize_copy(&self, source: &str, destination: &str) -> Result<String> {
+        // we must validate if source exist
+        let response = self.onedrive_get_stat(source, None).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
+
         // We need to stat the parent folder to get a parent reference
         let destination_parent = get_parent(destination).to_string();
         let basename = get_basename(destination);
 
-        let response = self.onedrive_get_stat(&destination_parent, None).await?;
-        let item: OneDriveItem = match response.status() {
-            StatusCode::OK => {
-                let bytes = response.into_body();
-                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?
-            }
-            StatusCode::NOT_FOUND => {
-                // We must create directory for the destination
-                let response = self.onedrive_create_dir(&destination_parent).await?;
-                match response.status() {
-                    StatusCode::CREATED | StatusCode::OK => {
-                        let bytes = response.into_body();
-                        serde_json::from_reader(bytes.reader())
-                            .map_err(new_json_deserialize_error)?
-                    }
-                    _ => return Err(parse_error(response)),
-                }
-            }
-            _ => return Err(parse_error(response)),
-        };
-
-        let url: String = format!(
-            "{}:/copy?@microsoft.graph.conflictBehavior={}",
-            self.onedrive_item_url(source, true),
-            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
-        );
-
-        let body = OneDriveCopyRequestBody {
+        let item = self.ensure_directory(&destination_parent).await?;
+        let body = OneDrivePatchRequestBody {
             parent_reference: ParentReference {
                 path: "".to_string(), // irrelevant for copy
                 drive_id: item.parent_reference.drive_id,
@@ -352,6 +370,12 @@ impl OneDriveCore {
             },
             name: basename.to_string(),
         };
+        let url: String = format!(
+            "{}:/copy?@microsoft.graph.conflictBehavior={}",
+            self.onedrive_item_url(source, true),
+            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
+        );
+
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let buffer = Buffer::from(Bytes::from(body_bytes));
         let mut request = Request::post(&url)
@@ -399,6 +423,49 @@ impl OneDriveCore {
             ErrorKind::Unexpected,
             "Exceed monitoring timeout",
         ))
+    }
+
+    pub(crate) async fn onedrive_move(&self, source: &str, destination: &str) -> Result<()> {
+        // We must validate if the source folder exists.
+        let response = self.onedrive_get_stat(source, None).await?;
+        if !response.status().is_success() {
+            return Err(Error::new(ErrorKind::NotFound, "source not found"));
+        }
+
+        // We want a parent reference about the destination's parent, or the destination folder itself.
+        let destination_parent = get_parent(destination).to_string();
+        let basename = get_basename(destination);
+
+        let item = self.ensure_directory(&destination_parent).await?;
+        let body = OneDrivePatchRequestBody {
+            parent_reference: ParentReference {
+                path: "".to_string(), // irrelevant for update
+                // reusing `ParentReference` for convenience. The API requires this value to be correct.
+                drive_id: item.parent_reference.drive_id,
+                id: item.id,
+            },
+            name: basename.to_string(),
+        };
+        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let buffer = Buffer::from(Bytes::from(body_bytes));
+        let url: String = format!(
+            "{}?@microsoft.graph.conflictBehavior={}",
+            self.onedrive_item_url(source, true),
+            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
+        );
+        let mut request = Request::patch(&url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(buffer)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        let response = self.info.http_client().send(request).await?;
+        match response.status() {
+            // can get etag, metadata, etc...
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(response)),
+        }
     }
 }
 

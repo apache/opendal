@@ -47,6 +47,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 
 impl Configurator for GcsConfig {
     type Builder = GcsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,

@@ -21,8 +21,7 @@ use bytes::Buf;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::GraphApiOneDriveListResponse;
-use super::graph_model::ItemType;
+use super::graph_model::{GraphApiOneDriveListResponse, ItemType, GENERAL_SELECT_PARAM};
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
@@ -44,8 +43,9 @@ impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let request_url = if ctx.token.is_empty() {
             format!(
-                "{}:/children",
-                self.core.onedrive_item_url(&self.path, true)
+                "{}:/children?{}",
+                self.core.onedrive_item_url(&self.path, true),
+                GENERAL_SELECT_PARAM
             )
         } else {
             ctx.token.clone()

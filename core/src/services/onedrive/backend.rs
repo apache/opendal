@@ -118,6 +118,16 @@ impl Access for OnedriveBackend {
         Ok(RpCopy::default())
     }
 
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        if from == to {
+            return Ok(RpRename::default());
+        }
+
+        self.core.onedrive_move(from, to).await?;
+
+        Ok(RpRename::default())
+    }
+
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = OneDriveLister::new(path.to_string(), self.core.clone());
         Ok((RpList::default(), oio::PageLister::new(l)))

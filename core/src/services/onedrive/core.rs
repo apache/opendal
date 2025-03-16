@@ -229,23 +229,33 @@ impl OneDriveCore {
         self.info.http_client().fetch(request).await
     }
 
+    /// Upload a file
+    ///
+    /// When creating a file,
+    ///
+    /// * OneDrive returns 201 if the file is new.
+    /// * OneDrive returns 200 if successfully overwrote the file successfully.
+    ///
+    /// Read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content
+    ///
+    /// This function is different than uploading a file with chunks.
+    /// See also [`create_upload_session()`] and [`OneDriveWriter::write_chunked`].
     pub async fn onedrive_upload_simple(
         &self,
         path: &str,
-        size: Option<usize>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let url = format!("{}:/content", self.onedrive_item_url(path, true));
+        let url = format!(
+            "{}:/content?@microsoft.graph.conflictBehavior={}",
+            self.onedrive_item_url(path, true),
+            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
+        );
 
-        let mut request = Request::put(&url);
+        let mut request = Request::put(&url).header(header::CONTENT_LENGTH, body.len());
 
-        if let Some(size) = size {
-            request = request.header(header::CONTENT_LENGTH, size)
-        }
-
-        if let Some(mime) = args.content_type() {
-            request = request.header(header::CONTENT_TYPE, mime)
+        if let Some(content_type) = args.content_type() {
+            request = request.header(header::CONTENT_TYPE, content_type);
         }
 
         let mut request = request.body(body).map_err(new_request_build_error)?;
@@ -267,10 +277,10 @@ impl OneDriveCore {
         let mut request = Request::put(url);
 
         let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
-        request = request.header("Content-Range".to_string(), range);
+        request = request.header(header::CONTENT_RANGE, range);
 
         let size = chunk_end - offset + 1;
-        request = request.header(header::CONTENT_LENGTH, size.to_string());
+        request = request.header(header::CONTENT_LENGTH, size);
 
         if let Some(mime) = args.content_type() {
             request = request.header(header::CONTENT_TYPE, mime)

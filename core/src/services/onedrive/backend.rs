@@ -73,11 +73,7 @@ impl Access for OnedriveBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let path = build_rooted_abs_path(&self.core.root, path);
-        let meta = self
-            .core
-            .onedrive_stat(path.as_str(), args.if_none_match())
-            .await?;
+        let meta = self.core.onedrive_stat(path, args.if_none_match()).await?;
 
         Ok(RpStat::new(meta))
     }
@@ -99,11 +95,13 @@ impl Access for OnedriveBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = build_rooted_abs_path(&self.core.root, path);
-
         Ok((
             RpWrite::default(),
-            oio::OneShotWriter::new(OneDriveWriter::new(self.core.clone(), args, path)),
+            oio::OneShotWriter::new(OneDriveWriter::new(
+                self.core.clone(),
+                args,
+                path.to_string(),
+            )),
         ))
     }
 

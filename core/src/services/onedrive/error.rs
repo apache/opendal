@@ -28,7 +28,14 @@ pub(super) fn parse_error(response: Response<Buffer>) -> Error {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+        // The OneDrive service replaces resources.
+        // However, the Onedrive doesn't have Strong Read-After-Write properties,
+        // the concurrent requests to create directories might result in errors.
+        //
+        // Running behavior tests can yield HTTP 409 Conflict because of the consistency guarantee.
+        //
+        // Read more about `REPLACE_EXISTING_ITEM_WHEN_CONFLICT` in `graph_model.rs`.
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, true),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

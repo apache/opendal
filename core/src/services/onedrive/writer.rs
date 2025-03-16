@@ -23,7 +23,6 @@ use http::StatusCode;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 use crate::raw::*;
 use crate::*;
@@ -124,20 +123,7 @@ impl OneDriveWriter {
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
-        let file_name_from_path = self.path.split('/').next_back().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "connection string must have AccountName",
-            )
-        })?;
-        let url = format!(
-            "{}:{}:/createUploadSession",
-            OneDriveCore::DRIVE_ROOT_URL,
-            percent_encode_path(&self.path)
-        );
-        let body = OneDriveUploadSessionCreationRequestBody::new(file_name_from_path.to_string());
-
-        let response = self.core.onedrive_create_upload_session(&url, body).await?;
+        let response = self.core.onedrive_create_upload_session(&self.path).await?;
 
         let status = response.status();
 

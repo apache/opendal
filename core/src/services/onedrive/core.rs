@@ -185,6 +185,35 @@ impl OneDriveCore {
         Ok(meta)
     }
 
+    /// Return versions of an item
+    ///
+    /// A folder has no versions.
+    ///
+    /// * `path` - a relative path
+    pub(crate) async fn onedrive_list_versions(
+        &self,
+        path: &str,
+    ) -> Result<Vec<OneDriveItemVersion>> {
+        // don't `$select` this endpoint to get the download URL.
+        let url: String = format!(
+            "{}:/versions?{}",
+            self.onedrive_item_url(path, true),
+            VERSION_SELECT_PARAM
+        );
+
+        let mut request = Request::get(url)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        let response = self.info.http_client().send(request).await?;
+        let decoded_response: GraphApiOneDriveVersionsResponse =
+            serde_json::from_reader(response.into_body().reader())
+                .map_err(new_json_deserialize_error)?;
+        Ok(decoded_response.value)
+    }
+
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
         let mut request = Request::get(url)
             .body(Buffer::new())

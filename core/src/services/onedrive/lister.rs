@@ -76,6 +76,8 @@ impl oio::PageList for OneDriveLister {
         let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
+        let list_with_versions = self.core.info.native_capability().list_with_versions;
+
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
             // TODO: when listing a directory directly, we could reuse the stat result,
@@ -85,7 +87,14 @@ impl oio::PageList for OneDriveLister {
             } else {
                 self.path.clone()
             };
-            let meta = self.core.onedrive_stat(&path, None).await?;
+            let mut meta = self.core.onedrive_stat(&path, None).await?;
+            if list_with_versions {
+                let versions = self.core.onedrive_list_versions(&path).await?;
+                if let Some(version) = versions.first() {
+                    meta.set_version(&version.id);
+                }
+            }
+
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
         }
@@ -121,6 +130,13 @@ impl oio::PageList for OneDriveLister {
             let last_modified =
                 parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
             meta.set_last_modified(last_modified);
+
+            if list_with_versions {
+                let versions = self.core.onedrive_list_versions(&path).await?;
+                if let Some(version) = versions.first() {
+                    meta.set_version(&version.id);
+                }
+            }
 
             let entry = oio::Entry::new(&normalized_path, meta);
             ctx.entries.push_back(entry)

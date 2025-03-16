@@ -31,6 +31,11 @@ pub struct GraphOAuthRefreshTokenResponseBody {
 pub const GENERAL_SELECT_PARAM: &str =
     "$select=id,name,lastModifiedDateTime,eTag,size,parentReference,folder,file";
 
+/// We `$select` some fields when listing versions.
+/// Please keep [`OneDriveItemVersion`] fields and this variable in sync.
+/// Read more at https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select-parameter
+pub const VERSION_SELECT_PARAM: &str = "$select=id,size,lastModifiedDateTime";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphApiOneDriveListResponse {
     #[serde(rename = "@odata.nextLink")]
@@ -81,6 +86,22 @@ pub struct File {
 #[serde(rename_all = "camelCase")]
 pub struct Folder {
     child_count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GraphApiOneDriveVersionsResponse {
+    pub value: Vec<OneDriveItemVersion>,
+}
+
+/// A `driveItemVersion`
+///
+/// Read more at https://learn.microsoft.com/en-us/graph/api/resources/driveitemversion
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneDriveItemVersion {
+    pub id: String,
+    pub last_modified_date_time: String,
+    pub size: i64,
 }
 
 // Microsoft's documentation wants developers to set this as URL parameters. Some APIs use
@@ -323,5 +344,31 @@ mod tests {
 
         let response: OneDriveMonitorStatus = serde_json::from_str(data).unwrap();
         assert_eq!(response.status, "completed");
+    }
+
+    #[test]
+    fn test_parse_one_drive_item_versions_json() {
+        let data = r#"{
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('erickgdev%40outlook.com')/drive/root/versions(id,size,lastModifiedDateTime)",
+            "value": [
+                {
+                    "id": "2.0",
+                    "lastModifiedDateTime": "2025-03-16T17:02:49Z",
+                    "size": 74758
+                },
+                {
+                    "id": "1.0",
+                    "lastModifiedDateTime": "2025-03-12T21:59:54Z",
+                    "size": 74756
+                }
+            ]
+        }"#;
+
+        let response: GraphApiOneDriveVersionsResponse = serde_json::from_str(data).unwrap();
+        assert_eq!(response.value.len(), 2);
+        let version = &response.value[0];
+        assert_eq!(version.id, "2.0");
+        assert_eq!(version.last_modified_date_time, "2025-03-16T17:02:49Z");
+        assert_eq!(version.size, 74758);
     }
 }

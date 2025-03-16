@@ -61,7 +61,6 @@ pub struct GcsCore {
     pub bucket: String,
     pub root: String,
 
-    pub client: HttpClient,
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
     pub token: Option<String>,
@@ -174,7 +173,7 @@ impl GcsCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -254,7 +253,7 @@ impl GcsCore {
         let mut req = self.gcs_get_object_request(path, range, args)?;
 
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn gcs_insert_object_request(

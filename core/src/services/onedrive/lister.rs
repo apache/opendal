@@ -69,8 +69,7 @@ impl oio::PageList for OneDriveLister {
                 ctx.done = true;
                 return Ok(());
             }
-            let error = parse_error(response);
-            return Err(error);
+            return Err(parse_error(response));
         }
 
         let bytes = response.into_body();

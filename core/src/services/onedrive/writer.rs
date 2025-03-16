@@ -117,9 +117,7 @@ impl OneDriveWriter {
                 )
                 .await?;
 
-            let status = response.status();
-
-            match status {
+            match response.status() {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
                 StatusCode::ACCEPTED | StatusCode::OK => {} // skip, in the middle of upload
@@ -150,10 +148,7 @@ impl OneDriveWriter {
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
         let response = self.core.onedrive_create_upload_session(&self.path).await?;
-
-        let status = response.status();
-
-        match status {
+        match response.status() {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
                 let bs = response.into_body();

@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_parse_one_drive_monitor_status_json() {
         let data = r#"{
-        "@odata.context": "https://my.microsoftpersonalcontent.com/personal/d0af7d813b131e1c/_api/v2.0/$metadata#oneDrive.asynchronousOperationStatus",
+        "@odata.context": "https://my.microsoftpersonalcontent.com/personal/D1AA1A213A111A1C/_api/v2.0/$metadata#oneDrive.asynchronousOperationStatus",
         "percentageComplete": 100.0,
         "resourceId": "01JP3NYHGSBJ7R42UN65HZ333HZFWQTGL4",
         "status": "completed"

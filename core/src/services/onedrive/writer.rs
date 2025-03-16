@@ -23,22 +23,23 @@ use http::StatusCode;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::OneDriveUploadSessionCreationResponseBody;
+use super::graph_model::{OneDriveItem, OneDriveUploadSessionCreationResponseBody};
 use crate::raw::*;
 use crate::*;
 
 pub struct OneDriveWriter {
     core: Arc<OneDriveCore>,
-
     op: OpWrite,
     path: String,
 }
 
 impl OneDriveWriter {
-    const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024;
+    const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024; // 4MB
+
     // If your app splits a file into multiple byte ranges, the size of each byte range MUST be a multiple of 320 KiB (327,680 bytes). Using a fragment size that does not divide evenly by 320 KiB will result in errors committing some files.
     // https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
     const CHUNK_SIZE_FACTOR: usize = 327_680;
+
     pub fn new(core: Arc<OneDriveCore>, op: OpWrite, path: String) -> Self {
         OneDriveWriter { core, op, path }
     }
@@ -48,34 +49,43 @@ impl oio::OneShotWrite for OneDriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let size = bs.len();
 
-        if size <= Self::MAX_SIMPLE_SIZE {
-            self.write_simple(bs).await?;
+        let meta = if size <= Self::MAX_SIMPLE_SIZE {
+            self.write_simple(bs).await?
         } else {
-            self.write_chunked(bs.to_bytes()).await?;
-        }
+            self.write_chunked(bs.to_bytes()).await?
+        };
 
-        Ok(Metadata::default())
+        Ok(meta)
     }
 }
 
 impl OneDriveWriter {
-    async fn write_simple(&self, bs: Buffer) -> Result<()> {
+    async fn write_simple(&self, bs: Buffer) -> Result<Metadata> {
         let response = self
             .core
-            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, bs)
+            .onedrive_upload_simple(&self.path, &self.op, bs)
             .await?;
 
-        let status = response.status();
+        match response.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
+                    .map_err(new_json_deserialize_error)?;
 
-        match status {
-            // Typical response code: 201 Created
-            // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+                let mut meta = Metadata::new(EntryMode::FILE)
+                    .with_etag(item.e_tag)
+                    .with_content_length(item.size.max(0) as u64);
+
+                let last_modified = item.last_modified_date_time;
+                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                meta.set_last_modified(date_utc_last_modified);
+
+                Ok(meta)
+            }
             _ => Err(parse_error(response)),
         }
     }
 
-    pub(crate) async fn write_chunked(&self, total_bytes: Bytes) -> Result<()> {
+    pub(crate) async fn write_chunked(&self, total_bytes: Bytes) -> Result<Metadata> {
         // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
         // 1. Create an upload session
         // 2. Upload the bytes of each chunk
@@ -99,7 +109,7 @@ impl OneDriveWriter {
                 .core
                 .onedrive_chunked_upload(
                     &session_response.upload_url,
-                    &OpWrite::default(),
+                    &self.op,
                     offset,
                     chunk_end,
                     total_len,
@@ -112,14 +122,30 @@ impl OneDriveWriter {
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {}
+                StatusCode::ACCEPTED | StatusCode::OK => {} // skip, in the middle of upload
+                StatusCode::CREATED => {
+                    // last trunk
+                    let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                    let mut meta = Metadata::new(EntryMode::FILE)
+                        .with_etag(item.e_tag)
+                        .with_content_length(item.size.max(0) as u64);
+
+                    let last_modified = item.last_modified_date_time;
+                    let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                    meta.set_last_modified(date_utc_last_modified);
+                    return Ok(meta);
+                }
                 _ => return Err(parse_error(response)),
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
         }
 
-        Ok(())
+        debug_assert!(false, "should have returned");
+
+        Ok(Metadata::default()) // should not happen, but start with handling this gracefully - do nothing, but return the default metadata
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {

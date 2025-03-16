@@ -64,9 +64,7 @@ impl Access for OnedriveBackend {
         }
 
         let response = self.core.onedrive_create_dir(path).await?;
-
-        let status = response.status();
-        match status {
+        match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(response)),
         }
@@ -80,9 +78,7 @@ impl Access for OnedriveBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let response = self.core.onedrive_get_content(path, &args).await?;
-
-        let status = response.status();
-        match status {
+        match response.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 Ok((RpRead::default(), response.into_body()))
             }

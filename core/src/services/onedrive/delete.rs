@@ -37,10 +37,7 @@ impl OneDriveDeleter {
 impl oio::OneShotDelete for OneDriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let response = self.core.onedrive_delete(&path).await?;
-
-        let status = response.status();
-
-        match status {
+        match response.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(response)),
         }

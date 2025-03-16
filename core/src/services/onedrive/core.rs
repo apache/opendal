@@ -529,8 +529,7 @@ impl OneDriveSigner {
             .map_err(new_request_build_error)?;
 
         let response = self.info.http_client().send(request).await?;
-        let status = response.status();
-        match status {
+        match response.status() {
             StatusCode::OK => {
                 let resp_body = response.into_body();
                 let data: GraphOAuthRefreshTokenResponseBody =

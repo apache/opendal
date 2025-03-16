@@ -36,9 +36,9 @@ pub struct OneDriveWriter {
 impl OneDriveWriter {
     const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
-    // If your app splits a file into multiple byte ranges, the size of each byte range MUST be a multiple of 320 KiB (327,680 bytes). Using a fragment size that does not divide evenly by 320 KiB will result in errors committing some files.
-    // https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
-    const CHUNK_SIZE_FACTOR: usize = 327_680;
+    // OneDrive demands the chunk size to be a multiple to to 320 KiB.
+    // Choose a value smaller than `MAX_SIMPLE_SIZE`
+    const CHUNK_SIZE_FACTOR: usize = 327_680 * 12; // floor(MAX_SIMPLE_SIZE / 320KB)
 
     pub fn new(core: Arc<OneDriveCore>, op: OpWrite, path: String) -> Self {
         OneDriveWriter { core, op, path }
@@ -52,7 +52,7 @@ impl oio::OneShotWrite for OneDriveWriter {
         let mut meta = if size <= Self::MAX_SIMPLE_SIZE {
             self.write_simple(bs).await?
         } else {
-            self.write_chunked(bs.to_bytes()).await?
+            self.write_chunked(bs).await?
         };
 
         if self.core.info.native_capability().write_has_version {
@@ -92,7 +92,7 @@ impl OneDriveWriter {
         }
     }
 
-    pub(crate) async fn write_chunked(&self, total_bytes: Bytes) -> Result<Metadata> {
+    pub(crate) async fn write_chunked(&self, bs: Buffer) -> Result<Metadata> {
         // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
         // 1. Create an upload session
         // 2. Upload the bytes of each chunk
@@ -101,15 +101,15 @@ impl OneDriveWriter {
         let session_response = self.create_upload_session().await?;
 
         let mut offset = 0;
+        let total_bytes = bs.to_bytes();
+        let total_len = total_bytes.len();
+        let chunks = total_bytes.chunks(OneDriveWriter::CHUNK_SIZE_FACTOR);
 
-        let iter = total_bytes.chunks(OneDriveWriter::CHUNK_SIZE_FACTOR);
-
-        for chunk in iter {
+        for chunk in chunks {
             let mut end = offset + OneDriveWriter::CHUNK_SIZE_FACTOR;
             if end > total_bytes.len() {
                 end = total_bytes.len();
             }
-            let total_len = total_bytes.len();
             let chunk_end = end - 1;
 
             let response = self
@@ -154,9 +154,11 @@ impl OneDriveWriter {
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
-        let response = self.core.onedrive_create_upload_session(&self.path).await?;
+        let response = self
+            .core
+            .onedrive_create_upload_session(&self.path, &self.op)
+            .await?;
         match response.status() {
-            // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
                 let bs = response.into_body();
                 let result: OneDriveUploadSessionCreationResponseBody =

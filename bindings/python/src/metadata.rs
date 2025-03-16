@@ -90,6 +90,18 @@ impl Metadata {
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
     }
+
+    pub fn __repr__(&self) -> String {
+        format!(
+            "Metadata(content_disposition={}, content_length={}, content_md5={}, content_type={}, etag={}, mode={})",
+            self.0.content_disposition().unwrap_or("None"),
+            self.0.content_length(),
+            self.0.content_md5().unwrap_or("None"),
+            self.0.content_type().unwrap_or("None"),
+            self.0.etag().unwrap_or("None"),
+            self.0.mode()
+        )
+    }
 }
 
 #[pyclass(module = "opendal")]

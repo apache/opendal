@@ -164,6 +164,7 @@ impl Builder for OnedriveBuilder {
                 create_dir: true,
 
                 list: true,
+                list_with_limit: true,
                 list_has_content_length: true,
                 list_has_etag: true,
                 list_has_last_modified: true,

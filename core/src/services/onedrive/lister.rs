@@ -29,24 +29,34 @@ use crate::*;
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,
     path: String,
+    op: OpList,
 }
 
 impl OneDriveLister {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
-    pub(crate) fn new(path: String, core: Arc<OneDriveCore>) -> Self {
-        Self { core, path }
+    pub(crate) fn new(path: String, core: Arc<OneDriveCore>, args: &OpList) -> Self {
+        Self {
+            core,
+            path,
+            op: args.clone(),
+        }
     }
 }
 
 impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let request_url = if ctx.token.is_empty() {
-            format!(
+            let base = format!(
                 "{}:/children?{}",
                 self.core.onedrive_item_url(&self.path, true),
                 GENERAL_SELECT_PARAM
-            )
+            );
+            if let Some(limit) = self.op.limit() {
+                base + &format!("&$top={}", limit)
+            } else {
+                base
+            }
         } else {
             ctx.token.clone()
         };

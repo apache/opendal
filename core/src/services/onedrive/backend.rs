@@ -128,8 +128,8 @@ impl Access for OnedriveBackend {
         Ok(RpRename::default())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = OneDriveLister::new(path.to_string(), self.core.clone());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = OneDriveLister::new(path.to_string(), self.core.clone(), &args);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

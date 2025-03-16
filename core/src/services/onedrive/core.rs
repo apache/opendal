@@ -32,11 +32,7 @@ use http::StatusCode;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use super::graph_model::{
-    CreateDirPayload, GraphOAuthRefreshTokenResponseBody, ItemType, OneDriveItem,
-    OneDriveMonitorStatus, OneDrivePatchRequestBody, OneDriveUploadSessionCreationRequestBody,
-    ParentReference, REPLACE_EXISTING_ITEM_WHEN_CONFLICT,
-};
+use super::graph_model::*;
 use crate::raw::*;
 use crate::*;
 
@@ -82,7 +78,7 @@ impl OneDriveCore {
             format!(
                 "{}:{}",
                 Self::DRIVE_ROOT_URL,
-                percent_encode_path(&absolute_path)
+                percent_encode_path(&absolute_path),
             )
         }
     }
@@ -213,6 +209,7 @@ impl OneDriveCore {
         path: &str,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
+        // We can't "select" the OneDrive API response fields when reading because "select" shadows not found error
         let url: String = format!("{}:/content", self.onedrive_item_url(path, true));
 
         let mut request = Request::get(&url).header(header::RANGE, args.range().to_header());
@@ -247,9 +244,10 @@ impl OneDriveCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
-            "{}:/content?@microsoft.graph.conflictBehavior={}",
+            "{}:/content?@microsoft.graph.conflictBehavior={}&{}",
             self.onedrive_item_url(path, true),
-            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
+            REPLACE_EXISTING_ITEM_WHEN_CONFLICT,
+            GENERAL_SELECT_PARAM
         );
 
         let mut request = Request::put(&url).header(header::CONTENT_LENGTH, body.len());
@@ -326,7 +324,11 @@ impl OneDriveCore {
         let basename = get_basename(path);
         let folder_name = basename.strip_suffix('/').unwrap_or(basename);
 
-        let url = format!("{}:/children", self.onedrive_item_url(parent_path, true));
+        let url = format!(
+            "{}:/children?{}",
+            self.onedrive_item_url(parent_path, true),
+            GENERAL_SELECT_PARAM
+        );
 
         let payload = CreateDirPayload::new(folder_name.to_string());
         let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
@@ -459,7 +461,7 @@ impl OneDriveCore {
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let buffer = Buffer::from(Bytes::from(body_bytes));
         let url: String = format!(
-            "{}?@microsoft.graph.conflictBehavior={}",
+            "{}?@microsoft.graph.conflictBehavior={}&$select=id",
             self.onedrive_item_url(source, true),
             REPLACE_EXISTING_ITEM_WHEN_CONFLICT
         );

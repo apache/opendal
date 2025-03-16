@@ -29,15 +29,13 @@ use http::Request;
 use http::Response;
 
 use http::StatusCode;
-use services::onedrive::graph_model::ParentReference;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use super::graph_model::OneDriveMonitorStatus;
-use super::graph_model::REPLACE_EXISTING_ITEM_WHEN_CONFLICT;
 use super::graph_model::{
     CreateDirPayload, GraphOAuthRefreshTokenResponseBody, ItemType, OneDriveCopyRequestBody,
-    OneDriveItem, OneDriveUploadSessionCreationRequestBody,
+    OneDriveItem, OneDriveMonitorStatus, OneDriveUploadSessionCreationRequestBody, ParentReference,
+    REPLACE_EXISTING_ITEM_WHEN_CONFLICT,
 };
 use crate::raw::*;
 use crate::*;
@@ -59,6 +57,63 @@ impl Debug for OneDriveCore {
 // OneDrive returns 400 when try to access a dir with the POSIX special directory entries
 const SPECIAL_POSIX_ENTRIES: [&str; 3] = [".", "/", ""];
 
+// organizes a few core module functions
+impl OneDriveCore {
+    // OneDrive personal's base URL. `me` is an alias that represents the user's "Drive".
+    pub(crate) const DRIVE_ROOT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/root";
+
+    /// Get a URL to an OneDrive item
+    pub(crate) fn onedrive_item_url(&self, path: &str, build_absolute_path: bool) -> String {
+        // OneDrive requires the root to be the same as `DRIVE_ROOT_URL`.
+        // For files under the root, the URL pattern becomes `https://graph.microsoft.com/v1.0/me/drive/root:<path>:`
+        if self.root == "/" && SPECIAL_POSIX_ENTRIES.contains(&path) {
+            Self::DRIVE_ROOT_URL.to_string()
+        } else {
+            // OneDrive returns 400 when try to access a folder with a ending slash
+            let absolute_path = if build_absolute_path {
+                let rooted_path = build_rooted_abs_path(&self.root, path);
+                rooted_path
+                    .strip_suffix('/')
+                    .unwrap_or(rooted_path.as_str())
+                    .to_string()
+            } else {
+                path.to_string()
+            };
+            format!(
+                "{}:{}",
+                Self::DRIVE_ROOT_URL,
+                percent_encode_path(&absolute_path)
+            )
+        }
+    }
+
+    pub(crate) async fn onedrive_get_stat(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let url: String = self.onedrive_item_url(path, true);
+
+        let mut request = Request::get(&url);
+        if let Some(etag) = if_none_match {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
+
+        let mut request = request
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
+        self.info.http_client().send(request).await
+    }
+
+    pub(crate) async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
+        let mut signer = self.signer.lock().await;
+        signer.sign(request).await
+    }
+}
+
 // OneDrive copy action is asynchronous. We query an endpoint and wait 1 second.
 // This is the maximum attempts we will wait.
 const MAX_MONITOR_ATTEMPT: i32 = 3600;
@@ -71,29 +126,7 @@ const MONITOR_WAIT_SECOND: u64 = 1;
 //
 // `services-onedrive` uses the file path based API for simplicity.
 // Read more at https://learn.microsoft.com/en-us/graph/onedrive-addressing-driveitems
-//
-// When debugging and running behavior tests against `services-onedrive`,
-// please try to keep the drive clean to reduce the likelihood of flaky results.
 impl OneDriveCore {
-    // OneDrive personal's base URL. `me` is an alias that represents the user's "Drive".
-    pub(crate) const DRIVE_ROOT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/root";
-
-    /// Get a URL to an OneDrive item
-    ///
-    /// This function is useful for get an item and listing where OneDrive requires a more precise file path.
-    pub(crate) fn onedrive_item_url(root: &str, path: &str) -> String {
-        // OneDrive requires the root to be the same as `DRIVE_ROOT_URL`.
-        // For files under the root, the URL pattern becomes `https://graph.microsoft.com/v1.0/me/drive/root:<path>:`
-        if root == "/" && SPECIAL_POSIX_ENTRIES.contains(&path) {
-            Self::DRIVE_ROOT_URL.to_string()
-        } else {
-            // OneDrive returns 400 when try to access a folder with a ending slash
-            let path = build_rooted_abs_path(root, path);
-            let path = path.strip_suffix('/').unwrap_or(path.as_str());
-            format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(path))
-        }
-    }
-
     pub(crate) async fn onedrive_stat(
         &self,
         path: &str,
@@ -126,27 +159,6 @@ impl OneDriveCore {
         Ok(meta)
     }
 
-    pub(crate) async fn onedrive_get_stat(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let url: String = format!("{}:{}", Self::DRIVE_ROOT_URL, percent_encode_path(path));
-
-        let mut request = Request::get(&url);
-        if let Some(etag) = if_none_match {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
-
-        let mut request = request
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut request).await?;
-
-        self.info.http_client().send(request).await
-    }
-
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
         let mut request = Request::get(url)
             .body(Buffer::new())
@@ -171,12 +183,7 @@ impl OneDriveCore {
         path: &str,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let url: String = format!(
-            "{}:{}:/content",
-            Self::DRIVE_ROOT_URL,
-            percent_encode_path(&path),
-        );
+        let url: String = format!("{}:/content", self.onedrive_item_url(path, true));
 
         let mut request = Request::get(&url).header(header::RANGE, args.range().to_header());
         if let Some(etag) = args.if_none_match() {
@@ -199,11 +206,7 @@ impl OneDriveCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let url = format!(
-            "{}:{}:/content",
-            Self::DRIVE_ROOT_URL,
-            percent_encode_path(path)
-        );
+        let url = format!("{}:/content", self.onedrive_item_url(path, true));
 
         let mut request = Request::put(&url);
 
@@ -250,9 +253,16 @@ impl OneDriveCore {
 
     pub(crate) async fn onedrive_create_upload_session(
         &self,
-        url: &str,
-        body: OneDriveUploadSessionCreationRequestBody,
+        path: &str,
     ) -> Result<Response<Buffer>> {
+        let parent_path = get_parent(path);
+        let file_name = get_basename(path);
+        let url = format!(
+            "{}:/createUploadSession",
+            self.onedrive_item_url(parent_path, true),
+        );
+        let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
+
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
         let mut request = Request::post(url)
@@ -270,17 +280,11 @@ impl OneDriveCore {
     /// When creates a folder, OneDrive returns a status code with 201.
     /// When using `microsoft.graph.conflictBehavior=replace` to replace a folder, OneDrive returns 200.
     pub(crate) async fn onedrive_create_dir(&self, path: &str) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let path_before_last_slash = get_parent(&path);
-        let normalized = path_before_last_slash
-            .strip_suffix('/')
-            .unwrap_or(path_before_last_slash);
-        let encoded_path = percent_encode_path(normalized);
+        let parent_path = get_parent(path);
+        let basename = get_basename(path);
+        let folder_name = basename.strip_suffix('/').unwrap_or(basename);
 
-        let url = format!("{}:{}:/children", Self::DRIVE_ROOT_URL, encoded_path);
-
-        let folder_name = get_basename(&path);
-        let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
+        let url = format!("{}:/children", self.onedrive_item_url(parent_path, true));
 
         let payload = CreateDirPayload::new(folder_name.to_string());
         let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
@@ -297,8 +301,7 @@ impl OneDriveCore {
     }
 
     pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
-        let url = format!("{}:/{}:", Self::DRIVE_ROOT_URL, percent_encode_path(&path));
+        let url = self.onedrive_item_url(path, true);
 
         let mut request = Request::delete(&url)
             .body(Buffer::new())
@@ -313,9 +316,8 @@ impl OneDriveCore {
         // We need to stat the parent folder to get a parent reference
         let destination_parent = get_parent(destination).to_string();
         let basename = get_basename(destination);
-        let absolute_parent = build_rooted_abs_path(&self.root, &destination_parent);
 
-        let response = self.onedrive_get_stat(&absolute_parent, None).await?;
+        let response = self.onedrive_get_stat(&destination_parent, None).await?;
         let item: OneDriveItem = match response.status() {
             StatusCode::OK => {
                 let bytes = response.into_body();
@@ -336,11 +338,9 @@ impl OneDriveCore {
             _ => return Err(parse_error(response)),
         };
 
-        let absolute_source = build_rooted_abs_path(&self.root, source);
         let url: String = format!(
-            "{}:{}:/copy?@microsoft.graph.conflictBehavior={}",
-            Self::DRIVE_ROOT_URL,
-            percent_encode_path(&absolute_source),
+            "{}:/copy?@microsoft.graph.conflictBehavior={}",
+            self.onedrive_item_url(source, true),
             REPLACE_EXISTING_ITEM_WHEN_CONFLICT
         );
 
@@ -399,11 +399,6 @@ impl OneDriveCore {
             ErrorKind::Unexpected,
             "Exceed monitoring timeout",
         ))
-    }
-
-    pub(crate) async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
-        let mut signer = self.signer.lock().await;
-        signer.sign(request).await
     }
 }
 

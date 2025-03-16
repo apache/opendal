@@ -85,9 +85,8 @@ pub struct Folder {
     child_count: i64,
 }
 
-// Microsoft's documentation wants developers to set this as URL parameters.
-// If we follow the documentation, we can't replace the directory (409 existed error).
-// Though, even with this declaration, behavior tests show **flaky behavior**.
+// Microsoft's documentation wants developers to set this as URL parameters. Some APIs use
+// this as an data field in the payload.
 pub const REPLACE_EXISTING_ITEM_WHEN_CONFLICT: &str = "replace";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

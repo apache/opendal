@@ -18,6 +18,30 @@ This service can be used to:
 
 Currently, OpenDAL supports OneDrive Personal only.
 
+### Write Operations and OneDrive Behavior
+
+For write-related operations, such as:
+
+- write
+- rename
+- copy
+- create_dir
+
+OpenDAL's OneDrive service replaces the destination folder instead of rename it.
+
+### Consistency Issues with Concurrent Requests
+
+OneDrive does not guarantee consistency when handling a large number of concurrent requests write operations.
+
+In some extreme cases, OneDrive may acknowledge an operation as successful but fail to commit the changes.
+This inconsistency can cause subsequent operations to fail, returning errors like:
+
+- 400 Bad Request: OneDrive considers folders in the path are not there yet
+- 404 Not Found: OneDrive doesn't recognize the created folder
+- 409 Conflict: OneDrive can't replace an existing folder
+
+You should consider [`RetryLayer`] and monitor your operations carefully.
+
 ## Configuration
 
 - `access_token`: set a short-live access token for Microsoft Graph API (also, OneDrive API)
@@ -62,4 +86,6 @@ async fn main() -> Result<()> {
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())
 }
+```
 
+[conflict-behavior]: https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0#instance-attributes

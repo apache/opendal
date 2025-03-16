@@ -71,6 +71,8 @@ Read more at [`OnedriveBuilder`].
 
 ### Via Builder
 
+When you have a current access token: 
+
 ```rust,no_run
 use anyhow::Result;
 use opendal::services::Onedrive;
@@ -80,12 +82,33 @@ use opendal::Operator;
 async fn main() -> Result<()> {
     // create backend builder
     let mut builder = Onedrive::default()
-        .access_token("xxx")
-        .root("/path/to/root");
+        .access_token("my_access_token")
+        .root("/root/folder/for/operator");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())
 }
 ```
+
+When you have an Application with a refresh token:
+
+```rust,no_run
+use anyhow::Result;
+use opendal::services::Onedrive;
+use opendal::Operator;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // create backend builder
+    let mut builder = Onedrive::default()
+        .refresh_token("my_refresh_token")
+        .client_id("my_client_id")
+        .root("/root/folder/for/operator");
+
+    let op: Operator = Operator::new(builder)?.finish();
+    Ok(())
+}
+```
+
 
 [conflict-behavior]: https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0#instance-attributes

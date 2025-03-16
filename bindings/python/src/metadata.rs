@@ -92,8 +92,14 @@ impl Metadata {
     }
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified().map(|ta| ta.to_rfc3339())
+    pub fn last_modified(&self, py: Python) -> PyResult<Option<PyObject>> {
+        match self.0.last_modified() {
+            Some(dt) => match dt.into_pyobject(py) {
+                Ok(obj) => Ok(Some(obj.into())),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
+        }
     }
 }
 

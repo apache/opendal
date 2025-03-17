@@ -18,7 +18,7 @@
 import asyncio
 import timeit
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 import opendal
 

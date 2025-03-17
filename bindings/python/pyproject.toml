@@ -41,10 +41,10 @@ benchmark = [
   "greenlet>=3.1.1",
   "pydantic>=2.10.6",
 ]
-dev = ["maturin[patchelf]>=1.8.2"]
+dev = ["maturin>=1.8.2"]
 docs = ["pdoc>=15.0.1"]
 lint = ["ruff>=0.9.10"]
-test = ["pytest>=8.3.5", "pytest-asyncio>=0.25.3", "python-dotenv>=1.0.1"]
+test = ["pytest>=8.3.5", "pytest-asyncio>=0.25.3", "python-dotenv>=1.0.1", "pydantic-settings>=2.8.1"]
 
 [project.urls]
 Documentation = "https://opendal.apache.org/docs/python/opendal.html"

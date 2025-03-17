@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use chrono::prelude::*;
 use pyo3::prelude::*;
 
 use crate::*;
@@ -92,14 +93,8 @@ impl Metadata {
     }
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self, py: Python) -> PyResult<Option<PyObject>> {
-        match self.0.last_modified() {
-            Some(dt) => match dt.into_pyobject(py) {
-                Ok(obj) => Ok(Some(obj.into())),
-                Err(e) => Err(e),
-            },
-            None => Ok(None),
-        }
+    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+        self.0.last_modified()
     }
 }
 

@@ -99,7 +99,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::Read)
+                err.with_operation(Operation::ReaderStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
@@ -117,7 +117,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::Write)
+                err.with_operation(Operation::WriterStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -160,7 +160,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::Delete)
+                err.with_operation(Operation::DeleterStart)
                     .with_context("service", self.info.scheme())
             })
     }
@@ -176,7 +176,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::List)
+                err.with_operation(Operation::ListerStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -192,7 +192,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingCreateDir)
+            err.with_operation(Operation::CreateDir)
                 .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
@@ -210,7 +210,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingRead)
+                err.with_operation(Operation::ReaderStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
@@ -227,7 +227,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingWrite)
+                err.with_operation(Operation::WriterStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -235,7 +235,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner.blocking_copy(from, to, args).map_err(|err| {
-            err.with_operation(Operation::BlockingCopy)
+            err.with_operation(Operation::Copy)
                 .with_context("service", self.info.scheme())
                 .with_context("from", from)
                 .with_context("to", to)
@@ -244,7 +244,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner.blocking_rename(from, to, args).map_err(|err| {
-            err.with_operation(Operation::BlockingRename)
+            err.with_operation(Operation::Rename)
                 .with_context("service", self.info.scheme())
                 .with_context("from", from)
                 .with_context("to", to)
@@ -253,7 +253,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingStat)
+            err.with_operation(Operation::Stat)
                 .with_context("service", self.info.scheme())
                 .with_context("path", path)
         })
@@ -269,7 +269,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingDelete)
+                err.with_operation(Operation::DeleterStart)
                     .with_context("service", self.info.scheme())
             })
     }
@@ -284,7 +284,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingList)
+                err.with_operation(Operation::ListerStart)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -344,7 +344,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingReaderRead)
+                err.with_operation(Operation::ReaderRead)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("range", self.range.to_string())
@@ -399,7 +399,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
                 self.processed += size as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingWriterWrite)
+                err.with_operation(Operation::WriterWrite)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
@@ -409,7 +409,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
 
     fn close(&mut self) -> Result<Metadata> {
         self.inner.close().map_err(|err| {
-            err.with_operation(Operation::BlockingWriterClose)
+            err.with_operation(Operation::WriterClose)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("written", self.processed.to_string())
@@ -444,7 +444,7 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
                 bs
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingListerNext)
+                err.with_operation(Operation::ListerNext)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())

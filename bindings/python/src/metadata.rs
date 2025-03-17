@@ -99,30 +99,17 @@ impl Metadata {
     }
     pub fn __repr__(&self) -> String {
         let last_modified_str = match self.0.last_modified() {
-            Some(dt) => {
-                let rfc3339 = dt.to_rfc3339_opts(SecondsFormat::Micros, false);
-                if let Some(pos) = rfc3339.find('.') {
-                    let (base, tz) = rfc3339.split_at(pos + 1);
-                    let tz_pos = tz.find('+').or_else(|| tz.find('-')).unwrap_or(tz.len());
-                    let (micros, tz_suffix) = tz.split_at(tz_pos);
-
-                    let micros = format!("{:0<6}", micros);
-                    format!("{}{}{}", base, micros, tz_suffix)
-                } else {
-                    rfc3339
-                }
-            }
+            Some(dt) => dt.format("%Y-%m-%dT%H:%M:%S").to_string(),
             None => "None".to_string(),
         };
 
         format!(
-            "Metadata(content_length={}, content_md5={}, content_type={}, etag={}, mode={}, last_modified={})",
-            self.0.content_length(),
-            self.0.content_md5().unwrap_or("None"),
-            self.0.content_type().unwrap_or("None"),
-            self.0.etag().unwrap_or("None"),
+            "Metadata(mode={}, content_length={}, content_type={}, last_modified={}, etag={})",
             self.0.mode(),
+            self.0.content_length(),
+            self.0.content_type().unwrap_or("None"),
             last_modified_str,
+            self.0.etag().unwrap_or("None"),
         )
     }
 }

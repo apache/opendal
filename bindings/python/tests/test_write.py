@@ -36,10 +36,14 @@ def test_sync_write(service_name, operator, async_operator):
     assert metadata.mode.is_file()
     assert metadata.content_length == size
 
-    last_modified = metadata.last_modified.isoformat() if metadata.last_modified else None
+    last_modified = (
+        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
+        if metadata.last_modified
+        else None
+    )
     assert (
         repr(metadata)
-        == f"Metadata(content_length={metadata.content_length}, content_md5={metadata.content_md5}, content_type={metadata.content_type}, etag={metadata.etag}, mode=file, last_modified={last_modified})"
+        == f"Metadata(mode=file, content_length={metadata.content_length}, content_type={metadata.content_type}, last_modified={last_modified}, etag={metadata.etag})"
     )
 
     operator.delete(filename)
@@ -57,10 +61,14 @@ def test_sync_write_path(service_name, operator, async_operator):
     assert metadata.mode.is_file()
     assert metadata.content_length == size
 
-    last_modified = metadata.last_modified.isoformat() if metadata.last_modified else None
+    last_modified = (
+        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
+        if metadata.last_modified
+        else None
+    )
     assert (
         repr(metadata)
-        == f"Metadata(content_length={metadata.content_length}, content_md5={metadata.content_md5}, content_type={metadata.content_type}, etag={metadata.etag}, mode=file, last_modified={last_modified})"
+        == f"Metadata(mode=file, content_length={metadata.content_length}, content_type={metadata.content_type}, last_modified={last_modified}, etag={metadata.etag})"
     )
 
     operator.delete(filename)

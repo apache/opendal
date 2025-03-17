@@ -19,5 +19,5 @@ OPENDAL_FS_ROOT=/path/to/dir
 into
 
 ```dotenv
-OPENDAL_FS_ROOT=/tmp
+OPENDAL_FS_ROOT=/tmp/
 ```

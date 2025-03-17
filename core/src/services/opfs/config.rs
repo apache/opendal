@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-opfs")]
-mod backend;
-#[cfg(feature = "services-opfs")]
-mod core;
+use std::fmt::Debug;
 
-#[cfg(feature = "services-opfs")]
-mod config;
+use serde::Deserialize;
+use serde::Serialize;
+
+/// Config for OPFS.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct OPFSConfig {}

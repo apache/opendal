@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 /// OPFS Service backend
-#[derive(Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct OpfsBackend {}
 
 impl Access for OpfsBackend {

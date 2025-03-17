@@ -157,13 +157,14 @@ doc = false
 
 [dependencies]
 bytes = "1.5.0"
+chrono = "0.4"
 dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
 ] }
-pyo3 = { version = "0.23.3", features = ["generate-import-lib"] }
+pyo3 = { version = "0.23.3", features = ["generate-import-lib", "chrono"] }
 pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
 tokio = "1"
 

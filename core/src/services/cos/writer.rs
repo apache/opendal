@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::{HeaderMap, HeaderValue, StatusCode};
+use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
@@ -42,20 +42,6 @@ impl CosWriter {
             op,
         }
     }
-    fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::default();
-        if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
-        }
-        if let Some(md5) = parse_content_md5(headers)? {
-            meta.set_content_md5(md5);
-        }
-        if let Some(version) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
-            meta.set_version(version);
-        }
-
-        Ok(meta)
-    }
 }
 
 impl oio::MultipartWrite for CosWriter {
@@ -68,7 +54,17 @@ impl oio::MultipartWrite for CosWriter {
 
         let resp = self.core.send(req).await?;
 
-        let meta = Self::parse_metadata(resp.headers())?;
+        let mut meta = Metadata::default();
+        if let Some(etag) = parse_etag(resp.headers())? {
+            meta.set_etag(etag);
+        }
+        if let Some(md5) = parse_content_md5(resp.headers())? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(resp.headers(), constants::X_COS_VERSION_ID)? {
+            meta.set_version(version);
+        }
+
         let status = resp.status();
 
         match status {
@@ -150,16 +146,22 @@ impl oio::MultipartWrite for CosWriter {
             })
             .collect();
 
-        let resp = self
+        let mut resp = self
             .core
             .cos_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
 
-        let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(resp.body().clone().reader())
-                .map_err(new_xml_deserialize_error)?;
+        let mut meta = Metadata::default();
+        if let Some(md5) = parse_content_md5(resp.headers())? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(resp.headers(), constants::X_COS_VERSION_ID)? {
+            meta.set_version(version);
+        }
 
-        let mut meta = Self::parse_metadata(resp.headers())?;
+        let result: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(resp.body_mut().reader())
+                .map_err(new_xml_deserialize_error)?;
         meta.set_etag(&result.etag);
 
         let status = resp.status();
@@ -216,10 +218,17 @@ impl oio::AppendWrite for CosWriter {
 
         let resp = self.core.send(req).await?;
 
-        let mut meta = Self::parse_metadata(resp.headers())?;
+        let mut meta = Metadata::default();
+        if let Some(etag) = parse_etag(resp.headers())? {
+            meta.set_etag(etag);
+        }
+        if let Some(md5) = parse_content_md5(resp.headers())? {
+            meta.set_content_md5(md5);
+        }
         // COS return null as the version id when it's an appendable object.
         // Refer to https://cloud.tencent.com/document/product/436/7741
         meta.set_version("null");
+
         let status = resp.status();
 
         match status {

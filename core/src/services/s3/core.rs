@@ -405,6 +405,9 @@ impl S3Core {
             );
         }
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -487,6 +490,9 @@ impl S3Core {
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::ReaderStart);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -529,6 +535,9 @@ impl S3Core {
             req = self.insert_checksum_header(req, &checksum);
         }
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::WriterWrite);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -559,6 +568,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Inject operation to the request.
+        let req = req.extension(Operation::WriterWrite);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -594,6 +606,8 @@ impl S3Core {
         }
 
         let mut req = Request::delete(&url)
+            // Inject operation to the request.
+            .extension(Operation::DeleterFlush)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -651,6 +665,8 @@ impl S3Core {
         }
 
         let mut req = req
+            // Inject operation to the request.
+            .extension(Operation::Copy)
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -699,6 +715,8 @@ impl S3Core {
         }
 
         let mut req = Request::get(&url)
+            // Inject operation to the request.
+            .extension(Operation::ListerNext)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -748,6 +766,9 @@ impl S3Core {
         // Set SSE headers.
         let req = self.insert_checksum_type_header(req);
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::WriterStart);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -786,6 +807,9 @@ impl S3Core {
             req = self.insert_checksum_header(req, &checksum);
         }
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::WriterWrite);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -819,6 +843,9 @@ impl S3Core {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
+        // Inject operation to the request.
+        let req = req.extension(Operation::WriterClose);
+
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -844,6 +871,8 @@ impl S3Core {
         );
 
         let mut req = Request::delete(&url)
+            // Inject operation to the request.
+            .extension(Operation::WriterAbort)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -875,6 +904,9 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+
+        // Inject operation to the request.
+        let req = req.extension(Operation::DeleterFlush);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -921,6 +953,8 @@ impl S3Core {
         }
 
         let mut req = Request::get(&url)
+            // Inject operation to the request.
+            .extension(Operation::ListerNext)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

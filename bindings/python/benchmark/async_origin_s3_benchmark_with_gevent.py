@@ -23,7 +23,7 @@ import timeit
 import gevent
 from boto3 import client as boto3_client
 from mypy_boto3_s3 import S3Client
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 greenify.greenify()
 

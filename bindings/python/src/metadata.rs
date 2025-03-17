@@ -99,7 +99,19 @@ impl Metadata {
     }
     pub fn __repr__(&self) -> String {
         let last_modified_str = match self.0.last_modified() {
-            Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Micros, false),
+            Some(dt) => {
+                let rfc3339 = dt.to_rfc3339_opts(SecondsFormat::Micros, false);
+                if let Some(pos) = rfc3339.find('.') {
+                    let (base, tz) = rfc3339.split_at(pos + 1);
+                    let tz_pos = tz.find('+').or_else(|| tz.find('-')).unwrap_or(tz.len());
+                    let (micros, tz_suffix) = tz.split_at(tz_pos);
+
+                    let micros = format!("{:0<6}", micros);
+                    format!("{}{}{}", base, micros, tz_suffix)
+                } else {
+                    rfc3339
+                }
+            }
             None => "None".to_string(),
         };
 

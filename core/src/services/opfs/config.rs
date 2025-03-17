@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use serde::Deserialize;
 use serde::Serialize;
 

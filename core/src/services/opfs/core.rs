@@ -47,7 +47,7 @@ use wasm_bindgen_futures::JsFuture;
 fn parse_js_error(msg: JsValue) -> Error {
     Error::new(
         ErrorKind::Unexpected,
-        msg.as_string().unwrap_or_else(|| String::new()),
+        msg.as_string().unwrap_or_else(String::new),
     )
 }
 

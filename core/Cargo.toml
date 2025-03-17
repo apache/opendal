@@ -204,6 +204,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-opfs = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]
 
 [lib]
 bench = false
@@ -358,6 +359,22 @@ monoio = { version = "0.2.4", optional = true, features = [
   "unlinkat",
   "renameat",
 ] }
+# for service-opfs
+wasm-bindgen = { version = "0.2.100", optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true}
+web-sys = { version = "0.3.77", optional = true, features = [
+  "Window",
+  "File",
+  "FileSystemDirectoryHandle",
+  "FileSystemFileHandle",
+  "FileSystemGetFileOptions",
+  "FileSystemWritableFileStream",
+  "Navigator",
+  "StorageManager",
+  "FileSystemGetFileOptions",
+] }
+js-sys = { version = "0.3.77", optional = true}
+
 
 # Layers
 # for layers-async-backtrace

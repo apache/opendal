@@ -102,21 +102,21 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::Write,
+                Operation::WriterStart,
                 "content_type",
             ));
         }
         if !capability.write_with_cache_control && args.cache_control().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::Write,
+                Operation::WriterStart,
                 "cache_control",
             ));
         }
         if !capability.write_with_content_disposition && args.content_disposition().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::Write,
+                Operation::WriterStart,
                 "content_disposition",
             ));
         }
@@ -133,7 +133,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::List,
+                Operation::ListerStart,
                 "version",
             ));
         }
@@ -158,21 +158,21 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingWrite,
+                Operation::WriterStart,
                 "content_type",
             ));
         }
         if !capability.write_with_cache_control && args.cache_control().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingWrite,
+                Operation::WriterStart,
                 "cache_control",
             ));
         }
         if !capability.write_with_content_disposition && args.content_disposition().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingWrite,
+                Operation::WriterStart,
                 "content_disposition",
             ));
         }
@@ -193,7 +193,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingList,
+                Operation::ListerStart,
                 "version",
             ));
         }

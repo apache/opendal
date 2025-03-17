@@ -313,7 +313,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.logger.log(
             &self.info,
-            Operation::Read,
+            Operation::ReaderStart,
             &[("path", path)],
             "started",
             None,
@@ -325,7 +325,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, r)| {
                 self.logger.log(
                     &self.info,
-                    Operation::Read,
+                    Operation::ReaderStart,
                     &[("path", path)],
                     "created reader",
                     None,
@@ -338,7 +338,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::Read,
+                    Operation::ReaderStart,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -350,7 +350,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.logger.log(
             &self.info,
-            Operation::Write,
+            Operation::WriterStart,
             &[("path", path)],
             "started",
             None,
@@ -362,7 +362,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, w)| {
                 self.logger.log(
                     &self.info,
-                    Operation::Write,
+                    Operation::WriterStart,
                     &[("path", path)],
                     "created writer",
                     None,
@@ -373,7 +373,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::Write,
+                    Operation::WriterStart,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -486,20 +486,25 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.logger
-            .log(&self.info, Operation::Delete, &[], "started", None);
+            .log(&self.info, Operation::DeleterStart, &[], "started", None);
 
         self.inner
             .delete()
             .await
             .map(|(rp, d)| {
                 self.logger
-                    .log(&self.info, Operation::Delete, &[], "finished", None);
+                    .log(&self.info, Operation::DeleterStart, &[], "finished", None);
                 let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
                 (rp, d)
             })
             .map_err(|err| {
-                self.logger
-                    .log(&self.info, Operation::Delete, &[], "failed", Some(&err));
+                self.logger.log(
+                    &self.info,
+                    Operation::DeleterStart,
+                    &[],
+                    "failed",
+                    Some(&err),
+                );
                 err
             })
     }
@@ -507,7 +512,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.logger.log(
             &self.info,
-            Operation::List,
+            Operation::ListerStart,
             &[("path", path)],
             "started",
             None,
@@ -519,7 +524,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, v)| {
                 self.logger.log(
                     &self.info,
-                    Operation::List,
+                    Operation::ListerStart,
                     &[("path", path)],
                     "created lister",
                     None,
@@ -530,7 +535,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::List,
+                    Operation::ListerStart,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -576,7 +581,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.logger.log(
             &self.info,
-            Operation::BlockingCreateDir,
+            Operation::CreateDir,
             &[("path", path)],
             "started",
             None,
@@ -587,7 +592,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|v| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingCreateDir,
+                    Operation::CreateDir,
                     &[("path", path)],
                     "finished",
                     None,
@@ -597,7 +602,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingCreateDir,
+                    Operation::CreateDir,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -609,7 +614,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.logger.log(
             &self.info,
-            Operation::BlockingRead,
+            Operation::ReaderStart,
             &[("path", path)],
             "started",
             None,
@@ -620,7 +625,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, r)| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingRead,
+                    Operation::ReaderStart,
                     &[("path", path)],
                     "created reader",
                     None,
@@ -631,7 +636,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingRead,
+                    Operation::ReaderStart,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -643,7 +648,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.logger.log(
             &self.info,
-            Operation::BlockingWrite,
+            Operation::WriterStart,
             &[("path", path)],
             "started",
             None,
@@ -654,7 +659,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, w)| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWrite,
+                    Operation::WriterStart,
                     &[("path", path)],
                     "created writer",
                     None,
@@ -665,7 +670,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWrite,
+                    Operation::WriterStart,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -677,7 +682,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.logger.log(
             &self.info,
-            Operation::BlockingCopy,
+            Operation::Copy,
             &[("from", from), ("to", to)],
             "started",
             None,
@@ -688,7 +693,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|v| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingCopy,
+                    Operation::Copy,
                     &[("from", from), ("to", to)],
                     "finished",
                     None,
@@ -698,7 +703,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingCopy,
+                    Operation::Copy,
                     &[("from", from), ("to", to)],
                     "",
                     Some(&err),
@@ -710,7 +715,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.logger.log(
             &self.info,
-            Operation::BlockingRename,
+            Operation::Rename,
             &[("from", from), ("to", to)],
             "started",
             None,
@@ -721,7 +726,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|v| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingRename,
+                    Operation::Rename,
                     &[("from", from), ("to", to)],
                     "finished",
                     None,
@@ -731,7 +736,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingRename,
+                    Operation::Rename,
                     &[("from", from), ("to", to)],
                     "failed",
                     Some(&err),
@@ -743,7 +748,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.logger.log(
             &self.info,
-            Operation::BlockingStat,
+            Operation::Stat,
             &[("path", path)],
             "started",
             None,
@@ -754,7 +759,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|v| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingStat,
+                    Operation::Stat,
                     &[("path", path)],
                     "finished",
                     None,
@@ -764,7 +769,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingStat,
+                    Operation::Stat,
                     &[("path", path)],
                     "failed",
                     Some(&err),
@@ -775,20 +780,20 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
 
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         self.logger
-            .log(&self.info, Operation::BlockingDelete, &[], "started", None);
+            .log(&self.info, Operation::DeleterStart, &[], "started", None);
 
         self.inner
             .blocking_delete()
             .map(|(rp, d)| {
                 self.logger
-                    .log(&self.info, Operation::BlockingDelete, &[], "finished", None);
+                    .log(&self.info, Operation::DeleterStart, &[], "finished", None);
                 let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
                 (rp, d)
             })
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingDelete,
+                    Operation::DeleterStart,
                     &[],
                     "failed",
                     Some(&err),
@@ -800,7 +805,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.logger.log(
             &self.info,
-            Operation::BlockingList,
+            Operation::ListerStart,
             &[("path", path)],
             "started",
             None,
@@ -811,7 +816,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map(|(rp, v)| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingList,
+                    Operation::ListerStart,
                     &[("path", path)],
                     "created lister",
                     None,
@@ -822,7 +827,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             .map_err(|err| {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingList,
+                    Operation::ListerStart,
                     &[("path", path)],
                     "",
                     Some(&err),
@@ -903,7 +908,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
     fn read(&mut self) -> Result<Buffer> {
         self.logger.log(
             &self.info,
-            Operation::BlockingReaderRead,
+            Operation::ReaderRead,
             &[("path", &self.path), ("read", &self.read.to_string())],
             "started",
             None,
@@ -914,7 +919,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
                 self.read += bs.len() as u64;
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingReaderRead,
+                    Operation::ReaderRead,
                     &[
                         ("path", &self.path),
                         ("read", &self.read.to_string()),
@@ -932,7 +937,7 @@ impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingR
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingReaderRead,
+                    Operation::ReaderRead,
                     &[("path", &self.path), ("read", &self.read.to_string())],
                     "failed",
                     Some(&err),
@@ -1087,7 +1092,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
 
         self.logger.log(
             &self.info,
-            Operation::BlockingWriterWrite,
+            Operation::WriterWrite,
             &[
                 ("path", &self.path),
                 ("written", &self.written.to_string()),
@@ -1101,7 +1106,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             Ok(_) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWriterWrite,
+                    Operation::WriterWrite,
                     &[
                         ("path", &self.path),
                         ("written", &self.written.to_string()),
@@ -1115,7 +1120,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWriterWrite,
+                    Operation::WriterWrite,
                     &[
                         ("path", &self.path),
                         ("written", &self.written.to_string()),
@@ -1132,7 +1137,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
     fn close(&mut self) -> Result<Metadata> {
         self.logger.log(
             &self.info,
-            Operation::BlockingWriterClose,
+            Operation::WriterClose,
             &[("path", &self.path), ("written", &self.written.to_string())],
             "started",
             None,
@@ -1142,7 +1147,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             Ok(meta) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWriterWrite,
+                    Operation::WriterWrite,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "succeeded",
                     None,
@@ -1152,7 +1157,7 @@ impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for Loggin
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingWriterClose,
+                    Operation::WriterClose,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "failed",
                     Some(&err),
@@ -1240,7 +1245,7 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.logger.log(
             &self.info,
-            Operation::BlockingListerNext,
+            Operation::ListerNext,
             &[("path", &self.path), ("listed", &self.listed.to_string())],
             "started",
             None,
@@ -1252,7 +1257,7 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
                 self.listed += 1;
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingListerNext,
+                    Operation::ListerNext,
                     &[
                         ("path", &self.path),
                         ("listed", &self.listed.to_string()),
@@ -1265,7 +1270,7 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
             Ok(None) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingListerNext,
+                    Operation::ListerNext,
                     &[("path", &self.path), ("listed", &self.listed.to_string())],
                     "finished",
                     None,
@@ -1274,7 +1279,7 @@ impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingL
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingListerNext,
+                    Operation::ListerNext,
                     &[("path", &self.path), ("listed", &self.listed.to_string())],
                     "failed",
                     Some(err),
@@ -1416,7 +1421,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
 
         self.logger.log(
             &self.info,
-            Operation::BlockingDeleterDelete,
+            Operation::DeleterDelete,
             &[("path", path), ("version", &version)],
             "started",
             None,
@@ -1429,7 +1434,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
                 self.queued += 1;
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingDeleterDelete,
+                    Operation::DeleterDelete,
                     &[
                         ("path", path),
                         ("version", &version),
@@ -1443,7 +1448,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingDeleterDelete,
+                    Operation::DeleterDelete,
                     &[
                         ("path", path),
                         ("version", &version),
@@ -1462,7 +1467,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
     fn flush(&mut self) -> Result<usize> {
         self.logger.log(
             &self.info,
-            Operation::BlockingDeleterFlush,
+            Operation::DeleterFlush,
             &[
                 ("queued", &self.queued.to_string()),
                 ("deleted", &self.deleted.to_string()),
@@ -1479,7 +1484,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
                 self.deleted += flushed;
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingDeleterFlush,
+                    Operation::DeleterFlush,
                     &[
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
@@ -1491,7 +1496,7 @@ impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for Logg
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::BlockingDeleterFlush,
+                    Operation::DeleterFlush,
                     &[
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),

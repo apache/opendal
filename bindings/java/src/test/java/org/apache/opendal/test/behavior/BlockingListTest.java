@@ -21,7 +21,6 @@ package org.apache.opendal.test.behavior;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.List;
@@ -126,7 +125,8 @@ public class BlockingListTest extends BehaviorTestBase {
         op().createDir(dirPath);
         op().write(nestedFile, content);
 
-        final List<Entry> entries = op().list(dir, ListOptions.builder().recursive(false).build());
+        final List<Entry> entries =
+                op().list(dir, ListOptions.builder().recursive(false).build());
         assertThat(entries).hasSize(4);
     }
 }

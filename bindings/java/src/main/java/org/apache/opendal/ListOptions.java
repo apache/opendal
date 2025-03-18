@@ -19,7 +19,6 @@
 
 package org.apache.opendal;
 
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,5 +34,4 @@ public class ListOptions {
      * Return files in sub-directory as well.
      */
     private boolean recursive;
-
 }

@@ -241,7 +241,9 @@ class AsyncListTest extends BehaviorTestBase {
         asyncOp().createDir(dirPath).join();
         asyncOp().write(nestedFile, content).join();
 
-        final List<Entry> entries = asyncOp().list(dir, ListOptions.builder().recursive(true).build()).join();
+        final List<Entry> entries = asyncOp()
+                .list(dir, ListOptions.builder().recursive(true).build())
+                .join();
         assertThat(entries).hasSize(4);
     }
 }

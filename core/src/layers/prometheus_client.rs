@@ -365,18 +365,14 @@ pub struct PrometheusClientInterceptor {
 impl observe::MetricsIntercept for PrometheusClientInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
         self.operation_duration_seconds
             .get_or_create(&OperationLabels {
-                scheme,
-                namespace,
-                root,
+                info,
                 operation: op,
                 path: observe::path_label_value(path, self.path_label_level).map(Into::into),
                 error: None,
@@ -386,18 +382,14 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
         self.operation_bytes
             .get_or_create(&OperationLabels {
-                scheme,
-                namespace,
-                root,
+                info,
                 operation: op,
                 path: observe::path_label_value(path, self.path_label_level).map(Into::into),
                 error: None,
@@ -407,18 +399,14 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
         self.operation_errors_total
             .get_or_create(&OperationLabels {
-                scheme,
-                namespace,
-                root,
+                info,
                 operation: op,
                 path: observe::path_label_value(path, self.path_label_level).map(Into::into),
                 error: Some(error.into_static()),
@@ -427,11 +415,9 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct OperationLabels {
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
+    info: Arc<AccessorInfo>,
     operation: Operation,
     path: Option<String>,
     error: Option<&'static str>,
@@ -439,9 +425,9 @@ struct OperationLabels {
 
 impl EncodeLabelSet for OperationLabels {
     fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), fmt::Error> {
-        (observe::LABEL_SCHEME, self.scheme.into_static()).encode(encoder.encode_label())?;
-        (observe::LABEL_NAMESPACE, self.namespace.as_str()).encode(encoder.encode_label())?;
-        (observe::LABEL_ROOT, self.root.as_str()).encode(encoder.encode_label())?;
+        (observe::LABEL_SCHEME, self.info.scheme().into_static()).encode(encoder.encode_label())?;
+        (observe::LABEL_NAMESPACE, self.info.name().as_ref()).encode(encoder.encode_label())?;
+        (observe::LABEL_ROOT, self.info.root().as_ref()).encode(encoder.encode_label())?;
         (observe::LABEL_OPERATION, self.operation.into_static()).encode(encoder.encode_label())?;
         if let Some(path) = &self.path {
             (observe::LABEL_PATH, path.as_str()).encode(encoder.encode_label())?;

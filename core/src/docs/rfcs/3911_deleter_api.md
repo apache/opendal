@@ -33,7 +33,7 @@ The following new API will be added to `Operator`:
 
 ```diff
 impl Operator {
-  pub async fn detele(&self, path: &str) -> Result<()>;
+  pub async fn delete(&self, path: &str) -> Result<()>;
 +  pub fn delete_with(&self, path: &str) -> FutureDelete;
 
 +  pub async fn deleter(&self) -> Result<Deleter>;

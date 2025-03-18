@@ -40,7 +40,8 @@ module.exports = function (context) {
 
       if (
         imageUrl.includes("img.shields.io") ||
-        imageUrl.includes("actions?query")
+        imageUrl.includes("actions?query") ||
+        imageUrl.includes("github/actions/workflow")
       ) {
         ext = ".svg";
       }
@@ -86,6 +87,78 @@ module.exports = function (context) {
     } catch (error) {
       console.error(`Error downloading image ${imageUrl}: ${error.message}`);
       return imageUrl;
+    }
+  }
+
+  async function processJSFiles(outDir) {
+    console.log("Processing JS files for external images...");
+
+    const jsFiles = [];
+
+    async function findJSFiles(dir) {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await findJSFiles(fullPath);
+        } else if (entry.name.endsWith(".js")) {
+          jsFiles.push(fullPath);
+        }
+      }
+    }
+
+    await findJSFiles(outDir);
+
+    for (const jsFile of jsFiles) {
+      const content = await fs.readFile(jsFile, "utf8");
+      let modified = false;
+      let newContent = content;
+
+      // Look for shield.io and other image URLs with a more comprehensive regex
+      const urlPatterns = [
+        /"(https?:\/\/[^"]+\.(png|jpg|jpeg|gif|svg|webp))"/g,
+        /"(https?:\/\/img\.shields\.io\/[^"]+)"/g,
+        /"(https?:\/\/github\.com\/[^"]+\/actions\/workflow[^"]+)"/g,
+        /'(https?:\/\/[^']+\.(png|jpg|jpeg|gif|svg|webp))'/g,
+        /'(https?:\/\/img\.shields\.io\/[^']+)'/g,
+        /'(https?:\/\/github\.com\/[^']+\/actions\/workflow[^']+)'/g,
+      ];
+
+      const allReplacements = [];
+
+      for (const pattern of urlPatterns) {
+        const matches = Array.from(newContent.matchAll(pattern));
+
+        for (const match of matches) {
+          const imageUrl = match[1];
+          if (!imageUrl) continue;
+
+          try {
+            const localUrl = await downloadImage(imageUrl, outDir);
+            if (localUrl !== imageUrl) {
+              allReplacements.push({
+                original: match[0],
+                replacement: match[0].replace(imageUrl, localUrl),
+              });
+              modified = true;
+            }
+          } catch (error) {
+            console.error(`Error processing URL in JS file: ${error.message}`);
+          }
+        }
+      }
+
+      // Apply replacements from longest to shortest to avoid partial replacements
+      allReplacements.sort((a, b) => b.original.length - a.original.length);
+
+      for (const { original, replacement } of allReplacements) {
+        newContent = newContent.replace(original, replacement);
+      }
+
+      if (modified) {
+        await fs.writeFile(jsFile, newContent);
+      }
     }
   }
 
@@ -150,6 +223,9 @@ module.exports = function (context) {
           await fs.writeFile(htmlFile, $.html());
         }
       }
+
+      // Process JS files to update image references in bundled JavaScript
+      await processJSFiles(outDir);
 
       console.log(`Processed ${processedImages.size} external images`);
     },

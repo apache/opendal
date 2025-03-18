@@ -149,7 +149,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Read.into_static()),
+                    Span::enter_with_local_parent(Operation::ReaderStart.into_static()),
                     r,
                 ),
             )
@@ -162,7 +162,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Write.into_static()),
+                    Span::enter_with_local_parent(Operation::WriterStart.into_static()),
                     r,
                 ),
             )
@@ -190,7 +190,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Delete.into_static()),
+                    Span::enter_with_local_parent(Operation::DeleterStart.into_static()),
                     r,
                 ),
             )
@@ -203,7 +203,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::List.into_static()),
+                    Span::enter_with_local_parent(Operation::ListerStart.into_static()),
                     s,
                 ),
             )
@@ -226,7 +226,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::BlockingRead.into_static()),
+                    Span::enter_with_local_parent(Operation::ReaderStart.into_static()),
                     r,
                 ),
             )
@@ -239,7 +239,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::BlockingWrite.into_static()),
+                    Span::enter_with_local_parent(Operation::WriterStart.into_static()),
                     r,
                 ),
             )
@@ -267,7 +267,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::BlockingDelete.into_static()),
+                    Span::enter_with_local_parent(Operation::DeleterStart.into_static()),
                     r,
                 ),
             )
@@ -280,7 +280,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
             (
                 rp,
                 FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::BlockingList.into_static()),
+                    Span::enter_with_local_parent(Operation::ListerStart.into_static()),
                     it,
                 ),
             )
@@ -309,7 +309,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
 impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
     fn read(&mut self) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingReaderRead.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::ReaderRead.into_static());
         self.inner.read()
     }
 }
@@ -337,15 +337,13 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
 impl<R: oio::BlockingWrite> oio::BlockingWrite for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingWriterWrite.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterWrite.into_static());
         self.inner.write(bs)
     }
 
     fn close(&mut self) -> Result<Metadata> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingWriterClose.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::WriterClose.into_static());
         self.inner.close()
     }
 }
@@ -360,7 +358,7 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingListerNext.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::ListerNext.into_static());
         self.inner.next()
     }
 }
@@ -381,15 +379,13 @@ impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
 impl<R: oio::BlockingDelete> oio::BlockingDelete for FastraceWrapper<R> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingDeleterDelete.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::DeleterDelete.into_static());
         self.inner.delete(path, args)
     }
 
     fn flush(&mut self) -> Result<usize> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingDeleterFlush.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::DeleterFlush.into_static());
         self.inner.flush()
     }
 }

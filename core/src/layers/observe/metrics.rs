@@ -218,7 +218,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let op = Operation::Read;
+        let op = Operation::ReaderStart;
 
         let start = Instant::now();
         let (rp, reader) = self
@@ -262,7 +262,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let op = Operation::Write;
+        let op = Operation::WriterStart;
 
         let start = Instant::now();
         let (rp, writer) = self
@@ -399,7 +399,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let op = Operation::Delete;
+        let op = Operation::DeleterStart;
 
         let start = Instant::now();
         let (rp, writer) = self
@@ -443,7 +443,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let op = Operation::List;
+        let op = Operation::ListerStart;
 
         let start = Instant::now();
         let (rp, lister) = self
@@ -518,7 +518,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let op = Operation::BlockingCreateDir;
+        let op = Operation::CreateDir;
 
         let start = Instant::now();
         self.inner()
@@ -548,7 +548,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let op = Operation::BlockingRead;
+        let op = Operation::ReaderStart;
 
         let start = Instant::now();
         let (rp, reader) = self
@@ -591,7 +591,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let op = Operation::BlockingWrite;
+        let op = Operation::WriterStart;
 
         let start = Instant::now();
         let (rp, writer) = self
@@ -634,7 +634,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let op = Operation::BlockingCopy;
+        let op = Operation::Copy;
 
         let start = Instant::now();
         self.inner()
@@ -664,7 +664,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let op = Operation::BlockingRename;
+        let op = Operation::Rename;
 
         let start = Instant::now();
         self.inner()
@@ -694,7 +694,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let op = Operation::BlockingStat;
+        let op = Operation::Stat;
 
         let start = Instant::now();
         self.inner()
@@ -724,7 +724,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        let op = Operation::BlockingDelete;
+        let op = Operation::DeleterStart;
 
         let start = Instant::now();
         let (rp, writer) = self
@@ -767,7 +767,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let op = Operation::BlockingList;
+        let op = Operation::ListerStart;
 
         let start = Instant::now();
         let (rp, lister) = self
@@ -884,7 +884,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
 
 impl<R: oio::BlockingRead, I: MetricsIntercept> oio::BlockingRead for MetricsWrapper<R, I> {
     fn read(&mut self) -> Result<Buffer> {
-        let op = Operation::BlockingReaderRead;
+        let op = Operation::ReaderRead;
 
         let start = Instant::now();
 
@@ -1029,7 +1029,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
 
 impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsWrapper<R, I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
-        let op = Operation::BlockingWriterWrite;
+        let op = Operation::WriterWrite;
 
         let start = Instant::now();
         let size = bs.len();
@@ -1070,7 +1070,7 @@ impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsW
     }
 
     fn close(&mut self) -> Result<Metadata> {
-        let op = Operation::BlockingWriterClose;
+        let op = Operation::WriterClose;
 
         let start = Instant::now();
 
@@ -1134,7 +1134,7 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
 
 impl<R: oio::BlockingList, I: MetricsIntercept> oio::BlockingList for MetricsWrapper<R, I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let op = Operation::BlockingListerNext;
+        let op = Operation::ListerNext;
 
         let start = Instant::now();
 
@@ -1228,7 +1228,7 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
 
 impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for MetricsWrapper<R, I> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        let op = Operation::BlockingDeleterDelete;
+        let op = Operation::DeleterDelete;
 
         let start = Instant::now();
 
@@ -1258,7 +1258,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
     }
 
     fn flush(&mut self) -> Result<usize> {
-        let op = Operation::BlockingDeleterFlush;
+        let op = Operation::DeleterFlush;
 
         let start = Instant::now();
 

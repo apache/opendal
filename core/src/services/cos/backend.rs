@@ -345,7 +345,9 @@ impl Access for CosBackend {
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
-                    meta.set_version(v);
+                    if v != "null" {
+                        meta.set_version(v);
+                    }
                 }
 
                 Ok(RpStat::new(meta))

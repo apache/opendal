@@ -67,6 +67,16 @@ pub static METRIC_OPERATION_ERRORS_TOTAL: MetricMetadata = MetricMetadata {
     name: "operation_errors_total",
     help: "Error counter during opendal operations",
 };
+/// The metric metadata for the http request duration in seconds.
+pub static METRIC_HTTP_REQUEST_DURATION_SECONDS: MetricMetadata = MetricMetadata {
+    name: "http_request_duration_seconds",
+    help: "Histogram of time spent during http requests",
+};
+/// The metric metadata for the http request bytes.
+pub static METRIC_HTTP_REQUEST_BYTES: MetricMetadata = MetricMetadata {
+    name: "http_request_bytes",
+    help: "Histogram of the bytes transferred during http requests",
+};
 
 /// The metric label for the scheme like s3, fs, cos.
 pub static LABEL_SCHEME: &str = "scheme";
@@ -111,6 +121,21 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
         op: Operation,
         error: ErrorKind,
     );
+
+    /// Observe the http request duration in seconds.
+    fn observe_http_request_duration_seconds(
+        &self,
+        info: Arc<AccessorInfo>,
+        op: Operation,
+        duration: Duration,
+    ) {
+        let _ = (info, op, duration);
+    }
+
+    /// Observe the operation bytes happened in http request like read and write.
+    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
+        let _ = (info, op, bytes);
+    }
 }
 
 /// The metrics layer for opendal.
@@ -132,18 +157,60 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
 
+        // Update http client with metrics http fetcher.
+        info.update_http_client(|client| {
+            HttpClient::with(MetricsHttpFetcher {
+                inner: client.into_inner(),
+                info: info.clone(),
+                interceptor: self.interceptor.clone(),
+            })
+        });
+
         MetricsAccessor {
-            inner: Arc::new(inner),
+            inner,
             info,
             interceptor: self.interceptor.clone(),
         }
     }
 }
 
+/// The metrics http fetcher for opendal.
+pub struct MetricsHttpFetcher<I: MetricsIntercept> {
+    inner: HttpFetcher,
+    info: Arc<AccessorInfo>,
+    interceptor: I,
+}
+
+impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        // Extract context from the http request.
+        let size = req.body().len();
+        let op = req.extensions().get::<Operation>().copied();
+
+        let start = Instant::now();
+        let res = self.inner.fetch(req).await;
+        let duration = start.elapsed();
+
+        // We only inject the metrics when the operation exists.
+        if let Some(op) = op {
+            if res.is_ok() {
+                self.interceptor.observe_http_request_duration_seconds(
+                    self.info.clone(),
+                    op,
+                    duration,
+                );
+                self.interceptor
+                    .observe_http_request_bytes(self.info.clone(), op, size);
+            }
+        }
+
+        res
+    }
+}
+
 /// The metrics accessor for opendal.
-#[derive(Clone)]
 pub struct MetricsAccessor<A: Access, I: MetricsIntercept> {
-    inner: Arc<A>,
+    inner: A,
     info: Arc<AccessorInfo>,
     interceptor: I,
 }

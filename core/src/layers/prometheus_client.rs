@@ -128,9 +128,13 @@ impl PrometheusClientLayer {
     pub fn builder() -> PrometheusClientLayerBuilder {
         let operation_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).collect();
         let operation_bytes_buckets = exponential_buckets(1.0, 2.0, 16).collect();
+        let http_request_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).collect();
+        let http_request_bytes_buckets = exponential_buckets(1.0, 2.0, 16).collect();
         PrometheusClientLayerBuilder::new(
             operation_duration_seconds_buckets,
             operation_bytes_buckets,
+            http_request_duration_seconds_buckets,
+            http_request_bytes_buckets,
             0,
         )
     }
@@ -148,6 +152,8 @@ impl<A: Access> Layer<A> for PrometheusClientLayer {
 pub struct PrometheusClientLayerBuilder {
     operation_duration_seconds_buckets: Vec<f64>,
     operation_bytes_buckets: Vec<f64>,
+    http_request_duration_seconds_buckets: Vec<f64>,
+    http_request_bytes_buckets: Vec<f64>,
     path_label_level: usize,
 }
 
@@ -155,11 +161,15 @@ impl PrometheusClientLayerBuilder {
     fn new(
         operation_duration_seconds_buckets: Vec<f64>,
         operation_bytes_buckets: Vec<f64>,
+        http_request_duration_seconds_buckets: Vec<f64>,
+        http_request_bytes_buckets: Vec<f64>,
         path_label_level: usize,
     ) -> Self {
         Self {
             operation_duration_seconds_buckets,
             operation_bytes_buckets,
+            http_request_duration_seconds_buckets,
+            http_request_bytes_buckets,
             path_label_level,
         }
     }
@@ -240,6 +250,82 @@ impl PrometheusClientLayerBuilder {
         self
     }
 
+    /// Set buckets for `http_request_duration_seconds` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    /// let buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16).collect();
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .http_request_duration_seconds_buckets(buckets)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn http_request_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.http_request_duration_seconds_buckets = buckets;
+        }
+        self
+    }
+
+    /// Set buckets for `operation_bytes` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusClientLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let mut registry = prometheus_client::registry::Registry::default();
+    ///
+    /// let buckets =
+    ///     prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16).collect();
+    /// let op = Operator::new(builder)?
+    ///     .layer(
+    ///         PrometheusClientLayer::builder()
+    ///             .http_request_bytes_buckets(buckets)
+    ///             .register(&mut registry),
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn http_request_bytes_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.http_request_bytes_buckets = buckets;
+        }
+        self
+    }
+
     /// Set the level of path label.
     ///
     /// - level = 0: we will ignore the path label.
@@ -313,6 +399,14 @@ impl PrometheusClientLayerBuilder {
                 buckets: self.operation_bytes_buckets,
             });
         let operation_errors_total = Family::<OperationLabels, Counter>::default();
+        let http_request_duration_seconds =
+            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
+                buckets: self.http_request_duration_seconds_buckets,
+            });
+        let http_request_bytes =
+            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
+                buckets: self.http_request_bytes_buckets,
+            });
 
         registry.register(
             observe::METRIC_OPERATION_DURATION_SECONDS.name(),
@@ -331,12 +425,24 @@ impl PrometheusClientLayerBuilder {
             observe::METRIC_OPERATION_ERRORS_TOTAL.help(),
             operation_errors_total.clone(),
         );
+        registry.register(
+            observe::METRIC_HTTP_REQUEST_DURATION_SECONDS.name(),
+            observe::METRIC_HTTP_REQUEST_DURATION_SECONDS.help(),
+            operation_duration_seconds.clone(),
+        );
+        registry.register(
+            observe::METRIC_HTTP_REQUEST_BYTES.name(),
+            observe::METRIC_HTTP_REQUEST_BYTES.help(),
+            operation_bytes.clone(),
+        );
 
         PrometheusClientLayer {
             interceptor: PrometheusClientInterceptor {
                 operation_duration_seconds,
                 operation_bytes,
                 operation_errors_total,
+                http_request_duration_seconds,
+                http_request_bytes,
                 path_label_level: self.path_label_level,
             },
         }
@@ -359,6 +465,8 @@ pub struct PrometheusClientInterceptor {
     operation_duration_seconds: Family<OperationLabels, Histogram, HistogramConstructor>,
     operation_bytes: Family<OperationLabels, Histogram, HistogramConstructor>,
     operation_errors_total: Family<OperationLabels, Counter>,
+    http_request_duration_seconds: Family<OperationLabels, Histogram, HistogramConstructor>,
+    http_request_bytes: Family<OperationLabels, Histogram, HistogramConstructor>,
     path_label_level: usize,
 }
 
@@ -412,6 +520,33 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
                 error: Some(error.into_static()),
             })
             .inc();
+    }
+
+    fn observe_http_request_duration_seconds(
+        &self,
+        info: Arc<AccessorInfo>,
+        op: Operation,
+        duration: Duration,
+    ) {
+        self.http_request_duration_seconds
+            .get_or_create(&OperationLabels {
+                info,
+                operation: op,
+                path: None,
+                error: None,
+            })
+            .observe(duration.as_secs_f64())
+    }
+
+    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
+        self.http_request_bytes
+            .get_or_create(&OperationLabels {
+                info,
+                operation: op,
+                path: None,
+                error: None,
+            })
+            .observe(bytes as f64)
     }
 }
 

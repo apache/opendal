@@ -222,9 +222,7 @@ impl OneDriveCore {
             request = request.header(header::CONTENT_TYPE, mime)
         }
 
-        let mut request = request.body(body).map_err(new_request_build_error)?;
-
-        self.sign(&mut request).await?;
+        let request = request.body(body).map_err(new_request_build_error)?;
 
         self.info.http_client().send(request).await
     }

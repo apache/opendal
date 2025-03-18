@@ -88,9 +88,7 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     /// Observe the operation duration in seconds.
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
@@ -99,9 +97,7 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     /// Observe the operation bytes happened in IO like read and write.
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
@@ -110,9 +106,7 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     /// Observe the operation errors total.
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
@@ -136,18 +130,12 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
     type LayeredAccess = MetricsAccessor<A, I>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let meta = inner.info();
-        let scheme = meta.scheme();
-        let name = meta.name().to_string();
-        let root = meta.root().to_string();
+        let info = inner.info();
 
         MetricsAccessor {
             inner: Arc::new(inner),
+            info,
             interceptor: self.interceptor.clone(),
-
-            scheme,
-            namespace: Arc::new(name),
-            root: Arc::new(root),
         }
     }
 }
@@ -156,11 +144,8 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
 #[derive(Clone)]
 pub struct MetricsAccessor<A: Access, I: MetricsIntercept> {
     inner: Arc<A>,
+    info: Arc<AccessorInfo>,
     interceptor: I,
-
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
 }
 
 impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
@@ -195,9 +180,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -206,9 +189,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -227,9 +208,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -238,9 +217,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -253,9 +230,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 reader,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -271,9 +246,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -282,9 +255,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -297,9 +268,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 writer,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -314,9 +283,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
@@ -325,9 +292,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     err.kind(),
@@ -345,9 +310,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
@@ -356,9 +319,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     err.kind(),
@@ -376,9 +337,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -387,9 +346,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -408,9 +365,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     "",
                     op,
                     start.elapsed(),
@@ -419,9 +374,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     "",
                     op,
                     err.kind(),
@@ -434,9 +387,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 writer,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 "".to_string(),
             ),
         ))
@@ -452,9 +403,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -463,9 +412,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -478,9 +425,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 lister,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -495,9 +440,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .await
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -506,9 +449,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -525,9 +466,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_create_dir(path, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -536,9 +475,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -556,9 +493,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_read(path, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -567,9 +502,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -582,9 +515,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 reader,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -599,9 +530,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_write(path, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -610,9 +539,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -625,9 +552,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 writer,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -641,9 +566,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_copy(from, to, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
@@ -652,9 +575,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     err.kind(),
@@ -671,9 +592,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_rename(from, to, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
@@ -682,9 +601,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     from,
                     op,
                     err.kind(),
@@ -701,9 +618,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_stat(path, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -712,9 +627,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -732,9 +645,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_delete()
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     "",
                     op,
                     start.elapsed(),
@@ -743,9 +654,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     "",
                     op,
                     err.kind(),
@@ -758,9 +667,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 writer,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 "".to_string(),
             ),
         ))
@@ -775,9 +682,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .blocking_list(path, args)
             .map(|v| {
                 self.interceptor.observe_operation_duration_seconds(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
@@ -786,9 +691,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             })
             .map_err(|err| {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     path,
                     op,
                     err.kind(),
@@ -801,9 +704,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             MetricsWrapper::new(
                 lister,
                 self.interceptor.clone(),
-                self.scheme,
-                self.namespace.clone(),
-                self.root.clone(),
+                self.info.clone(),
                 path.to_string(),
             ),
         ))
@@ -813,28 +714,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 pub struct MetricsWrapper<R, I: MetricsIntercept> {
     inner: R,
     interceptor: I,
+    info: Arc<AccessorInfo>,
 
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
     path: String,
 }
 
 impl<R, I: MetricsIntercept> MetricsWrapper<R, I> {
-    fn new(
-        inner: R,
-        interceptor: I,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
-        path: String,
-    ) -> Self {
+    fn new(inner: R, interceptor: I, info: Arc<AccessorInfo>, path: String) -> Self {
         Self {
             inner,
             interceptor,
-            scheme,
-            namespace,
-            root,
+            info,
             path,
         }
     }
@@ -849,9 +739,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
         let res = match self.inner.read().await {
             Ok(bs) => {
                 self.interceptor.observe_operation_bytes(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     bs.len(),
@@ -860,9 +748,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
             }
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -871,9 +757,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -891,9 +775,7 @@ impl<R: oio::BlockingRead, I: MetricsIntercept> oio::BlockingRead for MetricsWra
         let res = match self.inner.read() {
             Ok(bs) => {
                 self.interceptor.observe_operation_bytes(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     bs.len(),
@@ -902,9 +784,7 @@ impl<R: oio::BlockingRead, I: MetricsIntercept> oio::BlockingRead for MetricsWra
             }
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -913,9 +793,7 @@ impl<R: oio::BlockingRead, I: MetricsIntercept> oio::BlockingRead for MetricsWra
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -933,21 +811,13 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
 
         let res = match self.inner.write(bs).await {
             Ok(()) => {
-                self.interceptor.observe_operation_bytes(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
-                    &self.path,
-                    op,
-                    size,
-                );
+                self.interceptor
+                    .observe_operation_bytes(self.info.clone(), &self.path, op, size);
                 Ok(())
             }
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -956,9 +826,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -975,9 +843,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             Ok(meta) => Ok(meta),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -986,9 +852,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1005,9 +869,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             Ok(()) => Ok(()),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1016,9 +878,7 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1036,21 +896,13 @@ impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsW
 
         let res = match self.inner.write(bs) {
             Ok(()) => {
-                self.interceptor.observe_operation_bytes(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
-                    &self.path,
-                    op,
-                    size,
-                );
+                self.interceptor
+                    .observe_operation_bytes(self.info.clone(), &self.path, op, size);
                 Ok(())
             }
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1059,9 +911,7 @@ impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsW
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1078,9 +928,7 @@ impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsW
             Ok(meta) => Ok(meta),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1089,9 +937,7 @@ impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsW
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1110,9 +956,7 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1121,9 +965,7 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1142,9 +984,7 @@ impl<R: oio::BlockingList, I: MetricsIntercept> oio::BlockingList for MetricsWra
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1153,9 +993,7 @@ impl<R: oio::BlockingList, I: MetricsIntercept> oio::BlockingList for MetricsWra
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1174,9 +1012,7 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1185,9 +1021,7 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1204,9 +1038,7 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1215,9 +1047,7 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1236,9 +1066,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1247,9 +1075,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),
@@ -1266,9 +1092,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
             Ok(entry) => Ok(entry),
             Err(err) => {
                 self.interceptor.observe_operation_errors_total(
-                    self.scheme,
-                    self.namespace.clone(),
-                    self.root.clone(),
+                    self.info.clone(),
                     &self.path,
                     op,
                     err.kind(),
@@ -1277,9 +1101,7 @@ impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for Metric
             }
         };
         self.interceptor.observe_operation_duration_seconds(
-            self.scheme,
-            self.namespace.clone(),
-            self.root.clone(),
+            self.info.clone(),
             &self.path,
             op,
             start.elapsed(),

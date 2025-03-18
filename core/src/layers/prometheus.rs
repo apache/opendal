@@ -413,79 +413,72 @@ pub struct PrometheusInterceptor {
 impl observe::MetricsIntercept for PrometheusInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace: &namespace,
-            root: &root,
+            scheme: info.scheme(),
+            name: info.name(),
+            root: info.root(),
             operation: op,
             error: None,
             path,
-        }
-        .into_values(self.path_label_level);
+        };
 
         self.operation_duration_seconds
-            .with_label_values(&labels)
+            .with_label_values(&labels.values(self.path_label_level))
             .observe(duration.as_secs_f64())
     }
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace: &namespace,
-            root: &root,
+            scheme: info.scheme(),
+            name: info.name(),
+            root: info.root(),
             operation: op,
             error: None,
             path,
-        }
-        .into_values(self.path_label_level);
+        };
 
         self.operation_bytes
-            .with_label_values(&labels)
+            .with_label_values(&labels.values(self.path_label_level))
             .observe(bytes as f64);
     }
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace: &namespace,
-            root: &root,
+            scheme: info.scheme(),
+            name: info.name(),
+            root: info.root(),
             operation: op,
             error: Some(error),
             path,
-        }
-        .into_values(self.path_label_level);
+        };
 
-        self.operation_errors_total.with_label_values(&labels).inc();
+        self.operation_errors_total
+            .with_label_values(&labels.values(self.path_label_level))
+            .inc();
     }
 }
 
 struct OperationLabels<'a> {
     scheme: Scheme,
-    namespace: &'a str,
-    root: &'a str,
+    name: Arc<str>,
+    root: Arc<str>,
     operation: Operation,
     path: &'a str,
     error: Option<ErrorKind>,
@@ -519,13 +512,13 @@ impl<'a> OperationLabels<'a> {
     /// 2. `["scheme", "namespace", "root", "operation", "path"]`
     /// 3. `["scheme", "namespace", "root", "operation", "error"]`
     /// 4. `["scheme", "namespace", "root", "operation", "path", "error"]`
-    fn into_values(self, path_label_level: usize) -> Vec<&'a str> {
+    fn values(&'a self, path_label_level: usize) -> Vec<&'a str> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
             self.scheme.into_static(),
-            self.namespace,
-            self.root,
+            self.name.as_ref(),
+            self.root.as_ref(),
             self.operation.into_static(),
         ]);
 

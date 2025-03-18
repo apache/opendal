@@ -105,17 +105,13 @@ pub struct MetricsInterceptor {
 impl observe::MetricsIntercept for MetricsInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
+            info,
             path,
             operation: op,
             error: None,
@@ -126,17 +122,13 @@ impl observe::MetricsIntercept for MetricsInterceptor {
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
+            info,
             path,
             operation: op,
             error: None,
@@ -147,17 +139,13 @@ impl observe::MetricsIntercept for MetricsInterceptor {
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
+            info,
             path,
             operation: op,
             error: Some(error),
@@ -168,9 +156,7 @@ impl observe::MetricsIntercept for MetricsInterceptor {
 }
 
 struct OperationLabels<'a> {
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
+    info: Arc<AccessorInfo>,
     path: &'a str,
     operation: Operation,
     error: Option<ErrorKind>,
@@ -187,9 +173,9 @@ impl OperationLabels<'_> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
-            Label::new(observe::LABEL_SCHEME, self.scheme.into_static()),
-            Label::new(observe::LABEL_NAMESPACE, (*self.namespace).clone()),
-            Label::new(observe::LABEL_ROOT, (*self.root).clone()),
+            Label::new(observe::LABEL_SCHEME, self.info.scheme().into_static()),
+            Label::new(observe::LABEL_NAMESPACE, self.info.name()),
+            Label::new(observe::LABEL_ROOT, self.info.root()),
             Label::new(observe::LABEL_OPERATION, self.operation.into_static()),
         ]);
 

@@ -36,7 +36,7 @@ impl OperatorInfo {
 
     /// Root of operator, will be in format like `/path/to/dir/`
     pub fn root(&self) -> String {
-        self.0.root()
+        self.0.root().to_string()
     }
 
     /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
@@ -46,7 +46,7 @@ impl OperatorInfo {
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
     pub fn name(&self) -> String {
-        self.0.name()
+        self.0.name().to_string()
     }
 
     /// Get [`Full Capability`] of operator.

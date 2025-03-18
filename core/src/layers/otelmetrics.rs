@@ -261,41 +261,35 @@ pub struct OtelMetricsInterceptor {
 impl observe::MetricsIntercept for OtelMetricsInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
+        let attributes = self.create_attributes(info, path, op, None);
         self.duration_seconds
             .record(duration.as_secs_f64(), &attributes);
     }
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
+        let attributes = self.create_attributes(info, path, op, None);
         self.bytes.record(bytes as u64, &attributes);
     }
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, Some(error));
+        let attributes = self.create_attributes(info, path, op, Some(error));
         self.errors.add(1, &attributes);
     }
 }
@@ -303,9 +297,7 @@ impl observe::MetricsIntercept for OtelMetricsInterceptor {
 impl OtelMetricsInterceptor {
     fn create_attributes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         operation: Operation,
         error: Option<ErrorKind>,
@@ -313,9 +305,9 @@ impl OtelMetricsInterceptor {
         let mut attributes = Vec::with_capacity(6);
 
         attributes.extend([
-            KeyValue::new(observe::LABEL_SCHEME, scheme.into_static()),
-            KeyValue::new(observe::LABEL_NAMESPACE, (*namespace).clone()),
-            KeyValue::new(observe::LABEL_ROOT, (*root).clone()),
+            KeyValue::new(observe::LABEL_SCHEME, info.scheme().into_static()),
+            KeyValue::new(observe::LABEL_NAMESPACE, info.name().clone()),
+            KeyValue::new(observe::LABEL_ROOT, info.root().clone()),
             KeyValue::new(observe::LABEL_OPERATION, operation.into_static()),
         ]);
 

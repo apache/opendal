@@ -47,14 +47,18 @@ impl oio::Read for CompfsReader {
     async fn read(&mut self) -> Result<Buffer> {
         let pos = self.offset;
         if let Some(end) = self.end {
-            if end >= pos {
+            if end < pos {
                 return Ok(Buffer::new());
             }
         }
 
         let mut bs = self.core.buf_pool.get();
         // reserve 64KB buffer by default, we should allow user to configure this or make it adaptive.
-        bs.reserve(64 * 1024);
+        if let Some(end) = self.end {
+            bs.reserve((end - pos) as usize);
+        } else {
+            bs.reserve(64 * 1024);
+        }
         let f = self.file.clone();
         let (n, mut bs) = self
             .core

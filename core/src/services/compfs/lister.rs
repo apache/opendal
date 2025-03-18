@@ -77,7 +77,9 @@ impl oio::List for CompfsLister {
                 (entry, read_dir)
             })
             .await?;
-        self.read_dir = Some(read_dir);
+        if !matches!(entry, Ok(None)) {
+            self.read_dir = Some(read_dir);
+        }
         entry
     }
 }

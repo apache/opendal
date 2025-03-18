@@ -245,5 +245,10 @@ class AsyncListTest extends BehaviorTestBase {
                 .list(dir, ListOptions.builder().recursive(true).build())
                 .join();
         assertThat(entries).hasSize(4);
+
+        final List<Entry> noRecursiveEntries = asyncOp()
+                .list(dir, ListOptions.builder().recursive(false).build())
+                .join();
+        assertThat(noRecursiveEntries).hasSize(3);
     }
 }

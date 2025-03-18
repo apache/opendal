@@ -298,7 +298,7 @@ fn intern_list(
         list_op = list_op.recursive(true);
     }
 
-    let obs = list_op.recursive(true).call()?;
+    let obs = list_op.call()?;
 
     let jarray = env.new_object_array(
         obs.len() as jsize,

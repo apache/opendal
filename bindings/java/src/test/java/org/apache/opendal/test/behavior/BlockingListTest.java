@@ -126,7 +126,11 @@ public class BlockingListTest extends BehaviorTestBase {
         op().write(nestedFile, content);
 
         final List<Entry> entries =
-                op().list(dir, ListOptions.builder().recursive(false).build());
+                op().list(dir, ListOptions.builder().recursive(true).build());
         assertThat(entries).hasSize(4);
+
+        final List<Entry> noRecursiveEntries =
+                op().list(dir, ListOptions.builder().recursive(false).build());
+        assertThat(noRecursiveEntries).hasSize(3);
     }
 }

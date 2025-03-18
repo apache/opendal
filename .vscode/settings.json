@@ -10,13 +10,5 @@
     "${workspaceFolder}/bin/oay/Cargo.toml",
     "${workspaceFolder}/bin/ofs/Cargo.toml"
   ],
-  "java.compile.nullAnalysis.mode": "automatic",
-  "cSpell.words": [
-    "jarray",
-    "jsize",
-    "jstring"
-  ],
-  "java.test.config": {
-    "envFile": "${workspaceFolder}/.env"
-}
+  "java.compile.nullAnalysis.mode": "automatic"
 }

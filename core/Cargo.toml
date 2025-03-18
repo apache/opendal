@@ -340,7 +340,7 @@ hdfs-native = { version = "0.10", optional = true }
 # for services-surrealdb
 surrealdb = { version = "2", optional = true, features = ["protocol-http"] }
 # for services-compfs
-compio = { version = "0.12.0", optional = true, features = [
+compio = { version = "0.14.0", optional = true, features = [
   "runtime",
   "bytes",
   "polling",

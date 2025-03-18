@@ -172,7 +172,9 @@ impl Access for CompfsBackend {
             EntryMode::Unknown
         };
         let last_mod = meta.modified().map_err(new_std_io_error)?.into();
-        let ret = Metadata::new(mode).with_last_modified(last_mod);
+        let ret = Metadata::new(mode)
+            .with_last_modified(last_mod)
+            .with_content_length(meta.len());
 
         Ok(RpStat::new(ret))
     }
@@ -232,15 +234,20 @@ impl Access for CompfsBackend {
         let file = self
             .core
             .exec(move || async move {
-                compio::fs::OpenOptions::new()
+                let file = compio::fs::OpenOptions::new()
                     .create(true)
                     .write(true)
                     .truncate(!append)
                     .open(path)
-                    .await
+                    .await?;
+                let mut file = Cursor::new(file);
+                if append {
+                    let len = file.get_ref().metadata().await?.len();
+                    file.set_position(len);
+                }
+                Ok(file)
             })
-            .await
-            .map(Cursor::new)?;
+            .await?;
 
         let w = CompfsWriter::new(self.core.clone(), file);
         Ok((RpWrite::new(), w))

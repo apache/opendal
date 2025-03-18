@@ -19,15 +19,17 @@
 //!
 //! This module offers essential components to facilitate the implementation of observability in OpenDAL.
 //!
-//! # Prometheus Metrics
+//! # Metrics
 //!
 //! These metrics are essential for understanding the behavior and performance of our applications.
 //!
-//! | Metric Name                  | Type      | Description                                                  | Labels                                          |
-//! |------------------------------|-----------|--------------------------------------------------------------|-------------------------------------------------|
-//! | operation_duration_seconds   | Histogram | Histogram of time spent during opendal operations            | scheme, namespace, root, operation, path        |
-//! | operation_bytes.             | Histogram | Histogram of the bytes transferred during opendal operations | scheme, operation, root, operation, path        |
-//! | operation_errors_total       | Counter   | Error counter during opendal operations                      | scheme, operation, root, operation, path, error |
+//! | Metric Name                   | Type      | Description                                                  | Labels                                          |
+//! |-------------------------------|-----------|--------------------------------------------------------------|-------------------------------------------------|
+//! | operation_duration_seconds    | Histogram | Histogram of time spent during opendal operations            | scheme, namespace, root, operation, path        |
+//! | operation_bytes.              | Histogram | Histogram of the bytes transferred during opendal operations | scheme, namespace, root, operation, path        |
+//! | operation_errors_total        | Counter   | Error counter during opendal operations                      | scheme, namespace, root, operation, path, error |
+//! | http_request_duration_seconds | Histogram | Histogram of time spent during http requests                 | scheme, namespace, root, operation              |
+//! | http_request_bytes.           | Histogram | Histogram of the bytes transferred during http requests      | scheme, namespace, root, operation              |
 
 mod metrics;
 
@@ -41,6 +43,8 @@ pub use metrics::LABEL_OPERATION;
 pub use metrics::LABEL_PATH;
 pub use metrics::LABEL_ROOT;
 pub use metrics::LABEL_SCHEME;
+pub use metrics::METRIC_HTTP_REQUEST_BYTES;
+pub use metrics::METRIC_HTTP_REQUEST_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_BYTES;
 pub use metrics::METRIC_OPERATION_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;

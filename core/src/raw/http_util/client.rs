@@ -82,6 +82,11 @@ impl HttpClient {
         Self { fetcher }
     }
 
+    /// Get the inner http client.
+    pub(crate) fn into_inner(self) -> HttpFetcher {
+        self.fetcher
+    }
+
     /// Build a new http client in async context.
     #[deprecated]
     pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {

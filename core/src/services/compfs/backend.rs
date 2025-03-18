@@ -274,7 +274,10 @@ impl Access for CompfsBackend {
 
         let read_dir = match self
             .core
-            .exec_blocking(move || std::fs::read_dir(path))
+            .exec_blocking({
+                let path = path.clone();
+                move || std::fs::read_dir(path)
+            })
             .await?
         {
             Ok(rd) => rd,
@@ -287,7 +290,7 @@ impl Access for CompfsBackend {
             }
         };
 
-        let lister = CompfsLister::new(self.core.clone(), read_dir);
+        let lister = CompfsLister::new(self.core.clone(), &path, read_dir);
         Ok((RpList::default(), Some(lister)))
     }
 }

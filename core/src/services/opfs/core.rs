@@ -58,17 +58,19 @@ fn dyn_map_err<T: JsCast>(result: Result<JsValue, JsValue>) -> Result<T, Error> 
 async fn get_handle_by_filename(filename: &str) -> Result<FileSystemFileHandle, Error> {
     let navigator = window().unwrap().navigator();
     let storage_manager = navigator.storage();
-    let root = dyn_map_err::<FileSystemDirectoryHandle>(
-        JsFuture::from(storage_manager.get_directory()).await,
-    )?;
+    let root: FileSystemDirectoryHandle = JsFuture::from(storage_manager.get_directory())
+        .await
+        .and_then(JsCast::dyn_into)
+        .map_err(parse_js_error)?;
 
     // maybe the option should be exposed?
     let opt = FileSystemGetFileOptions::new();
     opt.set_create(true);
 
-    dyn_map_err::<FileSystemFileHandle>(
-        JsFuture::from(root.get_file_handle_with_options(filename, &opt)).await,
-    )
+    JsFuture::from(root.get_file_handle_with_options(filename, &opt))
+        .await
+        .and_then(JsCast::dyn_into)
+        .map_err(parse_js_error)
 }
 
 #[derive(Default, Debug)]
@@ -78,8 +80,10 @@ impl OpfsCore {
     async fn store_file(&self, file_name: &str, content: &[u8]) -> Result<(), Error> {
         let handle = get_handle_by_filename(file_name).await?;
 
-        let writable: FileSystemWritableFileStream =
-            dyn_map_err(JsFuture::from(handle.create_writable()).await)?;
+        let writable: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
 
         // QuotaExceeded or NotAllowed
         JsFuture::from(
@@ -100,7 +104,10 @@ impl OpfsCore {
     async fn read_file(&self, file_name: &str) -> Result<Vec<u8>, Error> {
         let handle = get_handle_by_filename(file_name).await?;
 
-        let file = dyn_map_err::<File>(JsFuture::from(handle.get_file()).await)?;
+        let file: File = JsFuture::from(handle.get_file())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
         let array_buffer = JsFuture::from(file.array_buffer())
             .await
             .map_err(parse_js_error)?;

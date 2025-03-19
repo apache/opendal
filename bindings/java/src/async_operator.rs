@@ -307,11 +307,58 @@ fn intern_read(
     Ok(id)
 }
 
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_offset(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    executor: *const Executor,
+    offset: jlong,
+    len: jlong,
+    path: JString,
+) -> jlong {
+    intern_read_with_offset(&mut env, op, executor, offset, len, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_read_with_offset(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    executor: *const Executor,
+    offset: jlong,
+    len: jlong,
+    path: JString,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = jstring_to_string(env, &path)?;
+
+    executor_or_default(env, executor)?.spawn(async move {
+        let result = do_read_with_offset(op, offset, len, path).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
 async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let content = op.read(&path).await?.to_bytes();
 
     let env = unsafe { get_current_env() };
     let result = env.byte_array_from_slice(&content)?;
+    Ok(result.into())
+}
+
+async fn do_read_with_offset<'local>(op: &mut Operator, offset: jlong, len: jlong, path: String) -> Result<JObject<'local>> {
+    let offset = offset as u64;
+    let len = len as u64;
+
+    let buffer = op.read_with(&path).range(offset..(offset + len)).await?.to_bytes();
+    let env = unsafe { get_current_env() };
+    let result = env.byte_array_from_slice(&buffer)?;
     Ok(result.into())
 }
 

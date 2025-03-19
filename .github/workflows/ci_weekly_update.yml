@@ -43,7 +43,7 @@ jobs:
 
       - name: Install UV
         run: |
-          pip install ruff
+          pip install uv ruff
 
       - name: Install dependencies with UV
         working-directory: .github/scripts/weekly_update

@@ -1,7 +1,7 @@
 ## OpenDAL Weekly Update
 
 ```shell
-python main.py apache/opendal --output weekly_update.md
+uv run -s main.py apache/opendal --output weekly_update.md
 ```
 
 Available options:

@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use compio::buf::buf_try;
+use compio::buf::{buf_try, IntoInner, IoBuf};
 use compio::io::AsyncReadAt;
 
 use super::core::CompfsCore;
@@ -54,17 +54,19 @@ impl oio::Read for CompfsReader {
 
         let mut bs = self.core.buf_pool.get();
         // reserve 64KB buffer by default, we should allow user to configure this or make it adaptive.
-        if let Some(end) = self.end {
-            bs.reserve((end - pos) as usize);
+        let max_len = if let Some(end) = self.end {
+            (end - pos) as usize
         } else {
-            bs.reserve(64 * 1024);
-        }
+            64 * 1024
+        };
+        bs.reserve(max_len);
         let f = self.file.clone();
         let (n, mut bs) = self
             .core
             .exec(move || async move {
-                let (n, bs) = buf_try!(@try f.read_at(bs, pos).await);
-                Ok((n, bs))
+                // reserve doesn't guarantee the exact size
+                let (n, bs) = buf_try!(@try f.read_at(bs.slice(..max_len), pos).await);
+                Ok((n, bs.into_inner()))
             })
             .await?;
         let frozen = bs.split_to(n).freeze();

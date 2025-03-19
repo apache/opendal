@@ -69,7 +69,7 @@ impl HuggingfaceCore {
 
         let mut req = Request::post(&url);
         // Inject operation to the request.
-        req = req.extension(Operation::ReaderStart);
+        req = req.extension(Operation::Stat);
         if let Some(token) = &self.token {
             let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -112,7 +112,7 @@ impl HuggingfaceCore {
 
         let mut req = Request::get(&url);
         // Inject operation to the request.
-        req = req.extension(Operation::ReaderStart);
+        req = req.extension(Operation::ListerStart);
         if let Some(token) = &self.token {
             let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);

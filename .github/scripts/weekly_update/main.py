@@ -425,9 +425,6 @@ def summarize_with_openai(data, client, model):
 
     ## Good First Issues
     [List good first issues for new contributors with brief explanations of what makes them approachable]
-
-    ## Contributors
-    [List and thank all contributors mentioned in the data]
     """
 
     try:

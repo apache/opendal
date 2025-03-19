@@ -24,7 +24,7 @@ mod error_context;
 pub(crate) use error_context::ErrorContextLayer;
 
 mod complete;
-pub use complete::CompleteLayer;
+pub(crate) use complete::CompleteLayer;
 
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;

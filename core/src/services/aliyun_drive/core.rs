@@ -67,7 +67,6 @@ pub struct AliyunDriveCore {
     pub drive_type: DriveType,
 
     pub signer: Arc<Mutex<AliyunDriveSigner>>,
-    pub client: HttpClient,
     pub dir_lock: Arc<Mutex<()>>,
 }
 
@@ -101,7 +100,7 @@ impl AliyunDriveCore {
                     .expect("access token must be valid header value"),
             );
         }
-        let res = self.client.send(req).await?;
+        let res = self.info.http_client().send(req).await?;
         if !res.status().is_success() {
             return Err(parse_error(res));
         }

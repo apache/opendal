@@ -23,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.opendal.layer.CompleteLayer;
 
 /**
  * Operator represents an underneath OpenDAL operator that accesses data synchronously.
@@ -54,7 +53,7 @@ public class Operator extends NativeObject {
      */
     public static Operator of(String scheme, Map<String, String> map) {
         try (final AsyncOperator operator = AsyncOperator.of(scheme, map)) {
-            return operator.layer(new CompleteLayer()).blocking();
+            return operator.blocking();
         }
     }
 

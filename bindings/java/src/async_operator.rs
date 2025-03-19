@@ -30,7 +30,6 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
-use opendal::layers::CompleteLayer;
 use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
@@ -607,9 +606,7 @@ async fn do_list<'local>(
     path: String,
     options: HashMap<&str, &str>,
 ) -> Result<JObject<'local>> {
-    let layered_op = op.clone().layer(CompleteLayer);
-
-    let mut list_op = layered_op.list_with(&path);
+    let mut list_op = op.list_with(&path);
     if let Some(&"true") = options.get("recursive") {
         list_op = list_op.recursive(true);
     }

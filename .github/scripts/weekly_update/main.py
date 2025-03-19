@@ -398,7 +398,6 @@ def summarize_with_openai(data, client, model):
     Example of correct format:
 
     - #1234 by @username implements the core authentication framework
-    - Related performance improvements by @anotheruser include [database optimizations](#5678) and [caching improvements](#5679)
     - Multiple documentation updates were contributed by @contributor focusing on installation guides and API references
 
     Here's the JSON data:

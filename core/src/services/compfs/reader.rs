@@ -47,7 +47,7 @@ impl oio::Read for CompfsReader {
     async fn read(&mut self) -> Result<Buffer> {
         let pos = self.offset;
         if let Some(end) = self.end {
-            if end < pos {
+            if end <= pos {
                 return Ok(Buffer::new());
             }
         }

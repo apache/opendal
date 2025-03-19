@@ -24,9 +24,8 @@ on:
   workflow_dispatch: # This allows manual triggering of the workflow
 
 permissions:
-  pull-requests: write
   discussions: write
-  contents: write
+  contents: read
 
 jobs:
   generate-and-publish:
@@ -80,14 +79,64 @@ jobs:
           echo "TITLE_DATE=$TITLE_DATE" >> $GITHUB_ENV
 
       - name: Create GitHub Discussion
-        run: |
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/discussions \
-            -f title="${{ env.TITLE_DATE }}: This week in OpenDAL" \
-            -f body="$(cat .github/scripts/weekly_update/weekly_update.md)" \
-            -f category_id="$(gh api /repos/${{ github.repository }}/discussions/categories | jq '.[] | select(.name=="General") | .id')"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read the weekly update content directly from file
+            const weeklyUpdateContent = fs.readFileSync('.github/scripts/weekly_update/weekly_update.md', 'utf8');
+            const discussionTitle = `${process.env.TITLE_DATE}: This week in OpenDAL`;
+
+            // Get repository node ID using GraphQL
+            const repoQuery = `
+              query {
+                repository(owner: "${context.repo.owner}", name: "${context.repo.repo}") {
+                  id
+                  discussionCategories(first: 10) {
+                    nodes {
+                      id
+                      name
+                    }
+                  }
+                }
+              }
+            `;
+
+            const repoResult = await github.graphql(repoQuery);
+            const repositoryId = repoResult.repository.id;
+
+            // Find the "General" category
+            const categories = repoResult.repository.discussionCategories.nodes;
+            const generalCategory = categories.find(category => category.name === 'General');
+
+            if (!generalCategory) {
+              core.setFailed("Could not find 'General' discussion category. Make sure Discussions are enabled for this repository.");
+              return;
+            }
+
+            // Create the discussion using GraphQL API
+            const createDiscussionMutation = `
+              mutation {
+                createDiscussion(input: {
+                  repositoryId: "${repositoryId}",
+                  categoryId: "${generalCategory.id}",
+                  body: ${JSON.stringify(weeklyUpdateContent)},
+                  title: ${JSON.stringify(discussionTitle)}
+                }) {
+                  discussion {
+                    id
+                    url
+                  }
+                }
+              }
+            `;
+
+            try {
+              const result = await github.graphql(createDiscussionMutation);
+              console.log(`Successfully created discussion: ${result.createDiscussion.discussion.url}`);
+            } catch (error) {
+              console.error('Error creating discussion:', error.message);
+              core.setFailed(`Error creating discussion: ${error.message}`);
+            }

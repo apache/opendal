@@ -49,7 +49,6 @@ pub struct AzfileCore {
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
-    pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
 }
@@ -95,7 +94,7 @@ impl AzfileCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn azfile_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -116,7 +115,7 @@ impl AzfileCore {
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn azfile_create_file(

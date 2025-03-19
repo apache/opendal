@@ -16,10 +16,11 @@
 // under the License.
 
 use crate::raw::oio::FlatLister;
-use crate::raw::oio::PrefixLister;
+use crate::raw::oio::{PrefixLister, RecursiveDeleter};
 use crate::raw::*;
 use crate::*;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -343,7 +344,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
     type BlockingLister = CompleteLister<A, A::BlockingLister>;
-    type Deleter = A::Deleter;
+    type Deleter = CompleteDeleter<A, A::Deleter>;
     type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
@@ -377,7 +378,9 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner().delete().await
+        let (rp, d) = self.inner().delete().await?;
+        let d = CompleteDeleter::new(self.inner.clone(), d);
+        Ok((rp, d))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -607,5 +610,46 @@ where
         self.inner = None;
 
         Ok(ret)
+    }
+}
+
+pub struct CompleteDeleter<A, D> {
+    inner: RecursiveDeleter<A, D>,
+    buffer: HashSet<(String, OpDelete)>,
+}
+
+impl<A: Access, D: oio::Delete> CompleteDeleter<A, D> {
+    pub fn new(acc: Arc<A>, deleter: D) -> Self {
+        Self {
+            inner: RecursiveDeleter::new(acc, deleter),
+            buffer: HashSet::default(),
+        }
+    }
+}
+
+impl<A: Access, D: oio::Delete> oio::Delete for CompleteDeleter<A, D> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.buffer.insert((path.to_string(), args));
+        Ok(())
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        if self.buffer.is_empty() {
+            return Ok(0);
+        }
+
+        let size = self.buffer.len();
+        for (path, args) in self.buffer.clone() {
+            if args.recursive() {
+                self.inner.recursive_delete(path.as_str()).await?
+            } else {
+                self.inner.delete(path.as_str(), args.clone()).await?;
+            }
+
+            self.buffer.remove(&(path, args));
+        }
+
+        self.inner.flush_all().await?;
+        Ok(size)
     }
 }

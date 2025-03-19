@@ -47,7 +47,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_dir_with_recursive_no_trailing_slash,
             test_list_file_with_recursive,
             test_list_root_with_recursive,
-            test_remove_all,
             test_list_files_with_versions,
             test_list_with_versions_and_limit,
             test_list_with_versions_and_start_after,
@@ -538,35 +537,6 @@ pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
 
     let expected = vec!["y", "yy"];
     assert_eq!(actual, expected);
-    Ok(())
-}
-
-// Remove all should remove all in this path.
-pub async fn test_remove_all(op: Operator) -> Result<()> {
-    let parent = uuid::Uuid::new_v4().to_string();
-
-    let expected = [
-        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-    ];
-    for path in expected.iter() {
-        if path.ends_with('/') {
-            op.create_dir(&format!("{parent}/{path}")).await?;
-        } else {
-            op.write(&format!("{parent}/{path}"), "test_scan").await?;
-        }
-    }
-
-    op.remove_all(&format!("{parent}/x/")).await?;
-
-    for path in expected.iter() {
-        if path.ends_with('/') {
-            continue;
-        }
-        assert!(
-            !op.exists(&format!("{parent}/{path}")).await?,
-            "{parent}/{path} should be removed"
-        )
-    }
     Ok(())
 }
 

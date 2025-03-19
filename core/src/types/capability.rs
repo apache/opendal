@@ -167,6 +167,8 @@ pub struct Capability {
     pub delete_with_version: bool,
     /// Maximum size supported for single delete operations.
     pub delete_max_size: Option<usize>,
+    /// Indicates if recursive delete operations are supported.
+    pub delete_with_recursive: bool,
 
     /// Indicates if copy operations are supported.
     pub copy: bool,

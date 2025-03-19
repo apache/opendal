@@ -290,6 +290,7 @@ mod tests {
             ("file walk", "foo/bar/baz", "foo/bar/"),
             ("dir rel path", "bar/baz/", "bar/"),
             ("dir root", "/", "/"),
+            ("dir abs path", "/foo/bar/", "/foo/"),
             ("dir walk", "foo/bar/baz/", "foo/bar/"),
         ];
 

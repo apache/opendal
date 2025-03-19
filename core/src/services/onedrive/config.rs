@@ -36,6 +36,8 @@ pub struct OnedriveConfig {
     pub client_id: Option<String>,
     /// Microsoft Graph API Application client secret that is in the Azure's app registration portal
     pub client_secret: Option<String>,
+    /// Enabling version support
+    pub enable_versioning: bool,
 }
 
 impl Debug for OnedriveConfig {

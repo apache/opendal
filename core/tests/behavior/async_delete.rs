@@ -17,6 +17,7 @@
 
 use crate::*;
 use anyhow::Result;
+use futures::TryStreamExt;
 use log::warn;
 use opendal::raw::{Access, OpDelete};
 
@@ -180,22 +181,18 @@ async fn test_blocking_remove_all_with_objects(
     }
 
     op.delete_with(&parent).recursive(true).await?;
-    let list = op.list_with(&parent).recursive(true).await?;
-    for entry in list {
-        println!("{:?}", entry);
-    }
 
-    // let found = op
-    //     .lister_with(&format!("{parent}/"))
-    //     .recursive(true)
-    //     .await
-    //     .expect("list must succeed")
-    //     .try_next()
-    //     .await
-    //     .expect("list must succeed")
-    //     .is_some();
+    let found = op
+        .lister_with(&format!("{parent}/"))
+        .recursive(true)
+        .await
+        .expect("list must succeed")
+        .try_next()
+        .await
+        .expect("list must succeed")
+        .is_some();
 
-    // assert!(!found, "all objects should be removed");
+    assert!(!found, "all objects should be removed");
 
     Ok(())
 }

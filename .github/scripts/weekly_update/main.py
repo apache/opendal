@@ -393,7 +393,7 @@ def summarize_with_openai(data, client, model):
     - DO NOT repeat the title in your explanation if you've already mentioned the reference number
     - AVOID listing large numbers of PRs in sequence - instead, summarize them by theme or use bulleted lists with no more than 3-5 items per bullet
     - For groups of related PRs, summarize the theme and mention 1-2 representative examples instead of listing all of them
-    - When appropriate, use standard Markdown URL syntax [meaningful text](#XXXX) instead of just the reference number
+    - When appropriate, use standard Markdown URL syntax [meaningful text](full link) instead of just the reference number
 
     Example of correct format:
 

@@ -380,8 +380,8 @@ impl Access for CosBackend {
             CosWriters::Two(oio::AppendWriter::new(writer))
         } else {
             CosWriters::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

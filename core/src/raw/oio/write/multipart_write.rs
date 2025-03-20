@@ -147,9 +147,9 @@ pub struct MultipartWriter<W: MultipartWrite> {
 /// wasm32 is a special target that we only have one event-loop for this state.
 impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
-    pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
+    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
         let w = Arc::new(inner);
-        let executor = executor.unwrap_or_default();
+        let executor = info.executor();
         Self {
             w,
             executor: executor.clone(),
@@ -443,11 +443,10 @@ mod tests {
     async fn test_multipart_upload_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = MultipartWriter::new(
-            TestWrite::new(),
-            Some(Executor::with(TimeoutExecutor::new())),
-            200,
-        );
+        let info = Arc::new(AccessorInfo::default());
+        info.update_executor(|_| Executor::with(TimeoutExecutor::new()));
+
+        let mut w = MultipartWriter::new(info, TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -491,7 +490,7 @@ mod tests {
         let mut rng = thread_rng();
 
         for _ in 0..100 {
-            let mut w = MultipartWriter::new(TestWrite::new(), None, 200);
+            let mut w = MultipartWriter::new(Arc::default(), TestWrite::new(), 200);
             let size = rng.gen_range(1..1024);
             let mut bs = vec![0; size];
             rng.fill_bytes(&mut bs);

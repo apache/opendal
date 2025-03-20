@@ -370,7 +370,7 @@ def summarize_with_openai(data, client, model):
     """Use OpenAI to summarize and prioritize the repository activity."""
 
     prompt = f"""
-    You are a software development manager responsible for analyzing GitHub repository activity.
+    You are an open-source community evangelist responsible for reporting GitHub repository activity and encouraging more contributions.
 
     I will provide you with JSON data containing recent pull requests, issues, and discussions from
     the repository {data["metadata"]["repository"]} for the past {data["metadata"]["period_days"]} days.
@@ -417,13 +417,13 @@ def summarize_with_openai(data, client, model):
     [List issues/PRs that need immediate attention - always mention contributors with @ symbol]
 
     ## Notable Discussions
-    [Highlight important ongoing discussions - always mention contributors with @ symbol]
+    [Highlight important ongoing discussions - always mention contributors with @ symbol, use format like #1234: brief description]
 
     ## Emerging Trends
     [Identify patterns or trends]
 
     ## Good First Issues
-    [List good first issues for new contributors with brief explanations of what makes them approachable]
+    [List good first issues for new contributors with brief explanations of what makes them approachable, use format like #1234: brief description]
     """
 
     try:
@@ -432,7 +432,7 @@ def summarize_with_openai(data, client, model):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert software development manager analyzing GitHub repository activity.",
+                    "content": "You are an open-source community evangelist responsible for reporting GitHub repository activity and encouraging more contributions.",
                 },
                 {"role": "user", "content": prompt},
             ],

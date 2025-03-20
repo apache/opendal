@@ -79,8 +79,8 @@ pub struct PositionWriter<W: PositionWrite> {
 #[allow(dead_code)]
 impl<W: PositionWrite> PositionWriter<W> {
     /// Create a new PositionWriter.
-    pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
-        let executor = executor.unwrap_or_default();
+    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
+        let executor = info.executor();
 
         Self {
             w: Arc::new(inner),
@@ -240,7 +240,7 @@ mod tests {
     async fn test_position_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = PositionWriter::new(TestWrite::new(), Some(Executor::new()), 200);
+        let mut w = PositionWriter::new(Arc::default(), TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {

@@ -30,7 +30,8 @@ use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
-use opendal::{Entry, Operator};
+use opendal::Entry;
+use opendal::Operator;
 use opendal::Scheme;
 
 use crate::convert::jstring_to_string;
@@ -594,9 +595,7 @@ fn intern_list(
     Ok(id)
 }
 
-fn make_entries<'local>(
-    entries: Result<Vec<Entry>>
-) -> Result<JObject<'local>> {
+fn make_entries<'local>(entries: Result<Vec<Entry>>) -> Result<JObject<'local>> {
     let entries = entries?;
 
     let mut env = unsafe { get_current_env() };

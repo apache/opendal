@@ -87,7 +87,7 @@ jobs:
 
             // Read the weekly update content directly from file
             const weeklyUpdateContent = fs.readFileSync('.github/scripts/weekly_update/weekly_update.md', 'utf8');
-            const discussionTitle = `${process.env.TITLE_DATE}: This week in OpenDAL`;
+            const discussionTitle = `${process.env.TITLE_DATE}: This Week in OpenDAL`;
 
             // Get repository node ID using GraphQL
             const repoQuery = `

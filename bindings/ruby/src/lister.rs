@@ -120,7 +120,7 @@ pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
     entry_class.define_method("metadata", method!(Entry::metadata, 0))?;
 
     let lister_class = gem_module.define_class("Lister", class::object())?;
-    let _ = lister_class
+    lister_class
         .include_module(ruby.module_enumerable())
         .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
     lister_class.define_method("each", method!(Lister::each, 0))?;

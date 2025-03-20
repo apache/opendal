@@ -202,7 +202,7 @@ impl Operator {
     /// @return [OpenDAL::IO]
     fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
         let operator = rb_self.0.clone();
-        Ok(Io::new(&ruby, operator, path, mode)?)
+        Io::new(ruby, operator, path, mode)
     }
 
     /// @yard

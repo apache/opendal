@@ -345,8 +345,8 @@ impl Access for FsBackend {
             FsWriters::One(w)
         } else {
             FsWriters::Two(oio::PositionWriter::new(
+                self.info().clone(),
                 w,
-                op.executor().cloned(),
                 op.concurrent(),
             ))
         };

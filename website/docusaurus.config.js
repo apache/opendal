@@ -137,7 +137,7 @@ const config = {
           },
           {
             from: "/discord",
-            to: "https://discord.gg/XQy8yGR2dg",
+            to: "https://discord.com/invite/XQy8yGR2dg",
           },
           {
             from: "/maillist",

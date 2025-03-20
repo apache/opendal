@@ -164,6 +164,7 @@ impl Access for HdfsNativeBackend {
                 write: true,
                 write_can_append: self.enable_append,
 
+                create_dir: true,
                 delete: true,
 
                 list: true,

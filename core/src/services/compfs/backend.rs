@@ -193,7 +193,15 @@ impl Access for CompfsBackend {
         self.core
             .exec(move || async move {
                 let from = OpenOptions::new().read(true).open(from).await?;
-                let to = OpenOptions::new().write(true).create(true).open(to).await?;
+                if let Some(parent) = to.parent() {
+                    compio::fs::create_dir_all(parent).await?;
+                }
+                let to = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(to)
+                    .await?;
 
                 let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
                 compio::io::copy(&mut from, &mut to).await?;
@@ -210,7 +218,12 @@ impl Access for CompfsBackend {
         let to = self.core.prepare_path(to);
 
         self.core
-            .exec(move || async move { compio::fs::rename(from, to).await })
+            .exec(move || async move {
+                if let Some(parent) = to.parent() {
+                    compio::fs::create_dir_all(parent).await?;
+                }
+                compio::fs::rename(from, to).await
+            })
             .await?;
 
         Ok(RpRename::default())
@@ -234,6 +247,9 @@ impl Access for CompfsBackend {
         let file = self
             .core
             .exec(move || async move {
+                if let Some(parent) = path.parent() {
+                    compio::fs::create_dir_all(parent).await?;
+                }
                 let file = compio::fs::OpenOptions::new()
                     .create(true)
                     .write(true)
@@ -258,7 +274,10 @@ impl Access for CompfsBackend {
 
         let read_dir = match self
             .core
-            .exec_blocking(move || std::fs::read_dir(path))
+            .exec_blocking({
+                let path = path.clone();
+                move || std::fs::read_dir(path)
+            })
             .await?
         {
             Ok(rd) => rd,
@@ -271,7 +290,7 @@ impl Access for CompfsBackend {
             }
         };
 
-        let lister = CompfsLister::new(self.core.clone(), read_dir);
+        let lister = CompfsLister::new(self.core.clone(), &path, read_dir);
         Ok((RpList::default(), Some(lister)))
     }
 }

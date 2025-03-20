@@ -1074,8 +1074,8 @@ impl Access for S3Backend {
             S3Writers::Two(oio::AppendWriter::new(writer))
         } else {
             S3Writers::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

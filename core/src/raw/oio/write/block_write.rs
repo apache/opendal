@@ -114,8 +114,8 @@ pub struct BlockWriter<W: BlockWrite> {
 
 impl<W: BlockWrite> BlockWriter<W> {
     /// Create a new BlockWriter.
-    pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
-        let executor = executor.unwrap_or_default();
+    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
+        let executor = info.executor();
 
         Self {
             w: Arc::new(inner),
@@ -328,7 +328,7 @@ mod tests {
     async fn test_block_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = BlockWriter::new(TestWrite::new(), Some(Executor::new()), 8);
+        let mut w = BlockWriter::new(Arc::default(), TestWrite::new(), 8);
         let mut total_size = 0u64;
         let mut expected_content = Vec::new();
 
@@ -372,7 +372,7 @@ mod tests {
         let mut rng = thread_rng();
 
         for _ in 1..100 {
-            let mut w = BlockWriter::new(TestWrite::new(), Some(Executor::new()), 8);
+            let mut w = BlockWriter::new(Arc::default(), TestWrite::new(), 8);
 
             let size = rng.gen_range(1..1024);
             let mut bs = vec![0; size];

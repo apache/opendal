@@ -586,10 +586,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpRead::default().merge_executor(self.default_executor.clone()),
-                OpReader::default(),
-            ),
+            (OpRead::default(), OpReader::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -673,10 +670,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpRead::default().merge_executor(self.default_executor.clone()),
-                OpReader::default(),
-            ),
+            (OpRead::default(), OpReader::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -937,10 +931,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpWrite::default().merge_executor(self.default_executor.clone()),
-                OpWriter::default(),
-            ),
+            (OpWrite::default(), OpWriter::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -1014,11 +1005,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpWrite::default().merge_executor(self.default_executor.clone()),
-                OpWriter::default(),
-                bs,
-            ),
+            (OpWrite::default(), OpWriter::default(), bs),
             |inner, path, (args, options, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(

@@ -269,10 +269,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        final long requestId =
-                list(nativeHandle, executorHandle, path, ListOptions.builder().build());
-        final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
-        return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
+        return list(path, ListOptions.builder().build());
     }
 
     public CompletableFuture<List<Entry>> list(String path, ListOptions options) {

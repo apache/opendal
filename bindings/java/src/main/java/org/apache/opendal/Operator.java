@@ -128,7 +128,7 @@ public class Operator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return Arrays.asList(list(nativeHandle, path, ListOptions.builder().build()));
+        return list(path, ListOptions.builder().build());
     }
 
     public List<Entry> list(String path, ListOptions options) {

@@ -292,22 +292,21 @@ fn intern_list(
     options: JObject,
 ) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
+    let recursive = env.call_method(&options, "isRecursive", "()Z", &[])?.z()?;
 
     let mut list_op = op.list_with(&path);
-    if env.call_method(&options, "isRecursive", "()Z", &[])?.z()? {
-        list_op = list_op.recursive(true);
-    }
+    list_op = list_op.recursive(recursive);
 
-    let obs = list_op.call()?;
+    let entries = list_op.call()?;
 
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

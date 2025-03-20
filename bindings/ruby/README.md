@@ -23,7 +23,7 @@ bundle exec rake compile
 Run tests:
 
 ```shell
-bundle exec rake spec
+bundle exec rake test
 ```
 
 ## License and Trademarks

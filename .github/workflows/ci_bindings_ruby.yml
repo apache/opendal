@@ -62,6 +62,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Clippy Check
+        working-directory: "bindings/ruby"
+        run: |
+          cargo clippy -- -D warnings
+
       - name: Run tests and lint
         working-directory: bindings/ruby
         run: |

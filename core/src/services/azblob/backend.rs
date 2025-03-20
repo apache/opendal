@@ -596,8 +596,8 @@ impl Access for AzblobBackend {
             AzblobWriters::Two(oio::AppendWriter::new(w))
         } else {
             AzblobWriters::One(oio::BlockWriter::new(
+                self.core.info.clone(),
                 w,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

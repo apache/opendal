@@ -138,7 +138,7 @@ impl GhacWriter {
                     signer: { reqsign::AzureStorageSigner::new() },
                 });
                 let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());
-                let writer = oio::BlockWriter::new(w, None, 4);
+                let writer = oio::BlockWriter::new(core.info.clone(), w, 4);
                 Ok(TwoWays::Two(GhacWriterV2 {
                     core,
                     writer,

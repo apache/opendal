@@ -119,6 +119,14 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
     }
 
+    @Test
+    public void testReadOnlyReadOffset() throws NoSuchAlgorithmException {
+        final byte[] content = asyncOp().read(NORMAL_FILE_NAME, 0, FILE_LENGTH).join();
+        assertEquals(FILE_LENGTH, content.length);
+
+        assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
+    }
+
     /**
      * Read full content should match.
      */

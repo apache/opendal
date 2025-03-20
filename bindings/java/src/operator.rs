@@ -80,6 +80,34 @@ fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
     Ok(result.into_raw())
 }
 
+// Rust FFI function for OpenDAL's sync `read_with_offset`
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_offset(
+    mut env: JNIEnv,
+        _: JClass,
+        op: *mut BlockingOperator,
+        offset: jlong,
+        len: jlong,
+        path: JString,
+) -> jbyteArray {
+    intern_read_with_offset(&mut env, &mut *op, offset, len, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        JByteArray::default().into_raw()
+    })
+}
+
+fn intern_read_with_offset(env: &mut JNIEnv, op: &mut BlockingOperator, offset: jlong, len: jlong, path: JString) -> Result<jbyteArray> {
+    let path = jstring_to_string(env, &path)?;
+
+    let offset = offset as u64;
+    let len = len as u64;
+    let content = op.read_with(&path).range(offset..(offset + len)).call()?;
+    let buffer = content.to_bytes();
+    let result = env.byte_array_from_slice(&buffer)?;
+
+    Ok(result.into_raw())
+}
+
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.

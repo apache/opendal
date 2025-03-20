@@ -32,6 +32,8 @@ use crate::*;
 
 impl Configurator for DropboxConfig {
     type Builder = DropboxBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         DropboxBuilder {
             config: self,
@@ -46,6 +48,7 @@ impl Configurator for DropboxConfig {
 pub struct DropboxBuilder {
     config: DropboxConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -114,6 +117,8 @@ impl DropboxBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
@@ -126,14 +131,6 @@ impl Builder for DropboxBuilder {
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Dropbox)
-            })?
-        };
 
         let signer = match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => DropboxSigner {
@@ -184,8 +181,8 @@ impl Builder for DropboxBuilder {
         Ok(DropboxBackend {
             core: Arc::new(DropboxCore {
                 info: {
-                    let ma = AccessorInfo::default();
-                    ma.set_scheme(Scheme::Dropbox)
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Dropbox)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -213,11 +210,17 @@ impl Builder for DropboxBuilder {
 
                             ..Default::default()
                         });
-                    ma.into()
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
                 },
                 root,
                 signer: Arc::new(Mutex::new(signer)),
-                client,
             }),
         })
     }

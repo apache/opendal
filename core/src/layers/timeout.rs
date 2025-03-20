@@ -169,6 +169,11 @@ impl<A: Access> Layer<A> for TimeoutLayer {
     type LayeredAccess = TimeoutAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_executor(|exec| {
+            Executor::with(TimeoutExecutor::new(exec.into_inner(), self.io_timeout))
+        });
+
         TimeoutAccessor {
             inner,
 
@@ -232,27 +237,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.io_timeout(Operation::ReaderStart, self.inner.read(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn write(&self, path: &str, mut args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.io_timeout(Operation::WriterStart, self.inner.write(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))

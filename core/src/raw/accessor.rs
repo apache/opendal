@@ -1093,7 +1093,7 @@ impl AccessorInfo {
         }
     }
 
-    /// Set executor for the context.
+    /// Update executor for the context.
     ///
     /// # Note
     ///

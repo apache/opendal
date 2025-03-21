@@ -42,6 +42,8 @@ use crate::*;
 
 impl Configurator for B2Config {
     type Builder = B2Builder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         B2Builder {
             config: self,
@@ -56,6 +58,7 @@ impl Configurator for B2Config {
 pub struct B2Builder {
     config: B2Config,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -126,6 +129,8 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -178,15 +183,6 @@ impl Builder for B2Builder {
                     .with_context("service", Scheme::B2),
             ),
         }?;
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::B2)
-            })?
-        };
 
         let signer = B2Signer {
             application_key_id,
@@ -249,6 +245,12 @@ impl Builder for B2Builder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 signer: Arc::new(RwLock::new(signer)),
@@ -256,7 +258,6 @@ impl Builder for B2Builder {
 
                 bucket: self.config.bucket.clone(),
                 bucket_id: self.config.bucket_id.clone(),
-                client,
             }),
         })
     }

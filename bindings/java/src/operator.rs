@@ -27,7 +27,7 @@ use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::BlockingOperator;
 
-use crate::convert::{get_optional_string_from_object, jstring_to_string};
+use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
 use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
@@ -102,28 +102,29 @@ fn intern_write(
     op: &mut BlockingOperator,
     path: JString,
     content: JByteArray,
-    write_options: JObject,
+    options: JObject,
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    let content_type = get_optional_string_from_object(env, &write_options, "getContentType")?;
-    let content_disposition =
-        get_optional_string_from_object(env, &write_options, "getContentDisposition")?;
-    let cache_control = get_optional_string_from_object(env, &write_options, "getCacheControl")?;
-    let append = env
-        .call_method(&write_options, "isAppend", "()Z", &[])?
-        .z()?;
+    let content_type = read_string_field(env, &options, "contentType")?;
+    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
+    let cache_control = read_string_field(env, &options, "cacheControl")?;
+    let user_metadata = read_map_field(env, &options, "userMetadata")?;
+    let append = read_bool_field(env, &options, "append")?;
 
     let mut write_op = op.write_with(&path, content);
-    if let Some(ct) = content_type {
-        write_op = write_op.content_type(&ct);
+    if let Some(content_type) = content_type {
+        write_op = write_op.content_type(&content_type);
     }
-    if let Some(cd) = content_disposition {
-        write_op = write_op.content_disposition(&cd);
+    if let Some(content_disposition) = content_disposition {
+        write_op = write_op.content_disposition(&content_disposition);
     }
-    if let Some(cc) = cache_control {
-        write_op = write_op.cache_control(&cc);
+    if let Some(cache_control) = cache_control {
+        write_op = write_op.cache_control(&cache_control);
+    }
+    if let Some(user_metadata) = user_metadata {
+        write_op = write_op.user_metadata(user_metadata);
     }
     write_op = write_op.append(append);
     Ok(write_op.call().map(|_| ())?)
@@ -292,7 +293,7 @@ fn intern_list(
     options: JObject,
 ) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let recursive = env.call_method(&options, "isRecursive", "()Z", &[])?.z()?;
+    let recursive = read_bool_field(env, &options, "recursive")?;
 
     let mut list_op = op.list_with(&path);
     list_op = list_op.recursive(recursive);

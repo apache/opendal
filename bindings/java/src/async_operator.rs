@@ -34,10 +34,8 @@ use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::convert::jstring_to_string;
-use crate::convert::{
-    get_optional_map_from_object, get_optional_string_from_object, jmap_to_hashmap,
-};
+use crate::convert::{jmap_to_hashmap, read_map_field, read_string_field};
+use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
@@ -134,40 +132,37 @@ fn intern_write(
 
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    let content_type = get_optional_string_from_object(env, &options, "getContentType")?;
-    let content_disposition =
-        get_optional_string_from_object(env, &options, "getContentDisposition")?;
-    let content_encoding = get_optional_string_from_object(env, &options, "getContentEncoding")?;
-    let cache_control = get_optional_string_from_object(env, &options, "getCacheControl")?;
-    let if_match = get_optional_string_from_object(env, &options, "getIfMatch")?;
-    let if_none_match = get_optional_string_from_object(env, &options, "getIfNoneMatch")?;
-    let append = env.call_method(&options, "isAppend", "()Z", &[])?.z()?;
-    let if_not_exists = env
-        .call_method(&options, "isIfNotExists", "()Z", &[])?
-        .z()?;
-    let user_metadata = get_optional_map_from_object(env, &options, "getUserMetadata");
+    let content_type = read_string_field(env, &options, "contentType")?;
+    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
+    let content_encoding = read_string_field(env, &options, "contentEncoding")?;
+    let cache_control = read_string_field(env, &options, "cacheControl")?;
+    let if_match = read_string_field(env, &options, "ifMatch")?;
+    let if_none_match = read_string_field(env, &options, "ifNoneMatch")?;
+    let append = read_bool_field(env, &options, "append")?;
+    let if_not_exists = read_bool_field(env, &options, "ifNotExists")?;
+    let user_metadata = read_map_field(env, &options, "userMetadata")?;
 
     let mut write_op = op.write_with(&path, content);
-    if let Some(ct) = content_type {
-        write_op = write_op.content_type(&ct);
+    if let Some(content_type) = content_type {
+        write_op = write_op.content_type(&content_type);
     }
-    if let Some(cd) = content_disposition {
-        write_op = write_op.content_disposition(&cd);
+    if let Some(content_disposition) = content_disposition {
+        write_op = write_op.content_disposition(&content_disposition);
     }
-    if let Some(ce) = content_encoding {
-        write_op = write_op.content_encoding(&ce);
+    if let Some(content_encoding) = content_encoding {
+        write_op = write_op.content_encoding(&content_encoding);
     }
-    if let Some(cc) = cache_control {
-        write_op = write_op.cache_control(&cc);
+    if let Some(cache_control) = cache_control {
+        write_op = write_op.cache_control(&cache_control);
     }
-    if let Some(im) = if_match {
-        write_op = write_op.if_match(&im);
+    if let Some(if_match) = if_match {
+        write_op = write_op.if_match(&if_match);
     }
-    if let Some(inm) = if_none_match {
-        write_op = write_op.if_none_match(&inm);
+    if let Some(if_none_match) = if_none_match {
+        write_op = write_op.if_none_match(&if_none_match);
     }
-    if let Ok(Some(um)) = user_metadata {
-        write_op = write_op.user_metadata(um);
+    if let Some(user_metadata) = user_metadata {
+        write_op = write_op.user_metadata(user_metadata);
     }
     write_op = write_op.if_not_exists(if_not_exists);
     write_op = write_op.append(append);
@@ -581,7 +576,7 @@ fn intern_list(
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
-    let recursive = env.call_method(&options, "isRecursive", "()Z", &[])?.z()?;
+    let recursive = read_bool_field(env, &options, "recursive")?;
 
     let mut list_op = op.list_with(&path);
     list_op = list_op.recursive(recursive);

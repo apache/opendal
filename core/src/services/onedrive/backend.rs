@@ -71,19 +71,7 @@ impl Access for OnedriveBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let mut meta = self.core.onedrive_stat(path, args.if_none_match()).await?;
-
-        if let Some(version) = args.version() {
-            let versions = self.core.onedrive_list_versions(path).await?;
-            for item_version in versions {
-                if item_version.id == version {
-                    meta.set_version(version);
-                    return Ok(RpStat::new(meta));
-                }
-            }
-
-            return Err(Error::new(ErrorKind::NotFound, "item version not found"));
-        }
+        let meta = self.core.onedrive_stat(path, args).await?;
 
         Ok(RpStat::new(meta))
     }

@@ -87,13 +87,10 @@ impl oio::PageList for OneDriveLister {
             } else {
                 self.path.clone()
             };
-            let mut meta = self.core.onedrive_stat(&path, None).await?;
-            if list_with_versions {
-                let versions = self.core.onedrive_list_versions(&path).await?;
-                if let Some(version) = versions.first() {
-                    meta.set_version(&version.id);
-                }
-            }
+
+            let meta = self.core.onedrive_stat(&path, OpStat::default()).await?;
+
+            // skip `list_with_versions` intentionally because a folder doesn't have versions
 
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
@@ -131,6 +128,10 @@ impl oio::PageList for OneDriveLister {
                 parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
             meta.set_last_modified(last_modified);
 
+            // When listing a directory with `$expand=versions`, OneDrive returns 400 "Operation not supported".
+            // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
+            // N+1 is horrendous but we can't do any better without OneDrive's API support.
+            // When OneDrive supports listing with versions API, remove this.
             if list_with_versions {
                 let versions = self.core.onedrive_list_versions(&path).await?;
                 if let Some(version) = versions.first() {

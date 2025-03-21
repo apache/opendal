@@ -71,7 +71,7 @@ impl oio::AppendWrite for AzblobWriter {
 
                 self.core.sign(&mut req).await?;
 
-                let resp = self.core.client.send(req).await?;
+                let resp = self.core.info.http_client().send(req).await?;
 
                 let status = resp.status();
                 match status {

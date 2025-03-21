@@ -30,6 +30,7 @@ use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
+use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -175,7 +176,7 @@ fn intern_write(
         let result = write_op
             .await
             .map(|_| JValueOwned::Void)
-            .map_err(|e| e.into());
+            .map_err(Into::into);
         complete_future(id, result)
     });
 
@@ -214,19 +215,16 @@ fn intern_append(
     let content = env.convert_byte_array(content)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_append(op, path, content).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .write_with(&path, content)
+            .append(true)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_append(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
-    Ok(op
-        .write_with(&path, content)
-        .append(true)
-        .await
-        .map(|_| ())?)
 }
 
 /// # Safety
@@ -344,15 +342,15 @@ fn intern_delete(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_delete(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .delete(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.delete(&path).await?)
 }
 
 /// # Safety
@@ -417,15 +415,15 @@ fn intern_create_dir(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_create_dir(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .create_dir(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_create_dir(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.create_dir(&path).await?)
 }
 
 /// # Safety
@@ -460,15 +458,15 @@ fn intern_copy(
     let target_path = jstring_to_string(env, &target_path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_copy(op, source_path, target_path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .copy(&source_path, &target_path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_copy(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
-    Ok(op.copy(&source_path, &target_path).await?)
 }
 
 /// # Safety
@@ -503,15 +501,15 @@ fn intern_rename(
     let target_path = jstring_to_string(env, &target_path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_rename(op, source_path, target_path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .rename(&source_path, &target_path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_rename(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
-    Ok(op.rename(&source_path, &target_path).await?)
 }
 
 /// # Safety
@@ -543,15 +541,15 @@ fn intern_remove_all(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_remove_all(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .remove_all(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_remove_all(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.remove_all(&path).await?)
 }
 
 /// # Safety
@@ -564,8 +562,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> jlong {
-    intern_list(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_list(&mut env, op, executor, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -576,32 +575,38 @@ fn intern_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
+    let recursive = env.call_method(&options, "isRecursive", "()Z", &[])?.z()?;
+
+    let mut list_op = op.list_with(&path);
+    list_op = list_op.recursive(recursive);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_list(op, path).await;
+        let entries = list_op.await.map_err(Into::into);
+        let result = make_entries(entries);
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let obs = op.list(&path).await?;
+fn make_entries<'local>(entries: Result<Vec<Entry>>) -> Result<JObject<'local>> {
+    let entries = entries?;
 
     let mut env = unsafe { get_current_env() };
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(&mut env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(&mut env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

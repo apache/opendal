@@ -41,6 +41,8 @@ const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzfileBuilder {
             config: self,
@@ -54,6 +56,8 @@ impl Configurator for AzfileConfig {
 #[derive(Default, Clone)]
 pub struct AzfileBuilder {
     config: AzfileConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -133,6 +137,8 @@ impl AzfileBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -156,15 +162,6 @@ impl Builder for AzfileBuilder {
                 .with_context("service", Scheme::Azfile)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Azfile)
-            })?
-        };
 
         let account_name_option = self
             .config
@@ -225,12 +222,17 @@ impl Builder for AzfileBuilder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 root,
                 endpoint,
                 loader: cred_loader,
-                client,
                 signer,
                 share_name: self.config.share_name.clone(),
             }),

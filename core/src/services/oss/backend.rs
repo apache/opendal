@@ -577,8 +577,8 @@ impl Access for OssBackend {
             OssWriters::Two(oio::AppendWriter::new(writer))
         } else {
             OssWriters::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

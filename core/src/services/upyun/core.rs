@@ -65,8 +65,6 @@ pub struct UpyunCore {
 
     /// signer of this backend.
     pub signer: UpyunSigner,
-
-    pub client: HttpClient,
 }
 
 impl Debug for UpyunCore {
@@ -82,7 +80,7 @@ impl Debug for UpyunCore {
 impl UpyunCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
@@ -121,7 +119,7 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {

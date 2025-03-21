@@ -277,25 +277,36 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
+    options: JObject,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_list(&mut env, &mut *op, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+fn intern_list(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    path: JString,
+    options: JObject,
+) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let obs = op.list(&path)?;
+    let recursive = env.call_method(&options, "isRecursive", "()Z", &[])?.z()?;
+
+    let mut list_op = op.list_with(&path);
+    list_op = list_op.recursive(recursive);
+
+    let entries = list_op.call()?;
 
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

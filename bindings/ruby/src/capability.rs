@@ -95,7 +95,6 @@ define_accessors!(Capability, {
     presign_read: bool,
     presign_stat: bool,
     presign_write: bool,
-    shared: bool,
     blocking: bool,
 });
 

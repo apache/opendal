@@ -36,7 +36,6 @@ use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 
-use crate::operator::Operator;
 use crate::*;
 
 // `Io` is the rust implementation for `OpenDAL::IO`. `Io` follows similar Ruby IO classes, such as:
@@ -290,7 +289,7 @@ impl Io {
     ///   - 0 = IO:SEEK_SET (Start)
     ///   - 1 = IO:SEEK_CUR (Current position)
     ///   - 2 = IO:SEEK_END (From the end)
-    /// @return [Integer] always 0 if the seek operation is successful
+    ///     @return [Integer] always 0 if the seek operation is successful
     fn seek(ruby: &Ruby, rb_self: &Self, offset: i64, whence: u8) -> Result<u8, Error> {
         match &mut *rb_self.0.borrow_mut() {
             FileState::Reader(reader, _) => {

@@ -383,8 +383,8 @@ impl Access for ObsBackend {
             ObsWriters::Two(oio::AppendWriter::new(writer))
         } else {
             ObsWriters::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

@@ -17,6 +17,8 @@
 
 use std::fmt::Debug;
 use std::future::ready;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::mem;
 use std::sync::Arc;
 
@@ -800,17 +802,32 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type Accessor = Arc<dyn AccessDyn>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct AccessorInfoInner {
     scheme: Scheme,
-    root: String,
-    name: String,
+    root: Arc<str>,
+    name: Arc<str>,
 
     native_capability: Capability,
     full_capability: Capability,
 
     http_client: HttpClient,
     executor: Executor,
+}
+
+/// TODO: we can remove this after MSRV is 1.80
+impl Default for AccessorInfoInner {
+    fn default() -> Self {
+        AccessorInfoInner {
+            scheme: Scheme::Memory,
+            root: "".into(),
+            name: "".into(),
+            native_capability: Capability::default(),
+            full_capability: Capability::default(),
+            http_client: HttpClient::default(),
+            executor: Executor::default(),
+        }
+    }
 }
 
 /// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.
@@ -859,6 +876,24 @@ pub struct AccessorInfo {
     inner: std::sync::RwLock<AccessorInfoInner>,
 }
 
+impl PartialEq for AccessorInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.scheme() == other.scheme()
+            && self.root() == other.root()
+            && self.name() == other.name()
+    }
+}
+
+impl Eq for AccessorInfo {}
+
+impl Hash for AccessorInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.scheme().hash(state);
+        self.root().hash(state);
+        self.name().hash(state);
+    }
+}
+
 impl AccessorInfo {
     /// [`Scheme`] of backend.
     ///
@@ -894,7 +929,7 @@ impl AccessorInfo {
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
     /// this method will gracefully continue execution by simply returning the current root.
-    pub fn root(&self) -> String {
+    pub fn root(&self) -> Arc<str> {
         match self.inner.read() {
             Ok(v) => v.root.clone(),
             Err(err) => err.get_ref().root.clone(),
@@ -912,7 +947,7 @@ impl AccessorInfo {
     /// rather than propagating the panic.
     pub fn set_root(&self, root: &str) -> &Self {
         if let Ok(mut v) = self.inner.write() {
-            v.root = root.to_string();
+            v.root = Arc::from(root);
         }
 
         self
@@ -929,9 +964,9 @@ impl AccessorInfo {
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
     /// this method will gracefully continue execution by simply returning the current scheme.
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> Arc<str> {
         match self.inner.read() {
-            Ok(v) => v.name.to_string(),
+            Ok(v) => v.name.clone(),
             Err(err) => err.get_ref().name.clone(),
         }
     }
@@ -945,7 +980,7 @@ impl AccessorInfo {
     /// rather than propagating the panic.
     pub fn set_name(&self, name: &str) -> &Self {
         if let Ok(mut v) = self.inner.write() {
-            v.name = name.to_string()
+            v.name = Arc::from(name)
         }
 
         self
@@ -1058,7 +1093,7 @@ impl AccessorInfo {
         }
     }
 
-    /// Set executor for the context.
+    /// Update executor for the context.
     ///
     /// # Note
     ///

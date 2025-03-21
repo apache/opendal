@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+import os
 import pickle
 from random import randint
 from uuid import uuid4
-import os
+
+import pytest
 
 
 @pytest.mark.asyncio

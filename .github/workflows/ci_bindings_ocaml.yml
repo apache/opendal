@@ -60,9 +60,6 @@ jobs:
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: true
-          need-pin: true
 
       - name: Clippy Check
         working-directory: "bindings/ocaml"

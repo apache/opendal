@@ -30,8 +30,6 @@ runs:
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 4.14
-        opam-depext: ${{inputs.need-depext == true}}
-        opam-pin: ${{inputs.need-pin == true}}
 
     - name: Set Opam env
       shell: bash

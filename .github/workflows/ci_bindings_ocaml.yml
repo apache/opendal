@@ -34,8 +34,7 @@ on:
 
 jobs:
   test:
-    # Wait for https://github.com/ocaml/setup-ocaml/issues/872 fixes
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR
@@ -64,6 +63,11 @@ jobs:
         with:
           need-depext: true
           need-pin: true
+
+      - name: Clippy Check
+        working-directory: "bindings/ocaml"
+        run: |
+          cargo clippy -- -D warnings
 
       - name: Checks
         run: |

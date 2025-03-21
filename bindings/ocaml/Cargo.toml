@@ -31,7 +31,7 @@ crate-type = ["staticlib", "cdylib"]
 doc = false
 
 [dependencies]
-ocaml = { version = "^1.0.0-beta" }
+ocaml = { version = "1.2.0" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
@@ -53,4 +53,4 @@ opendal = { version = ">=0", path = "../../core", features = [
 ] }
 
 [build-dependencies]
-ocaml-build = { version = "^1.0.0-beta" }
+ocaml-build = { version = "1.0.0" }

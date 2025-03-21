@@ -15,27 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Setup OCaml
-description: 'Prepare OCaml Build Environment'
-inputs:
-  need-depext:
-    description: "Enable the automation feature for opam depext."
-  need-pin:
-    description: "Enable the automation feature for opam pin."
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-undefined,dynamic_lookup"]
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup OCaml
-      uses: ocaml/setup-ocaml@v3
-      with:
-        ocaml-compiler: 4.14
-        opam-depext: ${{inputs.need-depext == true}}
-        opam-pin: ${{inputs.need-pin == true}}
-
-    - name: Set Opam env
-      shell: bash
-      run: opam env | tr '\n' ' ' >> $GITHUB_ENV
-    - name: Add Opam switch to PATH
-      shell: bash
-      run: opam var bin >> $GITHUB_PATH
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-undefined,dynamic_lookup"]

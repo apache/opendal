@@ -19,19 +19,13 @@
 
 package org.apache.opendal;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-@Getter
-@AllArgsConstructor
-@NoArgsConstructor
 @Builder
 public class ListOptions {
 
     /**
-     * Return files in sub-directory as well.
+     * Return files in subdirectory as well.
      */
-    private boolean recursive;
+    public final boolean recursive;
 }

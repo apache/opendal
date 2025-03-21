@@ -37,8 +37,6 @@ pub struct YandexDiskCore {
     pub root: String,
     /// Yandex Disk oauth access_token.
     pub access_token: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for YandexDiskCore {
@@ -52,7 +50,7 @@ impl Debug for YandexDiskCore {
 impl YandexDiskCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     #[inline]

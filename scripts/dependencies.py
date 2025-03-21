@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 import subprocess
 from constants import PACKAGES

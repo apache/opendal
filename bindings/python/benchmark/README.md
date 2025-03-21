@@ -15,12 +15,12 @@ To run the benchmark:
 ```shell
 maturin develop -r -E=benchmark
 
-export AWS_ENDPOINT=http://127.0.0.1:9900
+export AWS_ENDPOINT=http://127.0.0.1:9000
 export AWS_REGION=us-east-1
 export AWS_ACCESS_KEY_ID=minioadmin
 export AWS_SECRET_ACCESS_KEY=minioadmin
 export AWS_S3_BUCKET=opendal
 
-python async_opendal_benchmark.py
-python async_origin_s3_benchmark_with_gevent.py
+uv run async_opendal_benchmark.py
+uv run async_origin_s3_benchmark_with_gevent.py
 ```

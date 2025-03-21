@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import pickle
 from datetime import datetime
 from uuid import uuid4
+
+import pytest
 
 
 @pytest.mark.need_capability("read", "write", "delete")

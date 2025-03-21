@@ -300,7 +300,7 @@ def generate_bin_cases(
 
 def generate_integration_cases(
     cases: list[dict[str, str]], hint: Hint, integration: str
- ) -> list[dict[str, str]]:
+) -> list[dict[str, str]]:
     # Return empty if this integration is False
     if not getattr(hint, f"integration_{integration}"):
         return []

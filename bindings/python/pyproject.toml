@@ -66,4 +66,7 @@ cache-keys = [
 ]
 
 [tool.ruff.lint]
-ignore = ["F403", "F405"]
+select = ["E", "F", "I"]
+ignore = ["E402", "F403", "F405"]
+[tool.ruff.lint.isort]
+known-first-party = ["opendal"]

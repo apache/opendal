@@ -34,7 +34,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Wait for https://github.com/ocaml/setup-ocaml/issues/872 fixes
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout PR
@@ -60,6 +61,9 @@ jobs:
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
+        with:
+          need-depext: true
+          need-pin: true
 
       - name: Clippy Check
         working-directory: "bindings/ocaml"

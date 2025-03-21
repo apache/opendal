@@ -426,6 +426,9 @@ impl OneDriveCore {
         self.info.http_client().send(request).await
     }
 
+    /// Delete a `DriveItem`
+    ///
+    /// This moves the items to the recycle bin.
     pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<Buffer>> {
         let url = self.onedrive_item_url(path, true);
 
@@ -451,7 +454,7 @@ impl OneDriveCore {
             return Err(parse_error(response));
         }
 
-        // We need to stat the parent folder to get a parent reference
+        // We need to stat the destination parent folder to get a parent reference
         let destination_parent = get_parent(destination).to_string();
         let basename = get_basename(destination);
 
@@ -464,11 +467,26 @@ impl OneDriveCore {
             },
             name: basename.to_string(),
         };
-        let url: String = format!(
-            "{}:/copy?@microsoft.graph.conflictBehavior={}",
-            self.onedrive_item_url(source, true),
-            REPLACE_EXISTING_ITEM_WHEN_CONFLICT
-        );
+
+        // ensure the destination file or folder doesn't exist
+        let response = self.onedrive_get_stat_plain(destination).await?;
+        match response.status() {
+            // We must remove the file or folder because
+            // OneDrive doesn't support `conflictBehavior` for the consumer OneDrive.
+            // `conflictBehavior` seems to work for the consumer OneDrive sometimes could be a coincidence.
+            // Read more at https://learn.microsoft.com/en-us/graph/api/driveitem-copy
+            StatusCode::OK => {
+                let response = self.onedrive_delete(destination).await?;
+                match response.status() {
+                    StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {} // expected, intentionally empty
+                    _ => return Err(parse_error(response)),
+                }
+            }
+            StatusCode::NOT_FOUND => {} // expected, intentionally empty
+            _ => return Err(parse_error(response)),
+        }
+
+        let url: String = format!("{}:/copy", self.onedrive_item_url(source, true));
 
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let buffer = Buffer::from(Bytes::from(body_bytes));

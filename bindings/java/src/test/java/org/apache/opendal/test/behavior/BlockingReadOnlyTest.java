@@ -94,6 +94,13 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
     }
 
+    @Test
+    public void testBlockingReadonlyReadOffset() throws NoSuchAlgorithmException {
+        final byte[] content = op().read(NORMAL_FILE_NAME, 0, FILE_LENGTH);
+        assertEquals(FILE_LENGTH, content.length);
+        assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
+    }
+
     /**
      * Read not exist file should return NotFound
      */

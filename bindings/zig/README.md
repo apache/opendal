@@ -6,7 +6,7 @@
 
 ## Build
 
-To compile OpenDAL from source code, you need:
+To compile OpenDAL Zig binding from source code, you need:
 
 - [Zig](https://ziglang.org/download) 0.14.0 or higher
 

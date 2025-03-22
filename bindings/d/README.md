@@ -6,7 +6,7 @@
 
 ## Build
 
-To compile OpenDAL from source code, you need:
+To compile OpenDAL d binding from source code, you need:
 
 - [dmd/ldc/gdc](https://dlang.org/download)
 

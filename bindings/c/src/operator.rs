@@ -902,17 +902,17 @@ pub unsafe extern "C" fn opendal_operator_remove(
 ) -> *mut opendal_error {
     assert!(!paths.is_null());
     let mut vec_str = vec![];
-    let c_str_ptrs = slice::from_raw_parts(paths, len);
+    let c_str_ptrs = std::slice::from_raw_parts(paths, len);
 
     for &c_str_ptr in c_str_ptrs {
-        assert(!c_str_ptr.is_null());
+        assert!(!c_str_ptr.is_null());
         let c_str = std::ffi::CStr::from_ptr(c_str_ptr)
             .to_str()
             .expect("Invalid UTF-8");
         vec_str.push(c_str.to_string());
     }
 
-    if let Err(err) = op.deref().remove(vec_str) {
+    if let Err(err) = op.deref().delete_iter(vec_str) {
         opendal_error::new(err)
     } else {
         std::ptr::null_mut()

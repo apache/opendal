@@ -247,7 +247,7 @@ pub unsafe extern "C" fn blocking_is_exist(
         }
     };
 
-    let res = match op.is_exist(path_str) {
+    let res = match op.exists(path_str) {
         Ok(exist) => FFIResult::ok(exist),
         Err(e) => FFIResult::err_with_source("Failed to check if path exists", e),
     };

@@ -112,11 +112,11 @@ impl observe::MetricsIntercept for MetricsInterceptor {
     ) {
         let labels = OperationLabels {
             info,
-            path,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: None,
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         histogram!(observe::METRIC_OPERATION_DURATION_SECONDS.name(), labels).record(duration)
     }
 
@@ -129,11 +129,11 @@ impl observe::MetricsIntercept for MetricsInterceptor {
     ) {
         let labels = OperationLabels {
             info,
-            path,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: None,
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         histogram!(observe::METRIC_OPERATION_BYTES.name(), labels).record(bytes as f64)
     }
 
@@ -146,18 +146,45 @@ impl observe::MetricsIntercept for MetricsInterceptor {
     ) {
         let labels = OperationLabels {
             info,
-            path,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: Some(error),
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         counter!(observe::METRIC_OPERATION_ERRORS_TOTAL.name(), labels).increment(1)
+    }
+
+    fn observe_http_request_duration_seconds(
+        &self,
+        info: Arc<AccessorInfo>,
+        op: Operation,
+        duration: Duration,
+    ) {
+        let labels = OperationLabels {
+            info,
+            path: None,
+            operation: op,
+            error: None,
+        }
+        .into_labels();
+        histogram!(observe::METRIC_HTTP_REQUEST_DURATION_SECONDS.name(), labels).record(duration)
+    }
+
+    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
+        let labels = OperationLabels {
+            info,
+            path: None,
+            operation: op,
+            error: None,
+        }
+        .into_labels();
+        histogram!(observe::METRIC_HTTP_REQUEST_BYTES.name(), labels).record(bytes as f64)
     }
 }
 
 struct OperationLabels<'a> {
     info: Arc<AccessorInfo>,
-    path: &'a str,
+    path: Option<&'a str>,
     operation: Operation,
     error: Option<ErrorKind>,
 }
@@ -169,7 +196,7 @@ impl OperationLabels<'_> {
     /// 2. `["scheme", "namespace", "root", "operation", "path"]`
     /// 3. `["scheme", "namespace", "root", "operation", "error"]`
     /// 4. `["scheme", "namespace", "root", "operation", "path", "error"]`
-    fn into_labels(self, path_label_level: usize) -> Vec<Label> {
+    fn into_labels(self) -> Vec<Label> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
@@ -179,7 +206,7 @@ impl OperationLabels<'_> {
             Label::new(observe::LABEL_OPERATION, self.operation.into_static()),
         ]);
 
-        if let Some(path) = observe::path_label_value(self.path, path_label_level) {
+        if let Some(path) = self.path {
             labels.push(Label::new(observe::LABEL_PATH, path.to_owned()));
         }
 

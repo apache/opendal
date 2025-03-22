@@ -149,7 +149,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     EXPECT_EQ(error, nullptr);
     error = opendal_operator_write(this->p, "b", &data);
     EXPECT_EQ(error, nullptr);
-    const char *const * paths = {"a", "b"};
+    const char *paths[] = {"a", "b"};
     error = opendal_operator_remove(this->p, paths, 2);
     EXPECT_EQ(error, nullptr);
     e = opendal_operator_exists(this->p, "a");

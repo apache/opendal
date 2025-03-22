@@ -136,7 +136,7 @@ TEST_F(OpendalBddTest, FeatureTest)
 
     error = opendal_operator_create_dir(this->p, "tmpdir/");
     EXPECT_EQ(error, nullptr);
-    error = opendal_operator_write(this->p, "tmpdir/a");
+    error = opendal_operator_write(this->p, "tmpdir/a", &data);
     EXPECT_EQ(error, nullptr);
     error = opendal_operator_remove_all(this->p, "tmpdir/a");
     EXPECT_EQ(error, nullptr);

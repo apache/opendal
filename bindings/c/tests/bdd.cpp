@@ -132,4 +132,29 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_metadata_free(stat.meta);
     error = opendal_operator_delete(this->p, "tmpdir/");
     EXPECT_EQ(error, nullptr);
+
+
+    error = opendal_operator_create_dir(this->p, "tmpdir/");
+    EXPECT_EQ(error, nullptr);
+    error = opendal_operator_create_dir(this->p, "tmpdir/tmpdir");
+    EXPECT_EQ(error, nullptr);
+    error = opendal_operator_remove_all(this->p, "tmpdir/");
+    EXPECT_EQ(error, nullptr);
+    e = opendal_operator_exists(this->p, "tmpdir/tmpdir");
+    EXPECT_EQ(e.error, nullptr);
+    EXPECT_FALSE(e.exists);
+
+
+    error = opendal_operator_write(this->p, "a", &data);
+    EXPECT_EQ(error, nullptr);
+    error = opendal_operator_write(this->p, "b", &data);
+    EXPECT_EQ(error, nullptr);
+    error = opendal_operator_remove(this->p, {"a", "b"}, 2);
+    EXPECT_EQ(error, nullptr);
+    e = opendal_operator_exists(this->p, "a");
+    EXPECT_EQ(e.error, nullptr);
+    EXPECT_FALSE(e.exists);
+    e = opendal_operator_exists(this->p, "b");
+    EXPECT_EQ(e.error, nullptr);
+    EXPECT_FALSE(e.exists);
 }

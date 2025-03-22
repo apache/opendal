@@ -15,6 +15,7 @@ This folder contains the bindings for OpenDAL. Currently, we support the followi
 * [C#](dotnet/README.md)
 * [D](d/README.md)
 * [Dart](dart/README.md)
+* [.NET](dotnet/README.md)
 * [Go](go/README.md)
 * [Haskell](haskell/README.md)
 * [Lua](lua/README.md)

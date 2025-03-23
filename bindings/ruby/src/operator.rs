@@ -243,7 +243,10 @@ impl Operator {
         Ok(Lister::new(lister))
     }
 
+    /// @yard
+    /// @def info
     /// Gets meta information of the underlying accessor.
+    /// @return [OperatorInfo]
     fn info(&self) -> Result<OperatorInfo, Error> {
         Ok(OperatorInfo(self.0.info()))
     }

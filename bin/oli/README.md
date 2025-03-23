@@ -12,7 +12,7 @@
 
 ## How to use `oli`
 
-`oli` provide basic sub-commands like `oli ls`, `oli cat`, `oli stat`, `oli cp` and `oli rm`, just like what you use on your local filesystem.
+`oli` provide basic sub-commands like `oli ls`, `oli cat`, `oli stat`, `oli cp`, `oli rm`, and `oli bench` just like what you use on your local filesystem.
 
 ### Install `oli`
 
@@ -84,6 +84,41 @@ oli ls s3:/
 oli cp s3:/fleet.png r2:/fleet.png
 oli ls r2:/
 # fleet.png
+```
+
+### Example: use `oli` bench command
+
+use the oli config file or create a new config file for bench command
+
+Here is an example of `config.toml` using bench command:
+
+```toml
+[profiles.demo]
+access_key_id = "minioadmin"
+bucket = "test-bucket"
+endpoint = "http://127.0.0.1:9000"
+region = "us-east-1"
+root = "/benchmarks"
+secret_access_key = "minioadmin"
+type = "s3"
+virtual_host_style = "false"
+```
+
+create a bench suite config file
+
+Here is an example of `suite.toml`:
+
+```toml
+file_size = "64MiB"
+parallelism = 4
+timeout = "60s"
+workload = "upload"
+```
+
+then can use bench command use config file and suite file
+
+```shell
+oli bench --config config.toml demo suite.toml
 ```
 
 ## Contribute to `oli`

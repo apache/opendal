@@ -1117,9 +1117,10 @@ impl BlockingOperator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal::BlockingOperator;
+    /// use opendal::ErrorKind;
     ///
-    /// # fn test(op: Operator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// op.check()?;
     /// # Ok(())
     /// # }

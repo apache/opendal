@@ -1309,7 +1309,6 @@ struct opendal_error *opendal_operator_remove_all(const struct opendal_operator 
 
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
 
-
 /**
  * \brief Get information of underlying accessor.
  *

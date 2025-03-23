@@ -1110,6 +1110,20 @@ impl BlockingOperator {
         ))
     }
 
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a `list` request to path and return any errors we met.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// # fn test(op: Operator) -> Result<()> {
+    /// op.check()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn check(&self) -> Result<()> {
         let mut ds = self.lister("/")?;
 

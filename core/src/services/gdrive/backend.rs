@@ -174,7 +174,7 @@ impl Access for GdriveBackend {
             .map_err(new_request_build_error)?;
         self.core.sign(&mut req).await?;
 
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),

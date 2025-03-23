@@ -65,6 +65,11 @@ jobs:
           need-depext: true
           need-pin: true
 
+      - name: Clippy Check
+        working-directory: "bindings/ocaml"
+        run: |
+          cargo clippy -- -D warnings
+
       - name: Checks
         run: |
           # make sure tests pass

@@ -178,11 +178,29 @@ public class AsyncOperator extends NativeObject {
         return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
     }
 
+    /**
+     * Create a new operator that is layered with the given layer.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @param layer the layer to be applied.
+     *
+     * @return the layered new operator.
+     */
     public AsyncOperator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
         return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
+    /**
+     * Create a new operator that performs every operation blocking.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @return the blocking new operator.
+     */
     public Operator blocking() {
         final long nativeHandle = makeBlockingOp(this.nativeHandle);
         final OperatorInfo info = this.info;

@@ -480,7 +480,7 @@ def main():
 
     # If we don't have enough good first issues from recent activity, fetch additional ones
     if len(recent_good_first_issues) < args.gfi_count:
-        print(f"Fetching additional good first issues...")
+        print("Fetching additional good first issues...")
         additional_gfi = fetch_additional_good_first_issues(
             args.repo, token, args.gfi_count - len(recent_good_first_issues)
         )

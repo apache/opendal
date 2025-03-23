@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profiles.demo]
-type = "s3"
-access_key_id = "minioadmin"
-secret_access_key = "minioadmin"
-bucket = "test-bucket"
-endpoint = "http://127.0.0.1:9000"
-region = "us-east-1"
-root = "/benchmarks"
-enable_virtual_host_style = "false"
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-undefined,dynamic_lookup"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-undefined,dynamic_lookup"]

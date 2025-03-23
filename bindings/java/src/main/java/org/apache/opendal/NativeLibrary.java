@@ -45,6 +45,27 @@ public class NativeLibrary {
         NativeLibrary.loadLibrary();
     }
 
+    /**
+     * Try load the native library from the following locations:
+     *
+     * <ol>
+     *     <li>
+     *         Load from the system dynamic library (<code>opendal_java</code>),
+     *         the search path can be configured via <code>-Djava.library.path</code>.
+     *     </li>
+     *     <li>
+     *         Load from the bundled library in the classpath (<code>/native/{classifier}/{libraryName}</code>).
+     *         You can use the prebuilt library:
+     *         <ul>
+     *             <li>org.apache.opendal:opendal-{version}-linux-x86_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-linux-aarch_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-osx-x86_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-osx-aarch_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-windows-x86_64</li>
+     *         </ul>
+     *     </li>
+     * </ol>
+     */
     public static void loadLibrary() {
         if (libraryLoaded.get() == LibraryState.LOADED) {
             return;

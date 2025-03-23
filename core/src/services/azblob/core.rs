@@ -69,7 +69,6 @@ pub struct AzblobCore {
     pub encryption_key: Option<HeaderValue>,
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
-    pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
 }
@@ -132,7 +131,7 @@ impl AzblobCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
@@ -241,7 +240,7 @@ impl AzblobCore {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn azblob_put_blob_request(

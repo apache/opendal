@@ -16,11 +16,12 @@
 # under the License.
 
 import os
+from pathlib import Path
 from random import randint
 from uuid import uuid4
-from pathlib import Path
 
 import pytest
+
 from opendal.exceptions import NotFound
 
 
@@ -41,9 +42,12 @@ def test_sync_write(service_name, operator, async_operator):
         if metadata.last_modified
         else None
     )
-    assert (
-        repr(metadata)
-        == f"Metadata(mode=file, content_length={metadata.content_length}, content_type={metadata.content_type}, last_modified={last_modified}, etag={metadata.etag})"
+    assert repr(metadata) == (
+        "Metadata(mode=file, "
+        f"content_length={metadata.content_length}, "
+        f"content_type={metadata.content_type}, "
+        f"last_modified={last_modified}, "
+        f"etag={metadata.etag})"
     )
 
     operator.delete(filename)
@@ -66,9 +70,12 @@ def test_sync_write_path(service_name, operator, async_operator):
         if metadata.last_modified
         else None
     )
-    assert (
-        repr(metadata)
-        == f"Metadata(mode=file, content_length={metadata.content_length}, content_type={metadata.content_type}, last_modified={last_modified}, etag={metadata.etag})"
+    assert repr(metadata) == (
+        "Metadata(mode=file, "
+        f"content_length={metadata.content_length}, "
+        f"content_type={metadata.content_type}, "
+        f"last_modified={last_modified}, "
+        f"etag={metadata.etag})"
     )
 
     operator.delete(filename)

@@ -15,21 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-chainsafe")]
-mod core;
-#[cfg(feature = "services-chainsafe")]
-mod delete;
-#[cfg(feature = "services-chainsafe")]
-mod error;
-#[cfg(feature = "services-chainsafe")]
-mod lister;
-#[cfg(feature = "services-chainsafe")]
-mod writer;
+import '../lib/opendal.dart';
 
-#[cfg(feature = "services-chainsafe")]
-mod backend;
-#[cfg(feature = "services-chainsafe")]
-pub use backend::ChainsafeBuilder as Chainsafe;
-
-mod config;
-pub use config::ChainsafeConfig;
+void main() async {
+  final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final File = storage.initFile();
+  // drop-in style 
+  var testFile = File("test_1.txt");
+  assert(!(await testFile.exists()));
+}

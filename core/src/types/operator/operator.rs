@@ -112,9 +112,6 @@ use crate::*;
 pub struct Operator {
     // accessor is what Operator delegates for
     accessor: Accessor,
-
-    /// The default executor that used to run futures in background.
-    default_executor: Option<Executor>,
 }
 
 /// # Operator basic API.
@@ -126,10 +123,7 @@ impl Operator {
 
     /// Convert inner accessor into operator.
     pub fn from_inner(accessor: Accessor) -> Self {
-        Self {
-            accessor,
-            default_executor: None,
-        }
+        Self { accessor }
     }
 
     /// Convert operator into inner accessor.
@@ -153,15 +147,15 @@ impl Operator {
     }
 
     /// Get the default executor.
+    #[deprecated(note = "use Operator::executor instead", since = "0.53.0")]
     pub fn default_executor(&self) -> Option<Executor> {
-        self.default_executor.clone()
+        None
     }
 
     /// Specify the default executor.
-    pub fn with_default_executor(&self, executor: Executor) -> Self {
-        let mut op = self.clone();
-        op.default_executor = Some(executor);
-        op
+    #[deprecated(note = "use Operator::update_executor instead", since = "0.53.0")]
+    pub fn with_default_executor(&self, _: Executor) -> Self {
+        self.clone()
     }
 
     /// Get information of underlying accessor.
@@ -180,6 +174,20 @@ impl Operator {
     /// ```
     pub fn info(&self) -> OperatorInfo {
         OperatorInfo::new(self.accessor.info())
+    }
+
+    /// Get the executor used by current operator.
+    pub fn executor(&self) -> Executor {
+        self.accessor.info().executor()
+    }
+
+    /// Update executor for the context.
+    ///
+    /// # Note
+    ///
+    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
+    pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
+        self.accessor.info().update_executor(f);
     }
 
     /// Create a new blocking operator.
@@ -586,10 +594,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpRead::default().merge_executor(self.default_executor.clone()),
-                OpReader::default(),
-            ),
+            (OpRead::default(), OpReader::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -673,10 +678,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpRead::default().merge_executor(self.default_executor.clone()),
-                OpReader::default(),
-            ),
+            (OpRead::default(), OpReader::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -937,10 +939,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpWrite::default().merge_executor(self.default_executor.clone()),
-                OpWriter::default(),
-            ),
+            (OpWrite::default(), OpWriter::default()),
             |inner, path, (args, options)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
@@ -1014,11 +1013,7 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (
-                OpWrite::default().merge_executor(self.default_executor.clone()),
-                OpWriter::default(),
-                bs,
-            ),
+            (OpWrite::default(), OpWriter::default(), bs),
             |inner, path, (args, options, bs)| async move {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(

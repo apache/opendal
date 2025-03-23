@@ -128,7 +128,11 @@ public class Operator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return Arrays.asList(list(nativeHandle, path));
+        return list(path, ListOptions.builder().build());
+    }
+
+    public List<Entry> list(String path, ListOptions options) {
+        return Arrays.asList(list(nativeHandle, path, options));
     }
 
     @Override
@@ -152,5 +156,5 @@ public class Operator extends NativeObject {
 
     private static native void removeAll(long op, String path);
 
-    private static native Entry[] list(long op, String path);
+    private static native Entry[] list(long op, String path, ListOptions options);
 }

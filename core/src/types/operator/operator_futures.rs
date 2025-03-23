@@ -224,11 +224,6 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
 pub type FutureRead<F> = OperatorFuture<(OpRead, OpReader), Buffer, F>;
 
 impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
-    /// Set the executor for this operation.
-    pub fn executor(self, executor: Executor) -> Self {
-        self.map(|(args, op_reader)| (args.with_executor(executor), op_reader))
-    }
-
     /// Set `range` for this `read` request.
     ///
     /// If we have a file with size `n`.
@@ -580,11 +575,6 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
 pub type FutureWrite<F> = OperatorFuture<(OpWrite, OpWriter, Buffer), Metadata, F>;
 
 impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
-    /// Set the executor for this operation.
-    pub fn executor(self, executor: Executor) -> Self {
-        self.map(|(args, options, bs)| (args.with_executor(executor), options, bs))
-    }
-
     /// Sets append mode for this write request.
     ///
     /// ### Capability
@@ -1049,11 +1039,6 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
 pub type FutureWriter<F> = OperatorFuture<(OpWrite, OpWriter), Writer, F>;
 
 impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
-    /// Set the executor for this operation.
-    pub fn executor(self, executor: Executor) -> Self {
-        self.map(|(args, options)| (args.with_executor(executor), options))
-    }
-
     /// Sets append mode for this write request.
     ///
     /// ### Capability

@@ -15,34 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::*;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
-use http::StatusCode;
+use crate::raw::{Access, AccessorInfo};
+use std::fmt::Debug;
 use std::sync::Arc;
 
-pub struct ChainsafeDeleter {
-    core: Arc<ChainsafeCore>,
-}
+/// OPFS Service backend
+#[derive(Default, Debug, Clone)]
+pub struct OpfsBackend {}
 
-impl ChainsafeDeleter {
-    pub fn new(core: Arc<ChainsafeCore>) -> Self {
-        Self { core }
-    }
-}
+impl Access for OpfsBackend {
+    type Reader = ();
 
-impl oio::OneShotDelete for ChainsafeDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.delete_object(&path).await?;
+    type Writer = ();
 
-        let status = resp.status();
+    type Lister = ();
 
-        match status {
-            StatusCode::OK => Ok(()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
+    type Deleter = ();
+
+    type BlockingReader = ();
+
+    type BlockingWriter = ();
+
+    type BlockingLister = ();
+
+    type BlockingDeleter = ();
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        Arc::new(AccessorInfo::default())
     }
 }

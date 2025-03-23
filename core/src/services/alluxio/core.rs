@@ -37,8 +37,6 @@ pub struct AlluxioCore {
     pub root: String,
     /// endpoint of alluxio
     pub endpoint: String,
-    /// prefix of alluxio
-    pub client: HttpClient,
 }
 
 impl Debug for AlluxioCore {
@@ -74,7 +72,7 @@ impl AlluxioCore {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -104,7 +102,7 @@ impl AlluxioCore {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -127,7 +125,7 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -151,7 +149,7 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -180,7 +178,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -201,7 +199,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -227,7 +225,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -253,7 +251,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub(super) async fn write(&self, stream_id: u64, body: Buffer) -> Result<usize> {
@@ -263,7 +261,7 @@ impl AlluxioCore {
         ));
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -285,7 +283,7 @@ impl AlluxioCore {
         ));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 

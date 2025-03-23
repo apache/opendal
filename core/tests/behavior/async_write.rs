@@ -276,6 +276,9 @@ pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
     if cap.write_has_content_md5 {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
+    if cap.write_has_content_type {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
+    }
 
     Ok(())
 }
@@ -605,6 +608,9 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
     if cap.write_has_content_md5 {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
+    if cap.write_has_content_type {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
+    }
 
     Ok(())
 }
@@ -673,6 +679,9 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
     }
     if cap.write_has_content_md5 {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
+    if cap.write_has_content_type {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
     Ok(())

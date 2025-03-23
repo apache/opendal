@@ -15,36 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use serde::Deserialize;
 use serde::Serialize;
 
-/// Config for Chainsafe services support.
+/// Config for OPFS.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct ChainsafeConfig {
-    /// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub root: Option<String>,
-    /// api_key of this backend.
-    pub api_key: Option<String>,
-    /// bucket_id of this backend.
-    ///
-    /// required.
-    pub bucket_id: String,
-}
-
-impl Debug for ChainsafeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("ChainsafeConfig");
-
-        d.field("root", &self.root)
-            .field("bucket_id", &self.bucket_id);
-
-        d.finish_non_exhaustive()
-    }
-}
+pub struct OPFSConfig {}

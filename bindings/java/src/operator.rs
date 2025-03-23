@@ -27,7 +27,7 @@ use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::BlockingOperator;
 
-use crate::convert::{get_optional_string_from_object, jstring_to_string};
+use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
 use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
@@ -102,28 +102,29 @@ fn intern_write(
     op: &mut BlockingOperator,
     path: JString,
     content: JByteArray,
-    write_options: JObject,
+    options: JObject,
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    let content_type = get_optional_string_from_object(env, &write_options, "getContentType")?;
-    let content_disposition =
-        get_optional_string_from_object(env, &write_options, "getContentDisposition")?;
-    let cache_control = get_optional_string_from_object(env, &write_options, "getCacheControl")?;
-    let append = env
-        .call_method(&write_options, "isAppend", "()Z", &[])?
-        .z()?;
+    let content_type = read_string_field(env, &options, "contentType")?;
+    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
+    let cache_control = read_string_field(env, &options, "cacheControl")?;
+    let user_metadata = read_map_field(env, &options, "userMetadata")?;
+    let append = read_bool_field(env, &options, "append")?;
 
     let mut write_op = op.write_with(&path, content);
-    if let Some(ct) = content_type {
-        write_op = write_op.content_type(&ct);
+    if let Some(content_type) = content_type {
+        write_op = write_op.content_type(&content_type);
     }
-    if let Some(cd) = content_disposition {
-        write_op = write_op.content_disposition(&cd);
+    if let Some(content_disposition) = content_disposition {
+        write_op = write_op.content_disposition(&content_disposition);
     }
-    if let Some(cc) = cache_control {
-        write_op = write_op.cache_control(&cc);
+    if let Some(cache_control) = cache_control {
+        write_op = write_op.cache_control(&cache_control);
+    }
+    if let Some(user_metadata) = user_metadata {
+        write_op = write_op.user_metadata(user_metadata);
     }
     write_op = write_op.append(append);
     Ok(write_op.call().map(|_| ())?)
@@ -277,25 +278,36 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
+    options: JObject,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_list(&mut env, &mut *op, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+fn intern_list(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    path: JString,
+    options: JObject,
+) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let obs = op.list(&path)?;
+    let recursive = read_bool_field(env, &options, "recursive")?;
+
+    let mut list_op = op.list_with(&path);
+    list_op = list_op.recursive(recursive);
+
+    let entries = list_op.call()?;
 
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

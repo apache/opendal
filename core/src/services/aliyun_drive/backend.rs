@@ -40,6 +40,8 @@ use crate::*;
 
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AliyunDriveBuilder {
             config: self,
@@ -53,6 +55,7 @@ impl Configurator for AliyunDriveConfig {
 pub struct AliyunDriveBuilder {
     config: AliyunDriveConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -120,6 +123,8 @@ impl AliyunDriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -135,15 +140,6 @@ impl Builder for AliyunDriveBuilder {
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive)
-            })?
-        };
 
         let sign = match self.config.access_token.clone() {
             Some(access_token) if !access_token.is_empty() => {
@@ -212,6 +208,13 @@ impl Builder for AliyunDriveBuilder {
                             list_has_content_type: true,
                             ..Default::default()
                         });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 endpoint: "https://openapi.alipan.com".to_string(),
@@ -221,7 +224,6 @@ impl Builder for AliyunDriveBuilder {
                     drive_id: None,
                     sign,
                 })),
-                client,
                 dir_lock: Arc::new(Mutex::new(())),
             }),
         })
@@ -373,7 +375,7 @@ impl Access for AliyunDriveBackend {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.core.client.fetch(req).await?;
+        let resp = self.core.info.http_client().fetch(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {

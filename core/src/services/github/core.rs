@@ -45,8 +45,6 @@ pub struct GithubCore {
     pub owner: String,
     /// Github repo name.
     pub repo: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for GithubCore {
@@ -62,7 +60,7 @@ impl Debug for GithubCore {
 impl GithubCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
@@ -149,7 +147,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {

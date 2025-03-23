@@ -51,18 +51,21 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bindings/dart/rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
-  
-      - name: Install flutter_rust_bridge_codegen and cargo-expand and fvm
-        working-directory: bindings/dart
-        run: |
-          set -eux -o pipefail
-          # cargo install cargo-expand
-          # cargo install flutter_rust_bridge_codegen --version "2.7.1"
 
       - name: Check generated bridge code is sync
         working-directory: bindings/dart
@@ -78,9 +81,12 @@ jobs:
         working-directory: bindings/dart/rust
         run: |
           set -eux -o pipefail
-          cargo build -r # frb will load the so in release/, so release build here
+          cargo build -r
+          cargo build -r --target x86_64-unknown-linux-gnu
+          ls -R .
 
       - name: test
         working-directory: bindings/dart
         run: |
-          dart run lib/opendal_test.dart
+          dart run tests/opendal_test.dart
+          dart run examples/basic.dart

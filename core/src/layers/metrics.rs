@@ -105,73 +105,86 @@ pub struct MetricsInterceptor {
 impl observe::MetricsIntercept for MetricsInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
+            info,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: None,
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         histogram!(observe::METRIC_OPERATION_DURATION_SECONDS.name(), labels).record(duration)
     }
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
+            info,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: None,
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         histogram!(observe::METRIC_OPERATION_BYTES.name(), labels).record(bytes as f64)
     }
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
         let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
+            info,
+            path: observe::path_label_value(path, self.path_label_level),
             operation: op,
             error: Some(error),
         }
-        .into_labels(self.path_label_level);
+        .into_labels();
         counter!(observe::METRIC_OPERATION_ERRORS_TOTAL.name(), labels).increment(1)
+    }
+
+    fn observe_http_request_duration_seconds(
+        &self,
+        info: Arc<AccessorInfo>,
+        op: Operation,
+        duration: Duration,
+    ) {
+        let labels = OperationLabels {
+            info,
+            path: None,
+            operation: op,
+            error: None,
+        }
+        .into_labels();
+        histogram!(observe::METRIC_HTTP_REQUEST_DURATION_SECONDS.name(), labels).record(duration)
+    }
+
+    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
+        let labels = OperationLabels {
+            info,
+            path: None,
+            operation: op,
+            error: None,
+        }
+        .into_labels();
+        histogram!(observe::METRIC_HTTP_REQUEST_BYTES.name(), labels).record(bytes as f64)
     }
 }
 
 struct OperationLabels<'a> {
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
-    path: &'a str,
+    info: Arc<AccessorInfo>,
+    path: Option<&'a str>,
     operation: Operation,
     error: Option<ErrorKind>,
 }
@@ -183,17 +196,17 @@ impl OperationLabels<'_> {
     /// 2. `["scheme", "namespace", "root", "operation", "path"]`
     /// 3. `["scheme", "namespace", "root", "operation", "error"]`
     /// 4. `["scheme", "namespace", "root", "operation", "path", "error"]`
-    fn into_labels(self, path_label_level: usize) -> Vec<Label> {
+    fn into_labels(self) -> Vec<Label> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
-            Label::new(observe::LABEL_SCHEME, self.scheme.into_static()),
-            Label::new(observe::LABEL_NAMESPACE, (*self.namespace).clone()),
-            Label::new(observe::LABEL_ROOT, (*self.root).clone()),
+            Label::new(observe::LABEL_SCHEME, self.info.scheme().into_static()),
+            Label::new(observe::LABEL_NAMESPACE, self.info.name()),
+            Label::new(observe::LABEL_ROOT, self.info.root()),
             Label::new(observe::LABEL_OPERATION, self.operation.into_static()),
         ]);
 
-        if let Some(path) = observe::path_label_value(self.path, path_label_level) {
+        if let Some(path) = self.path {
             labels.push(Label::new(observe::LABEL_PATH, path.to_owned()));
         }
 

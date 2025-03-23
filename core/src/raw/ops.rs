@@ -20,7 +20,6 @@
 //! By using ops, users can add more context for operation.
 
 use crate::raw::*;
-use crate::*;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -313,7 +312,6 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
-    executor: Option<Executor>,
 }
 
 impl OpRead {
@@ -425,31 +423,6 @@ impl OpRead {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
-    }
-
-    /// Set the executor of the option
-    pub fn with_executor(mut self, executor: Executor) -> Self {
-        self.executor = Some(executor);
-        self
-    }
-
-    /// Merge given executor into option.
-    ///
-    /// If executor has already been set, this will do nothing.
-    /// Otherwise, this will set the given executor.
-    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
-        if self.executor.is_some() {
-            return self;
-        }
-        if let Some(exec) = executor {
-            return self.with_executor(exec);
-        }
-        self
-    }
-
-    /// Get executor from option
-    pub fn executor(&self) -> Option<&Executor> {
-        self.executor.as_ref()
     }
 }
 
@@ -632,7 +605,6 @@ pub struct OpWrite {
     content_disposition: Option<String>,
     content_encoding: Option<String>,
     cache_control: Option<String>,
-    executor: Option<Executor>,
     if_match: Option<String>,
     if_none_match: Option<String>,
     if_not_exists: bool,
@@ -721,17 +693,6 @@ impl OpWrite {
         self
     }
 
-    /// Get the executor from option
-    pub fn executor(&self) -> Option<&Executor> {
-        self.executor.as_ref()
-    }
-
-    /// Set the executor of the option
-    pub fn with_executor(mut self, executor: Executor) -> Self {
-        self.executor = Some(executor);
-        self
-    }
-
     /// Set the If-Match of the option
     pub fn with_if_match(mut self, s: &str) -> Self {
         self.if_match = Some(s.to_string());
@@ -763,20 +724,6 @@ impl OpWrite {
     /// Get If-Not-Exist from option
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
-    }
-
-    /// Merge given executor into option.
-    ///
-    /// If executor has already been set, this will do nothing.
-    /// Otherwise, this will set the given executor.
-    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
-        if self.executor.is_some() {
-            return self;
-        }
-        if let Some(exec) = executor {
-            return self.with_executor(exec);
-        }
-        self
     }
 
     /// Set the user defined metadata of the op

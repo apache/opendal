@@ -684,8 +684,8 @@ impl Access for WebhdfsBackend {
             WebhdfsWriters::Two(oio::AppendWriter::new(w))
         } else {
             WebhdfsWriters::One(oio::BlockWriter::new(
+                self.info.clone(),
                 w,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };

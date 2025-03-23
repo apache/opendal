@@ -1,10 +1,15 @@
 # Apache OpenDAL™ Java Bindings
 
-![](https://img.shields.io/badge/status-released-blue)
+[![](https://img.shields.io/badge/status-released-blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
+## Useful Links
+
+- [Documentation](https://opendal.apache.org/docs/java/)
+- [Upgrade Guide](./upgrade.md)
 
 ## Example
 
@@ -90,7 +95,7 @@ Note that the dependency without classifier ships all classes and resources exce
 
 For downstream usage, it's recommended:
 
-* Depend on the one without classifier to write code; 
+* Depend on the one without classifier to write code;
 * Depend on the classified ones with "test" for testing.
 
 To load the shared library correctly, you can choose one of the following approaches:

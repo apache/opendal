@@ -42,6 +42,8 @@ use crate::*;
 
 impl Configurator for B2Config {
     type Builder = B2Builder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         B2Builder {
             config: self,
@@ -56,6 +58,7 @@ impl Configurator for B2Config {
 pub struct B2Builder {
     config: B2Config,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -126,6 +129,8 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -179,15 +184,6 @@ impl Builder for B2Builder {
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::B2)
-            })?
-        };
-
         let signer = B2Signer {
             application_key_id,
             application_key,
@@ -212,6 +208,9 @@ impl Builder for B2Builder {
                             write_can_empty: true,
                             write_can_multi: true,
                             write_with_content_type: true,
+                            write_has_content_md5: true,
+                            write_has_content_length: true,
+                            write_has_content_type: true,
                             // The min multipart size of b2 is 5 MiB.
                             //
                             // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
@@ -246,6 +245,12 @@ impl Builder for B2Builder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 signer: Arc::new(RwLock::new(signer)),
@@ -253,7 +258,6 @@ impl Builder for B2Builder {
 
                 bucket: self.config.bucket.clone(),
                 bucket_id: self.config.bucket_id.clone(),
-                client,
             }),
         })
     }
@@ -332,10 +336,9 @@ impl Access for B2Backend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let writer = B2Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartWriter::new(writer, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }

@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import AsyncIterable, Iterable, Optional, final, Union, Type
-from types import TracebackType
 import os
+from types import TracebackType
+from typing import AsyncIterable, Iterable, Optional, Type, Union, final
 
 from opendal import exceptions as exceptions
 from opendal import layers as layers
-from opendal.layers import Layer
 from opendal.__base import _Base
+from opendal.layers import Layer
 
 PathBuf = Union[str, os.PathLike]
 

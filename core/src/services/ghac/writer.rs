@@ -127,7 +127,6 @@ impl GhacWriter {
                     encryption_key: None,
                     encryption_key_sha256: None,
                     encryption_algorithm: None,
-                    client: core.http_client.clone(),
                     loader: {
                         let config = reqsign::AzureStorageConfig {
                             sas_token: Some(query.to_string()),
@@ -138,7 +137,7 @@ impl GhacWriter {
                     signer: { reqsign::AzureStorageSigner::new() },
                 });
                 let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());
-                let writer = oio::BlockWriter::new(w, None, 4);
+                let writer = oio::BlockWriter::new(core.info.clone(), w, 4);
                 Ok(TwoWays::Two(GhacWriterV2 {
                     core,
                     writer,

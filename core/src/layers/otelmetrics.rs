@@ -84,6 +84,8 @@ impl OtelMetricsLayer {
 pub struct OtelMetricsLayerBuilder {
     operation_duration_seconds_boundaries: Vec<f64>,
     operation_bytes_boundaries: Vec<f64>,
+    http_request_duration_seconds_boundaries: Vec<f64>,
+    http_request_bytes_boundaries: Vec<f64>,
     path_label_level: usize,
 }
 
@@ -92,6 +94,8 @@ impl OtelMetricsLayerBuilder {
         Self {
             operation_duration_seconds_boundaries: exponential_boundary(0.01, 2.0, 16),
             operation_bytes_boundaries: exponential_boundary(1.0, 2.0, 16),
+            http_request_duration_seconds_boundaries: exponential_boundary(0.01, 2.0, 16),
+            http_request_bytes_boundaries: exponential_boundary(1.0, 2.0, 16),
             path_label_level: 0,
         }
     }
@@ -193,6 +197,72 @@ impl OtelMetricsLayerBuilder {
         self
     }
 
+    /// Set boundaries for `http_request_duration_seconds` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(
+    ///         OtelMetricsLayer::builder()
+    ///             .http_request_duration_seconds_boundaries(vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
+    ///             .register(&meter)
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn http_request_duration_seconds_boundaries(mut self, boundaries: Vec<f64>) -> Self {
+        if !boundaries.is_empty() {
+            self.http_request_duration_seconds_boundaries = boundaries;
+        }
+        self
+    }
+
+    /// Set boundaries for `http_request_bytes` histogram.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::OtelMetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let meter = opentelemetry::global::meter("opendal");
+    /// let op = Operator::new(services::Memory::default())?
+    ///     .layer(
+    ///         OtelMetricsLayer::builder()
+    ///             .http_request_bytes_boundaries(vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0])
+    ///             .register(&meter)
+    ///     )
+    ///     .finish();
+    /// debug!("operator: {op:?}");
+    ///
+    /// Ok(())
+    /// # }
+    /// ```
+    pub fn http_request_bytes_boundaries(mut self, boundaries: Vec<f64>) -> Self {
+        if !boundaries.is_empty() {
+            self.http_request_bytes_boundaries = boundaries;
+        }
+        self
+    }
+
     /// Register the metrics and return a [`OtelMetricsLayer`].
     ///
     /// # Examples
@@ -214,17 +284,27 @@ impl OtelMetricsLayerBuilder {
     /// # }
     /// ```
     pub fn register(self, meter: &Meter) -> OtelMetricsLayer {
-        let duration_seconds = meter
+        let operation_duration_seconds = meter
             .f64_histogram("opendal.operation.duration")
             .with_description("Duration of operations")
             .with_unit("second")
             .with_boundaries(self.operation_duration_seconds_boundaries)
             .build();
-        let bytes = meter
+        let operation_bytes = meter
             .u64_histogram("opendal.operation.size")
             .with_description("Size of operations")
             .with_unit("byte")
             .with_boundaries(self.operation_bytes_boundaries)
+            .build();
+        let http_request_duration_seconds = meter
+            .f64_histogram("opendal.http.request.duration")
+            .with_description("Duration of http requests")
+            .with_unit("second")
+            .build();
+        let http_request_bytes = meter
+            .u64_histogram("opendal.http.request.size")
+            .with_description("Size of http requests")
+            .with_unit("byte")
             .build();
         let errors = meter
             .u64_counter("opendal.operation.errors")
@@ -233,8 +313,10 @@ impl OtelMetricsLayerBuilder {
 
         OtelMetricsLayer {
             interceptor: OtelMetricsInterceptor {
-                duration_seconds,
-                bytes,
+                operation_duration_seconds,
+                operation_bytes,
+                http_request_duration_seconds,
+                http_request_bytes,
                 errors,
                 path_label_level: self.path_label_level,
             },
@@ -252,8 +334,10 @@ impl<A: Access> Layer<A> for OtelMetricsLayer {
 
 #[derive(Clone, Debug)]
 pub struct OtelMetricsInterceptor {
-    duration_seconds: Histogram<f64>,
-    bytes: Histogram<u64>,
+    operation_duration_seconds: Histogram<f64>,
+    operation_bytes: Histogram<u64>,
+    http_request_duration_seconds: Histogram<f64>,
+    http_request_bytes: Histogram<u64>,
     errors: Counter<u64>,
     path_label_level: usize,
 }
@@ -261,51 +345,59 @@ pub struct OtelMetricsInterceptor {
 impl observe::MetricsIntercept for OtelMetricsInterceptor {
     fn observe_operation_duration_seconds(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         duration: Duration,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
-        self.duration_seconds
+        let attributes = self.create_attributes(info, path, op, None);
+        self.operation_duration_seconds
             .record(duration.as_secs_f64(), &attributes);
     }
 
     fn observe_operation_bytes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         bytes: usize,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, None);
-        self.bytes.record(bytes as u64, &attributes);
+        let attributes = self.create_attributes(info, path, op, None);
+        self.operation_bytes.record(bytes as u64, &attributes);
     }
 
     fn observe_operation_errors_total(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         op: Operation,
         error: ErrorKind,
     ) {
-        let attributes = self.create_attributes(scheme, namespace, root, path, op, Some(error));
+        let attributes = self.create_attributes(info, path, op, Some(error));
         self.errors.add(1, &attributes);
+    }
+
+    fn observe_http_request_duration_seconds(
+        &self,
+        info: Arc<AccessorInfo>,
+        op: Operation,
+        duration: Duration,
+    ) {
+        let attributes = self.create_attributes(info, "", op, None);
+        self.http_request_duration_seconds
+            .record(duration.as_secs_f64(), &attributes);
+    }
+
+    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
+        let attributes = self.create_attributes(info, "", op, None);
+        self.http_request_bytes.record(bytes as u64, &attributes);
     }
 }
 
 impl OtelMetricsInterceptor {
     fn create_attributes(
         &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
+        info: Arc<AccessorInfo>,
         path: &str,
         operation: Operation,
         error: Option<ErrorKind>,
@@ -313,9 +405,9 @@ impl OtelMetricsInterceptor {
         let mut attributes = Vec::with_capacity(6);
 
         attributes.extend([
-            KeyValue::new(observe::LABEL_SCHEME, scheme.into_static()),
-            KeyValue::new(observe::LABEL_NAMESPACE, (*namespace).clone()),
-            KeyValue::new(observe::LABEL_ROOT, (*root).clone()),
+            KeyValue::new(observe::LABEL_SCHEME, info.scheme().into_static()),
+            KeyValue::new(observe::LABEL_NAMESPACE, info.name().clone()),
+            KeyValue::new(observe::LABEL_ROOT, info.root().clone()),
             KeyValue::new(observe::LABEL_OPERATION, operation.into_static()),
         ]);
 

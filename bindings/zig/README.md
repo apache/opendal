@@ -1,12 +1,12 @@
 # Apache OpenDAL™ Zig Binding (WIP)
 
-![](https://img.shields.io/badge/status-unreleased-red)
+[![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/zig)
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Build
 
-To compile OpenDAL from source code, you need:
+To compile OpenDAL Zig binding from source code, you need:
 
 - [Zig](https://ziglang.org/download) 0.14.0 or higher
 

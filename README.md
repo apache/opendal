@@ -60,7 +60,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
 [Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
 [Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
-[Java Binding Users Image]: https://github.com/user-attachments/assets/1f8d6f87-b930-4fa5-9351-a6b780d184f3
+[Java Binding Users Image]: https://github.com/user-attachments/assets/f20a59a9-8f23-4919-a165-980ed4e6e0d0
 [Java Binding Users]: bindings/java/users.md
 [Lua Binding]: bindings/lua/README.md
 [Node.js Binding]: bindings/nodejs/README.md
@@ -73,7 +73,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Python Binding Image]: https://img.shields.io/pypi/v/opendal
 [Python Binding Link]: https://pypi.org/project/opendal/
 [Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
-[Python Binding Users Image]: https://github.com/user-attachments/assets/bafa7978-3d99-4bb8-98bf-e362b25e7cfc
+[Python Binding Users Image]: https://github.com/user-attachments/assets/6bba7e5b-cada-4cf2-81e3-09d4e4535dcb 
 [Python Binding Users]: bindings/python/users.md
 [Ruby Binding]: bindings/ruby/README.md
 [Swift Binding]: bindings/swift/README.md
@@ -155,7 +155,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                                        |
 | Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
 | Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
@@ -179,7 +179,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
 [azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
 [azfile]: https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api
-[chainsafe]: https://storage.chainsafe.io/
 [compfs]: https://github.com/compio-rs/compio/
 [dbfs]: https://docs.databricks.com/en/dbfs/index.html
 [gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/

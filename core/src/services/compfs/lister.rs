@@ -26,16 +26,29 @@ use crate::*;
 #[derive(Debug)]
 pub struct CompfsLister {
     core: Arc<CompfsCore>,
+    root: Option<String>,
     read_dir: Option<ReadDir>,
 }
 
 impl CompfsLister {
-    pub(super) fn new(core: Arc<CompfsCore>, read_dir: ReadDir) -> Self {
+    pub(super) fn new(core: Arc<CompfsCore>, root: &Path, read_dir: ReadDir) -> Self {
+        let root = normalize(root, &core.root);
         Self {
             core,
+            root: Some(root),
             read_dir: Some(read_dir),
         }
     }
+}
+
+fn normalize(path: &Path, root: &Path) -> String {
+    normalize_path(
+        &path
+            .strip_prefix(root)
+            .expect("cannot fail because the prefix is iterated")
+            .to_string_lossy()
+            .replace('\\', "/"),
+    )
 }
 
 fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio::Entry>> {
@@ -43,13 +56,7 @@ fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio
         return Ok(None);
     };
     let path = entry.path();
-    let rel_path = normalize_path(
-        &path
-            .strip_prefix(root)
-            .expect("cannot fail because the prefix is iterated")
-            .to_string_lossy()
-            .replace('\\', "/"),
-    );
+    let rel_path = normalize(&path, root);
 
     let file_type = entry.file_type()?;
 
@@ -66,6 +73,12 @@ fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio
 
 impl oio::List for CompfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if let Some(root) = self.root.take() {
+            return Ok(Some(oio::Entry::new(
+                &format!("{root}/"),
+                Metadata::new(EntryMode::DIR),
+            )));
+        }
         let Some(mut read_dir) = self.read_dir.take() else {
             return Ok(None);
         };
@@ -77,7 +90,9 @@ impl oio::List for CompfsLister {
                 (entry, read_dir)
             })
             .await?;
-        self.read_dir = Some(read_dir);
+        if !matches!(entry, Ok(None)) {
+            self.read_dir = Some(read_dir);
+        }
         entry
     }
 }

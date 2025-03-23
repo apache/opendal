@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import io
-from random import randint, choices
-from uuid import uuid4
+import os
 from pathlib import Path
+from random import choices, randint
+from uuid import uuid4
 
 import pytest
+
 from opendal.exceptions import NotFound
 
 

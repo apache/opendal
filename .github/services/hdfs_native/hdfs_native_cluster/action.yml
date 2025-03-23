@@ -15,37 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Integration Compat CI
+name: hdfs_native_cluster
+description: 'Behavior test for hdfs native cluster'
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "integrations/compat/**"
-      - "core/**"
-      - ".github/workflows/ci_integration_compat.yml"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
-
-jobs:
-  check_clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Cargo clippy
-        working-directory: integrations/compat
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Cargo test
-        working-directory: integrations/compat
-        run: cargo test --all-features
+runs:
+  using: "composite"
+  steps:
+    - name: Setup HDFS Native cluster
+      shell: bash
+      working-directory: fixtures/hdfs
+      run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
+    - name: Setup opendal env
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_HDFS_NATIVE_ROOT=/tmp/opendal/
+        OPENDAL_HDFS_NATIVE_NAME_NODE=hdfs://localhost:8020
+        OPENDAL_HDFS_NATIVE_ENABLE_APPEND=true
+        EOF

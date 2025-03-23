@@ -112,6 +112,9 @@ pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> 
     if cap.write_has_content_md5 {
         assert_eq!(meta.content_md5(), stat_meta.content_md5());
     }
+    if cap.write_has_content_type {
+        assert_eq!(meta.content_type(), stat_meta.content_type());
+    }
 
     Ok(())
 }
@@ -171,6 +174,9 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
     }
     if cap.write_has_content_md5 {
         assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    }
+    if cap.write_has_content_type {
+        assert_eq!(meta.content_type(), stat_meta.content_type());
     }
 
     Ok(())

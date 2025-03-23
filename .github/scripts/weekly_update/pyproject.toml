@@ -15,28 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "Apache OpenDAL Compat"
-name = "opendal_compat"
-
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
-version = "1.0.4"
-
-[package.metadata.docs.rs]
-all-features = true
-
-[features]
-v0_50_to_v0_49 = ["dep:opendal_v0_49", "dep:opendal_v0_50"]
-
-[dependencies]
-async-trait = "0.1"
-opendal_v0_49 = { package = "opendal", version = "0.49", optional = true }
-opendal_v0_50 = { package = "opendal", version = "0.50", optional = true }
-
-[dev-dependencies]
-tokio = { version = "1.41", features = ["full"] }
+[project]
+dependencies = [
+    "openai>=1.66.5",
+    "python-dateutil>=2.9.0.post0",
+    "pytz>=2025.1",
+    "requests>=2.32.3",
+]
+description = "Add your description here"
+name = "weekly_update"
+readme = "README.md"
+requires-python = ">=3.12"
+version = "0.1.0"

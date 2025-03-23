@@ -21,7 +21,7 @@ name = "opendal-dart"
 version = "0.1.0"
 
 [dependencies]
-flutter_rust_bridge = "2.8.0"
+flutter_rust_bridge = "=2.8.0"
 opendal = { path = "../../../core", features = [
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",

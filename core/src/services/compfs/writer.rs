@@ -29,12 +29,15 @@ use crate::*;
 #[derive(Debug)]
 pub struct CompfsWriter {
     core: Arc<CompfsCore>,
-    file: Cursor<File>,
+    file: Option<Cursor<File>>,
 }
 
 impl CompfsWriter {
     pub(super) fn new(core: Arc<CompfsCore>, file: Cursor<File>) -> Self {
-        Self { core, file }
+        Self {
+            core,
+            file: Some(file),
+        }
     }
 }
 
@@ -45,34 +48,43 @@ impl oio::Write for CompfsWriter {
     ///
     /// The IoBuf::buf_len() only returns the length of the current buffer.
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let mut file = self.file.clone();
+        let Some(mut file) = self.file.clone() else {
+            return Err(Error::new(ErrorKind::Unexpected, "file has closed"));
+        };
 
-        self.core
+        let pos = self
+            .core
             .exec(move || async move {
-                buf_try!(@try file.write_all(bs).await);
-                Ok(())
+                for b in bs {
+                    buf_try!(@try file.write_all(b).await);
+                }
+                Ok(file.position())
             })
             .await?;
+        self.file.as_mut().unwrap().set_position(pos);
 
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let f = self.file.clone();
+        let Some(f) = self.file.take() else {
+            return Err(Error::new(ErrorKind::Unexpected, "file has closed"));
+        };
 
         self.core
-            .exec(move || async move { f.get_ref().sync_all().await })
-            .await?;
-
-        let f = self.file.clone();
-        self.core
-            .exec(move || async move { f.into_inner().close().await })
+            .exec(move || async move {
+                f.get_ref().sync_all().await?;
+                f.into_inner().close().await
+            })
             .await?;
 
         Ok(Metadata::default())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "cannot abort completion-based operations",
+        ))
     }
 }

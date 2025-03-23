@@ -81,13 +81,11 @@ impl oio::PageList for WebdavLister {
             }
 
             let decoded_path = percent_decode_path(&path);
-
-            // Ignore the root path itself.
-            if self.core.root == decoded_path {
-                continue;
-            }
-
-            let normalized_path = build_rel_path(&self.core.root, &decoded_path);
+            let normalized_path = if self.core.root != decoded_path {
+                build_rel_path(&self.core.root, &decoded_path)
+            } else {
+                "/".to_owned()
+            };
 
             // HACKS! HACKS! HACKS!
             //

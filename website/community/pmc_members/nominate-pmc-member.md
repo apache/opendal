@@ -25,11 +25,11 @@ Hi, All OpenDAL PMC members.
   
 I would like to nominate ${candidate_name} (GitHub id: ${candidate_github_id}) as a candidate for the OpenDAL PMC member. Since becoming an OpenDAL committer, ${candidate_name} has made significant contributions to various modules of the project.
 
-${candidate_name}'s great contributions could be found:
+${candidate_name}'s great contributions can be found:
 
-- Github Account: https://github.com/${candidate_github_id}
-- Github Pull Requests: https://github.com/apache/opendal/pulls?q=is%3Apr+author%3A${candidate_github_id}+is%3Aclosed
-- Github Issues: https://github.com/apache/opendal/issues?q=is%3Aopen+mentions%3A${candidate_github_id}
+- GitHub Account: https://github.com/${candidate_github_id}
+- GitHub Pull Requests: https://github.com/apache/opendal/pulls?q=is%3Apr+author%3A${candidate_github_id}
+- GitHub Issues: https://github.com/apache/opendal/issues?q=is%3Aissue+involves%3A${candidate_github_id}
 
 Please make your valuable evaluation on whether we could invite ${candidate_name} as a
 PMC member:

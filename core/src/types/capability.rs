@@ -168,6 +168,8 @@ pub struct Capability {
     pub write_has_version: bool,
     /// Indicates whether content MD5 checksum is available in write response
     pub write_has_content_md5: bool,
+    /// Indicates whether content type information is available in write response
+    pub write_has_content_type: bool,
 
     /// Indicates if directory creation is supported.
     pub create_dir: bool,

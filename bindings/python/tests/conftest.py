@@ -17,6 +17,7 @@
 
 import os
 from uuid import uuid4
+
 import pytest
 from dotenv import load_dotenv
 
@@ -87,5 +88,7 @@ def check_capability(request, operator, async_operator):
                 ]
             ):
                 pytest.skip(
-                    f"skip because {request.node.get_closest_marker('need_capability').args} not supported"
+                    "skip because "
+                    f"{request.node.get_closest_marker('need_capability').args}"
+                    " not supported"
                 )

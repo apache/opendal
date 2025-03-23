@@ -20,7 +20,7 @@ mod reader;
 pub use reader::Reader;
 
 mod buffer_stream;
-pub(crate) use buffer_stream::BufferStream;
+pub use buffer_stream::BufferStream;
 
 mod futures_async_reader;
 pub use futures_async_reader::FuturesAsyncReader;

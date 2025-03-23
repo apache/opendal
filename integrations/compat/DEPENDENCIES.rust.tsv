@@ -1,7 +1,0 @@
-crate	Apache-2.0	MIT	Unicode-3.0
-async-trait@0.1.85	X	X	
-opendal_compat@1.0.4	X		
-proc-macro2@1.0.92	X	X	
-quote@1.0.38	X	X	
-syn@2.0.95	X	X	
-unicode-ident@1.0.14	X	X	X

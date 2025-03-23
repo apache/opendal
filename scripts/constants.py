@@ -69,9 +69,6 @@ def get_package_version(package):
     if package == "core":
         return get_rust_package_version("core")
 
-    # NOTE: for now, all dependence package must be rust package.
-    core_version = get_rust_package_version("core")
-
     cargo_toml = ROOT_DIR / package / "Cargo.toml"
     # cargo_toml exists, we can get the version from Cargo.toml.
     if cargo_toml.exists():
@@ -80,4 +77,4 @@ def get_package_version(package):
     # cargo_toml not exists, we should handle case by case ideally.
     #
     # However, those packages are not mature enough, it's much easier for us to always return `0.0.0` instead.
-    return f"0.0.0"
+    return "0.0.0"

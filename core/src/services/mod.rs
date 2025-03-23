@@ -43,9 +43,6 @@ pub use b2::*;
 mod cacache;
 pub use self::cacache::*;
 
-mod chainsafe;
-pub use chainsafe::*;
-
 mod cloudflare_kv;
 pub use self::cloudflare_kv::*;
 
@@ -213,3 +210,6 @@ pub use webhdfs::*;
 
 mod yandex_disk;
 pub use yandex_disk::*;
+
+#[cfg(target_arch = "wasm32")]
+mod opfs;

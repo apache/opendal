@@ -56,8 +56,6 @@ pub struct B2Core {
     pub bucket: String,
     /// The bucket id of this backend.
     pub bucket_id: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for B2Core {
@@ -73,7 +71,7 @@ impl Debug for B2Core {
 impl B2Core {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// [b2_authorize_account](https://www.backblaze.com/apidocs/b2-authorize-account)
@@ -102,7 +100,7 @@ impl B2Core {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let resp = self.info.http_client().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -158,7 +156,7 @@ impl B2Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
@@ -620,6 +618,15 @@ pub struct CancelLargeFileRequest {
 pub struct ListFileNamesResponse {
     pub files: Vec<File>,
     pub next_file_name: Option<String>,
+}
+
+/// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadResponse {
+    pub content_length: u64,
+    pub content_md5: Option<String>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

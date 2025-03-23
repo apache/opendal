@@ -86,7 +86,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .instrument_await(format!("opendal::{}", Operation::Read))
+            .instrument_await(format!("opendal::{}", Operation::ReaderStart))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -94,7 +94,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .instrument_await(format!("opendal::{}", Operation::Write))
+            .instrument_await(format!("opendal::{}", Operation::WriterStart))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -123,7 +123,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner
             .delete()
-            .instrument_await(format!("opendal::{}", Operation::Delete))
+            .instrument_await(format!("opendal::{}", Operation::DeleterStart))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -131,7 +131,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .instrument_await(format!("opendal::{}", Operation::List))
+            .instrument_await(format!("opendal::{}", Operation::ListerStart))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }

@@ -69,14 +69,20 @@ pub(crate) fn string_to_jstring<'a>(
     )
 }
 
-pub(crate) fn get_optional_string_from_object<'a>(
-    env: &mut JNIEnv<'a>,
+pub(crate) fn read_bool_field(
+    env: &mut JNIEnv<'_>,
     obj: &JObject,
-    method: &str,
+    field: &str,
+) -> crate::Result<bool> {
+    Ok(env.get_field(obj, field, "Z")?.z()?)
+}
+
+pub(crate) fn read_string_field(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
 ) -> crate::Result<Option<String>> {
-    let result = env
-        .call_method(obj, method, "()Ljava/lang/String;", &[])?
-        .l()?;
+    let result = env.get_field(obj, field, "Ljava/lang/String;")?.l()?;
     if result.is_null() {
         Ok(None)
     } else {
@@ -84,14 +90,12 @@ pub(crate) fn get_optional_string_from_object<'a>(
     }
 }
 
-pub(crate) fn get_optional_map_from_object<'a>(
-    env: &mut JNIEnv<'a>,
+pub(crate) fn read_map_field(
+    env: &mut JNIEnv<'_>,
     obj: &JObject,
-    method: &str,
+    field: &str,
 ) -> crate::Result<Option<HashMap<String, String>>> {
-    let result = env
-        .call_method(obj, method, "()Ljava/util/Map;", &[])?
-        .l()?;
+    let result = env.get_field(obj, field, "Ljava/util/Map;")?.l()?;
     if result.is_null() {
         Ok(None)
     } else {

@@ -5,37 +5,40 @@ use crate::*;
 use bytes::Bytes;
 use foyer::{DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Handle;
 
 pub struct CacheLayer {
-    handle: Handle,
     cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
+// TODO: rename to foyer layer and receive a HybridCacheBuilder as the parameter?
+// TODO: expose foyer metrics here?
 impl CacheLayer {
     // TODO: add a comment that i had to make this function async due to the HybridCacheBuilder::build method,
-    // the alternative is to do it in the Layer::layer method, but that method is sync and couldn't make it to work
-    pub async fn new() -> Result<Self> {
-        // TODO: document usage of the Handle as `BlockingLayer` does in
-        // `core/src/layers/blocking.rs`
+    // the alternative is to do it in the Layer::layer method, but that method is sync and couldn't make it to work.
+    // Maybe we can use `futures::executor::block_on` in this `new` method so it is no async and users in
+    // sync contexts doesn't have to create a new runtime to call this.
+    pub fn new() -> Result<Self> {
         // TODO: Use `Handle` or create a new tokio `Runtime`? If we use `Handle` as
         // `BlockingLayer`, we force users to create a new runtime (in blocking contexts)
         // before creating this layer
         // let handle = Handle::try_current()
         //     .map_err(|_| Error::new(ErrorKind::Unexpected, "failed to get current handle"))?;
-        let handle = Handle::current();
-        let cache = HybridCacheBuilder::new()
+        let cache_builder = HybridCacheBuilder::new()
             .with_name("foyer")
             .memory(1024)
             .storage(Engine::Large)
-            .with_device_options(DirectFsDeviceOptions::new("/tmp/foyer"))
-            .build()
-            .await
+            .with_device_options(DirectFsDeviceOptions::new("/tmp/foyer"));
+
+        // TODO: should we mark this method as `async fn` and not use `futures::executor::block_on`?
+        // Using tokio::runtime::Handle::current().block_on(..) is not an option since it panics and couldn't make it work
+        let cache = futures::executor::block_on(async {
+            cache_builder.build().await
             // TODO: improve panic error
-            .expect("Failed to build cache");
+        })
+        .expect("Failed to build cache");
+
         Ok(Self {
             cache: Arc::new(cache),
-            handle,
         })
     }
 }
@@ -46,7 +49,6 @@ impl<A: Access> Layer<A> for CacheLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         CacheAccessor {
             inner,
-            handle: self.handle.clone(),
             cache: Arc::clone(&self.cache),
         }
     }
@@ -69,7 +71,6 @@ struct CacheValue {
 #[derive(Debug)]
 pub struct CacheAccessor<A: Access> {
     inner: A,
-    handle: Handle,
     // TODO: if cache should be used for other operations (such as stat or list)
     // maybe we should create different caches for each operation?
     // So the keys and values does not mix
@@ -125,6 +126,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             // TODO: handle this error
             .expect("cache failed")
         {
+            // TODO: log that we have a cache hit?
             return Ok((entry.rp, Box::new(entry.bytes.clone())));
         }
 
@@ -157,14 +159,13 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             args: args.clone(),
         };
 
-        // TODO: This block_on call panics.
+        // TODO: Using Handle::current().block_on panics with
         // ERROR: Cannot start a runtime from within a runtime. This happens because a function (like `block_on`)
         // attempted to block the current thread while the thread is being used to drive asynchronous tasks.
-        if let Some(entry) = self
-            .handle
-            .block_on(async { self.cache.get(&cache_key).await })
-            .expect("cache failed")
-        {
+        // The workaround I found is to use `futures::executor::block_on`
+        if let Some(entry) = futures::executor::block_on(async {
+            self.cache.get(&cache_key).await.expect("cache failed")
+        }) {
             return Ok((entry.rp, Box::new(entry.bytes.clone())));
         }
 

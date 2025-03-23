@@ -246,9 +246,11 @@ chrono = { version = "0.4.28", default-features = false, features = [
   "std",
   "serde",
 ] }
+# TODO: add a comment that the executors feature is done as a workaround to use futures::executor::block_on
 futures = { version = "0.3", default-features = false, features = [
   "std",
   "async-await",
+  "executor",
 ] }
 http = "1.1"
 log = "0.4"

@@ -94,14 +94,14 @@ Here is an example of `config.toml` using bench command:
 
 ```toml
 [profiles.demo]
+type = "s3"
 access_key_id = "minioadmin"
+secret_access_key = "minioadmin"
 bucket = "test-bucket"
 endpoint = "http://127.0.0.1:9000"
 region = "us-east-1"
 root = "/benchmarks"
-secret_access_key = "minioadmin"
-type = "s3"
-virtual_host_style = "false"
+enable_virtual_host_style = "false"
 ```
 
 create a bench suite config file

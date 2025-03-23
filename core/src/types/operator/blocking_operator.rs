@@ -1109,6 +1109,15 @@ impl BlockingOperator {
             |inner, path, args| BlockingLister::create(inner, &path, args),
         ))
     }
+
+    pub fn check(&self) -> Result<()> {
+        let mut ds = self.lister("/")?;
+
+        match ds.next() {
+            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl From<BlockingOperator> for Operator {

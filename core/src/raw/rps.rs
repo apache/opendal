@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use http::Request;
-
 use crate::raw::*;
 use crate::*;
+use http::Request;
+use serde::{Deserialize, Serialize};
 
 /// Reply for `create_dir` operation
 #[derive(Debug, Clone, Default)]
@@ -98,7 +98,7 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 }
 
 /// Reply for `read` operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct RpRead {
     /// Size is the size of the reader returned by this read operation.
     ///

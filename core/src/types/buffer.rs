@@ -33,6 +33,7 @@ use bytes::BufMut;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 
 use crate::*;
 
@@ -108,10 +109,10 @@ use crate::*;
 ///     buf.to_bytes()
 /// }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Buffer(Inner);
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 enum Inner {
     Contiguous(Bytes),
     NonContiguous {

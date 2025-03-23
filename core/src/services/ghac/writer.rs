@@ -127,7 +127,6 @@ impl GhacWriter {
                     encryption_key: None,
                     encryption_key_sha256: None,
                     encryption_algorithm: None,
-                    client: core.http_client.clone(),
                     loader: {
                         let config = reqsign::AzureStorageConfig {
                             sas_token: Some(query.to_string()),

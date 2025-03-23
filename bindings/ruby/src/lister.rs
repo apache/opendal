@@ -22,7 +22,6 @@
 #![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
 #![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
 
-use std::borrow::BorrowMut;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -80,6 +79,10 @@ impl Entry {
 /// Represents the result when list a directory
 ///
 /// This class is an enumerable.
+///
+/// # Safety
+///
+/// `Lister` is thread-safe.
 #[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
 pub struct Lister(Arc<Mutex<ocore::BlockingLister>>);
 
@@ -87,7 +90,8 @@ impl Iterator for Lister {
     type Item = Entry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Ok(mut inner) = self.0.borrow_mut().lock() {
+        // assumes low contention. also we want an entry eventually
+        if let Ok(mut inner) = self.0.lock() {
             match inner.next() {
                 Some(Ok(entry)) => Some(Entry(entry)),
                 _ => None,
@@ -109,6 +113,14 @@ impl Lister {
     /// Returns the next element.
     /// @return [Entry]
     fn each(&self) -> Result<Yield<Lister>, Error> {
+        // Magnus handles yielding to Ruby using an unsafe internal function,
+        // so we don’t manage the actual iteration loop ourselves.
+        //
+        // Since Ruby controls when values are pulled from the iterator,
+        // and could potentially call `each` from multiple threads or fibers,
+        // we wrap the underlying lister in `Arc<Mutex<_>>` to ensure thread safety.
+        //
+        // Multi-threaded iteration is rare in Ruby, but this design ensures thread safety.
         Ok(Yield::Iter(Lister(self.0.clone())))
     }
 }

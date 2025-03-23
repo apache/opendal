@@ -18,18 +18,9 @@
 # frozen_string_literal: true
 
 module OpenDAL
-  class Entry
-    # Returns the canonical data about an entry
-    # @return [Hash]
-    def to_h
-      {
-        path: path,
-        metadata: metadata
-      }
-    end
-
+  class OperatorInfo
     def inspect
-      "#<#{self.class.name} path: \"#{path}\", metadata: #{metadata.inspect}>"
+      "#<#{self.class.name} scheme: \"#{scheme}\", root: \"#{root}\">"
     end
   end
 end

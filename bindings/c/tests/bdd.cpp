@@ -61,7 +61,10 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_error* error = opendal_operator_write(this->p, this->path.c_str(), &data);
+    opendal_error* error = opendal_operator_check(this->p);
+    EXPECT_EQ(error, nullptr);
+
+    error = opendal_operator_write(this->p, this->path.c_str(), &data);
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist

@@ -153,12 +153,16 @@ impl Fixture {
 
     /// Create a new file with random content
     pub fn new_file(&self, op: impl Into<Operator>) -> (String, Vec<u8>, usize) {
-        let max_size = op
-            .into()
-            .info()
-            .full_capability()
-            .write_total_max_size
-            .unwrap_or(4 * 1024 * 1024);
+        let op = op.into();
+        let cap = op.info().full_capability();
+        // Default max size is 4MB
+        let default_max = 4 * 1024 * 1024;
+
+        // Use the smaller of the capability's max size or our default max
+        let max_size: usize = match cap.write_total_max_size {
+            Some(size) => size.min(default_max),
+            None => default_max,
+        };
 
         self.new_file_with_range(uuid::Uuid::new_v4().to_string(), 1..max_size)
     }
@@ -168,12 +172,16 @@ impl Fixture {
         op: impl Into<Operator>,
         path: &str,
     ) -> (String, Vec<u8>, usize) {
-        let max_size = op
-            .into()
-            .info()
-            .full_capability()
-            .write_total_max_size
-            .unwrap_or(4 * 1024 * 1024);
+        let op = op.into();
+        let cap = op.info().full_capability();
+        // Default max size is 4MB
+        let default_max = 4 * 1024 * 1024;
+
+        // Use the smaller of the capability's max size or our default max
+        let max_size: usize = match cap.write_total_max_size {
+            Some(size) => size.min(default_max),
+            None => default_max,
+        };
 
         self.new_file_with_range(path, 1..max_size)
     }

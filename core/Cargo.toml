@@ -27,7 +27,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
+rust-version = "1.80"
 version = "0.52.0"
 
 [lints.clippy]
@@ -43,7 +43,7 @@ members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-rust-version = "1.75"
+rust-version = "1.80"
 version = "0.51.1"
 
 [features]
@@ -173,6 +173,12 @@ services-obs = [
   "reqsign?/reqwest_request",
 ]
 services-onedrive = []
+services-opfs = [
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "dep:web-sys",
+]
 services-oss = [
   "dep:reqsign",
   "reqsign?/services-aliyun",
@@ -204,7 +210,6 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-opfs = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]
 
 [lib]
 bench = false
@@ -360,8 +365,9 @@ monoio = { version = "0.2.4", optional = true, features = [
   "renameat",
 ] }
 # for service-opfs
+js-sys = { version = "0.3.77", optional = true }
 wasm-bindgen = { version = "0.2.100", optional = true }
-wasm-bindgen-futures = { version = "0.4.50", optional = true}
+wasm-bindgen-futures = { version = "0.4.50", optional = true }
 web-sys = { version = "0.3.77", optional = true, features = [
   "Window",
   "File",
@@ -373,8 +379,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "StorageManager",
   "FileSystemGetFileOptions",
 ] }
-js-sys = { version = "0.3.77", optional = true}
-
 
 # Layers
 # for layers-async-backtrace

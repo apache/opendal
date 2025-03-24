@@ -1300,13 +1300,6 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *src,
                                             const char *dest);
 
-struct opendal_error *opendal_operator_remove(const struct opendal_operator *op,
-                                              const char *const *paths,
-                                              uintptr_t len);
-
-struct opendal_error *opendal_operator_remove_all(const struct opendal_operator *op,
-                                                  const char *path);
-
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
 
 /**

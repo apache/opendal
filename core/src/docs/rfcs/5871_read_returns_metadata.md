@@ -1,7 +1,7 @@
 - Proposal Name: `read_returns_metadata`
 - Start Date: 2025-03-24
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#5871](https://github.com/apache/opendal/pull/5871)
+- Tracking Issue: [apache/opendal#5872](https://github.com/apache/opendal/issues/5872)
 
 # Summary
 

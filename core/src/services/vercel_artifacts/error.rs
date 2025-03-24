@@ -22,8 +22,8 @@ use crate::raw::*;
 use crate::*;
 
 /// Parse error response into Error.
-pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, body) = resp.into_parts();
+pub(super) fn parse_error(response: Response<Buffer>) -> Error {
+    let (parts, body) = response.into_parts();
     let bs = body.to_bytes();
 
     let (kind, retryable) = match parts.status {

@@ -32,13 +32,13 @@ use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use once_cell::sync::Lazy;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
+use std::sync::LazyLock;
 
 use super::core::*;
 use super::delete::S3Deleter;
@@ -53,7 +53,7 @@ use crate::*;
 use constants::X_AMZ_VERSION_ID;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
-static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     // AWS S3 Service.
     m.insert(

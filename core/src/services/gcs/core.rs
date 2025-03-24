@@ -35,7 +35,6 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
@@ -43,6 +42,7 @@ use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde::Serialize;
+use std::sync::LazyLock;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -83,8 +83,8 @@ impl Debug for GcsCore {
     }
 }
 
-static BACKOFF: Lazy<ExponentialBuilder> =
-    Lazy::new(|| ExponentialBuilder::default().with_jitter());
+static BACKOFF: LazyLock<ExponentialBuilder> =
+    LazyLock::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
     async fn load_token(&self) -> Result<Option<GoogleToken>> {

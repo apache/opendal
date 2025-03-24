@@ -245,23 +245,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.inner()
             .create_dir(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -273,23 +271,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .inner
             .read(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -311,23 +307,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .inner
             .write(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -348,23 +342,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.inner()
             .copy(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     from,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -375,23 +367,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.inner()
             .rename(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     from,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -402,23 +392,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.inner()
             .stat(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -430,23 +418,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .inner
             .delete()
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     "",
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     "",
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -468,23 +454,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .inner
             .list(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -505,23 +489,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.inner()
             .presign(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -531,23 +513,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let start = Instant::now();
         self.inner()
             .blocking_create_dir(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -558,23 +538,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let (rp, reader) = self
             .inner
             .blocking_read(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -595,23 +573,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let (rp, writer) = self
             .inner
             .blocking_write(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -631,23 +607,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let start = Instant::now();
         self.inner()
             .blocking_copy(from, to, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     from,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -657,23 +631,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let start = Instant::now();
         self.inner()
             .blocking_rename(from, to, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     from,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     from,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -683,23 +655,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let start = Instant::now();
         self.inner()
             .blocking_stat(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(move |err| {
+            .inspect_err(move |err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })
     }
 
@@ -710,23 +680,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let (rp, writer) = self
             .inner
             .blocking_delete()
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     "",
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     "",
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((
@@ -747,23 +715,21 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let (rp, lister) = self
             .inner
             .blocking_list(path, args)
-            .map(|v| {
+            .inspect(|_| {
                 self.interceptor.observe_operation_duration_seconds(
                     self.info.clone(),
                     path,
                     op,
                     start.elapsed(),
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.interceptor.observe_operation_errors_total(
                     self.info.clone(),
                     path,
                     op,
                     err.kind(),
                 );
-                err
             })?;
 
         Ok((

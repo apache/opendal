@@ -96,14 +96,14 @@ use crate::*;
 /// > runtime on demand.
 ///
 /// ```rust,no_run
-/// # use once_cell::sync::Lazy;
+/// # use std::sync::LazyLock;
 /// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::BlockingOperator;
 /// # use opendal::Operator;
 /// # use opendal::Result;
 ///
-/// static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+/// static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 ///     tokio::runtime::Builder::new_multi_thread()
 ///         .enable_all()
 ///         .build()
@@ -310,12 +310,12 @@ impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
 
 #[cfg(test)]
 mod tests {
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     use super::*;
     use crate::types::Result;
 
-    static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+    static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()

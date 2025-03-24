@@ -35,7 +35,6 @@ cbindgen = "0.26.0"
 
 [dependencies]
 bytes = "1.4.0"
-once_cell = "1.17.1"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",

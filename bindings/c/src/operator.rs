@@ -21,7 +21,7 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as core;
-use std::sync::LazyLock;
+use once_cell::sync::Lazy;
 
 use super::*;
 

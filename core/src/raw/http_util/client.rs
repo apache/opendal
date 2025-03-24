@@ -27,7 +27,7 @@ use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock as Lazy;
 use raw::oio::Read;
 
 use super::parse_content_encoding;

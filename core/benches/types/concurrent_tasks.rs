@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use criterion::BatchSize;
 use criterion::Criterion;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock as Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;
 

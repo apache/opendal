@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock as Lazy;
 
 use crate::*;
 

@@ -429,7 +429,7 @@ impl From<Error> for io::Error {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock as Lazy;
     use pretty_assertions::assert_eq;
 
     use super::*;

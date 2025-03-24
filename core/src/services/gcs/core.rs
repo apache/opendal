@@ -35,7 +35,7 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock as Lazy;
 use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;

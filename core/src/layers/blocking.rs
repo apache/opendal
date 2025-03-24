@@ -96,7 +96,7 @@ use crate::*;
 /// > runtime on demand.
 ///
 /// ```rust,no_run
-/// # use once_cell::sync::Lazy;
+/// # use std::sync::LazyLock as Lazy;
 /// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::BlockingOperator;
@@ -310,7 +310,7 @@ impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
 
 #[cfg(test)]
 mod tests {
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock as Lazy;
 
     use super::*;
     use crate::types::Result;

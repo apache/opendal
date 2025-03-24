@@ -32,7 +32,7 @@ use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock as Lazy;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;

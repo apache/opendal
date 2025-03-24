@@ -38,7 +38,15 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
 }
 
 pub fn gen_bytes(cap: Capability) -> (Vec<u8>, usize) {
-    let max_size = cap.write_total_max_size.unwrap_or(4 * 1024 * 1024);
+    // Default max size is 4MB
+    let default_max = 4 * 1024 * 1024;
+
+    // Use the smaller of the capability's max size or our default max
+    let max_size: usize = match cap.write_total_max_size {
+        Some(size) => size.min(default_max),
+        None => default_max,
+    };
+
     gen_bytes_with_range(1..max_size)
 }
 

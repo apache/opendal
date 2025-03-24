@@ -17,8 +17,28 @@
 
 # frozen_string_literal: true
 
-require_relative "opendal_ruby/opendal_ruby"
-require_relative "opendal_ruby/io"
-require_relative "opendal_ruby/entry"
-require_relative "opendal_ruby/metadata"
-require_relative "opendal_ruby/operator_info"
+module OpenDAL
+  class Metadata
+    FILE = "File"
+    DIRECTORY = "Directory"
+
+    # Returns `True` if this is a file.
+    # @return [Boolean]
+    def file?
+      mode == FILE
+    end
+
+    # Returns `True` if this is a directory.
+    # @return [Boolean]
+    def dir?
+      mode == DIRECTORY
+    end
+
+    def inspect
+      # Be concise to keep a few attributes
+      "#<#{self.class.name} mode: #{entry_mode}, \
+        content_type: #{content_type}, \
+        content_length: #{content_length}>"
+    end
+  end
+end

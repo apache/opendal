@@ -27,8 +27,8 @@ use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use std::sync::LazyLock as Lazy;
 use raw::oio::Read;
+use std::sync::LazyLock as Lazy;
 
 use super::parse_content_encoding;
 use super::parse_content_length;

@@ -19,9 +19,9 @@ use std::time::Duration;
 
 use criterion::BatchSize;
 use criterion::Criterion;
-use std::sync::LazyLock as Lazy;
 use opendal::raw::ConcurrentTasks;
 use opendal::Executor;
+use std::sync::LazyLock as Lazy;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));

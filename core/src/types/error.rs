@@ -429,8 +429,8 @@ impl From<Error> for io::Error {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use std::sync::LazyLock as Lazy;
     use pretty_assertions::assert_eq;
+    use std::sync::LazyLock as Lazy;
 
     use super::*;
 

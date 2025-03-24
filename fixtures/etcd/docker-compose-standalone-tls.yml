@@ -30,6 +30,7 @@ services:
       - ./client.pem:/opt/bitnami/etcd/client.pem
     environment:
       ETCD_NAME: etcd
+      ETCD_ROOT_PASSWORD: opendal
       ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
       ETCD_ADVERTISE_CLIENT_URLS: https://etcd:2379
       ETCD_MAX_REQUEST_BYTES: 10485760

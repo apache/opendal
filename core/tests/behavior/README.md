@@ -11,13 +11,13 @@ To run the behavior tests, please copy the `.env.example`, which is at project r
 Take `fs` for example, we need to change to enable behavior test on `fs` on `/tmp`.
 
 ```dotenv
-OPENDAL_FS_ROOT=/path/to/dir
+OPENDAL_FS_ROOT=/path/to/dir/
 ```
 
 into
 
-```dotenv
-OPENDAL_FS_ROOT=/tmp
+```doten
+OPENDAL_FS_ROOT=/tmp/
 ```
 
 Notice: If the env variables are not set, all behavior tests will be skipped by default.

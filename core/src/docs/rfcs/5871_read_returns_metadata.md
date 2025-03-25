@@ -19,7 +19,7 @@ directly during read operations.
 
 # Guide-level explanation
 
-For reader operations, we will introduce a new method `metadata()` that returns metadata:
+For `reader` API, we will introduce a new method `metadata()` that returns metadata:
 
 ```rust
 // Before
@@ -39,7 +39,7 @@ let data = reader.read(..).await?;
 ```
 The new API will be optional, and users can still use the existing `reader` methods without any changes.
 
-For backward compatibility and to minimize migration costs, We won't change the existing read operations. Anyone who wants 
+For backward compatibility and to minimize migration costs, We won't change the existing `read` API. Anyone who wants 
 to obtain metadata during reading can use the new reader operations instead.
 
 # Reference-level explanation

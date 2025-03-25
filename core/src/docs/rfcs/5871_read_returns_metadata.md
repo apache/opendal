@@ -19,23 +19,6 @@ directly during read operations.
 
 # Guide-level explanation
 
-The read operations will be enhanced to return both data and metadata:
-
-```rust
-// Before
-let data = op.read("path/to/file").await?;
-let meta = op.stat("path/to/file").await?;
-if let Some(content_type) = meta.content_type() {
-    println!("Content-Type: {}", content_type);
-}
-
-// After
-let (data, meta) = op.read("path/to/file").await?;
-if let Some(content_type) = meta.content_type() {
-    println!("Content-Type: {}", content_type);
-}
-```
-
 For reader operations, we will introduce a new method `metadata()` that returns metadata:
 
 ```rust
@@ -48,24 +31,18 @@ if let Some(etag) = meta.etag() {
 
 // After
 let reader = op.reader("path/to/file").await?;
-let meta = reader.metada();
+let meta = reader.metadata();
 if let Some(etag) = meta.etag() {
     println!("ETag: {}", etag);
 }
 let data = reader.read(..).await?;
 ```
+The new API will be optional, and users can still use the existing `reader` methods without any changes.
 
-The behavior remains backward compatible if users don't need the metadata. The new API will be optional, 
-and users can still use the existing `reader` methods without any changes.
+For backward compatibility and to minimize migration costs, We won't change the existing read operations. Anyone who wants 
+to obtain metadata during reading can use the new reader operations instead.
 
 # Reference-level explanation
-
-## Changes to `Operator` API
-
-The following functions will be modified to return `Result<(Buffer, Metadata)>` instead of `Result<Buffer>`:
-
-- `read()`
-- `read_with()`
 
 ## Changes to `Reader` API
 
@@ -114,13 +91,12 @@ Special considerations:
 
 # Drawbacks
 
-- Minor breaking change for users who explicitly type the return value of read operations
 - Additional memory overhead for storing metadata during reads
 - Potential complexity in handling metadata for range reads
 
 # Rationale and alternatives
 
-- Provides a clean, consistent API that matches `write_returns_metadata`
+- Maintains full backward compatibility with existing read operations
 - Improves performance by avoiding additional stat calls
 - Aligns with common storage service APIs (S3, GCS, Azure)
 

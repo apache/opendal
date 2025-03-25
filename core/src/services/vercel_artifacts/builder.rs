@@ -17,8 +17,10 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::backend::VercelArtifactsBackend;
+use super::core::VercelArtifactsCore;
 use crate::raw::HttpClient;
 use crate::raw::{Access, AccessorInfo};
 use crate::services::VercelArtifactsConfig;
@@ -86,36 +88,36 @@ impl Builder for VercelArtifactsBuilder {
             })?
         };
 
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::VercelArtifacts)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
+
+                read: true,
+
+                write: true,
+
+                shared: true,
+
+                ..Default::default()
+            });
+
         match self.config.access_token.clone() {
             Some(access_token) => Ok(VercelArtifactsBackend {
-                info: {
-                    let ma = AccessorInfo::default();
-                    ma.set_scheme(Scheme::VercelArtifacts)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-
-                            read: true,
-
-                            write: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    ma.into()
-                },
-                access_token,
-                client,
+                core: Arc::new(VercelArtifactsCore {
+                    info: Arc::new(info),
+                    access_token,
+                    client,
+                }),
             }),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }

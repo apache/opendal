@@ -36,7 +36,7 @@ if let Some(content_type) = meta.content_type() {
 }
 ```
 
-For reader operations:
+For reader operations, we will introduce a new method `metadata()` that returns metadata:
 
 ```rust
 // Before
@@ -48,13 +48,15 @@ if let Some(etag) = meta.etag() {
 
 // After
 let reader = op.reader("path/to/file").await?;
-let (data, meta) = reader.read(..).await?;
+let meta = reader.metada();
 if let Some(etag) = meta.etag() {
     println!("ETag: {}", etag);
 }
+let data = reader.read(..).await?;
 ```
 
-The behavior remains backward compatible if users don't need the metadata - they can simply ignore the metadata part of the return tuple.
+The behavior remains backward compatible if users don't need the metadata. The new API will be optional, 
+and users can still use the existing `reader` methods without any changes.
 
 # Reference-level explanation
 
@@ -67,8 +69,15 @@ The following functions will be modified to return `Result<(Buffer, Metadata)>` 
 
 ## Changes to `Reader` API
 
-- `read()` will be modified to return `Result<(Buffer, Metadata)>` instead of `Result<Buffer>`.
-- `fetch()` will be modified to return `Result<(Vec<Buffer>, Metadata)>` instead of `Result<Buffer>`.
+The `impl Reader` will be modified to include a new function `metadata()` that returns metadata.
+
+```rust
+impl Reader {
+    // Existing fields...
+    
+    fn metadata(&self) -> &Metadata {}
+}
+```
 
 ## Changes to trait `oio::Read`
 

@@ -123,7 +123,7 @@ cd $HOME/core
 # Service specific env vars may be required. You can find them in $HOME/.github/services/<target_service>/action.yml
 export OPENDAL_TARGET_SERVICE_var1=xxx
 export OPENDAL_TARGET_SERVICE_var2=yyy
-export OPENDAL_TARGET_SERVICE_varn=zzz
+export OPENDAL_TARGET_SERVICE_var3=zzz
 OPENDAL_TEST=<target_service> cargo test behavior --features=tests,services-<target_service>
 ```
 

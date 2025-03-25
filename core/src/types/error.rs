@@ -429,12 +429,12 @@ impl From<Error> for io::Error {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use once_cell::sync::Lazy;
     use pretty_assertions::assert_eq;
+    use std::sync::LazyLock;
 
     use super::*;
 
-    static TEST_ERROR: Lazy<Error> = Lazy::new(|| Error {
+    static TEST_ERROR: LazyLock<Error> = LazyLock::new(|| Error {
         kind: ErrorKind::Unexpected,
         message: "something wrong happened".to_string(),
         status: ErrorStatus::Permanent,
@@ -449,17 +449,17 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let s = format!("{}", Lazy::force(&TEST_ERROR));
+        let s = format!("{}", LazyLock::force(&TEST_ERROR));
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"#
         );
-        println!("{:#?}", Lazy::force(&TEST_ERROR));
+        println!("{:#?}", LazyLock::force(&TEST_ERROR));
     }
 
     #[test]
     fn test_error_debug() {
-        let s = format!("{:?}", Lazy::force(&TEST_ERROR));
+        let s = format!("{:?}", LazyLock::force(&TEST_ERROR));
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read => something wrong happened

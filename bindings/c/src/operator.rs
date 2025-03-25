@@ -19,13 +19,13 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as core;
-use once_cell::sync::Lazy;
 
 use super::*;
 
-static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

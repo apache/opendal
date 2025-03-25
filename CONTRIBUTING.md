@@ -106,6 +106,27 @@ Some components may require specific setup steps. Please refer to their respecti
 - [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 - [Python Binding](bindings/python/CONTRIBUTING.md)
 
+### Run Behaviour Test in MacOS
+
+OpenDAL uses docker to start the target service for behehaviour test. However the docker does not work properly by default(Docker Desktop) in the MacOS environment. It is strongly recommended to use **OrbStack** instead of Docker Desktop.
+
+After OrbStack is downloaded and started, you need to use docker to start the target service. The startup command is as follows.
+
+```shell
+cd $HOME/fixtures/<target_service>
+docker compose -f <target_service-docker-compose-file> up -d --wait
+```
+
+Once the target service started successfully, you can run the behavior test.
+```shell
+cd $HOME/core
+# Service specific env vars may be required. You can find them in $HOME/.github/services/<target_service>/action.yml
+export OPENDAL_TARGET_SERVICE_var1=xxx
+export OPENDAL_TARGET_SERVICE_var2=yyy
+export OPENDAL_TARGET_SERVICE_varn=zzz
+OPENDAL_TEST=<target_service> cargo test behavior --features=tests,services-<target_service>
+```
+
 ## Code of Conduct
 
 We expect all community members to follow our [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).

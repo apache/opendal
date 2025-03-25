@@ -106,13 +106,11 @@ Some components may require specific setup steps. Please refer to their respecti
 - [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 - [Python Binding](bindings/python/CONTRIBUTING.md)
 
-#### Install Docker or Podman
+#### Install Docker
 
-Currently, opendal uses Docker to set up environment for integration tests. Native Docker has some limitations, please check (https://github.com/apache/iceberg-rust/pull/748). Please use Orbstack or Podman.
+Currently, opendal uses Docker to set up environment for integration tests. Native Docker has some limitations, please check (https://github.com/apache/iceberg-rust/pull/748). Please use Orbstack.
 
-For MacOS users, you can install [OrbStack as a docker alternative](docs/contributing/orbstack.md).
-
-For podman, refer to [Using Podman instead of Docker](docs/contributing/podman.md)
+For MacOS users, you can install [OrbStack as a docker alternative](https://github.com/apache/iceberg-rust/blob/main/docs/contributing/orbstack.md).
 
 ## Code of Conduct
 

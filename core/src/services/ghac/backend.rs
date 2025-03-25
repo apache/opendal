@@ -54,6 +54,8 @@ fn value_or_env(
 
 impl Configurator for GhacConfig {
     type Builder = GhacBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GhacBuilder {
             config: self,
@@ -67,6 +69,8 @@ impl Configurator for GhacConfig {
 #[derive(Debug, Default)]
 pub struct GhacBuilder {
     config: GhacConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -127,6 +131,8 @@ impl GhacBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -169,15 +175,6 @@ impl Builder for GhacBuilder {
             ));
         }
 
-        let http_client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Ghac)
-            })?
-        };
-
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
@@ -205,6 +202,13 @@ impl Builder for GhacBuilder {
 
                         ..Default::default()
                     });
+
+                // allow deprecated api here for compatibility
+                #[allow(deprecated)]
+                if let Some(client) = self.http_client {
+                    am.update_http_client(|_| client);
+                }
+
                 am.into()
             },
             root,
@@ -218,7 +222,6 @@ impl Builder for GhacBuilder {
             version,
 
             service_version,
-            http_client,
         };
 
         Ok(GhacBackend {
@@ -259,7 +262,7 @@ impl Access for GhacBackend {
             .header(header::RANGE, "bytes=0-0")
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let resp = self.core.http_client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -289,7 +292,7 @@ impl Access for GhacBackend {
         }
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.core.http_client.fetch(req).await?;
+        let resp = self.core.info.http_client().fetch(req).await?;
 
         let status = resp.status();
         match status {

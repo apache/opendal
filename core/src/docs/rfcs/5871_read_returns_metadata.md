@@ -37,7 +37,7 @@ if let Some(etag) = meta.etag() {
 }
 let data = reader.read(..).await?;
 ```
-The new API will be optional, and users can still use the existing `reader` methods without any changes.
+The new API will be provided alongside existing functionality, allowing users to continue using current `reader` methods without modification.
 
 For backward compatibility and to minimize migration costs, We won't change the existing `read` API. Anyone who wants 
 to obtain metadata during reading can use the new reader operations instead.
@@ -56,22 +56,17 @@ impl Reader {
 }
 ```
 
-## Changes to trait `oio::Read`
+## Changes to struct `raw::RpRead`
 
-The `Read` trait will be modified to include a new function `metadata()` that returns metadata.
+The `raw::RpRead` struct will be modified to include a new field `metadata` that stores the metadata returned by the read operation.
+Existing fields will be evaluated and potentially removed if they become redundant.
 
 ```rust
-pub trait Read {
-    // Existing functions...
-    
-    fn metadata(&self) -> Metadata;
+pub struct RpRead {
+    // New field to store metadata 
+    metadata: Metadata,
 }
 ```
-
-## Changes to struct `http_util::HttpBody`
-
-The `HttpBody` struct will be modified to include a new field for metadata.
-
 
 
 ## Implementation Details
@@ -81,8 +76,7 @@ For services that return metadata in their read responses:
 - All available fields (content_type, etag, version_id, last_modified, etc.) will be populated
 
 For services that don't return metadata in read responses:
-- for `fs`: we can use `stat` to retrieve the metadata before returning. Since the metadata is cached by the kernel, this should be efficient
-- for other services: A default metadata object will be returned
+- We'll make an additional `stat` call to fetch the metadata and populate the `metadata` field in `raw::RpRead`.
 
 Special considerations:
 - We should always return total object size in the metadata, even if it's not part of the read response
@@ -114,4 +108,5 @@ None
 
 # Future possibilities
 
-None
+- Once we return metadata during reader initialization, we can optimize `ReadContext::parse_into_range` by using the 
+`content_length` from `metadata` directly, eliminating the need for an additional `stat` call

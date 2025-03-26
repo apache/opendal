@@ -802,7 +802,7 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type Accessor = Arc<dyn AccessDyn>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct AccessorInfoInner {
     scheme: Scheme,
     root: Arc<str>,
@@ -813,21 +813,6 @@ struct AccessorInfoInner {
 
     http_client: HttpClient,
     executor: Executor,
-}
-
-/// TODO: we can remove this after MSRV is 1.80
-impl Default for AccessorInfoInner {
-    fn default() -> Self {
-        AccessorInfoInner {
-            scheme: Scheme::Memory,
-            root: "".into(),
-            name: "".into(),
-            native_capability: Capability::default(),
-            full_capability: Capability::default(),
-            http_client: HttpClient::default(),
-            executor: Executor::default(),
-        }
-    }
 }
 
 /// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.

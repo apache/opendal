@@ -893,3 +893,12 @@ pub unsafe extern "C" fn opendal_operator_copy(
         std::ptr::null_mut()
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut opendal_error {
+    if let Err(err) = op.deref().check() {
+        opendal_error::new(err)
+    } else {
+        std::ptr::null_mut()
+    }
+}

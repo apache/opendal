@@ -33,7 +33,6 @@ pub struct LakefsCore {
     pub root: String,
     pub username: String,
     pub password: String,
-    pub client: HttpClient,
 }
 
 impl Debug for LakefsCore {
@@ -71,7 +70,7 @@ impl LakefsCore {
         let req = req.extension(Operation::ReaderStart);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn get_object_content(
@@ -104,7 +103,7 @@ impl LakefsCore {
         let req = req.extension(Operation::ReaderStart);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn list_objects(
@@ -145,7 +144,7 @@ impl LakefsCore {
         let req = req.extension(Operation::ReaderStart);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn upload_object(
@@ -174,7 +173,7 @@ impl LakefsCore {
         let req = req.extension(Operation::WriterWrite);
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn delete_object(&self, path: &str, _args: &OpDelete) -> Result<Response<Buffer>> {
@@ -198,7 +197,7 @@ impl LakefsCore {
         let req = req.extension(Operation::DeleterFlush);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn copy_object(&self, path: &str, dest: &str) -> Result<Response<Buffer>> {
@@ -230,7 +229,7 @@ impl LakefsCore {
             .extension(Operation::DeleterFlush)
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 

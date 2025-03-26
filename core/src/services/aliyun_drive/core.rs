@@ -100,6 +100,8 @@ impl AliyunDriveCore {
                     .expect("access token must be valid header value"),
             );
         }
+        // Inject operation to the request.
+        let req = req.extension(Operation::Stat);
         let res = self.info.http_client().send(req).await?;
         if !res.status().is_success() {
             return Err(parse_error(res));
@@ -119,8 +121,10 @@ impl AliyunDriveCore {
             client_id,
             client_secret,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/oauth/access_token", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::GetAccessToken)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, None).await
@@ -128,6 +132,8 @@ impl AliyunDriveCore {
 
     async fn get_drive_id(&self, token: Option<&str>) -> Result<Buffer> {
         let req = Request::post(format!("{}/adrive/v1.0/user/getDriveInfo", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::GetDriveId)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.send(req, token).await
@@ -196,8 +202,10 @@ impl AliyunDriveCore {
             drive_id: &drive_id,
             file_path: &file_path,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = req
+            // Inject operation to the request.
+            .extension(Operation::GetByPath)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -260,8 +268,10 @@ impl AliyunDriveCore {
             proof_code: proof_code.as_deref(),
             proof_version: proof_code.is_some().then_some("v1"),
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/create", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Create)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -284,13 +294,15 @@ impl AliyunDriveCore {
             drive_id: &drive_id,
             file_id,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!(
             "{}/adrive/v1.0/openFile/getDownloadUrl",
             self.endpoint
         ))
-        .body(Buffer::from(body))
-        .map_err(new_request_build_error)?;
+            // Inject operation to the request.
+            .extension(Operation::GetDownloadUrl)
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
         let res = self.send(req, token.as_deref()).await?;
         let output: GetDownloadUrlResponse =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
@@ -305,8 +317,10 @@ impl AliyunDriveCore {
             to_parent_file_id,
             check_name_mode: CheckNameMode::AutoRename,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/move", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Move)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -321,8 +335,10 @@ impl AliyunDriveCore {
             name,
             check_name_mode: CheckNameMode::Refuse,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/update", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Update)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -342,8 +358,10 @@ impl AliyunDriveCore {
             to_parent_file_id,
             auto_rename,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/copy", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Copy)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -355,8 +373,10 @@ impl AliyunDriveCore {
             drive_id: &drive_id,
             file_id,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/delete", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Delete)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -376,8 +396,10 @@ impl AliyunDriveCore {
             limit,
             marker: marker.as_deref(),
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/list", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::List)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -385,6 +407,8 @@ impl AliyunDriveCore {
 
     pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Buffer> {
         let req = Request::put(upload_url)
+            // Inject operation to the request.
+            .extension(Operation::Upload)
             .body(body)
             .map_err(new_request_build_error)?;
         self.send(req, None).await
@@ -397,8 +421,10 @@ impl AliyunDriveCore {
             file_id,
             upload_id,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/complete", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Complete)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -422,13 +448,15 @@ impl AliyunDriveCore {
             upload_id,
             part_info_list,
         })
-        .map_err(new_json_serialize_error)?;
+            .map_err(new_json_serialize_error)?;
         let req = Request::post(format!(
             "{}/adrive/v1.0/openFile/getUploadUrl",
             self.endpoint
         ))
-        .body(Buffer::from(body))
-        .map_err(new_request_build_error)?;
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        // Inject operation to the request.
+        req = req.extension(Operation::GetUploadUrl);
         self.send(req, token.as_deref()).await
     }
 }
@@ -603,3 +631,4 @@ pub struct GetUploadRequest<'a> {
 pub struct PartInfoItem {
     part_number: Option<usize>,
 }
+

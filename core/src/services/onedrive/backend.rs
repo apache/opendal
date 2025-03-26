@@ -64,26 +64,21 @@ impl Access for OnedriveBackend {
         }
 
         let response = self.core.onedrive_create_dir(path).await?;
-
-        let status = response.status();
-        match status {
+        match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(response)),
         }
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = build_rooted_abs_path(&self.core.root, path);
-        let meta = self.core.onedrive_stat(path.as_str()).await?;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let meta = self.core.onedrive_stat(path, args).await?;
 
         Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let response = self.core.onedrive_get_content(path, &args).await?;
-
-        let status = response.status();
-        match status {
+        match response.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 Ok((RpRead::default(), response.into_body()))
             }
@@ -96,11 +91,13 @@ impl Access for OnedriveBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = build_rooted_abs_path(&self.core.root, path);
-
         Ok((
             RpWrite::default(),
-            oio::OneShotWriter::new(OneDriveWriter::new(self.core.clone(), args, path)),
+            oio::OneShotWriter::new(OneDriveWriter::new(
+                self.core.clone(),
+                args,
+                path.to_string(),
+            )),
         ))
     }
 
@@ -111,8 +108,24 @@ impl Access for OnedriveBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = OneDriveLister::new(path.to_string(), self.core.clone());
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let monitor_url = self.core.initialize_copy(from, to).await?;
+        self.core.wait_until_complete(monitor_url).await?;
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        if from == to {
+            return Ok(RpRename::default());
+        }
+
+        self.core.onedrive_move(from, to).await?;
+
+        Ok(RpRename::default())
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = OneDriveLister::new(path.to_string(), self.core.clone(), &args);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

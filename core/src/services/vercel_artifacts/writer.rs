@@ -15,24 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use http::StatusCode;
 
-use super::backend::VercelArtifactsBackend;
+use super::core::VercelArtifactsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct VercelArtifactsWriter {
-    backend: VercelArtifactsBackend,
+    core: Arc<VercelArtifactsCore>,
     _op: OpWrite,
 
     path: String,
 }
 
 impl VercelArtifactsWriter {
-    pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
+    pub fn new(core: Arc<VercelArtifactsCore>, op: OpWrite, path: String) -> Self {
         VercelArtifactsWriter {
-            backend,
+            core,
             _op: op,
             path,
         }
@@ -41,16 +43,16 @@ impl VercelArtifactsWriter {
 
 impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self
-            .backend
+        let response = self
+            .core
             .vercel_artifacts_put(self.path.as_str(), bs.len() as u64, bs)
             .await?;
 
-        let status = resp.status();
+        let status = response.status();
 
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(response)),
         }
     }
 }

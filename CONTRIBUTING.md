@@ -14,9 +14,6 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
   - [Setup](#setup)
     - [Using a dev container environment](#using-a-dev-container-environment)
     - [Bring your own toolbox](#bring-your-own-toolbox)
-      - [Install Rust](#Install-Rust)
-      - [Install Docker](#Install-Docker)
-      - [Component-specific Dependencies](#Component-specific-Dependencies)
   - [Code of Conduct](#code-of-conduct)
 
 ## Your First Contribution
@@ -86,8 +83,6 @@ The fastest way is:
 
 ### Bring your own toolbox
 
-#### Install rust
-
 OpenDAL is primarily a Rust project. To build OpenDAL, you will need to set up Rust development first. We highly recommend using [rustup](https://rustup.rs/) for the setup process.
 
 For Linux or macOS, use the following command:
@@ -104,14 +99,6 @@ Rustup will read OpenDAL's `rust-toolchain.toml` and set up everything else auto
 $ cargo version
 cargo 1.69.0 (6e9a83356 2023-04-12)
 ```
-
-#### Install Docker
-
-Currently, opendal uses Docker to set up environment for behaviour tests. Native Docker has some limitations, please check (https://github.com/apache/iceberg-rust/pull/748). Please use Orbstack.
-
-For MacOS users, you can install [OrbStack as a docker alternative](https://github.com/apache/iceberg-rust/blob/main/docs/contributing/orbstack.md).
-
-#### Component-specific Dependencies
 
 Some components may require specific setup steps. Please refer to their respective `CONTRIBUTING` documentation for more details.
 

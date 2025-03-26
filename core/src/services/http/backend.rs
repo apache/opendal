@@ -19,14 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use http::header;
-use http::header::IF_MATCH;
-use http::header::IF_NONE_MATCH;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::core::HttpCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::HttpConfig;
@@ -163,67 +160,61 @@ impl Builder for HttpBuilder {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 
-        Ok(HttpBackend {
-            info: {
-                let ma = AccessorInfo::default();
-                ma.set_scheme(Scheme::Http)
-                    .set_root(&root)
-                    .set_native_capability(Capability {
-                        stat: true,
-                        stat_with_if_match: true,
-                        stat_with_if_none_match: true,
-                        stat_has_cache_control: true,
-                        stat_has_content_length: true,
-                        stat_has_content_type: true,
-                        stat_has_content_encoding: true,
-                        stat_has_content_range: true,
-                        stat_has_etag: true,
-                        stat_has_content_md5: true,
-                        stat_has_last_modified: true,
-                        stat_has_content_disposition: true,
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Http)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
 
-                        read: true,
+                read: true,
 
-                        read_with_if_match: true,
-                        read_with_if_none_match: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
 
-                        presign: auth.is_none(),
-                        presign_read: auth.is_none(),
-                        presign_stat: auth.is_none(),
+                presign: auth.is_none(),
+                presign_read: auth.is_none(),
+                presign_stat: auth.is_none(),
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
+                ..Default::default()
+            });
 
-                ma.into()
-            },
+        let accessor_info = Arc::new(info);
+
+        let core = Arc::new(HttpCore {
+            info: accessor_info,
             endpoint: endpoint.to_string(),
-            authorization: auth,
             root,
             client,
-        })
+            authorization: auth,
+        });
+
+        Ok(HttpBackend { core })
     }
 }
 
 /// Backend is used to serve `Accessor` support for http.
 #[derive(Clone)]
 pub struct HttpBackend {
-    info: Arc<AccessorInfo>,
-
-    endpoint: String,
-    root: String,
-    client: HttpClient,
-
-    authorization: Option<String>,
+    core: Arc<HttpCore>,
 }
 
 impl Debug for HttpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .field("client", &self.client)
+        f.debug_struct("HttpBackend")
+            .field("core", &self.core)
             .finish()
     }
 }
@@ -239,7 +230,7 @@ impl Access for HttpBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -248,7 +239,7 @@ impl Access for HttpBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.http_head(path, &args).await?;
+        let resp = self.core.http_head(path, &args).await?;
 
         let status = resp.status();
 
@@ -264,7 +255,7 @@ impl Access for HttpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.http_get(path, args.range(), &args).await?;
+        let resp = self.core.http_get(path, args.range(), &args).await?;
 
         let status = resp.status();
 
@@ -281,7 +272,7 @@ impl Access for HttpBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        if self.has_authorization() {
+        if self.core.has_authorization() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "Http doesn't support presigned request on backend with authorization",
@@ -289,8 +280,10 @@ impl Access for HttpBackend {
         }
 
         let req = match args.operation() {
-            PresignOperation::Stat(v) => self.http_head_request(path, v)?,
-            PresignOperation::Read(v) => self.http_get_request(path, BytesRange::default(), v)?,
+            PresignOperation::Stat(v) => self.core.http_head_request(path, v)?,
+            PresignOperation::Read(v) => {
+                self.core.http_get_request(path, BytesRange::default(), v)?
+            }
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
@@ -306,79 +299,5 @@ impl Access for HttpBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-}
-
-impl HttpBackend {
-    pub fn has_authorization(&self) -> bool {
-        self.authorization.is_some()
-    }
-
-    pub fn http_get_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        args: &OpRead,
-    ) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        }
-
-        if let Some(auth) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, auth.clone())
-        }
-
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
-        }
-
-        req.body(Buffer::new()).map_err(new_request_build_error)
-    }
-
-    pub async fn http_get(
-        &self,
-        path: &str,
-        range: BytesRange,
-        args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
-        let req = self.http_get_request(path, range, args)?;
-        self.client.fetch(req).await
-    }
-
-    pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::head(&url);
-
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        }
-
-        if let Some(auth) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, auth.clone())
-        }
-
-        req.body(Buffer::new()).map_err(new_request_build_error)
-    }
-
-    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
-        let req = self.http_head_request(path, args)?;
-        self.client.send(req).await
     }
 }

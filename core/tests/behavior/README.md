@@ -6,6 +6,16 @@ To support different testing backends simultaneously, we use `environment value`
 
 ## Setup
 
+### Install Docker
+
+Currently, opendal uses Docker to set up environment for behaviour tests. If you are a MacOS user, The docker does not work properly by default(Docker Desktop) in the MacOS environment. It is strongly recommended to use **OrbStack** instead of Docker Desktop. You can install orbstack using Homebrew.
+
+```shell
+brew install orbstack
+```
+
+### Prepare Env
+
 To run the behavior tests, please copy the `.env.example`, which is at project root, to `.env` and change the values on need.
 
 Take `fs` for example, we need to change to enable behavior test on `fs` on `/tmp`.

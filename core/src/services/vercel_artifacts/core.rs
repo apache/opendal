@@ -28,7 +28,6 @@ use crate::*;
 pub struct VercelArtifactsCore {
     pub info: Arc<AccessorInfo>,
     pub(crate) access_token: String,
-    pub(crate) client: HttpClient,
 }
 
 impl Debug for VercelArtifactsCore {
@@ -62,7 +61,7 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub(crate) async fn vercel_artifacts_put(
@@ -85,7 +84,7 @@ impl VercelArtifactsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub(crate) async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<Buffer>> {
@@ -102,6 +101,6 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }

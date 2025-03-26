@@ -35,8 +35,6 @@ pub struct HuggingfaceCore {
     pub revision: String,
     pub root: String,
     pub token: Option<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for HuggingfaceCore {
@@ -83,7 +81,7 @@ impl HuggingfaceCore {
             .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
@@ -120,7 +118,7 @@ impl HuggingfaceCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn hf_resolve(
@@ -162,7 +160,7 @@ impl HuggingfaceCore {
         let req = req.extension(Operation::ReaderStart);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 }
 

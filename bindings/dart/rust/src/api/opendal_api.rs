@@ -42,13 +42,13 @@ impl Operator {
 
         Metadata(meta)
     }
-    pub async fn check(&self) -> () {
+    pub async fn check(&self) {
         self.0.check().await.unwrap()
     }
-    pub async fn is_exist(&self, path: String) -> bool {
-        self.0.is_exist(&path).await.unwrap()
+    pub async fn exists(&self, path: String) -> bool {
+        self.0.exists(&path).await.unwrap()
     }
-    pub async fn delete(&self, path: String) -> () {
+    pub async fn delete(&self, path: String) {
         self.0.delete(&path).await.unwrap()
     }
     #[frb(sync)]
@@ -56,25 +56,22 @@ impl Operator {
         self.0.blocking().delete(&path).unwrap()
     }
     #[frb(sync)]
-    pub fn is_exist_sync(&self, path: String) -> bool {
-        self.0.blocking().is_exist(&path).unwrap()
+    pub fn exists_sync(&self, path: String) -> bool {
+        self.0.blocking().exists(&path).unwrap()
     }
-    pub async fn create_dir(&self, path: String) -> () {
+    pub async fn create_dir(&self, path: String) {
         self.0.create_dir(&path).await.unwrap()
     }
     #[frb(sync)]
     pub fn create_dir_sync(&self, path: String) -> () {
         self.0.blocking().create_dir(&path).unwrap()
     }
-    pub async fn rename(&self, from: String, to: String) -> () {
+    pub async fn rename(&self, from: String, to: String) {
         self.0.rename(&from, &to).await.unwrap()
     }
     #[frb(sync)]
     pub fn rename_sync(&self, from: String, to: String) -> () {
-        self.0
-            .blocking()
-            .rename(&from, &to)
-            .unwrap()
+        self.0.blocking().rename(&from, &to).unwrap()
     }
 }
 
@@ -132,4 +129,3 @@ impl Metadata {
         self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
 }
-

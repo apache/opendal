@@ -61,8 +61,6 @@ pub struct VercelBlobCore {
     pub root: String,
     /// Vercel Blob token.
     pub token: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for VercelBlobCore {
@@ -76,7 +74,7 @@ impl Debug for VercelBlobCore {
 impl VercelBlobCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> request::Builder {
@@ -112,7 +110,7 @@ impl VercelBlobCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn get_put_request(

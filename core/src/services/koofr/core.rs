@@ -53,8 +53,6 @@ pub struct KoofrCore {
 
     // Koofr mount_id.
     pub mount_id: OnceCell<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for KoofrCore {
@@ -70,7 +68,7 @@ impl Debug for KoofrCore {
 impl KoofrCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn get_mount_id(&self) -> Result<&String> {
@@ -129,7 +127,7 @@ impl KoofrCore {
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(auth_req).await?;
+        let resp = self.info.http_client().send(auth_req).await?;
 
         let status = resp.status();
 
@@ -204,7 +202,7 @@ impl KoofrCore {
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
-                let resp = self.client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
 
                 let status = resp.status();
 
@@ -257,7 +255,7 @@ impl KoofrCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn put(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {

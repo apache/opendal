@@ -388,7 +388,7 @@ pub struct MetricsStream<S, I> {
 
 impl<S, I> Stream for MetricsStream<S, I>
 where
-    S: Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static,
+    S: Stream<Item = Result<Buffer>> + Unpin + 'static,
     I: MetricsIntercept,
 {
     type Item = Result<Buffer>;

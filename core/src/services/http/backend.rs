@@ -31,6 +31,8 @@ use crate::*;
 
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         HttpBuilder {
             config: self,
@@ -44,6 +46,8 @@ impl Configurator for HttpConfig {
 #[derive(Default)]
 pub struct HttpBuilder {
     config: HttpConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -116,6 +120,8 @@ impl HttpBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -139,15 +145,6 @@ impl Builder for HttpBuilder {
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Http)
-            })?
-        };
 
         let mut auth = None;
         if let Some(username) = &self.config.username {
@@ -191,13 +188,18 @@ impl Builder for HttpBuilder {
                 ..Default::default()
             });
 
+        // allow deprecated api here for compatibility
+        #[allow(deprecated)]
+        if let Some(client) = self.http_client {
+            info.update_http_client(|_| client);
+        }
+
         let accessor_info = Arc::new(info);
 
         let core = Arc::new(HttpCore {
             info: accessor_info,
             endpoint: endpoint.to_string(),
             root,
-            client,
             authorization: auth,
         });
 

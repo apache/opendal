@@ -33,7 +33,6 @@ pub struct HttpCore {
 
     pub endpoint: String,
     pub root: String,
-    pub client: HttpClient,
 
     pub authorization: Option<String>,
 }
@@ -43,7 +42,6 @@ impl Debug for HttpCore {
         f.debug_struct("HttpCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .field("client", &self.client)
             .finish()
     }
 }
@@ -91,7 +89,7 @@ impl HttpCore {
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.http_get_request(path, range, args)?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
@@ -118,6 +116,6 @@ impl HttpCore {
 
     pub async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
         let req = self.http_head_request(path, args)?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }

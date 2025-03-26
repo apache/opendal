@@ -43,6 +43,7 @@ pub use metrics::LABEL_OPERATION;
 pub use metrics::LABEL_PATH;
 pub use metrics::LABEL_ROOT;
 pub use metrics::LABEL_SCHEME;
+pub use metrics::LABEL_STATUS_CODE;
 pub use metrics::METRIC_HTTP_REQUEST_BYTES;
 pub use metrics::METRIC_HTTP_REQUEST_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_BYTES;

@@ -128,8 +128,6 @@ impl AliyunDriveCore {
 
     async fn get_drive_id(&self, token: Option<&str>) -> Result<Buffer> {
         let req = Request::post(format!("{}/adrive/v1.0/user/getDriveInfo", self.endpoint))
-            // Inject operation to the request.
-            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.send(req, token).await

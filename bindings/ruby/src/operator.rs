@@ -38,9 +38,9 @@ use magnus::Value;
 
 use crate::capability::Capability;
 use crate::io::Io;
-use crate::layers::Layer;
 use crate::lister::Lister;
 use crate::metadata::Metadata;
+use crate::middlewares::Middleware;
 use crate::operator_info::OperatorInfo;
 use crate::*;
 
@@ -50,7 +50,7 @@ use crate::*;
 pub struct Operator {
     // We keep a reference to an `Operator` because:
     // 1. Some builder functions exist only with the `Operator` struct.
-    // 2. Some functions don't exist in the `BlockingOperator`, e.g., `Operator::layer`, builder methods.
+    // 2. Some builder functions don't exist in the `BlockingOperator`, e.g., `Operator::layer`, builder methods.
     //
     // We don't support async because:
     // 1. Ractor and async is not stable.
@@ -281,12 +281,13 @@ impl Operator {
     }
 
     /// @yard
-    /// @def layer(layer)
-    /// Applies a layer to the operator.
-    /// @param layer [Layer]
+    /// @def middleware(middleware)
+    /// Applies a middleware do the operator.
+    /// @param middleware [Middleware]
     /// @return [Operator]
-    fn layer(ruby: &Ruby, rb_self: &Self, layer: &Layer) -> Result<Self, Error> {
-        layer.apply_to(ruby, rb_self)
+    fn middleware(ruby: &Ruby, rb_self: &Self, middleware: &Middleware) -> Result<Self, Error> {
+        // uses "middleware" instead of "layer" to follow Ruby community convention.
+        middleware.apply_to(ruby, rb_self)
     }
 }
 
@@ -306,7 +307,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("open", method!(Operator::open, 2))?;
     class.define_method("list", method!(Operator::list, -1))?;
     class.define_method("info", method!(Operator::info, 0))?;
-    class.define_method("layer", method!(Operator::layer, 1))?;
+    class.define_method("middleware", method!(Operator::middleware, 1))?;
 
     Ok(())
 }

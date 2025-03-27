@@ -33,7 +33,14 @@ use crate::*;
 
 // Wraps OpenDAL layers
 //
-// Each layer is represented as a variant of the `Layer` enum. We use this approach because:
+// In the Ruby community, people often refer layers as middlewares.
+// For public class names, we use "Middleware".
+// When applying actions with an OpenDAL layer, we refer to layers and interfaces simply as layers,
+// since a "layer" is an implementation detail.
+//
+// Each layer is represented as a variant of the `Middleware` enum.
+//
+// We use this approach because:
 // 1. We don't require dynamic plugin registration.
 // 2. The set of layers is known at compile time.
 // 3. Enums are a native, efficient Rust construct with zero-cost dispatch.
@@ -45,40 +52,40 @@ use crate::*;
 // We’re not using `rb_data_type_t.parent` because we don’t need inheritance-style casting.
 // Magnus sets the correct class via `.class_for()` using the enum variant.
 // Rust tracks the exact variant in memory; Ruby doesn’t need to know.
-#[magnus::wrap(class = "OpenDAL::Layer", free_immediately, size)]
-pub enum Layer {
-    #[magnus(class = "OpenDAL::RetryLayer")]
+#[magnus::wrap(class = "OpenDAL::Middleware", free_immediately, size)]
+pub enum Middleware {
+    #[magnus(class = "OpenDAL::RetryMiddleware")]
     Retry(Arc<Mutex<ocore::layers::RetryLayer>>),
-    #[magnus(class = "OpenDAL::ConcurrentLimitLayer")]
+    #[magnus(class = "OpenDAL::ConcurrentLimitMiddleware")]
     ConcurrentLimit(Arc<Mutex<ocore::layers::ConcurrentLimitLayer>>),
-    #[magnus(class = "OpenDAL::ThrottleLayer")]
+    #[magnus(class = "OpenDAL::ThrottleMiddleware")]
     Throttle(Arc<Mutex<ocore::layers::ThrottleLayer>>),
-    #[magnus(class = "OpenDAL::TimeoutLayer")]
+    #[magnus(class = "OpenDAL::TimeoutMiddleware")]
     Timeout(Arc<Mutex<ocore::layers::TimeoutLayer>>),
 }
 
-impl Layer {
-    fn new_retry_layer() -> Self {
-        Layer::Retry(Arc::new(Mutex::new(ocore::layers::RetryLayer::default())))
+impl Middleware {
+    fn new_retry_middleware() -> Self {
+        Middleware::Retry(Arc::new(Mutex::new(ocore::layers::RetryLayer::default())))
     }
 
-    fn new_concurrent_limit_layer(permits: usize) -> Self {
-        Layer::ConcurrentLimit(Arc::new(Mutex::new(
+    fn new_concurrent_limit_middleware(permits: usize) -> Self {
+        Middleware::ConcurrentLimit(Arc::new(Mutex::new(
             ocore::layers::ConcurrentLimitLayer::new(permits),
         )))
     }
 
-    fn new_throttle_layer(bandwidth: u32, burst: u32) -> Self {
-        Layer::Throttle(Arc::new(Mutex::new(ocore::layers::ThrottleLayer::new(
+    fn new_throttle_middleware(bandwidth: u32, burst: u32) -> Self {
+        Middleware::Throttle(Arc::new(Mutex::new(ocore::layers::ThrottleLayer::new(
             bandwidth, burst,
         ))))
     }
 
-    fn new_timeout_layer(ruby: &Ruby, timeout: f64, io_timeout: f64) -> Result<Self, Error> {
+    fn new_timeout_middleware(ruby: &Ruby, timeout: f64, io_timeout: f64) -> Result<Self, Error> {
         let layer = ocore::layers::TimeoutLayer::new()
             .with_timeout(parse_duration(timeout, ruby)?)
             .with_io_timeout(parse_duration(io_timeout, ruby)?);
-        Ok(Layer::Timeout(Arc::new(Mutex::new(layer))))
+        Ok(Middleware::Timeout(Arc::new(Mutex::new(layer))))
     }
 }
 
@@ -91,19 +98,19 @@ fn parse_duration(val: f64, ruby: &Ruby) -> Result<Duration, Error> {
     })
 }
 
-impl Layer {
+impl Middleware {
     // OpenDAL core adds layers to an `Operator`, returning a new `Operator`.
     // Users typically apply layers directly to an Operator within a single-threaded context.
     // However, we still accommodate occasional cases where layers may need to be accessed
     // across Ruby threads. Hence, we use `Arc<Mutex<_>>` for thread-safe access.
     pub fn apply_to(&self, ruby: &Ruby, operator: &Operator) -> Result<Operator, Error> {
         match self {
-            Layer::Retry(inner) => Self::call(inner, ruby, operator, "RetryLayer"),
-            Layer::ConcurrentLimit(inner) => {
-                Self::call(inner, ruby, operator, "ConcurrentLimitLayer")
+            Middleware::Retry(inner) => Self::call(inner, ruby, operator, "RetryMiddleware"),
+            Middleware::ConcurrentLimit(inner) => {
+                Self::call(inner, ruby, operator, "ConcurrentLimitMiddleware")
             }
-            Layer::Throttle(inner) => Self::call(inner, ruby, operator, "ThrottleLayer"),
-            Layer::Timeout(inner) => Self::call(inner, ruby, operator, "TimeoutLayer"),
+            Middleware::Throttle(inner) => Self::call(inner, ruby, operator, "ThrottleMiddleware"),
+            Middleware::Timeout(inner) => Self::call(inner, ruby, operator, "TimeoutMiddleware"),
         }
     }
 
@@ -130,22 +137,29 @@ impl Layer {
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let layer_class = gem_module.define_class("Layer", class::object())?;
-    layer_class.undef_default_alloc_func();
+    let middleware_class = gem_module.define_class("Middleware", class::object())?;
+    middleware_class.undef_default_alloc_func();
 
-    let retry_layer_class = gem_module.define_class("RetryLayer", layer_class)?;
-    retry_layer_class.define_singleton_method("new", function!(Layer::new_retry_layer, 0))?;
+    let retry_middleware_class = gem_module.define_class("RetryMiddleware", middleware_class)?;
+    retry_middleware_class
+        .define_singleton_method("new", function!(Middleware::new_retry_middleware, 0))?;
 
-    let concurrent_limit_layer_class =
-        gem_module.define_class("ConcurrentLimitLayer", layer_class)?;
-    concurrent_limit_layer_class
-        .define_singleton_method("new", function!(Layer::new_concurrent_limit_layer, 1))?;
+    let concurrent_limit_middleware_class =
+        gem_module.define_class("ConcurrentLimitMiddleware", middleware_class)?;
+    concurrent_limit_middleware_class.define_singleton_method(
+        "new",
+        function!(Middleware::new_concurrent_limit_middleware, 1),
+    )?;
 
-    let throttle_layer_class = gem_module.define_class("ThrottleLayer", layer_class)?;
-    throttle_layer_class.define_singleton_method("new", function!(Layer::new_throttle_layer, 2))?;
+    let throttle_middleware_class =
+        gem_module.define_class("ThrottleMiddleware", middleware_class)?;
+    throttle_middleware_class
+        .define_singleton_method("new", function!(Middleware::new_throttle_middleware, 2))?;
 
-    let timeout_layer_class = gem_module.define_class("TimeoutLayer", layer_class)?;
-    timeout_layer_class.define_singleton_method("new", function!(Layer::new_timeout_layer, 2))?;
+    let timeout_middleware_class =
+        gem_module.define_class("TimeoutMiddleware", middleware_class)?;
+    timeout_middleware_class
+        .define_singleton_method("new", function!(Middleware::new_timeout_middleware, 2))?;
 
     Ok(())
 }

@@ -19,28 +19,28 @@
 
 require "test_helper"
 
-class LayersTest < ActiveSupport::TestCase
-  test "builds a retry layer" do
+class MiddlewaresTest < ActiveSupport::TestCase
+  test "builds a retry middleware" do
     assert_nothing_raised do
-      OpenDAL::RetryLayer.new
+      OpenDAL::RetryMiddleware.new
     end
   end
 
-  test "builds a concurrent limit layer" do
+  test "builds a concurrent limit middleware" do
     assert_nothing_raised do
-      OpenDAL::ConcurrentLimitLayer.new(10)
+      OpenDAL::ConcurrentLimitMiddleware.new(10)
     end
   end
 
-  test "builds a throttle layer" do
+  test "builds a throttle middleware" do
     assert_nothing_raised do
-      OpenDAL::ThrottleLayer.new(100, 10)
+      OpenDAL::ThrottleMiddleware.new(100, 10)
     end
   end
 
-  test "builds a timeout layer" do
+  test "builds a timeout middleware" do
     assert_nothing_raised do
-      OpenDAL::TimeoutLayer.new(1.23, 1.0)
+      OpenDAL::TimeoutMiddleware.new(1.23, 1.0)
     end
   end
 end

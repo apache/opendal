@@ -86,7 +86,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .instrument_await(format!("opendal::{}", Operation::ReaderStart))
+            .instrument_await(format!("opendal::{}", Operation::Read))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -94,7 +94,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .instrument_await(format!("opendal::{}", Operation::WriterStart))
+            .instrument_await(format!("opendal::{}", Operation::Write))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -123,7 +123,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner
             .delete()
-            .instrument_await(format!("opendal::{}", Operation::DeleterStart))
+            .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -131,7 +131,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .instrument_await(format!("opendal::{}", Operation::ListerStart))
+            .instrument_await(format!("opendal::{}", Operation::List))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
@@ -182,7 +182,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .instrument_await(format!("opendal::{}", Operation::ReaderRead))
+            .instrument_await(format!("opendal::{}", Operation::Read))
             .await
     }
 }
@@ -197,19 +197,19 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .write(bs)
-            .instrument_await(format!("opendal::{}", Operation::WriterWrite.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()
-            .instrument_await(format!("opendal::{}", Operation::WriterAbort.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 
     fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
         self.inner
             .close()
-            .instrument_await(format!("opendal::{}", Operation::WriterClose.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 }
 
@@ -227,7 +227,7 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .instrument_await(format!("opendal::{}", Operation::ListerNext))
+            .instrument_await(format!("opendal::{}", Operation::List))
             .await
     }
 }
@@ -246,7 +246,7 @@ impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
     async fn flush(&mut self) -> Result<usize> {
         self.inner
             .flush()
-            .instrument_await(format!("opendal::{}", Operation::DeleterFlush))
+            .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
     }
 }

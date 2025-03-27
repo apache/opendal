@@ -344,7 +344,7 @@ impl Access for FtpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let ftp_stream = self.ftp_connect(Operation::ReaderStart).await?;
+        let ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
         Ok((RpRead::new(), reader))
@@ -356,7 +356,7 @@ impl Access for FtpBackend {
         let paths: Vec<&str> = parent.split('/').collect();
 
         // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.ftp_connect(Operation::WriterStart).await?;
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
         let mut curr_path = String::new();
 
         for path in paths {
@@ -398,7 +398,7 @@ impl Access for FtpBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let mut ftp_stream = self.ftp_connect(Operation::ListerStart).await?;
+        let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
         let files = ftp_stream.list(pathname).await.map_err(parse_error)?;

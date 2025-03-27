@@ -668,7 +668,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::ReaderRead.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
         let start = Instant::now();
 
@@ -699,7 +699,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::WriterStart.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
         let start = Instant::now();
 
@@ -810,7 +810,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::DeleterStart.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
         let start = Instant::now();
 
@@ -841,7 +841,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::ListerNext.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
         let start = Instant::now();
 
@@ -929,7 +929,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::ReaderStart.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
         let start = Instant::now();
 
@@ -959,7 +959,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::WriterWrite.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
         let start = Instant::now();
 
@@ -1063,7 +1063,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::DeleterStart.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
         let start = Instant::now();
 
@@ -1093,7 +1093,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::ListerNext.into_static());
+        let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
         let start = Instant::now();
 
@@ -1137,8 +1137,8 @@ impl<R, I: MetricsIntercept> Drop for MetricsWrapper<R, I> {
         let size = self.size;
         let duration = self.start.elapsed();
 
-        if self.labels.operation == Operation::ReaderRead.into_static()
-            || self.labels.operation == Operation::WriterWrite.into_static()
+        if self.labels.operation == Operation::Read.into_static()
+            || self.labels.operation == Operation::Write.into_static()
         {
             self.interceptor
                 .observe(self.labels.clone(), MetricValue::OperationBytes(self.size));

@@ -110,7 +110,7 @@ impl HuggingfaceCore {
 
         let mut req = Request::get(&url);
         // Inject operation to the request.
-        req = req.extension(Operation::ListerStart);
+        req = req.extension(Operation::List);
         if let Some(token) = &self.token {
             let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -157,7 +157,7 @@ impl HuggingfaceCore {
             req = req.header(header::RANGE, range.to_header());
         }
         // Inject operation to the request.
-        let req = req.extension(Operation::ReaderStart);
+        let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await

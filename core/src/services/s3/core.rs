@@ -491,7 +491,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::ReaderStart);
+        let req = req.extension(Operation::Read);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -536,7 +536,7 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterWrite);
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -570,7 +570,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, true);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterWrite);
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -607,7 +607,7 @@ impl S3Core {
 
         let mut req = Request::delete(&url)
             // Inject operation to the request.
-            .extension(Operation::DeleterFlush)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -716,7 +716,7 @@ impl S3Core {
 
         let mut req = Request::get(&url)
             // Inject operation to the request.
-            .extension(Operation::ListerNext)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -767,7 +767,7 @@ impl S3Core {
         let req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterStart);
+        let req = req.extension(Operation::Write);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -808,7 +808,7 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterWrite);
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -844,7 +844,7 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterClose);
+        let req = req.extension(Operation::Write);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -872,7 +872,7 @@ impl S3Core {
 
         let mut req = Request::delete(&url)
             // Inject operation to the request.
-            .extension(Operation::WriterAbort)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -906,7 +906,7 @@ impl S3Core {
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         // Inject operation to the request.
-        let req = req.extension(Operation::DeleterFlush);
+        let req = req.extension(Operation::Delete);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -954,7 +954,7 @@ impl S3Core {
 
         let mut req = Request::get(&url)
             // Inject operation to the request.
-            .extension(Operation::ListerNext)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

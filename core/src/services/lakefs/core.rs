@@ -67,7 +67,7 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::ReaderStart);
+        let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -100,7 +100,7 @@ impl LakefsCore {
             req = req.header(header::RANGE, range.to_header());
         }
         // Inject operation to the request.
-        let req = req.extension(Operation::ReaderStart);
+        let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
@@ -141,7 +141,7 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::ReaderStart);
+        let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -170,7 +170,7 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::WriterWrite);
+        let req = req.extension(Operation::Write);
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -194,7 +194,7 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::DeleterFlush);
+        let req = req.extension(Operation::Delete);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -226,7 +226,7 @@ impl LakefsCore {
 
         let req = req
             // Inject operation to the request.
-            .extension(Operation::DeleterFlush)
+            .extension(Operation::Delete)
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
         self.info.http_client().send(req).await

@@ -15,20 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use core::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::Request;
+use core::fmt::Debug;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use serde::Deserialize;
 use tokio::sync::OnceCell;
 
+use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
@@ -186,35 +183,35 @@ impl Builder for WebhdfsBuilder {
 
         let client = HttpClient::new()?;
 
-        let backend = WebhdfsBackend {
-            info: {
-                let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Webhdfs)
-                    .set_root(&root)
-                    .set_native_capability(Capability {
-                        stat: true,
-                        stat_has_content_length: true,
-                        stat_has_last_modified: true,
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Webhdfs)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
-                        read: true,
+                read: true,
 
-                        write: true,
-                        write_can_append: true,
-                        write_can_multi: atomic_write_dir.is_some(),
+                write: true,
+                write_can_append: true,
+                write_can_multi: atomic_write_dir.is_some(),
 
-                        create_dir: true,
-                        delete: true,
+                create_dir: true,
+                delete: true,
 
-                        list: true,
-                        list_has_content_length: true,
-                        list_has_last_modified: true,
+                list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
-                am.into()
-            },
+                ..Default::default()
+            });
+
+        let accessor_info = Arc::new(info);
+        let core = Arc::new(WebhdfsCore {
+            info: accessor_info,
             root,
             endpoint,
             user_name: self.config.user_name,
@@ -223,341 +220,21 @@ impl Builder for WebhdfsBuilder {
             root_checker: OnceCell::new(),
             atomic_write_dir,
             disable_list_batch: self.config.disable_list_batch,
-        };
+        });
 
-        Ok(backend)
+        Ok(WebhdfsBackend { core })
     }
 }
 
 /// Backend for WebHDFS service
 #[derive(Debug, Clone)]
 pub struct WebhdfsBackend {
-    info: Arc<AccessorInfo>,
-    root: String,
-    endpoint: String,
-    user_name: Option<String>,
-    auth: Option<String>,
-    root_checker: OnceCell<()>,
-
-    pub atomic_write_dir: Option<String>,
-    pub disable_list_batch: bool,
-    pub client: HttpClient,
+    core: Arc<WebhdfsCore>,
 }
 
 impl WebhdfsBackend {
-    pub fn webhdfs_create_dir_request(&self, path: &str) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=MKDIRS&overwrite=true&noredirect=true",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::put(&url);
-
-        req.body(Buffer::new()).map_err(new_request_build_error)
-    }
-
-    /// create object
-    pub async fn webhdfs_create_object_request(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=CREATE&overwrite=true&noredirect=true",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::put(&url);
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        if status != StatusCode::CREATED && status != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let bs = resp.into_body();
-
-        let resp: LocationResponse =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        let mut req = Request::put(&resp.location);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        };
-
-        if let Some(content_type) = args.content_type() {
-            req = req.header(CONTENT_TYPE, content_type);
-        };
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn webhdfs_init_append_request(&self, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=APPEND&noredirect=true",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += &format!("&{auth}");
-        }
-
-        let req = Request::post(url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: LocationResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                Ok(resp.location)
-            }
-            _ => Err(parse_error(resp)),
-        }
-    }
-
-    pub async fn webhdfs_rename_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
-
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=RENAME&destination={}",
-            self.endpoint,
-            percent_encode_path(&from),
-            percent_encode_path(&to)
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += &format!("&{auth}");
-        }
-
-        let req = Request::put(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub fn webhdfs_append_request(
-        &self,
-        location: &str,
-        size: u64,
-        body: Buffer,
-    ) -> Result<Request<Buffer>> {
-        let mut url = location.to_string();
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += &format!("&{auth}");
-        }
-
-        let mut req = Request::post(&url);
-
-        req = req.header(CONTENT_LENGTH, size.to_string());
-
-        req.body(body).map_err(new_request_build_error)
-    }
-
-    /// CONCAT will concat sources to the path
-    pub fn webhdfs_concat_request(
-        &self,
-        path: &str,
-        sources: Vec<String>,
-    ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let sources = sources
-            .iter()
-            .map(|p| build_rooted_abs_path(&self.root, p))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=CONCAT&sources={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            percent_encode_path(&sources),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += &format!("&{auth}");
-        }
-
-        let req = Request::post(url);
-
-        req.body(Buffer::new()).map_err(new_request_build_error)
-    }
-
-    fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=OPEN",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += &format!("&{auth}");
-        }
-
-        if !range.is_full() {
-            url += &format!("&offset={}", range.offset());
-            if let Some(size) = range.size() {
-                url += &format!("&length={size}")
-            }
-        }
-
-        let req = Request::get(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn webhdfs_list_status_request(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=LISTSTATUS",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::get(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        self.client.send(req).await
-    }
-
-    pub async fn webhdfs_list_status_batch_request(
-        &self,
-        path: &str,
-        start_after: &str,
-    ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=LISTSTATUS_BATCH",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if !start_after.is_empty() {
-            url += format!("&startAfter={}", start_after).as_str();
-        }
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::get(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        self.client.send(req).await
-    }
-
-    pub async fn webhdfs_read_file(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<HttpBody>> {
-        let req = self.webhdfs_open_request(path, &range)?;
-        self.client.fetch(req).await
-    }
-
-    pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=GETFILESTATUS",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::get(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-        let mut url = format!(
-            "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
-            self.endpoint,
-            percent_encode_path(&p),
-        );
-        if let Some(user) = &self.user_name {
-            url += format!("&user.name={user}").as_str();
-        }
-        if let Some(auth) = &self.auth {
-            url += format!("&{auth}").as_str();
-        }
-
-        let req = Request::delete(&url)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
     async fn check_root(&self) -> Result<()> {
-        let resp = self.webhdfs_get_file_status("/").await?;
+        let resp = self.core.webhdfs_get_file_status("/").await?;
         match resp.status() {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -593,14 +270,14 @@ impl Access for WebhdfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
+        self.core.info.clone()
     }
 
     /// Create a file or directory
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let req = self.webhdfs_create_dir_request(path)?;
+        let req = self.core.webhdfs_create_dir_request(path)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.core.client.send(req).await?;
 
         let status = resp.status();
 
@@ -630,11 +307,12 @@ impl Access for WebhdfsBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // if root exists and is a directory, stat will be ok
-        self.root_checker
+        self.core
+            .root_checker
             .get_or_try_init(|| async { self.check_root().await })
             .await?;
 
-        let resp = self.webhdfs_get_file_status(path).await?;
+        let resp = self.core.webhdfs_get_file_status(path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -661,7 +339,7 @@ impl Access for WebhdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.webhdfs_read_file(path, args.range()).await?;
+        let resp = self.core.webhdfs_read_file(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -678,13 +356,13 @@ impl Access for WebhdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = WebhdfsWriter::new(self.clone(), args.clone(), path.to_string());
+        let w = WebhdfsWriter::new(self.core.clone(), args.clone(), path.to_string());
 
         let w = if args.append() {
             WebhdfsWriters::Two(oio::AppendWriter::new(w))
         } else {
             WebhdfsWriters::One(oio::BlockWriter::new(
-                self.info.clone(),
+                self.info().clone(),
                 w,
                 args.concurrent(),
             ))
@@ -696,7 +374,7 @@ impl Access for WebhdfsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(WebhdfsDeleter::new(Arc::new(self.clone()))),
+            oio::OneShotDeleter::new(WebhdfsDeleter::new(self.core.clone())),
         ))
     }
 
@@ -709,13 +387,7 @@ impl Access for WebhdfsBackend {
         }
 
         let path = path.trim_end_matches('/');
-        let l = WebhdfsLister::new(self.clone(), path);
+        let l = WebhdfsLister::new(self.core.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub(super) struct LocationResponse {
-    pub location: String,
 }

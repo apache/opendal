@@ -181,8 +181,6 @@ impl Builder for WebhdfsBuilder {
 
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
-        let client = HttpClient::new()?;
-
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Webhdfs)
             .set_root(&root)
@@ -216,7 +214,6 @@ impl Builder for WebhdfsBuilder {
             endpoint,
             user_name: self.config.user_name,
             auth,
-            client,
             root_checker: OnceCell::new(),
             atomic_write_dir,
             disable_list_batch: self.config.disable_list_batch,
@@ -277,7 +274,7 @@ impl Access for WebhdfsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let req = self.core.webhdfs_create_dir_request(path)?;
 
-        let resp = self.core.client.send(req).await?;
+        let resp = self.info().http_client().send(req).await?;
 
         let status = resp.status();
 

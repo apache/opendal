@@ -42,7 +42,6 @@ pub struct WebhdfsCore {
 
     pub atomic_write_dir: Option<String>,
     pub disable_list_batch: bool,
-    pub client: HttpClient,
 }
 
 impl Debug for WebhdfsCore {
@@ -101,7 +100,7 @@ impl WebhdfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -146,7 +145,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -183,7 +182,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn webhdfs_append_request(
@@ -284,7 +283,7 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webhdfs_list_status_batch_request(
@@ -312,7 +311,7 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webhdfs_read_file(
@@ -321,7 +320,7 @@ impl WebhdfsCore {
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
         let req = self.webhdfs_open_request(path, &range)?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<Buffer>> {
@@ -342,7 +341,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -363,7 +362,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 

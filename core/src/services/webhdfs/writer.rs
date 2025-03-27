@@ -50,7 +50,7 @@ impl oio::BlockWrite for WebhdfsWriter {
             .webhdfs_create_object_request(&self.path, Some(size), &self.op, body)
             .await?;
 
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -76,7 +76,7 @@ impl oio::BlockWrite for WebhdfsWriter {
             )
             .await?;
 
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -101,7 +101,7 @@ impl oio::BlockWrite for WebhdfsWriter {
             // concat blocks
             let req = self.core.webhdfs_concat_request(&first_block_id, sources)?;
 
-            let resp = self.core.client.send(req).await?;
+            let resp = self.core.info.http_client().send(req).await?;
 
             let status = resp.status();
 
@@ -161,7 +161,7 @@ impl oio::AppendWrite for WebhdfsWriter {
                     .webhdfs_create_object_request(&self.path, None, &self.op, Buffer::new())
                     .await?;
 
-                let resp = self.core.client.send(req).await?;
+                let resp = self.core.info.http_client().send(req).await?;
                 let status = resp.status();
 
                 match status {
@@ -176,7 +176,7 @@ impl oio::AppendWrite for WebhdfsWriter {
     async fn append(&self, _offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let location = self.core.webhdfs_init_append_request(&self.path).await?;
         let req = self.core.webhdfs_append_request(&location, size, body)?;
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
 
         let status = resp.status();
         match status {

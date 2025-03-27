@@ -33,6 +33,96 @@ use http::StatusCode;
 use crate::raw::*;
 use crate::*;
 
+/// Buckets for data size metrics like OperationBytes
+/// Covers typical file and object sizes from small files to large objects
+pub const DEFAULT_BYTES_BUCKETS: &[f64] = &[
+    1024.0,                   // 1 KiB - Small configuration files, metadata
+    16.0 * 1024.0,            // 16 KiB
+    64.0 * 1024.0,            // 64 KiB - File system block size
+    256.0 * 1024.0,           // 256 KiB
+    1024.0 * 1024.0,          // 1 MiB - Common size threshold for many systems
+    4.0 * 1024.0 * 1024.0,    // 4 MiB - Best size for most http based systems
+    16.0 * 1024.0 * 1024.0,   // 16 MiB
+    64.0 * 1024.0 * 1024.0,   // 64 MiB - Widely used threshold for multipart uploads
+    256.0 * 1024.0 * 1024.0,  // 256 MiB
+    1024.0 * 1024.0 * 1024.0, // 1 GiB - Considered large for many systems
+];
+
+/// Buckets for data transfer rate metrics like OperationBytesRate
+///
+/// Covers various network speeds from slow connections to high-speed transfers
+///
+/// Note: this is for single operation rate, not for total bandwidth.
+pub const DEFAULT_BYTES_RATE_BUCKETS: &[f64] = &[
+    64.0 * 1024.0,            // 64 KiB/s - Slow connections, mobile networks
+    256.0 * 1024.0,           // 256 KiB/s - Basic broadband, throttled connections
+    1024.0 * 1024.0,          // 1 MiB/s - Standard broadband, basic CDN performance
+    4.0 * 1024.0 * 1024.0,    // 4 MiB/s - Fast consumer connections
+    16.0 * 1024.0 * 1024.0,   // 16 MiB/s - High-speed connections, good cloud performance
+    64.0 * 1024.0 * 1024.0,   // 64 MiB/s - Very fast network, optimized cloud settings
+    256.0 * 1024.0 * 1024.0,  // 256 MiB/s - Premium network, same-region cloud transfers
+    1024.0 * 1024.0 * 1024.0, // 1 GiB/s - Data center speeds, optimal conditions
+];
+
+/// Buckets for batch operation entry counts (OperationEntriesCount)
+/// Covers scenarios from single entry operations to large batch operations
+pub const DEFAULT_ENTRIES_BUCKETS: &[f64] = &[
+    1.0,     // 1 entry - Single item operations
+    5.0,     // 5 entries - Very small batches
+    10.0,    // 10 entries - Small batches
+    50.0,    // 50 entries - Medium batches
+    100.0,   // 100 entries - Standard batch size
+    500.0,   // 500 entries - Large batches
+    1000.0,  // 1000 entries - Very large batches, API limits for some services
+    5000.0,  // 5000 entries - Huge batches, multi-page operations
+    10000.0, // 10000 entries - Extremely large operations, multi-request batches
+];
+
+/// Buckets for batch operation processing rates (OperationEntriesRate)
+/// Measures how many entries can be processed per second
+pub const DEFAULT_ENTRIES_RATE_BUCKETS: &[f64] = &[
+    1.0,     // 1 entry/s - Slowest processing, heavy operations per entry
+    10.0,    // 10 entries/s - Slow processing, complex operations
+    50.0,    // 50 entries/s - Moderate processing speed
+    100.0,   // 100 entries/s - Good processing speed, efficient operations
+    500.0,   // 500 entries/s - Fast processing, optimized operations
+    1000.0,  // 1000 entries/s - Very fast processing, simple operations
+    5000.0,  // 5000 entries/s - Extremely fast processing, bulk operations
+    10000.0, // 10000 entries/s - Maximum speed, listing operations, local systems
+];
+
+/// Buckets for operation duration metrics like OperationDurationSeconds
+/// Covers timeframes from fast metadata operations to long-running transfers
+pub const DEFAULT_DURATION_SECONDS_BUCKETS: &[f64] = &[
+    0.001, // 1ms - Fastest operations, cached responses
+    0.01,  // 10ms - Fast metadata operations, local operations
+    0.05,  // 50ms - Quick operations, nearby cloud resources
+    0.1,   // 100ms - Standard API response times, typical cloud latency
+    0.25,  // 250ms - Medium operations, small data transfers
+    0.5,   // 500ms - Medium-long operations, larger metadata operations
+    1.0,   // 1s - Long operations, small file transfers
+    2.5,   // 2.5s - Extended operations, medium file transfers
+    5.0,   // 5s - Long-running operations, large transfers
+    10.0,  // 10s - Very long operations, very large transfers
+    30.0,  // 30s - Extended operations, complex batch processes
+    60.0,  // 1min - Near timeout operations, extremely large transfers
+];
+
+/// Buckets for time to first byte metrics like OperationTtfbSeconds
+/// Focuses on initial response times, which are typically shorter than full operations
+pub const DEFAULT_TTFB_BUCKETS: &[f64] = &[
+    0.001, // 1ms - Cached or local resources
+    0.01,  // 10ms - Very fast responses, same region
+    0.025, // 25ms - Fast responses, optimized configurations
+    0.05,  // 50ms - Good response times, standard configurations
+    0.1,   // 100ms - Average response times for cloud storage
+    0.2,   // 200ms - Slower responses, cross-region or throttled
+    0.4,   // 400ms - Poor response times, network congestion
+    0.8,   // 800ms - Very slow responses, potential issues
+    1.6,   // 1.6s - Problematic responses, retry territory
+    3.2,   // 3.2s - Critical latency issues, close to timeouts
+];
+
 /// The metric label for the scheme like s3, fs, cos.
 pub static LABEL_SCHEME: &str = "scheme";
 /// The metric label for the namespace like bucket name in s3.
@@ -49,16 +139,27 @@ pub static LABEL_PATH: &str = "path";
 pub static LABEL_STATUS_CODE: &str = "status_code";
 
 /// MetricLabels are the labels for the metrics.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetricLabels {
+    /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
+    /// Used to differentiate between different storage backends.
     pub scheme: Scheme,
+    /// The storage namespace (e.g., bucket name, container name).
+    /// Identifies the specific storage container being accessed.
     pub namespace: Arc<str>,
+    /// The root path within the namespace that was configured.
+    /// Used to track operations within a specific path prefix.
     pub root: Arc<str>,
+    /// The operation being performed (e.g., "read", "write", "list").
+    /// Identifies which API operation generated this metric.
     pub operation: &'static str,
-
-    /// Only available for `OperationErrorsTotal`
+    /// The specific error kind that occurred during an operation.
+    /// Only populated for `OperationErrorsTotal` metric.
+    /// Used to track frequency of specific error types.
     pub error: Option<ErrorKind>,
-    /// Only available for `HttpStatusErrorsTotal`
+    /// The HTTP status code received in an error response.
+    /// Only populated for `HttpStatusErrorsTotal` metric.
+    /// Used to track frequency of specific HTTP error status codes.
     pub status_code: Option<StatusCode>,
 }
 
@@ -96,54 +197,139 @@ impl MetricLabels {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum MetricValue {
+    /// Record the size of data processed in bytes.
+    /// Metrics impl: Update a Histogram with the given byte count.
     OperationBytes(u64),
+    /// Record the rate of data processing in bytes/second.
+    /// Metrics impl: Update a Histogram with the calculated rate value.
     OperationBytesRate(f64),
-    OperationBytesTotal(u64),
-    OperationCountTotal,
+    /// Record the number of entries (files, objects, keys) processed.
+    /// Metrics impl: Update a Histogram with the entry count.
+    OperationEntries(u64),
+    /// Record the rate of entries processing in entries/second.
+    /// Metrics impl: Update a Histogram with the calculated rate value.
+    OperationEntriesRate(f64),
+    /// Record the total duration of an operation.
+    /// Metrics impl: Update a Histogram with the duration converted to seconds (as f64).
     OperationDurationSeconds(Duration),
+    /// Increment the counter for operation errors.
+    /// Metrics impl: Increment a Counter by 1.
     OperationErrorsTotal,
+    /// Update the current number of executing operations.
+    /// Metrics impl: Add the value (positive or negative) to a Gauge.
     OperationExecuting(isize),
+    /// Record the time to first byte duration.
+    /// Metrics impl: Update a Histogram with the duration converted to seconds (as f64).
     OperationTtfbSeconds(Duration),
-
-    HttpCountTotal,
-    HttpConnectionErrorsTotal,
+    /// Update the current number of executing HTTP requests.
+    /// Metrics impl: Add the value (positive or negative) to a Gauge.
     HttpExecuting(isize),
+    /// Record the size of HTTP request body in bytes.
+    /// Metrics impl: Update a Histogram with the given byte count.
     HttpRequestBytes(u64),
+    /// Record the rate of HTTP request data in bytes/second.
+    /// Metrics impl: Update a Histogram with the calculated rate value.
     HttpRequestBytesRate(f64),
-    HttpRequestBytesTotal(u64),
+    /// Record the duration of sending an HTTP request (until first byte received).
+    /// Metrics impl: Update a Histogram with the duration converted to seconds (as f64).
     HttpRequestDurationSeconds(Duration),
+    /// Record the size of HTTP response body in bytes.
+    /// Metrics impl: Update a Histogram with the given byte count.
     HttpResponseBytes(u64),
+    /// Record the rate of HTTP response data in bytes/second.
+    /// Metrics impl: Update a Histogram with the calculated rate value.
     HttpResponseBytesRate(f64),
-    HttpResponseBytesTotal(u64),
+    /// Record the duration of receiving an HTTP response (from first byte to last).
+    /// Metrics impl: Update a Histogram with the duration converted to seconds (as f64).
     HttpResponseDurationSeconds(Duration),
+    /// Increment the counter for HTTP connection errors.
+    /// Metrics impl: Increment a Counter by 1.
+    HttpConnectionErrorsTotal,
+    /// Increment the counter for HTTP status errors (non-2xx responses).
+    /// Metrics impl: Increment a Counter by 1.
     HttpStatusErrorsTotal,
 }
 
 impl MetricValue {
-    /// Returns the related info of this metric value in the format `(name, help)`.
-    pub fn info(&self) -> (&'static str, &'static str) {
+    /// Returns the full metric name for this metric value.
+    pub fn name(&self) -> &'static str {
         match self {
-            MetricValue::OperationBytes(_) => ("opendal_operation_bytes", "Current operation size in bytes, represents the size of data being processed in the current operation"),
-            MetricValue::OperationBytesRate(_) => ("opendal_operation_bytes_rate", "Histogram of data processing rates in bytes per second within individual operations"),
-            MetricValue::OperationBytesTotal(_) => ("opendal_operation_bytes_total", "Total number of bytes processed by operations"),
-            MetricValue::OperationCountTotal => ("opendal_operation_count_total","Total number of operations completed"),
-            MetricValue::OperationDurationSeconds(_) => ("opendal_operation_duration_seconds","Duration of operations in seconds, measured from start to completion"),
-            MetricValue::OperationErrorsTotal => ("opendal_operation_errors_total","Total number of failed operations"),
-            MetricValue::OperationExecuting(_) => ("opendal_operation_executing","Number of operations currently being executed"),
-            MetricValue::OperationTtfbSeconds(_) => ("opendal_operation_ttfb_seconds","Time to first byte in seconds for operations"),
+            MetricValue::OperationBytes(_) => "opendal_operation_bytes",
+            MetricValue::OperationBytesRate(_) => "opendal_operation_bytes_rate",
+            MetricValue::OperationEntries(_) => "opendal_operation_entries",
+            MetricValue::OperationEntriesRate(_) => "opendal_operation_entries_rate",
+            MetricValue::OperationDurationSeconds(_) => "opendal_operation_duration_seconds",
+            MetricValue::OperationErrorsTotal => "opendal_operation_errors_total",
+            MetricValue::OperationExecuting(_) => "opendal_operation_executing",
+            MetricValue::OperationTtfbSeconds(_) => "opendal_operation_ttfb_seconds",
 
-            MetricValue::HttpCountTotal => ("opendal_http_count_total","Total number of HTTP requests initiated"),
-            MetricValue::HttpConnectionErrorsTotal => ("opendal_http_connection_errors_total","Total number of HTTP requests that failed before receiving a response (DNS failures, connection refused, timeouts, TLS errors)"),
-            MetricValue::HttpStatusErrorsTotal => ("opendal_http_connection_errors_total","Total number of HTTP requests that received error status codes (non-2xx responses)"),
-            MetricValue::HttpExecuting(_) => ("opendal_http_executing","Number of HTTP requests currently in flight from this client"),
-            MetricValue::HttpRequestBytes(_) => ("opendal_http_request_bytes","Histogram of HTTP request body sizes in bytes"),
-            MetricValue::HttpRequestBytesRate(_) => ("opendal_http_request_bytes_rate","Histogram of HTTP request bytes per second rates"),
-            MetricValue::HttpRequestBytesTotal(_) =>( "opendal_http_request_bytes_total","Total number of bytes sent in HTTP request bodies"),
-            MetricValue::HttpRequestDurationSeconds(_) => ("opendal_http_request_duration_seconds","Histogram of time durations in seconds spent sending HTTP requests, from first byte sent to receiving the first byte"),
-            MetricValue::HttpResponseBytes(_) => ("opendal_http_response_bytes","Histogram of HTTP response body sizes in bytes"),
-            MetricValue::HttpResponseBytesRate(_) => ("opendal_http_response_bytes_rate","Histogram of HTTP response bytes per second rates"),
-            MetricValue::HttpResponseBytesTotal(_) =>( "opendal_http_response_bytes_total","Total number of bytes received in HTTP response bodies"),
-            MetricValue::HttpResponseDurationSeconds(_) => ("opendal_http_response_duration_seconds","Histogram of time durations in seconds spent receiving HTTP responses, from first byte received to last byte received"),
+            MetricValue::HttpConnectionErrorsTotal => "opendal_http_connection_errors_total",
+            MetricValue::HttpStatusErrorsTotal => "opendal_http_status_errors_total",
+            MetricValue::HttpExecuting(_) => "opendal_http_executing",
+            MetricValue::HttpRequestBytes(_) => "opendal_http_request_bytes",
+            MetricValue::HttpRequestBytesRate(_) => "opendal_http_request_bytes_rate",
+            MetricValue::HttpRequestDurationSeconds(_) => "opendal_http_request_duration_seconds",
+            MetricValue::HttpResponseBytes(_) => "opendal_http_response_bytes",
+            MetricValue::HttpResponseBytesRate(_) => "opendal_http_response_bytes_rate",
+            MetricValue::HttpResponseDurationSeconds(_) => "opendal_http_response_duration_seconds",
+        }
+    }
+
+    /// Returns the metric name along with unit for this metric value.
+    ///
+    /// # Notes
+    ///
+    /// This API is designed for the metrics impls that unit aware. They will handle the names by themselves like append `_total` for counters.
+    pub fn name_with_unit(&self) -> (&'static str, Option<&'static str>) {
+        match self {
+            MetricValue::OperationBytes(_) => ("opendal_operation", Some("bytes")),
+            MetricValue::OperationBytesRate(_) => ("opendal_operation_bytes_rate", None),
+            MetricValue::OperationEntries(_) => ("opendal_operation_entries", None),
+            MetricValue::OperationEntriesRate(_) => ("opendal_operation_entries_rate", None),
+            MetricValue::OperationDurationSeconds(_) => {
+                ("opendal_operation_duration", Some("seconds"))
+            }
+            MetricValue::OperationErrorsTotal => ("opendal_operation_errors", None),
+            MetricValue::OperationExecuting(_) => ("opendal_operation_executing", None),
+            MetricValue::OperationTtfbSeconds(_) => ("opendal_operation_ttfb", Some("seconds")),
+
+            MetricValue::HttpConnectionErrorsTotal => ("opendal_http_connection_errors", None),
+            MetricValue::HttpStatusErrorsTotal => ("opendal_http_status_errors", None),
+            MetricValue::HttpExecuting(_) => ("opendal_http_executing", None),
+            MetricValue::HttpRequestBytes(_) => ("opendal_http_request", Some("bytes")),
+            MetricValue::HttpRequestBytesRate(_) => ("opendal_http_request_bytes_rate", None),
+            MetricValue::HttpRequestDurationSeconds(_) => {
+                ("opendal_http_request_duration", Some("seconds"))
+            }
+            MetricValue::HttpResponseBytes(_) => ("opendal_http_response", Some("bytes")),
+            MetricValue::HttpResponseBytesRate(_) => ("opendal_http_response_bytes_rate", None),
+            MetricValue::HttpResponseDurationSeconds(_) => {
+                ("opendal_http_response_duration", Some("seconds"))
+            }
+        }
+    }
+
+    /// Returns the help text for this metric value.
+    pub fn help(&self) -> &'static str {
+        match self {
+            MetricValue::OperationBytes(_) => "Current operation size in bytes, represents the size of data being processed in the current operation",
+            MetricValue::OperationBytesRate(_) => "Histogram of data processing rates in bytes per second within individual operations",
+            MetricValue::OperationEntries(_) => "Current operation size in entries, represents the entries being processed in the current operation",
+            MetricValue::OperationEntriesRate(_) => "Histogram of entries processing rates in entries per second within individual operations",
+            MetricValue::OperationDurationSeconds(_) => "Duration of operations in seconds, measured from start to completion",
+            MetricValue::OperationErrorsTotal => "Total number of failed operations",
+            MetricValue::OperationExecuting(_) => "Number of operations currently being executed",
+            MetricValue::OperationTtfbSeconds(_) => "Time to first byte in seconds for operations",
+
+            MetricValue::HttpConnectionErrorsTotal => "Total number of HTTP requests that failed before receiving a response (DNS failures, connection refused, timeouts, TLS errors)",
+            MetricValue::HttpStatusErrorsTotal => "Total number of HTTP requests that received error status codes (non-2xx responses)",
+            MetricValue::HttpExecuting(_) => "Number of HTTP requests currently in flight from this client",
+            MetricValue::HttpRequestBytes(_) => "Histogram of HTTP request body sizes in bytes",
+            MetricValue::HttpRequestBytesRate(_) => "Histogram of HTTP request bytes per second rates",
+            MetricValue::HttpRequestDurationSeconds(_) => "Histogram of time durations in seconds spent sending HTTP requests, from first byte sent to receiving the first byte",
+            MetricValue::HttpResponseBytes(_) => "Histogram of HTTP response body sizes in bytes",
+            MetricValue::HttpResponseBytesRate(_) => "Histogram of HTTP response bytes per second rates",
+            MetricValue::HttpResponseDurationSeconds(_) => "Histogram of time durations in seconds spent receiving HTTP responses, from first byte received to last byte received",
         }
     }
 }
@@ -314,8 +500,6 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
         );
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::HttpCountTotal);
-        self.interceptor
             .observe(labels.clone(), MetricValue::HttpExecuting(1));
 
         let start = Instant::now();
@@ -350,10 +534,6 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                 self.interceptor.observe(
                     labels.clone(),
                     MetricValue::HttpRequestBytesRate(req_size as f64 / req_duration.as_secs_f64()),
-                );
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::HttpRequestBytesTotal(req_size as u64),
                 );
                 self.interceptor.observe(
                     labels.clone(),
@@ -416,10 +596,6 @@ where
                 );
                 self.interceptor.observe(
                     self.labels.clone(),
-                    MetricValue::HttpResponseBytesTotal(resp_size),
-                );
-                self.interceptor.observe(
-                    self.labels.clone(),
                     MetricValue::HttpResponseDurationSeconds(resp_duration),
                 );
                 self.interceptor
@@ -468,8 +644,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -500,8 +674,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, reader) = self
             .inner
@@ -533,8 +705,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, writer) = self.inner.write(path, args).await.inspect_err(|err| {
             self.interceptor.observe(
@@ -556,8 +726,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -588,8 +756,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -620,8 +786,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -652,8 +816,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, deleter) = self
             .inner
@@ -685,8 +847,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, lister) = self
             .inner
@@ -718,8 +878,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -750,8 +908,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -779,8 +935,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, reader) = self
             .inner
@@ -811,8 +965,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, writer) = self.inner.blocking_write(path, args).inspect_err(|err| {
             self.interceptor.observe(
@@ -834,8 +986,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -890,8 +1040,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let res = self
             .inner()
@@ -921,8 +1069,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, deleter) = self
             .inner
@@ -953,8 +1099,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationCountTotal);
 
         let (rp, lister) = self
             .inner
@@ -993,14 +1137,26 @@ impl<R, I: MetricsIntercept> Drop for MetricsWrapper<R, I> {
         let size = self.size;
         let duration = self.start.elapsed();
 
-        self.interceptor
-            .observe(self.labels.clone(), MetricValue::OperationBytes(self.size));
-        self.interceptor.observe(
-            self.labels.clone(),
-            MetricValue::OperationBytesRate(size as f64 / duration.as_secs_f64()),
-        );
-        self.interceptor
-            .observe(self.labels.clone(), MetricValue::OperationBytesTotal(size));
+        if self.labels.operation == Operation::ReaderRead.into_static()
+            || self.labels.operation == Operation::WriterWrite.into_static()
+        {
+            self.interceptor
+                .observe(self.labels.clone(), MetricValue::OperationBytes(self.size));
+            self.interceptor.observe(
+                self.labels.clone(),
+                MetricValue::OperationBytesRate(size as f64 / duration.as_secs_f64()),
+            );
+        } else {
+            self.interceptor.observe(
+                self.labels.clone(),
+                MetricValue::OperationEntries(self.size),
+            );
+            self.interceptor.observe(
+                self.labels.clone(),
+                MetricValue::OperationEntriesRate(size as f64 / duration.as_secs_f64()),
+            );
+        }
+
         self.interceptor.observe(
             self.labels.clone(),
             MetricValue::OperationDurationSeconds(duration),

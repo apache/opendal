@@ -46,7 +46,7 @@ use std::io;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// ErrorKind is all kinds of Error of opendal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// OpenDAL don't know what happened here, and no actions other than just

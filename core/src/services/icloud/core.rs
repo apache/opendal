@@ -101,7 +101,7 @@ impl SessionData {
 
 #[derive(Clone)]
 pub struct IcloudSigner {
-    pub client: HttpClient,
+    pub info: Arc<AccessorInfo>,
 
     pub apple_id: String,
     pub password: String,
@@ -162,7 +162,7 @@ impl IcloudSigner {
             .map_err(new_request_build_error)?;
         self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
         }
@@ -189,7 +189,7 @@ impl IcloudSigner {
             .map_err(new_request_build_error)?;
         self.sign(&mut req)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
         }
@@ -313,13 +313,14 @@ impl IcloudSigner {
     /// - Update the session data if needed.
     pub async fn send(&mut self, mut req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.sign(&mut req)?;
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
 
         Ok(resp)
     }
 }
 
 pub struct IcloudCore {
+    pub info: Arc<AccessorInfo>,
     pub signer: Arc<Mutex<IcloudSigner>>,
     pub root: String,
     pub path_cache: PathCacher<IcloudPathQuery>,
@@ -413,7 +414,7 @@ impl IcloudCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = signer.client.fetch(req).await?;
+        let resp = self.info.http_client().fetch(req).await?;
 
         Ok(resp)
     }

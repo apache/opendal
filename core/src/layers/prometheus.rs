@@ -118,9 +118,8 @@ impl PrometheusLayer {
     /// let op = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
-    ///             .operation_duration_seconds_buckets(duration_seconds_buckets)
-    ///             .operation_bytes_buckets(bytes_buckets)
-    ///             .path_label(0)
+    ///             .duration_seconds_buckets(duration_seconds_buckets)
+    ///             .bytes_buckets(bytes_buckets)
     ///             .register(registry)
     ///             .expect("register metrics successfully"),
     ///     )

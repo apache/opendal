@@ -47,9 +47,9 @@ abstract class Operator implements RustOpaqueInterface {
 
   void deleteSync({required String path});
 
-  Future<bool> isExist({required String path});
+  Future<bool> exists({required String path});
 
-  bool isExistSync({required String path});
+  bool existsSync({required String path});
 
   factory Operator(
           {required String schemeStr, required Map<String, String> map}) =>

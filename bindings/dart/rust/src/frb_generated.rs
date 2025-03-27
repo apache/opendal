@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.8.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 229275691;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 775125233;
 
 // Section: executor
 
@@ -705,7 +705,7 @@ fn wire__crate__api__opendal_api__Operator_delete_sync_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__Operator_is_exist_impl(
+fn wire__crate__api__opendal_api__Operator_exists_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -713,7 +713,7 @@ fn wire__crate__api__opendal_api__Operator_is_exist_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "Operator_is_exist",
+            debug_name: "Operator_exists",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -753,7 +753,7 @@ fn wire__crate__api__opendal_api__Operator_is_exist_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::opendal_api::Operator::is_exist(&*api_that_guard, api_path)
+                            crate::api::opendal_api::Operator::exists(&*api_that_guard, api_path)
                                 .await,
                         )?;
                         Ok(output_ok)
@@ -764,14 +764,14 @@ fn wire__crate__api__opendal_api__Operator_is_exist_impl(
         },
     )
 }
-fn wire__crate__api__opendal_api__Operator_is_exist_sync_impl(
+fn wire__crate__api__opendal_api__Operator_exists_sync_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "Operator_is_exist_sync",
+            debug_name: "Operator_exists_sync",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -806,7 +806,7 @@ fn wire__crate__api__opendal_api__Operator_is_exist_sync_impl(
                 }
                 let api_that_guard = api_that_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok(
-                    crate::api::opendal_api::Operator::is_exist_sync(&*api_that_guard, api_path),
+                    crate::api::opendal_api::Operator::exists_sync(&*api_that_guard, api_path),
                 )?;
                 Ok(output_ok)
             })())
@@ -1258,7 +1258,7 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__opendal_api__Operator_delete_impl(port, ptr, rust_vec_len, data_len)
         }
         14 => {
-            wire__crate__api__opendal_api__Operator_is_exist_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__opendal_api__Operator_exists_impl(port, ptr, rust_vec_len, data_len)
         }
         17 => {
             wire__crate__api__opendal_api__Operator_rename_impl(port, ptr, rust_vec_len, data_len)
@@ -1298,9 +1298,7 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         13 => wire__crate__api__opendal_api__Operator_delete_sync_impl(ptr, rust_vec_len, data_len),
-        15 => {
-            wire__crate__api__opendal_api__Operator_is_exist_sync_impl(ptr, rust_vec_len, data_len)
-        }
+        15 => wire__crate__api__opendal_api__Operator_exists_sync_impl(ptr, rust_vec_len, data_len),
         16 => wire__crate__api__opendal_api__Operator_new_impl(ptr, rust_vec_len, data_len),
         18 => wire__crate__api__opendal_api__Operator_rename_sync_impl(ptr, rust_vec_len, data_len),
         20 => wire__crate__api__opendal_api__Operator_stat_sync_impl(ptr, rust_vec_len, data_len),

@@ -581,7 +581,7 @@ impl OperationLabels {
         ]
     }
 
-    fn values<'a>(&'a self) -> Vec<&'a str> {
+    fn values(&self) -> Vec<&str> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([

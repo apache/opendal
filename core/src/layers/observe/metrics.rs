@@ -190,10 +190,10 @@ impl MetricLabels {
 
 /// MetricValue is the value the opendal sends to the metrics impls.
 ///
-/// Metrcis impls can be `prometheus_client`, `metrics` etc.
+/// Metrics impls can be `prometheus_client`, `metrics` etc.
 ///
 /// Every metrics impls SHOULD implement observe over the MetricValue to make
-/// sure they provides the consistent metrics for users.
+/// sure they provide the consistent metrics for users.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum MetricValue {
@@ -519,7 +519,6 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
             Ok(resp) if resp.status().is_client_error() && resp.status().is_server_error() => {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
-
                 self.interceptor.observe(
                     labels.clone().with_status_code(resp.status()),
                     MetricValue::HttpStatusErrorsTotal,
@@ -640,11 +639,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let labels = MetricLabels::new(self.info.clone(), Operation::CreateDir.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .create_dir(path, args)
@@ -663,18 +661,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let (rp, reader) = self
             .inner
             .read(path, args)
@@ -701,11 +698,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let (rp, writer) = self.inner.write(path, args).await.inspect_err(|err| {
             self.interceptor.observe(
                 labels.clone().with_error(err.kind()),
@@ -722,11 +718,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .copy(from, to, args)
@@ -745,18 +740,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .rename(from, to, args)
@@ -775,18 +769,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .stat(path, args)
@@ -805,34 +798,23 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, deleter) = self
-            .inner
-            .delete()
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let start = Instant::now();
+        let (rp, deleter) = self.inner.delete().await.inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -843,27 +825,16 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, lister) = self
-            .inner
-            .list(path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let start = Instant::now();
+        let (rp, lister) = self.inner.list(path, args).await.inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -874,11 +845,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Presign.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .presign(path, args)
@@ -897,18 +867,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let labels = MetricLabels::new(self.info.clone(), Operation::CreateDir.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .blocking_create_dir(path, args)
@@ -925,17 +894,18 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 );
             });
 
+        self.interceptor
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let (rp, reader) = self
             .inner
             .blocking_read(path, args)
@@ -961,11 +931,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let (rp, writer) = self.inner.blocking_write(path, args).inspect_err(|err| {
             self.interceptor.observe(
                 labels.clone().with_error(err.kind()),
@@ -982,11 +951,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .blocking_copy(from, to, args)
@@ -1004,12 +972,15 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
         let start = Instant::now();
         let res = self
@@ -1029,18 +1000,17 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
+        let start = Instant::now();
         let res = self
             .inner()
             .blocking_stat(path, args)
@@ -1065,26 +1035,16 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, deleter) = self
-            .inner
-            .blocking_delete()
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let start = Instant::now();
+        let (rp, deleter) = self.inner.blocking_delete().inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -1095,26 +1055,16 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
-        let start = Instant::now();
-
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, lister) = self
-            .inner
-            .blocking_list(path, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let start = Instant::now();
+        let (rp, lister) = self.inner.blocking_list(path, args).inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,

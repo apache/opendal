@@ -513,14 +513,14 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
                 self.interceptor
-                    .observe(labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+                    .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
             Ok(resp) if resp.status().is_client_error() && resp.status().is_server_error() => {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
                 self.interceptor.observe(
-                    labels.clone().with_status_code(resp.status()),
+                    labels.with_status_code(resp.status()),
                     MetricValue::HttpStatusErrorsTotal,
                 );
                 Ok(resp)
@@ -1028,7 +1028,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 

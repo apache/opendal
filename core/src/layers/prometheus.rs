@@ -28,7 +28,6 @@ use prometheus::HistogramVec;
 use prometheus::Registry;
 
 use crate::layers::observe;
-use crate::layers::observe::{MetricLabels, MetricValue};
 use crate::raw::Access;
 use crate::raw::*;
 use crate::*;
@@ -491,75 +490,75 @@ pub struct PrometheusInterceptor {
 }
 
 impl observe::MetricsIntercept for PrometheusInterceptor {
-    fn observe(&self, labels: MetricLabels, value: MetricValue) {
+    fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {
         let labels = OperationLabels(labels);
         match value {
-            MetricValue::OperationBytes(v) => self
+            observe::MetricValue::OperationBytes(v) => self
                 .operation_bytes
                 .with_label_values(&labels.values())
                 .observe(v as f64),
-            MetricValue::OperationBytesRate(v) => self
+            observe::MetricValue::OperationBytesRate(v) => self
                 .operation_bytes_rate
                 .with_label_values(&labels.values())
                 .observe(v),
-            MetricValue::OperationEntries(v) => self
+            observe::MetricValue::OperationEntries(v) => self
                 .operation_entries
                 .with_label_values(&labels.values())
                 .observe(v as f64),
-            MetricValue::OperationEntriesRate(v) => self
+            observe::MetricValue::OperationEntriesRate(v) => self
                 .operation_entries_rate
                 .with_label_values(&labels.values())
                 .observe(v),
-            MetricValue::OperationDurationSeconds(v) => self
+            observe::MetricValue::OperationDurationSeconds(v) => self
                 .operation_duration_seconds
                 .with_label_values(&labels.values())
                 .observe(v.as_secs_f64()),
-            MetricValue::OperationErrorsTotal => self
+            observe::MetricValue::OperationErrorsTotal => self
                 .operation_errors_total
                 .with_label_values(&labels.values())
                 .inc(),
-            MetricValue::OperationExecuting(v) => self
+            observe::MetricValue::OperationExecuting(v) => self
                 .operation_executing
                 .with_label_values(&labels.values())
                 .add(v as i64),
-            MetricValue::OperationTtfbSeconds(v) => self
+            observe::MetricValue::OperationTtfbSeconds(v) => self
                 .operation_ttfb_seconds
                 .with_label_values(&labels.values())
                 .observe(v.as_secs_f64()),
 
-            MetricValue::HttpExecuting(v) => self
+            observe::MetricValue::HttpExecuting(v) => self
                 .http_executing
                 .with_label_values(&labels.values())
                 .add(v as i64),
-            MetricValue::HttpRequestBytes(v) => self
+            observe::MetricValue::HttpRequestBytes(v) => self
                 .http_request_bytes
                 .with_label_values(&labels.values())
                 .observe(v as f64),
-            MetricValue::HttpRequestBytesRate(v) => self
+            observe::MetricValue::HttpRequestBytesRate(v) => self
                 .http_request_bytes_rate
                 .with_label_values(&labels.values())
                 .observe(v),
-            MetricValue::HttpRequestDurationSeconds(v) => self
+            observe::MetricValue::HttpRequestDurationSeconds(v) => self
                 .http_request_duration_seconds
                 .with_label_values(&labels.values())
                 .observe(v.as_secs_f64()),
-            MetricValue::HttpResponseBytes(v) => self
+            observe::MetricValue::HttpResponseBytes(v) => self
                 .http_response_bytes
                 .with_label_values(&labels.values())
                 .observe(v as f64),
-            MetricValue::HttpResponseBytesRate(v) => self
+            observe::MetricValue::HttpResponseBytesRate(v) => self
                 .http_response_bytes_rate
                 .with_label_values(&labels.values())
                 .observe(v),
-            MetricValue::HttpResponseDurationSeconds(v) => self
+            observe::MetricValue::HttpResponseDurationSeconds(v) => self
                 .http_response_duration_seconds
                 .with_label_values(&labels.values())
                 .observe(v.as_secs_f64()),
-            MetricValue::HttpConnectionErrorsTotal => self
+            observe::MetricValue::HttpConnectionErrorsTotal => self
                 .http_connection_errors_total
                 .with_label_values(&labels.values())
                 .inc(),
-            MetricValue::HttpStatusErrorsTotal => self
+            observe::MetricValue::HttpStatusErrorsTotal => self
                 .http_status_errors_total
                 .with_label_values(&labels.values())
                 .inc(),

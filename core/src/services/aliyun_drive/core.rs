@@ -100,8 +100,6 @@ impl AliyunDriveCore {
                     .expect("access token must be valid header value"),
             );
         }
-        // Inject operation to the request.
-        req.extensions_mut().insert(Operation::Stat);
         let res = self.info.http_client().send(req).await?;
         if !res.status().is_success() {
             return Err(parse_error(res));
@@ -123,8 +121,6 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/oauth/access_token", self.endpoint))
-            // Inject operation to the request.
-            .extension(Operation::Read)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, None).await
@@ -271,7 +267,7 @@ impl AliyunDriveCore {
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/create", self.endpoint))
             // Inject operation to the request.
-            .extension(Operation::CreateDir)
+            .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -454,7 +450,7 @@ impl AliyunDriveCore {
             self.endpoint
         ))
         // Inject operation to the request.
-        .extension(Operation::Read)
+        .extension(Operation::Write)
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await

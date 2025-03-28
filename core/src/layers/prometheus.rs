@@ -244,13 +244,12 @@ impl PrometheusLayerBuilder {
     /// ```
     pub fn register(self, registry: &Registry) -> Result<PrometheusLayer> {
         let labels = OperationLabels::names();
-
         let operation_bytes = {
             let metric = observe::MetricValue::OperationBytes(0);
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_buckets.clone(),
                 registry
             )
@@ -261,7 +260,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_rate_buckets.clone(),
                 registry
             )
@@ -272,7 +271,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.entries_buckets,
                 registry
             )
@@ -283,7 +282,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.entries_rate_buckets,
                 registry
             )
@@ -294,29 +293,41 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.duration_seconds_buckets.clone(),
                 registry
             )
             .map_err(parse_prometheus_error)?
         };
-        let operation_errors_total = {
-            let metric = observe::MetricValue::OperationErrorsTotal;
-            register_int_counter_vec_with_registry!(metric.name(), metric.help(), &labels, registry)
-                .map_err(parse_prometheus_error)?
-        };
         let operation_executing = {
             let metric = observe::MetricValue::OperationExecuting(0);
-            register_int_gauge_vec_with_registry!(metric.name(), metric.help(), &labels, registry)
-                .map_err(parse_prometheus_error)?
+            register_int_gauge_vec_with_registry!(
+                metric.name(),
+                metric.help(),
+                labels.as_ref(),
+                registry
+            )
+            .map_err(parse_prometheus_error)?
         };
         let operation_ttfb_seconds = {
             let metric = observe::MetricValue::OperationTtfbSeconds(Duration::default());
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.ttfb_buckets.clone(),
+                registry
+            )
+            .map_err(parse_prometheus_error)?
+        };
+
+        let labels_with_error = OperationLabels::names().with_error();
+        let operation_errors_total = {
+            let metric = observe::MetricValue::OperationErrorsTotal;
+            register_int_counter_vec_with_registry!(
+                metric.name(),
+                metric.help(),
+                labels_with_error.as_ref(),
                 registry
             )
             .map_err(parse_prometheus_error)?
@@ -324,15 +335,20 @@ impl PrometheusLayerBuilder {
 
         let http_executing = {
             let metric = observe::MetricValue::HttpExecuting(0);
-            register_int_gauge_vec_with_registry!(metric.name(), metric.help(), &labels, registry)
-                .map_err(parse_prometheus_error)?
+            register_int_gauge_vec_with_registry!(
+                metric.name(),
+                metric.help(),
+                labels.as_ref(),
+                registry
+            )
+            .map_err(parse_prometheus_error)?
         };
         let http_request_bytes = {
             let metric = observe::MetricValue::HttpRequestBytes(0);
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_buckets.clone(),
                 registry
             )
@@ -343,7 +359,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_rate_buckets.clone(),
                 registry
             )
@@ -354,7 +370,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.duration_seconds_buckets.clone(),
                 registry
             )
@@ -365,7 +381,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_buckets,
                 registry
             )
@@ -376,7 +392,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.bytes_rate_buckets,
                 registry
             )
@@ -387,7 +403,7 @@ impl PrometheusLayerBuilder {
             register_histogram_vec_with_registry!(
                 metric.name(),
                 metric.help(),
-                &labels,
+                labels.as_ref(),
                 self.duration_seconds_buckets,
                 registry
             )
@@ -395,13 +411,25 @@ impl PrometheusLayerBuilder {
         };
         let http_connection_errors_total = {
             let metric = observe::MetricValue::HttpConnectionErrorsTotal;
-            register_int_counter_vec_with_registry!(metric.name(), metric.help(), &labels, registry)
-                .map_err(parse_prometheus_error)?
+            register_int_counter_vec_with_registry!(
+                metric.name(),
+                metric.help(),
+                labels.as_ref(),
+                registry
+            )
+            .map_err(parse_prometheus_error)?
         };
+
+        let labels_with_status_code = OperationLabels::names().with_status_code();
         let http_status_errors_total = {
             let metric = observe::MetricValue::HttpStatusErrorsTotal;
-            register_int_counter_vec_with_registry!(metric.name(), metric.help(), &labels, registry)
-                .map_err(parse_prometheus_error)?
+            register_int_counter_vec_with_registry!(
+                metric.name(),
+                metric.help(),
+                labels_with_status_code.as_ref(),
+                registry
+            )
+            .map_err(parse_prometheus_error)?
         };
 
         Ok(PrometheusLayer {
@@ -566,19 +594,37 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
     }
 }
 
+struct OperationLabelNames(Vec<&'static str>);
+
+impl AsRef<[&'static str]> for OperationLabelNames {
+    fn as_ref(&self) -> &[&'static str] {
+        &self.0
+    }
+}
+
+impl OperationLabelNames {
+    fn with_error(mut self) -> Self {
+        self.0.push(observe::LABEL_ERROR);
+        self
+    }
+
+    fn with_status_code(mut self) -> Self {
+        self.0.push(observe::LABEL_STATUS_CODE);
+        self
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct OperationLabels(observe::MetricLabels);
 
 impl OperationLabels {
-    fn names() -> Vec<&'static str> {
-        vec![
+    fn names() -> OperationLabelNames {
+        OperationLabelNames(vec![
             observe::LABEL_SCHEME,
             observe::LABEL_NAMESPACE,
             observe::LABEL_ROOT,
             observe::LABEL_OPERATION,
-            observe::LABEL_ERROR,
-            observe::LABEL_STATUS_CODE,
-        ]
+        ])
     }
 
     fn values(&self) -> Vec<&str> {

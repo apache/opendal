@@ -199,10 +199,10 @@ impl MetricLabels {
 
 /// MetricValue is the value the opendal sends to the metrics impls.
 ///
-/// Metrcis impls can be `prometheus_client`, `metrics` etc.
+/// Metrics impls can be `prometheus_client`, `metrics` etc.
 ///
 /// Every metrics impls SHOULD implement observe over the MetricValue to make
-/// sure they provides the consistent metrics for users.
+/// sure they provide the consistent metrics for users.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum MetricValue {
@@ -460,11 +460,11 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                 .unwrap_or("unknown"),
         );
 
-        self.interceptor
-            .observe(labels.clone(), MetricValue::HttpExecuting(1));
-
         let start = Instant::now();
         let req_size = req.body().len();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::HttpExecuting(1));
 
         let res = self.inner.fetch(req).await;
         let req_duration = start.elapsed();
@@ -474,15 +474,14 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
                 self.interceptor
-                    .observe(labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+                    .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
             Ok(resp) if resp.status().is_client_error() && resp.status().is_server_error() => {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
-
                 self.interceptor.observe(
-                    labels.clone().with_status_code(resp.status()),
+                    labels.with_status_code(resp.status()),
                     MetricValue::HttpStatusErrorsTotal,
                 );
                 Ok(resp)
@@ -624,7 +623,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -706,7 +705,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -736,7 +735,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -766,7 +765,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -778,22 +777,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, deleter) = self
-            .inner
-            .delete()
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let (rp, deleter) = self.inner.delete().await.inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -809,22 +798,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, lister) = self
-            .inner
-            .list(path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let (rp, lister) = self.inner.list(path, args).await.inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -858,7 +837,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -886,6 +865,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 );
             });
 
+        self.interceptor
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -965,7 +946,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -973,6 +954,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
 
         let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+
         let res = self
             .inner()
             .blocking_rename(from, to, args)
@@ -990,7 +975,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -1019,7 +1004,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             });
 
         self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(-1));
+            .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
 
@@ -1031,21 +1016,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, deleter) = self
-            .inner
-            .blocking_delete()
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let (rp, deleter) = self.inner.blocking_delete().inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,
@@ -1061,21 +1037,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
 
-        let (rp, lister) = self
-            .inner
-            .blocking_list(path, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
+        let (rp, lister) = self.inner.blocking_list(path, args).inspect_err(|err| {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        })?;
 
         Ok((
             rp,

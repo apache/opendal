@@ -60,7 +60,17 @@ use crate::raw::*;
 /// Take [`metrics_exporter_prometheus`](https://docs.rs/metrics-exporter-prometheus/latest/metrics_exporter_prometheus/) as an example:
 ///
 /// ```ignore
-/// let builder = PrometheusBuilder::new();
+/// let builder = PrometheusBuilder::new()
+///     .set_buckets_for_metric(
+///         Matcher::Suffix("bytes".into()),
+///         &observe::DEFAULT_BYTES_BUCKETS,
+///     )
+///     .set_buckets_for_metric(
+///         Matcher::Suffix("duration_seconds".into()),
+///         &observe::DEFAULT_DURATION_SECONDS_BUCKETS,
+///     )
+///     // ..
+///     .expect("failed to create builder");
 /// builder.install().expect("failed to install recorder/exporter");
 /// let handle = builder.install_recorder().expect("failed to install recorder");
 /// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
@@ -105,22 +115,14 @@ impl observe::MetricsIntercept for MetricsInterceptor {
                 counter!(value.name(), labels).increment(1)
             }
             observe::MetricValue::OperationExecuting(v) => {
-                if v.is_positive() {
-                    gauge!(value.name(), labels).increment(v as f64)
-                } else {
-                    gauge!(value.name(), labels).decrement(-v as f64)
-                }
+                gauge!(value.name(), labels).increment(v as f64)
             }
             observe::MetricValue::OperationTtfbSeconds(v) => {
                 histogram!(value.name(), labels).record(v)
             }
 
             observe::MetricValue::HttpExecuting(v) => {
-                if v.is_positive() {
-                    gauge!(value.name(), labels).increment(v as f64)
-                } else {
-                    gauge!(value.name(), labels).decrement(-v as f64)
-                }
+                gauge!(value.name(), labels).increment(v as f64)
             }
             observe::MetricValue::HttpRequestBytes(v) => {
                 histogram!(value.name(), labels).record(v as f64)

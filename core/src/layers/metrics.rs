@@ -108,7 +108,7 @@ impl observe::MetricsIntercept for MetricsInterceptor {
                 if v.is_positive() {
                     gauge!(value.name(), labels).increment(v as f64)
                 } else {
-                    gauge!(value.name(), labels).decrement(v as f64)
+                    gauge!(value.name(), labels).decrement(-v as f64)
                 }
             }
             observe::MetricValue::OperationTtfbSeconds(v) => {
@@ -119,7 +119,7 @@ impl observe::MetricsIntercept for MetricsInterceptor {
                 if v.is_positive() {
                     gauge!(value.name(), labels).increment(v as f64)
                 } else {
-                    gauge!(value.name(), labels).decrement(v as f64)
+                    gauge!(value.name(), labels).decrement(-v as f64)
                 }
             }
             observe::MetricValue::HttpRequestBytes(v) => {

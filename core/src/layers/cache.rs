@@ -13,29 +13,23 @@ pub struct CacheLayer {
 // TODO: rename to foyer layer and receive a HybridCacheBuilder as the parameter?
 // TODO: expose foyer metrics here?
 impl CacheLayer {
-    // TODO: add a comment that i had to make this function async due to the HybridCacheBuilder::build method,
-    // the alternative is to do it in the Layer::layer method, but that method is sync and couldn't make it to work.
-    // Maybe we can use `futures::executor::block_on` in this `new` method so it is no async and users in
-    // sync contexts doesn't have to create a new runtime to call this.
-    pub fn new() -> Result<Self> {
-        // TODO: Use `Handle` or create a new tokio `Runtime`? If we use `Handle` as
-        // `BlockingLayer`, we force users to create a new runtime (in blocking contexts)
-        // before creating this layer
-        // let handle = Handle::try_current()
-        //     .map_err(|_| Error::new(ErrorKind::Unexpected, "failed to get current handle"))?;
-        let cache_builder = HybridCacheBuilder::new()
-            .with_name("foyer")
-            .memory(1024)
-            .storage(Engine::Large)
-            .with_device_options(DirectFsDeviceOptions::new("/tmp/foyer"));
+    pub async fn new(
+        disk_cache_dir: &str,
+        disk_capacity_mb: usize,
+        memory_capacity_mb: usize,
+    ) -> Result<Self> {
+        const MB: usize = 1 << 20;
 
-        // TODO: should we mark this method as `async fn` and not use `futures::executor::block_on`?
-        // Using tokio::runtime::Handle::current().block_on(..) is not an option since it panics and couldn't make it work
-        let cache = futures::executor::block_on(async {
-            cache_builder.build().await
-            // TODO: improve panic error
-        })
-        .expect("Failed to build cache");
+        let cache = HybridCacheBuilder::new()
+            .with_name("opendal")
+            .memory(memory_capacity_mb * MB)
+            .storage(Engine::Large)
+            .with_device_options(
+                DirectFsDeviceOptions::new(disk_cache_dir).with_capacity(disk_capacity_mb * MB),
+            )
+            .build()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
 
         Ok(Self {
             cache: Arc::new(cache),
@@ -59,12 +53,11 @@ struct CacheKey {
     path: String,
     args: OpRead,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CacheValue {
     rp: RpRead,
     // TODO: store Buffer or Bytes?
-    // Should we combile all non-contiguos bytes of Buffer into a Bytes
-    // with `Buffer::to_bytes()`?
     bytes: Bytes,
 }
 
@@ -103,11 +96,10 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
 
     type Deleter = A::Deleter;
 
-    type BlockingReader = oio::BlockingReader;
+    type BlockingReader = A::BlockingReader;
 
     type BlockingWriter = A::BlockingWriter;
 
-    // TODO lister cache?
     type BlockingLister = A::BlockingLister;
 
     type BlockingDeleter = A::BlockingDeleter;
@@ -124,7 +116,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             .get(&cache_key)
             .await
             // TODO: handle this error
-            .expect("cache failed")
+            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
         {
             // TODO: log that we have a cache hit?
             return Ok((entry.rp, Box::new(entry.bytes.clone())));
@@ -154,30 +146,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let cache_key = CacheKey {
-            path: path.to_string(),
-            args: args.clone(),
-        };
-
-        // TODO: Using Handle::current().block_on panics with
-        // ERROR: Cannot start a runtime from within a runtime. This happens because a function (like `block_on`)
-        // attempted to block the current thread while the thread is being used to drive asynchronous tasks.
-        // The workaround I found is to use `futures::executor::block_on`
-        if let Some(entry) = futures::executor::block_on(async {
-            self.cache.get(&cache_key).await.expect("cache failed")
-        }) {
-            return Ok((entry.rp, Box::new(entry.bytes.clone())));
-        }
-
-        self.inner.blocking_read(path, args).map(|(rp, reader)| {
-            let reader: oio::BlockingReader = Box::new(CacheWrapper::new(
-                reader,
-                rp,
-                Arc::clone(&self.cache),
-                cache_key,
-            ));
-            (rp, reader)
-        })
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -230,7 +199,6 @@ impl<R: oio::Read> oio::Read for CacheWrapper<R> {
         }
         // TODO: comment that we only insert in cache when we read all the bytes and
         // `self.inner.read()` returns empty bytes
-
         let flattened_buffer: Buffer = self.buffers.drain(..).flatten().collect();
 
         let cache_value = CacheValue {
@@ -238,27 +206,6 @@ impl<R: oio::Read> oio::Read for CacheWrapper<R> {
             bytes: flattened_buffer.to_bytes(),
         };
         // TODO: clone or store Option<CacheKey> and use here `self.cache_key.take()`?
-        self.cache.insert(self.cache_key.clone(), cache_value);
-
-        Ok(buffer)
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for CacheWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        let buffer = self.inner.read()?;
-
-        if !buffer.is_empty() {
-            self.buffers.push(buffer.clone());
-            return Ok(buffer);
-        }
-
-        let flattened_buffer: Buffer = self.buffers.drain(..).flatten().collect();
-
-        let cache_value = CacheValue {
-            rp: self.rp,
-            bytes: flattened_buffer.to_bytes(),
-        };
         self.cache.insert(self.cache_key.clone(), cache_value);
 
         Ok(buffer)

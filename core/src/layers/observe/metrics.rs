@@ -33,23 +33,23 @@ use http::StatusCode;
 use crate::raw::*;
 use crate::*;
 
-const KiB: f64 = 1024.0;
-const MiB: f64 = 1024.0 * KiB;
-const GiB: f64 = 1024.0 * MiB;
+const KIB: f64 = 1024.0;
+const MIB: f64 = 1024.0 * KIB;
+const GIB: f64 = 1024.0 * MIB;
 
 /// Buckets for data size metrics like OperationBytes
 /// Covers typical file and object sizes from small files to large objects
 pub const DEFAULT_BYTES_BUCKETS: &[f64] = &[
-    4.0 * KiB,   // Small files
-    64.0 * KiB,  // File system block size
-    256.0 * KiB, //
-    1.0 * MiB,   // Common size threshold for many systems
-    4.0 * MiB,   // Best size for most http based systems
-    16.0 * MiB,  //
-    64.0 * MiB,  // Widely used threshold for multipart uploads
-    256.0 * MiB, //
-    1.0 * GiB,   // Considered large for many systems
-    5.0 * GiB,   // Maximum size in single upload for many cloud storage services
+    4.0 * KIB,   // Small files
+    64.0 * KIB,  // File system block size
+    256.0 * KIB, //
+    1.0 * MIB,   // Common size threshold for many systems
+    4.0 * MIB,   // Best size for most http based systems
+    16.0 * MIB,  //
+    64.0 * MIB,  // Widely used threshold for multipart uploads
+    256.0 * MIB, //
+    1.0 * GIB,   // Considered large for many systems
+    5.0 * GIB,   // Maximum size in single upload for many cloud storage services
 ];
 
 /// Buckets for data transfer rate metrics like OperationBytesRate
@@ -59,20 +59,20 @@ pub const DEFAULT_BYTES_BUCKETS: &[f64] = &[
 /// Note: this is for single operation rate, not for total bandwidth.
 pub const DEFAULT_BYTES_RATE_BUCKETS: &[f64] = &[
     // Low-speed network range (mobile/weak connections)
-    8.0 * KiB,   // ~64Kbps - 2G networks
-    32.0 * KiB,  // ~256Kbps - 3G networks
-    128.0 * KiB, // ~1Mbps - Basic broadband
+    8.0 * KIB,   // ~64Kbps - 2G networks
+    32.0 * KIB,  // ~256Kbps - 3G networks
+    128.0 * KIB, // ~1Mbps - Basic broadband
     // Standard broadband range
-    1.0 * MiB,  // ~8Mbps - Entry-level broadband
-    8.0 * MiB,  // ~64Mbps - Fast broadband
-    32.0 * MiB, // ~256Mbps - Gigabit broadband
+    1.0 * MIB,  // ~8Mbps - Entry-level broadband
+    8.0 * MIB,  // ~64Mbps - Fast broadband
+    32.0 * MIB, // ~256Mbps - Gigabit broadband
     // High-performance network range
-    128.0 * MiB, // ~1Gbps - Standard datacenter
-    512.0 * MiB, // ~4Gbps - Fast datacenter
-    2.0 * GiB,   // ~16Gbps - High-end interconnects
+    128.0 * MIB, // ~1Gbps - Standard datacenter
+    512.0 * MIB, // ~4Gbps - Fast datacenter
+    2.0 * GIB,   // ~16Gbps - High-end interconnects
     // Ultra-high-speed range
-    8.0 * GiB,  // ~64Gbps - InfiniBand/RDMA
-    32.0 * GiB, // ~256Gbps - Top-tier datacenters
+    8.0 * GIB,  // ~64Gbps - InfiniBand/RDMA
+    32.0 * GIB, // ~256Gbps - Top-tier datacenters
 ];
 
 /// Buckets for batch operation entry counts (OperationEntriesCount)

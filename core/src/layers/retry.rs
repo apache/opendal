@@ -116,12 +116,12 @@ use crate::*;
 /// Ok(())
 /// # }
 /// ```
-pub struct RetryLayer<I = DefaultRetryInterceptor> {
+pub struct RetryLayer<I: RetryInterceptor = DefaultRetryInterceptor> {
     builder: ExponentialBuilder,
     notify: Arc<I>,
 }
 
-impl<I> Clone for RetryLayer<I> {
+impl<I: RetryInterceptor> Clone for RetryLayer<I> {
     fn clone(&self) -> Self {
         Self {
             builder: self.builder,
@@ -154,37 +154,30 @@ impl RetryLayer {
     ///     .expect("must init")
     ///     .layer(RetryLayer::new());
     /// ```
-    pub fn new() -> Self {
+    pub fn new() -> RetryLayer {
         Self::default()
     }
+}
 
+impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
     /// use std::time::Duration;
     ///
     /// use anyhow::Result;
-    /// use opendal::layers::RetryInterceptor;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
     /// use opendal::Error;
     /// use opendal::Operator;
     /// use opendal::Scheme;
     ///
-    /// struct MyRetryInterceptor;
-    ///
-    /// impl RetryInterceptor for MyRetryInterceptor {
-    ///     fn intercept(&self, err: &Error, dur: Duration) {
-    ///         // do something
-    ///     }
-    /// }
-    ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
-    ///     .layer(RetryLayer::new().with_notify(MyRetryInterceptor))
+    ///     .layer(RetryLayer::new().with_notify(|_err, _dur| {}))
     ///     .finish();
     /// ```
-    pub fn with_notify<I: RetryInterceptor>(self, notify: I) -> RetryLayer<I> {
+    pub fn with_notify<NI: RetryInterceptor>(self, notify: NI) -> RetryLayer<NI> {
         RetryLayer {
             builder: self.builder,
             notify: Arc::new(notify),
@@ -218,7 +211,7 @@ impl RetryLayer {
 
     /// Set max_delay of current backoff.
     ///
-    /// Delay will not increasing if current delay is larger than max_delay.
+    /// Delay will not increase if current delay is larger than max_delay.
     pub fn with_max_delay(mut self, max_delay: Duration) -> Self {
         self.builder = self.builder.with_max_delay(max_delay);
         self
@@ -261,8 +254,17 @@ pub trait RetryInterceptor: Send + Sync + 'static {
     /// # Notes
     ///
     /// The intercept must be quick and non-blocking. No heavy IO is
-    /// allowed. Otherwise the retry will be blocked.
+    /// allowed. Otherwise, the retry will be blocked.
     fn intercept(&self, err: &Error, dur: Duration);
+}
+
+impl<F> RetryInterceptor for F
+where
+    F: Fn(&Error, Duration) + Send + Sync + 'static,
+{
+    fn intercept(&self, err: &Error, dur: Duration) {
+        self(err, dur);
+    }
 }
 
 /// The DefaultRetryInterceptor will log the retry error in warning level.

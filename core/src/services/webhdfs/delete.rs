@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::WebhdfsBackend;
+use super::core::WebhdfsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -23,11 +23,11 @@ use http::StatusCode;
 use std::sync::Arc;
 
 pub struct WebhdfsDeleter {
-    core: Arc<WebhdfsBackend>,
+    core: Arc<WebhdfsCore>,
 }
 
 impl WebhdfsDeleter {
-    pub fn new(core: Arc<WebhdfsBackend>) -> Self {
+    pub fn new(core: Arc<WebhdfsCore>) -> Self {
         Self { core }
     }
 }

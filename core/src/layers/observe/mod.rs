@@ -89,7 +89,6 @@ pub use metrics::DEFAULT_TTFB_BUCKETS;
 pub use metrics::LABEL_ERROR;
 pub use metrics::LABEL_NAMESPACE;
 pub use metrics::LABEL_OPERATION;
-pub use metrics::LABEL_PATH;
 pub use metrics::LABEL_ROOT;
 pub use metrics::LABEL_SCHEME;
 pub use metrics::LABEL_STATUS_CODE;
@@ -98,43 +97,3 @@ pub use metrics::METRIC_HTTP_REQUEST_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_BYTES;
 pub use metrics::METRIC_OPERATION_DURATION_SECONDS;
 pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;
-
-/// Return the path label value according to the given `path` and `level`.
-///
-/// - level = 0: return `None`, which means we ignore the path label.
-/// - level > 0: the path label will be the path split by "/" and get the last n level,
-///   if n=1 and input path is "abc/def/ghi", and then we'll use "abc/" as the path label.
-pub fn path_label_value(path: &str, level: usize) -> Option<&str> {
-    if level > 0 {
-        if path.is_empty() {
-            return Some("");
-        }
-
-        let label_value = path
-            .char_indices()
-            .filter(|&(_, c)| c == '/')
-            .nth(level - 1)
-            .map_or(path, |(i, _)| &path[..i]);
-        Some(label_value)
-    } else {
-        None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_path_label_value() {
-        let path = "abc/def/ghi";
-        assert_eq!(path_label_value(path, 0), None);
-        assert_eq!(path_label_value(path, 1), Some("abc"));
-        assert_eq!(path_label_value(path, 2), Some("abc/def"));
-        assert_eq!(path_label_value(path, 3), Some("abc/def/ghi"));
-        assert_eq!(path_label_value(path, usize::MAX), Some("abc/def/ghi"));
-
-        assert_eq!(path_label_value("", 0), None);
-        assert_eq!(path_label_value("", 1), Some(""));
-    }
-}

@@ -198,6 +198,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = req
+            // Inject operation to the request.
+            .extension(Operation::Read)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -262,6 +264,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/create", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -289,6 +293,8 @@ impl AliyunDriveCore {
             "{}/adrive/v1.0/openFile/getDownloadUrl",
             self.endpoint
         ))
+        // Inject operation to the request.
+        .extension(Operation::Read)
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
         let res = self.send(req, token.as_deref()).await?;
@@ -307,6 +313,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/move", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -323,6 +331,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/update", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -344,6 +354,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/copy", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Copy)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -357,6 +369,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/delete", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Delete)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await?;
@@ -378,6 +392,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/list", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::List)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -385,6 +401,8 @@ impl AliyunDriveCore {
 
     pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Buffer> {
         let req = Request::put(upload_url)
+            // Inject operation to the request.
+            .extension(Operation::Write)
             .body(body)
             .map_err(new_request_build_error)?;
         self.send(req, None).await
@@ -399,6 +417,8 @@ impl AliyunDriveCore {
         })
         .map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/adrive/v1.0/openFile/complete", self.endpoint))
+            // Inject operation to the request.
+            .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await
@@ -427,6 +447,8 @@ impl AliyunDriveCore {
             "{}/adrive/v1.0/openFile/getUploadUrl",
             self.endpoint
         ))
+        // Inject operation to the request.
+        .extension(Operation::Write)
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
         self.send(req, token.as_deref()).await

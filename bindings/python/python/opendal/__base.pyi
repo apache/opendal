@@ -497,6 +497,7 @@ class _Base:
         refresh_token: str = ...,
         client_id: str = ...,
         client_secret: str = ...,
+        enable_versioning: _bool = ...,
     ) -> None: ...
 
     @overload

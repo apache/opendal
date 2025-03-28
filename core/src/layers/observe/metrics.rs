@@ -33,19 +33,23 @@ use http::StatusCode;
 use crate::raw::*;
 use crate::*;
 
+const KiB: f64 = 1024.0;
+const MiB: f64 = 1024.0 * KiB;
+const GiB: f64 = 1024.0 * MiB;
+
 /// Buckets for data size metrics like OperationBytes
 /// Covers typical file and object sizes from small files to large objects
 pub const DEFAULT_BYTES_BUCKETS: &[f64] = &[
-    1024.0,                   // 1 KiB - Small configuration files, metadata
-    16.0 * 1024.0,            // 16 KiB
-    64.0 * 1024.0,            // 64 KiB - File system block size
-    256.0 * 1024.0,           // 256 KiB
-    1024.0 * 1024.0,          // 1 MiB - Common size threshold for many systems
-    4.0 * 1024.0 * 1024.0,    // 4 MiB - Best size for most http based systems
-    16.0 * 1024.0 * 1024.0,   // 16 MiB
-    64.0 * 1024.0 * 1024.0,   // 64 MiB - Widely used threshold for multipart uploads
-    256.0 * 1024.0 * 1024.0,  // 256 MiB
-    1024.0 * 1024.0 * 1024.0, // 1 GiB - Considered large for many systems
+    4.0 * KiB,   // Small files
+    64.0 * KiB,  // File system block size
+    256.0 * KiB, //
+    1.0 * MiB,   // Common size threshold for many systems
+    4.0 * MiB,   // Best size for most http based systems
+    16.0 * MiB,  //
+    64.0 * MiB,  // Widely used threshold for multipart uploads
+    256.0 * MiB, //
+    1.0 * GiB,   // Considered large for many systems
+    5.0 * GiB,   // Maximum size in single upload for many cloud storage services
 ];
 
 /// Buckets for data transfer rate metrics like OperationBytesRate
@@ -54,41 +58,48 @@ pub const DEFAULT_BYTES_BUCKETS: &[f64] = &[
 ///
 /// Note: this is for single operation rate, not for total bandwidth.
 pub const DEFAULT_BYTES_RATE_BUCKETS: &[f64] = &[
-    64.0 * 1024.0,            // 64 KiB/s - Slow connections, mobile networks
-    256.0 * 1024.0,           // 256 KiB/s - Basic broadband, throttled connections
-    1024.0 * 1024.0,          // 1 MiB/s - Standard broadband, basic CDN performance
-    4.0 * 1024.0 * 1024.0,    // 4 MiB/s - Fast consumer connections
-    16.0 * 1024.0 * 1024.0,   // 16 MiB/s - High-speed connections, good cloud performance
-    64.0 * 1024.0 * 1024.0,   // 64 MiB/s - Very fast network, optimized cloud settings
-    256.0 * 1024.0 * 1024.0,  // 256 MiB/s - Premium network, same-region cloud transfers
-    1024.0 * 1024.0 * 1024.0, // 1 GiB/s - Data center speeds, optimal conditions
+    // Low-speed network range (mobile/weak connections)
+    8.0 * KiB,   // ~64Kbps - 2G networks
+    32.0 * KiB,  // ~256Kbps - 3G networks
+    128.0 * KiB, // ~1Mbps - Basic broadband
+    // Standard broadband range
+    1.0 * MiB,  // ~8Mbps - Entry-level broadband
+    8.0 * MiB,  // ~64Mbps - Fast broadband
+    32.0 * MiB, // ~256Mbps - Gigabit broadband
+    // High-performance network range
+    128.0 * MiB, // ~1Gbps - Standard datacenter
+    512.0 * MiB, // ~4Gbps - Fast datacenter
+    2.0 * GiB,   // ~16Gbps - High-end interconnects
+    // Ultra-high-speed range
+    8.0 * GiB,  // ~64Gbps - InfiniBand/RDMA
+    32.0 * GiB, // ~256Gbps - Top-tier datacenters
 ];
 
 /// Buckets for batch operation entry counts (OperationEntriesCount)
 /// Covers scenarios from single entry operations to large batch operations
 pub const DEFAULT_ENTRIES_BUCKETS: &[f64] = &[
-    1.0,     // 1 entry - Single item operations
-    5.0,     // 5 entries - Very small batches
-    10.0,    // 10 entries - Small batches
-    50.0,    // 50 entries - Medium batches
-    100.0,   // 100 entries - Standard batch size
-    500.0,   // 500 entries - Large batches
-    1000.0,  // 1000 entries - Very large batches, API limits for some services
-    5000.0,  // 5000 entries - Huge batches, multi-page operations
-    10000.0, // 10000 entries - Extremely large operations, multi-request batches
+    1.0,     // Single item operations
+    5.0,     // Very small batches
+    10.0,    // Small batches
+    50.0,    // Medium batches
+    100.0,   // Standard batch size
+    500.0,   // Large batches
+    1000.0,  // Very large batches, API limits for some services
+    5000.0,  // Huge batches, multi-page operations
+    10000.0, // Extremely large operations, multi-request batches
 ];
 
 /// Buckets for batch operation processing rates (OperationEntriesRate)
 /// Measures how many entries can be processed per second
 pub const DEFAULT_ENTRIES_RATE_BUCKETS: &[f64] = &[
-    1.0,     // 1 entry/s - Slowest processing, heavy operations per entry
-    10.0,    // 10 entries/s - Slow processing, complex operations
-    50.0,    // 50 entries/s - Moderate processing speed
-    100.0,   // 100 entries/s - Good processing speed, efficient operations
-    500.0,   // 500 entries/s - Fast processing, optimized operations
-    1000.0,  // 1000 entries/s - Very fast processing, simple operations
-    5000.0,  // 5000 entries/s - Extremely fast processing, bulk operations
-    10000.0, // 10000 entries/s - Maximum speed, listing operations, local systems
+    1.0,     // Slowest processing, heavy operations per entry
+    10.0,    // Slow processing, complex operations
+    50.0,    // Moderate processing speed
+    100.0,   // Good processing speed, efficient operations
+    500.0,   // Fast processing, optimized operations
+    1000.0,  // Very fast processing, simple operations
+    5000.0,  // Extremely fast processing, bulk operations
+    10000.0, // Maximum speed, listing operations, local systems
 ];
 
 /// Buckets for operation duration metrics like OperationDurationSeconds

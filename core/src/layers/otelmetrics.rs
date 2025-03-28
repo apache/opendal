@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::iter;
 use std::time::Duration;
 
 use opentelemetry::metrics::Counter;
@@ -56,7 +55,7 @@ impl OtelMetricsLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::layers::{OtelMetricsLayer, exponential_boundaries};
+    /// # use opendal::layers::OtelMetricsLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
     /// # use opendal::Result;
@@ -65,11 +64,7 @@ impl OtelMetricsLayer {
     /// # async fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(
-    ///         OtelMetricsLayer::builder()
-    ///             .bytes_boundaries(exponential_boundaries(1024f64, 2.0f64, 10))
-    ///             .register(&meter)
-    ///     )
+    ///     .layer(OtelMetricsLayer::builder().register(&meter))
     ///     .finish();
     ///
     /// Ok(())
@@ -457,41 +452,6 @@ impl OtelMetricsInterceptor {
 
         attributes
     }
-}
-
-/// Creates exponentially spaced histogram boundaries.
-///
-/// # Arguments
-///
-/// * `start` - The upper bound of the first boundary (must be positive)
-/// * `factor` - The factor to multiply each boundary by (must be greater than 1)
-/// * `count` - The number of boundaries to generate (must be at least 1)
-///
-/// # Panics
-///
-/// Panics if:
-/// * `start` is not positive
-/// * `factor` is not greater than 1
-/// * `count` is less than 1
-pub fn exponential_boundaries(start: f64, factor: f64, count: usize) -> Vec<f64> {
-    assert!(
-        start > 0.0,
-        "exponential boundaries must have a positive start value"
-    );
-    assert!(
-        factor > 1.0,
-        "exponential boundaries must have a factor greater than 1"
-    );
-    assert!(
-        count >= 1,
-        "exponential boundaries must have at least 1 bucket"
-    );
-
-    iter::repeat(())
-        .enumerate()
-        .map(move |(next, _)| start * factor.powi(next as i32))
-        .take(count)
-        .collect()
 }
 
 fn register_u64_histogram_meter(

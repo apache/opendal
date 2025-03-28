@@ -91,12 +91,6 @@ pub struct PrometheusLayer {
 impl PrometheusLayer {
     /// Create a [`PrometheusLayerBuilder`] to set the configuration of metrics.
     ///
-    /// # Default Configuration
-    ///
-    /// - `operation_duration_seconds_buckets`: `exponential_buckets(0.01, 2.0, 16)`
-    /// - `operation_bytes_buckets`: `exponential_buckets(1.0, 2.0, 16)`
-    /// - `path_label`: `0`
-    ///
     /// # Example
     ///
     /// ```no_run

@@ -163,18 +163,15 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
-    /// use opendal::Error;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
+    ///
+    /// fn notify(_err: &opendal::Error, _dur: std::time::Duration) {}
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
-    ///     .layer(RetryLayer::new().with_notify(|_err, _dur| {}))
+    ///     .layer(RetryLayer::new().with_notify(notify))
     ///     .finish();
     /// ```
     pub fn with_notify<NI: RetryInterceptor>(self, notify: NI) -> RetryLayer<NI> {

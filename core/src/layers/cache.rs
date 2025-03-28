@@ -10,8 +10,6 @@ pub struct CacheLayer {
     cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
-// TODO: rename to foyer layer and receive a HybridCacheBuilder as the parameter?
-// TODO: expose foyer metrics here?
 impl CacheLayer {
     pub async fn new(
         disk_cache_dir: &str,
@@ -189,23 +187,18 @@ impl<R> CacheWrapper<R> {
 
 impl<R: oio::Read> oio::Read for CacheWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
-        // TODO: ask if we should accumulate the bytes like this
-        // or use self.inner.read_all() instead
         let buffer = self.inner.read().await?;
 
         if !buffer.is_empty() {
             self.buffers.push(buffer.clone());
             return Ok(buffer);
         }
-        // TODO: comment that we only insert in cache when we read all the bytes and
-        // `self.inner.read()` returns empty bytes
         let flattened_buffer: Buffer = self.buffers.drain(..).flatten().collect();
 
         let cache_value = CacheValue {
             rp: self.rp,
             bytes: flattened_buffer.to_bytes(),
         };
-        // TODO: clone or store Option<CacheKey> and use here `self.cache_key.take()`?
         self.cache.insert(self.cache_key.clone(), cache_value);
 
         Ok(buffer)

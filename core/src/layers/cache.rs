@@ -55,19 +55,12 @@ struct CacheKey {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CacheValue {
     rp: RpRead,
-    // TODO: store Buffer or Bytes?
     bytes: Bytes,
 }
 
 #[derive(Debug)]
 pub struct CacheAccessor<A: Access> {
     inner: A,
-    // TODO: if cache should be used for other operations (such as stat or list)
-    // maybe we should create different caches for each operation?
-    // So the keys and values does not mix
-    // Although, we could use an enum as the cachekey and as the cache value, but
-    // this way we wouldn't be making invalid states unrepresentable, as given
-    // a Read Cache key, there might be a List cached value associated.
     cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
@@ -78,13 +71,6 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
         &self.inner
     }
 
-    // TODO: add a comment here that we use `oio::Reader` (i.e Box<dyn ReadDyn>) because
-    // if there is a cache hit, we return Box<Buffer>
-    // but if there isn't, we return a Box<CacheWrapper<..>> so when the reader
-    // is read, the value is inserted into the cache.
-    // This allow to lazy reading and inserting in cache not to be done in the
-    // `CacheAccessor::read` method, but when calling `reader.read()` on the reader
-    // output of `CacheAccessor`
     type Reader = oio::Reader;
 
     type Writer = A::Writer;
@@ -113,10 +99,8 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             .cache
             .get(&cache_key)
             .await
-            // TODO: handle this error
             .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
         {
-            // TODO: log that we have a cache hit?
             return Ok((entry.rp, Box::new(entry.bytes.clone())));
         }
 

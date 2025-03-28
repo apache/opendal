@@ -133,8 +133,6 @@ pub static LABEL_ROOT: &str = "root";
 pub static LABEL_OPERATION: &str = "operation";
 /// The metric label for the error.
 pub static LABEL_ERROR: &str = "error";
-/// The metrics label for the path. (will be removed)
-pub static LABEL_PATH: &str = "path";
 /// The metric label for the http code.
 pub static LABEL_STATUS_CODE: &str = "status_code";
 
@@ -394,54 +392,6 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     /// Observe the metric value.
     fn observe(&self, labels: MetricLabels, value: MetricValue) {
         let _ = (labels, value);
-    }
-
-    /// Observe the operation duration in seconds.
-    fn observe_operation_duration_seconds(
-        &self,
-        info: Arc<AccessorInfo>,
-        path: &str,
-        op: Operation,
-        duration: Duration,
-    ) {
-        let _ = (info, path, op, duration);
-    }
-
-    /// Observe the operation bytes happened in IO like read and write.
-    fn observe_operation_bytes(
-        &self,
-        info: Arc<AccessorInfo>,
-        path: &str,
-        op: Operation,
-        bytes: usize,
-    ) {
-        let _ = (info, path, op, bytes);
-    }
-
-    /// Observe the operation errors total.
-    fn observe_operation_errors_total(
-        &self,
-        info: Arc<AccessorInfo>,
-        path: &str,
-        op: Operation,
-        error: ErrorKind,
-    ) {
-        let _ = (info, path, op, error);
-    }
-
-    /// Observe the http request duration in seconds.
-    fn observe_http_request_duration_seconds(
-        &self,
-        info: Arc<AccessorInfo>,
-        op: Operation,
-        duration: Duration,
-    ) {
-        let _ = (info, op, duration);
-    }
-
-    /// Observe the operation bytes happened in http request like read and write.
-    fn observe_http_request_bytes(&self, info: Arc<AccessorInfo>, op: Operation, bytes: usize) {
-        let _ = (info, op, bytes);
     }
 }
 

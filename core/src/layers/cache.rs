@@ -75,7 +75,6 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
 
     type Writer = A::Writer;
 
-    // TODO: lister cache?
     type Lister = A::Lister;
 
     type Deleter = A::Deleter;
@@ -87,8 +86,6 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
     type BlockingLister = A::BlockingLister;
 
     type BlockingDeleter = A::BlockingDeleter;
-
-    // TODO: stat cache?
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let cache_key = CacheKey {

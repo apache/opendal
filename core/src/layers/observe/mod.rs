@@ -75,7 +75,6 @@
 mod metrics;
 
 pub use metrics::MetricLabels;
-pub use metrics::MetricMetadata;
 pub use metrics::MetricValue;
 pub use metrics::MetricsAccessor;
 pub use metrics::MetricsIntercept;
@@ -92,8 +91,3 @@ pub use metrics::LABEL_OPERATION;
 pub use metrics::LABEL_ROOT;
 pub use metrics::LABEL_SCHEME;
 pub use metrics::LABEL_STATUS_CODE;
-pub use metrics::METRIC_HTTP_REQUEST_BYTES;
-pub use metrics::METRIC_HTTP_REQUEST_DURATION_SECONDS;
-pub use metrics::METRIC_OPERATION_BYTES;
-pub use metrics::METRIC_OPERATION_DURATION_SECONDS;
-pub use metrics::METRIC_OPERATION_ERRORS_TOTAL;

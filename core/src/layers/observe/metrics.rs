@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
@@ -342,59 +341,6 @@ impl MetricValue {
         }
     }
 }
-
-/// The metric metadata which contains the metric name and help.
-pub struct MetricMetadata {
-    name: &'static str,
-    help: &'static str,
-}
-
-impl MetricMetadata {
-    /// Returns the metric name.
-    ///
-    /// We default to using the metric name with the prefix `opendal_`.
-    pub fn name(&self) -> String {
-        self.name_with_prefix("opendal_".to_string())
-    }
-
-    /// Returns the metric name with a given prefix.
-    pub fn name_with_prefix(&self, mut prefix: String) -> String {
-        // This operation must succeed. If an error does occur, let's just ignore it.
-        let _ = prefix.write_str(self.name);
-        prefix
-    }
-
-    /// Returns the metric help.
-    pub fn help(&self) -> &'static str {
-        self.help
-    }
-}
-
-/// The metric metadata for the operation duration in seconds.
-pub static METRIC_OPERATION_DURATION_SECONDS: MetricMetadata = MetricMetadata {
-    name: "operation_duration_seconds",
-    help: "Histogram of time spent during opendal operations",
-};
-/// The metric metadata for the operation bytes.
-pub static METRIC_OPERATION_BYTES: MetricMetadata = MetricMetadata {
-    name: "operation_bytes",
-    help: "Histogram of the bytes transferred during opendal operations",
-};
-/// The metric metadata for the operation errors total.
-pub static METRIC_OPERATION_ERRORS_TOTAL: MetricMetadata = MetricMetadata {
-    name: "operation_errors_total",
-    help: "Error counter during opendal operations",
-};
-/// The metric metadata for the http request duration in seconds.
-pub static METRIC_HTTP_REQUEST_DURATION_SECONDS: MetricMetadata = MetricMetadata {
-    name: "http_request_duration_seconds",
-    help: "Histogram of time spent during http requests",
-};
-/// The metric metadata for the http request bytes.
-pub static METRIC_HTTP_REQUEST_BYTES: MetricMetadata = MetricMetadata {
-    name: "http_request_bytes",
-    help: "Histogram of the bytes transferred during http requests",
-};
 
 /// The interceptor for metrics.
 ///

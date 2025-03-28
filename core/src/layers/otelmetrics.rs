@@ -67,7 +67,7 @@ impl OtelMetricsLayer {
     /// let op = Operator::new(services::Memory::default())?
     ///     .layer(
     ///         OtelMetricsLayer::builder()
-    ///             .bytes_boundaries(exponential_boundaries(1024f64, 2.0f64, 10).collect())
+    ///             .bytes_boundaries(exponential_boundaries(1024f64, 2.0f64, 10))
     ///             .register(&meter)
     ///     )
     ///     .finish();
@@ -398,7 +398,7 @@ impl OtelMetricsInterceptor {
 /// * `start` is not positive
 /// * `factor` is not greater than 1
 /// * `count` is less than 1
-pub fn exponential_boundaries(start: f64, factor: f64, count: usize) -> impl Iterator<Item = f64> {
+pub fn exponential_boundaries(start: f64, factor: f64, count: usize) -> Vec<f64> {
     assert!(
         start > 0.0,
         "exponential boundaries must have a positive start value"
@@ -416,6 +416,7 @@ pub fn exponential_boundaries(start: f64, factor: f64, count: usize) -> impl Ite
         .enumerate()
         .map(move |(next, _)| start * factor.powi(next as i32))
         .take(count)
+        .collect()
 }
 
 fn register_u64_histogram_meter(

@@ -176,72 +176,147 @@ impl OtelMetricsLayerBuilder {
     pub fn register(self, meter: &Meter) -> OtelMetricsLayer {
         let operation_bytes = {
             let metric = observe::MetricValue::OperationBytes(0);
-            register_u64_histogram_meter(meter, metric, self.bytes_boundaries.clone())
+            register_u64_histogram_meter(
+                meter,
+                "opendal.operation.bytes",
+                metric,
+                self.bytes_boundaries.clone(),
+            )
         };
         let operation_bytes_rate = {
             let metric = observe::MetricValue::OperationBytesRate(0.0);
-            register_f64_histogram_meter(meter, metric, self.bytes_rate_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.operation.bytes_rate",
+                metric,
+                self.bytes_rate_boundaries.clone(),
+            )
         };
         let operation_entries = {
             let metric = observe::MetricValue::OperationEntries(0);
-            register_u64_histogram_meter(meter, metric, self.entries_boundaries.clone())
+            register_u64_histogram_meter(
+                meter,
+                "opendal.operation.entries",
+                metric,
+                self.entries_boundaries.clone(),
+            )
         };
         let operation_entries_rate = {
             let metric = observe::MetricValue::OperationEntriesRate(0.0);
-            register_f64_histogram_meter(meter, metric, self.entries_rate_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.operation.entries_rate",
+                metric,
+                self.entries_rate_boundaries.clone(),
+            )
         };
         let operation_duration_seconds = {
             let metric = observe::MetricValue::OperationDurationSeconds(Duration::default());
-            register_f64_histogram_meter(meter, metric, self.duration_seconds_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.operation.duration",
+                metric,
+                self.duration_seconds_boundaries.clone(),
+            )
         };
         let operation_errors_total = {
             let metric = observe::MetricValue::OperationErrorsTotal;
-            register_u64_counter_meter(meter, metric)
+            meter
+                .u64_counter("opendal.operation.errors")
+                .with_description(metric.help())
+                .build()
         };
         let operation_executing = {
             let metric = observe::MetricValue::OperationExecuting(0);
-            register_i64_up_down_counter_meter(meter, metric)
+            meter
+                .i64_up_down_counter("opendal.operation.executing")
+                .with_description(metric.help())
+                .build()
         };
         let operation_ttfb_seconds = {
             let metric = observe::MetricValue::OperationTtfbSeconds(Duration::default());
-            register_f64_histogram_meter(meter, metric, self.duration_seconds_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.operation.ttfb",
+                metric,
+                self.duration_seconds_boundaries.clone(),
+            )
         };
 
         let http_executing = {
             let metric = observe::MetricValue::HttpExecuting(0);
-            register_i64_up_down_counter_meter(meter, metric)
+            meter
+                .i64_up_down_counter("opendal.http.executing")
+                .with_description(metric.help())
+                .build()
         };
         let http_request_bytes = {
             let metric = observe::MetricValue::HttpRequestBytes(0);
-            register_u64_histogram_meter(meter, metric, self.bytes_boundaries.clone())
+            register_u64_histogram_meter(
+                meter,
+                "opendal.http.request.bytes",
+                metric,
+                self.bytes_boundaries.clone(),
+            )
         };
         let http_request_bytes_rate = {
             let metric = observe::MetricValue::HttpRequestBytesRate(0.0);
-            register_f64_histogram_meter(meter, metric, self.bytes_rate_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.http.request.bytes_rate",
+                metric,
+                self.bytes_rate_boundaries.clone(),
+            )
         };
         let http_request_duration_seconds = {
             let metric = observe::MetricValue::HttpRequestDurationSeconds(Duration::default());
-            register_f64_histogram_meter(meter, metric, self.duration_seconds_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.http.request.duration",
+                metric,
+                self.duration_seconds_boundaries.clone(),
+            )
         };
         let http_response_bytes = {
             let metric = observe::MetricValue::HttpResponseBytes(0);
-            register_u64_histogram_meter(meter, metric, self.bytes_boundaries.clone())
+            register_u64_histogram_meter(
+                meter,
+                "opendal.http.response.bytes",
+                metric,
+                self.bytes_boundaries.clone(),
+            )
         };
         let http_response_bytes_rate = {
             let metric = observe::MetricValue::HttpResponseBytesRate(0.0);
-            register_f64_histogram_meter(meter, metric, self.bytes_rate_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.http.response.bytes_rate",
+                metric,
+                self.bytes_rate_boundaries.clone(),
+            )
         };
         let http_response_duration_seconds = {
             let metric = observe::MetricValue::HttpResponseDurationSeconds(Duration::default());
-            register_f64_histogram_meter(meter, metric, self.duration_seconds_boundaries.clone())
+            register_f64_histogram_meter(
+                meter,
+                "opendal.http.response.duration",
+                metric,
+                self.duration_seconds_boundaries.clone(),
+            )
         };
         let http_connection_errors_total = {
             let metric = observe::MetricValue::HttpConnectionErrorsTotal;
-            register_u64_counter_meter(meter, metric)
+            meter
+                .u64_counter("opendal.http.connection_errors")
+                .with_description(metric.help())
+                .build()
         };
         let http_status_errors_total = {
             let metric = observe::MetricValue::HttpStatusErrorsTotal;
-            register_u64_counter_meter(meter, metric)
+            meter
+                .u64_counter("opendal.http.status_errors")
+                .with_description(metric.help())
+                .build()
         };
 
         OtelMetricsLayer {
@@ -421,11 +496,11 @@ pub fn exponential_boundaries(start: f64, factor: f64, count: usize) -> Vec<f64>
 
 fn register_u64_histogram_meter(
     meter: &Meter,
+    name: &'static str,
     metric: observe::MetricValue,
     boundaries: Vec<f64>,
 ) -> Histogram<u64> {
-    let (name, unit) = metric.name_with_unit();
-    let name = name.replace("_", ".");
+    let (_name, unit) = metric.name_with_unit();
     let description = metric.help();
 
     let builder = meter
@@ -442,11 +517,11 @@ fn register_u64_histogram_meter(
 
 fn register_f64_histogram_meter(
     meter: &Meter,
+    name: &'static str,
     metric: observe::MetricValue,
     boundaries: Vec<f64>,
 ) -> Histogram<f64> {
-    let (name, unit) = metric.name_with_unit();
-    let name = name.replace("_", ".");
+    let (_name, unit) = metric.name_with_unit();
     let description = metric.help();
 
     let builder = meter
@@ -459,27 +534,4 @@ fn register_f64_histogram_meter(
     } else {
         builder.build()
     }
-}
-
-fn register_u64_counter_meter(meter: &Meter, metric: observe::MetricValue) -> Counter<u64> {
-    let name = metric.name().replace("_", ".");
-    let description = metric.help();
-
-    meter
-        .u64_counter(name)
-        .with_description(description)
-        .build()
-}
-
-fn register_i64_up_down_counter_meter(
-    meter: &Meter,
-    metric: observe::MetricValue,
-) -> UpDownCounter<i64> {
-    let name = metric.name().replace("_", ".");
-    let description = metric.help();
-
-    meter
-        .i64_up_down_counter(name)
-        .with_description(description)
-        .build()
 }

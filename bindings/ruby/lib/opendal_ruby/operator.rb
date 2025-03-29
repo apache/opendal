@@ -17,9 +17,13 @@
 
 # frozen_string_literal: true
 
-require_relative "opendal_ruby/opendal_ruby"
-require_relative "opendal_ruby/io"
-require_relative "opendal_ruby/entry"
-require_relative "opendal_ruby/metadata"
-require_relative "opendal_ruby/operator"
-require_relative "opendal_ruby/operator_info"
+module OpenDAL
+  class Operator
+    # Applies a middleware to the operator.
+    # @param middleware [Middleware]
+    # @return [Operator]
+    def middleware(middleware)
+      middleware.apply_to(self) # duck typing, expects a middleware to implement `#apply_to`
+    end
+  end
+end

@@ -92,28 +92,35 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 }
 
 pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> {
-    let cap = op.info().full_capability();
-
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     let meta = op.write(&path, content)?;
 
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
     assert_eq!(meta.content_length(), stat_meta.content_length());
-    if cap.write_has_last_modified {
-        assert_eq!(meta.last_modified(), stat_meta.last_modified());
+    if let Some(etag) = meta.etag() {
+        assert_eq!(etag, stat_meta.etag().expect("etag must exist"));
     }
-    if cap.write_has_etag {
-        assert_eq!(meta.etag(), stat_meta.etag());
+    if let Some(last_modified) = meta.last_modified() {
+        assert_eq!(
+            last_modified,
+            stat_meta.last_modified().expect("last_modified must exist")
+        );
     }
-    if cap.write_has_version {
-        assert_eq!(meta.version(), stat_meta.version());
+    if let Some(version) = meta.version() {
+        assert_eq!(version, stat_meta.version().expect("version must exist"));
     }
-    if cap.write_has_content_md5 {
-        assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    if let Some(content_md5) = meta.content_md5() {
+        assert_eq!(
+            content_md5,
+            stat_meta.content_md5().expect("content_md5 must exist")
+        );
     }
-    if cap.write_has_content_type {
-        assert_eq!(meta.content_type(), stat_meta.content_type());
+    if let Some(content_type) = meta.content_type() {
+        assert_eq!(
+            content_type,
+            stat_meta.content_type().expect("content_type must exist")
+        );
     }
 
     Ok(())
@@ -144,8 +151,6 @@ pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) -> Result<()> {
-    let cap = op.info().full_capability();
-
     let (path, content_one, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write_with(&path, content_one)
@@ -163,20 +168,29 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
     assert_eq!(meta.content_length(), stat_meta.content_length());
-    if cap.write_has_last_modified {
-        assert_eq!(meta.last_modified(), stat_meta.last_modified());
+    if let Some(etag) = meta.etag() {
+        assert_eq!(etag, stat_meta.etag().expect("etag must exist"));
     }
-    if cap.write_has_etag {
-        assert_eq!(meta.etag(), stat_meta.etag());
+    if let Some(last_modified) = meta.last_modified() {
+        assert_eq!(
+            last_modified,
+            stat_meta.last_modified().expect("last_modified must exist")
+        );
     }
-    if cap.write_has_version {
-        assert_eq!(meta.version(), stat_meta.version());
+    if let Some(version) = meta.version() {
+        assert_eq!(version, stat_meta.version().expect("version must exist"));
     }
-    if cap.write_has_content_md5 {
-        assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    if let Some(content_md5) = meta.content_md5() {
+        assert_eq!(
+            content_md5,
+            stat_meta.content_md5().expect("content_md5 must exist")
+        );
     }
-    if cap.write_has_content_type {
-        assert_eq!(meta.content_type(), stat_meta.content_type());
+    if let Some(content_type) = meta.content_type() {
+        assert_eq!(
+            content_type,
+            stat_meta.content_type().expect("content_type must exist")
+        );
     }
 
     Ok(())

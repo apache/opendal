@@ -20,3 +20,6 @@
 require_relative "opendal_ruby/opendal_ruby"
 require_relative "opendal_ruby/io"
 require_relative "opendal_ruby/entry"
+require_relative "opendal_ruby/metadata"
+require_relative "opendal_ruby/operator"
+require_relative "opendal_ruby/operator_info"

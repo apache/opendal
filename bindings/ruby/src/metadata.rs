@@ -43,6 +43,19 @@ impl Metadata {
 
 impl Metadata {
     /// @yard
+    /// @def mode
+    /// The entry mode of this Metadata.
+    /// @return [String] one of `File`, `Directory`, `Unknown`.
+    ///    `Unknown` means OpenDAL doesn't have actions to the entry.
+    pub fn mode(&self) -> &str {
+        match self.0.mode() {
+            ocore::EntryMode::FILE => "File",
+            ocore::EntryMode::DIR => "Directory",
+            ocore::EntryMode::Unknown => "Unknown",
+        }
+    }
+
+    /// @yard
     /// @def content_disposition
     /// Content-Disposition of this object
     /// @return [String, nil]
@@ -81,26 +94,11 @@ impl Metadata {
     pub fn etag(&self) -> Option<&str> {
         self.0.etag()
     }
-
-    /// @yard
-    /// @def file?
-    /// Returns `True` if this is a file.
-    /// @return [Boolean]
-    pub fn is_file(&self) -> bool {
-        self.0.is_file()
-    }
-
-    /// @yard
-    /// @def dir?
-    /// Returns `True` if this is a directory.
-    /// @return [Boolean]
-    pub fn is_dir(&self) -> bool {
-        self.0.is_dir()
-    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
     let class = gem_module.define_class("Metadata", class::object())?;
+    class.define_method("mode", method!(Metadata::mode, 0))?;
     class.define_method(
         "content_disposition",
         method!(Metadata::content_disposition, 0),
@@ -109,8 +107,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("content_md5", method!(Metadata::content_md5, 0))?;
     class.define_method("content_type", method!(Metadata::content_type, 0))?;
     class.define_method("etag", method!(Metadata::etag, 0))?;
-    class.define_method("file?", method!(Metadata::is_file, 0))?;
-    class.define_method("dir?", method!(Metadata::is_dir, 0))?;
 
     Ok(())
 }

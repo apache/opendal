@@ -103,4 +103,10 @@ class OpenDalTest < ActiveSupport::TestCase
 
     io.close
   end
+
+  test "middleware applies a middleware" do
+    @op.middleware(OpenDAL::RetryMiddleware.new)
+
+    assert @op.is_a?(OpenDAL::Operator)
+  end
 end

@@ -18,18 +18,12 @@
 # frozen_string_literal: true
 
 module OpenDAL
-  class Entry
-    # Returns the canonical data about an entry
-    # @return [Hash]
-    def to_h
-      {
-        path: path,
-        metadata: metadata
-      }
-    end
-
-    def inspect
-      "#<#{self.class.name} path: \"#{path}\", metadata: #{metadata.inspect}>"
+  class Operator
+    # Applies a middleware to the operator.
+    # @param middleware [Middleware]
+    # @return [Operator]
+    def middleware(middleware)
+      middleware.apply_to(self) # duck typing, expects a middleware to implement `#apply_to`
     end
   end
 end

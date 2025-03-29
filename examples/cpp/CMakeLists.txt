@@ -7,7 +7,7 @@ include(FetchContent)
 FetchContent_Declare(
   opendal-cpp
   GIT_REPOSITORY https://github.com/apache/opendal.git
-  GIT_TAG        4b02228f7fe9a7c0f21a1660fee95716910c7a0a
+  GIT_TAG        3bbec320df72689c57b4bf3d59395b85f7e1764e
   SOURCE_SUBDIR  bindings/cpp
 )
 FetchContent_MakeAvailable(opendal-cpp)

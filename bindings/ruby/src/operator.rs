@@ -40,7 +40,6 @@ use crate::capability::Capability;
 use crate::io::Io;
 use crate::lister::Lister;
 use crate::metadata::Metadata;
-use crate::middlewares::Middleware;
 use crate::operator_info::OperatorInfo;
 use crate::*;
 
@@ -279,16 +278,6 @@ impl Operator {
     fn info(&self) -> Result<OperatorInfo, Error> {
         Ok(OperatorInfo(self.blocking.info()))
     }
-
-    /// @yard
-    /// @def middleware(middleware)
-    /// Applies a middleware do the operator.
-    /// @param middleware [Middleware]
-    /// @return [Operator]
-    fn middleware(ruby: &Ruby, rb_self: &Self, middleware: &Middleware) -> Result<Self, Error> {
-        // uses "middleware" instead of "layer" to follow Ruby community convention.
-        middleware.apply_to(ruby, rb_self)
-    }
 }
 
 pub fn include(gem_module: &RModule) -> Result<(), Error> {
@@ -307,7 +296,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("open", method!(Operator::open, 2))?;
     class.define_method("list", method!(Operator::list, -1))?;
     class.define_method("info", method!(Operator::info, 0))?;
-    class.define_method("middleware", method!(Operator::middleware, 1))?;
 
     Ok(())
 }

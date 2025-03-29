@@ -460,8 +460,6 @@ impl Builder for OssBuilder {
                                 Some(usize::MAX)
                             },
                             write_with_user_metadata: true,
-                            write_has_etag: true,
-                            write_has_version: self.config.enable_versioning,
 
                             delete: true,
                             delete_with_version: self.config.enable_versioning,

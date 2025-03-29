@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::*;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::str::FromStr;
-
-use crate::*;
 
 /// BytesRange(offset, size) carries a range of content.
 ///
@@ -38,7 +38,7 @@ use crate::*;
 /// # Notes
 ///
 /// We don't support tailing read like `Range: bytes=-<range-end>`
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BytesRange(
     /// Offset of the range.
     u64,

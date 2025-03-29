@@ -104,6 +104,8 @@ layers-async-backtrace = ["dep:async-backtrace"]
 # Enable dtrace support.
 layers-blocking = ["internal-tokio-rt"]
 layers-dtrace = ["dep:probe"]
+# Enable layers cache support.
+layers-cache = ["dep:foyer"]
 
 services-aliyun-drive = []
 services-alluxio = []
@@ -238,10 +240,11 @@ anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"
 backon = { version = "1.2", features = ["tokio-sleep"] }
 base64 = "0.22"
-bytes = "1.6"
+bytes = { version = "1.6", features = ["serde"] }
 chrono = { version = "0.4.28", default-features = false, features = [
   "clock",
   "std",
+  "serde",
 ] }
 futures = { version = "0.3", default-features = false, features = [
   "std",
@@ -401,6 +404,8 @@ prometheus-client = { version = "0.23.1", optional = true }
 tracing = { version = "0.1", optional = true }
 # for layers-dtrace
 probe = { version = "0.5.1", optional = true }
+# for layers-cache
+foyer = { version = "0.14.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.2", features = ["gloo-timers-sleep"] }

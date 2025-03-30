@@ -30,6 +30,7 @@ permissions:
 jobs:
   generate-and-publish:
     runs-on: ubuntu-latest
+    if: github.repository == 'apache/opendal'
 
     steps:
       - name: Checkout repository

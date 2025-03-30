@@ -157,7 +157,6 @@ pub struct Capability {
     /// Maximum total size supported for write operations.
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
-    /// Indicates whether content length information is available in write response.
 
     /// Indicates if directory creation is supported.
     pub create_dir: bool,

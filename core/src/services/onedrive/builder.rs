@@ -159,7 +159,6 @@ impl Builder for OnedriveBuilder {
                 // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
                 // file up to this size.
                 // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
-
                 copy: true,
                 rename: true,
 

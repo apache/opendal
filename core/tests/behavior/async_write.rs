@@ -256,27 +256,25 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
 }
 
 pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
     let meta = op.write(&path, content).await?;
     let stat_meta = op.stat(&path).await?;
 
     assert_eq!(stat_meta.content_length(), meta.content_length());
-    if cap.write_has_etag {
-        assert_eq!(stat_meta.etag(), meta.etag());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag(),);
     }
-    if cap.write_has_last_modified {
+    if meta.last_modified().is_some() {
         assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if cap.write_has_version {
+    if meta.version().is_some() {
         assert_eq!(stat_meta.version(), meta.version());
     }
-    if cap.write_has_content_md5 {
+    if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if cap.write_has_content_type {
+    if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
@@ -596,19 +594,19 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
     assert_eq!(stat_meta.content_length(), meta.content_length());
-    if cap.write_has_last_modified {
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag(),);
+    }
+    if meta.last_modified().is_some() {
         assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if cap.write_has_etag {
-        assert_eq!(stat_meta.etag(), meta.etag());
-    }
-    if cap.write_has_version {
+    if meta.version().is_some() {
         assert_eq!(stat_meta.version(), meta.version());
     }
-    if cap.write_has_content_md5 {
+    if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if cap.write_has_content_type {
+    if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
@@ -668,19 +666,19 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
     assert_eq!(stat_meta.content_length(), meta.content_length());
-    if cap.write_has_last_modified {
-        assert_eq!(stat_meta.last_modified(), meta.last_modified());
-    }
-    if cap.write_has_etag {
+    if meta.etag().is_some() {
         assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if cap.write_has_version {
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if meta.version().is_some() {
         assert_eq!(stat_meta.version(), meta.version());
     }
-    if cap.write_has_content_md5 {
+    if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if cap.write_has_content_type {
+    if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 

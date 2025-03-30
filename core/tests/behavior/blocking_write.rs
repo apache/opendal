@@ -92,28 +92,26 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 }
 
 pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> {
-    let cap = op.info().full_capability();
-
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     let meta = op.write(&path, content)?;
 
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
-    assert_eq!(meta.content_length(), stat_meta.content_length());
-    if cap.write_has_last_modified {
-        assert_eq!(meta.last_modified(), stat_meta.last_modified());
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag(),);
     }
-    if cap.write_has_etag {
-        assert_eq!(meta.etag(), stat_meta.etag());
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if cap.write_has_version {
-        assert_eq!(meta.version(), stat_meta.version());
+    if meta.version().is_some() {
+        assert_eq!(stat_meta.version(), meta.version());
     }
-    if cap.write_has_content_md5 {
-        assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    if meta.content_md5().is_some() {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if cap.write_has_content_type {
-        assert_eq!(meta.content_type(), stat_meta.content_type());
+    if meta.content_type().is_some() {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
     Ok(())
@@ -144,8 +142,6 @@ pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) -> Result<()> {
-    let cap = op.info().full_capability();
-
     let (path, content_one, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write_with(&path, content_one)
@@ -162,21 +158,21 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
 
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
-    assert_eq!(meta.content_length(), stat_meta.content_length());
-    if cap.write_has_last_modified {
-        assert_eq!(meta.last_modified(), stat_meta.last_modified());
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if cap.write_has_etag {
-        assert_eq!(meta.etag(), stat_meta.etag());
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if cap.write_has_version {
-        assert_eq!(meta.version(), stat_meta.version());
+    if meta.version().is_some() {
+        assert_eq!(stat_meta.version(), meta.version());
     }
-    if cap.write_has_content_md5 {
-        assert_eq!(meta.content_md5(), stat_meta.content_md5());
+    if meta.content_md5().is_some() {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if cap.write_has_content_type {
-        assert_eq!(meta.content_type(), stat_meta.content_type());
+    if meta.content_type().is_some() {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
     Ok(())

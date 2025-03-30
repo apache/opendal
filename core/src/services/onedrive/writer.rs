@@ -49,18 +49,11 @@ impl oio::OneShotWrite for OneDriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let size = bs.len();
 
-        let mut meta = if size <= Self::MAX_SIMPLE_SIZE {
+        let meta = if size <= Self::MAX_SIMPLE_SIZE {
             self.write_simple(bs).await?
         } else {
             self.write_chunked(bs).await?
         };
-
-        if self.core.info.native_capability().write_has_version {
-            let versions = self.core.onedrive_list_versions(&self.path).await?;
-            if let Some(version) = versions.first() {
-                meta.set_version(&version.id);
-            }
-        }
 
         Ok(meta)
     }

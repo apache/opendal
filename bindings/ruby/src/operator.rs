@@ -31,6 +31,7 @@ use magnus::prelude::*;
 use magnus::scan_args::get_kwargs;
 use magnus::scan_args::scan_args;
 use magnus::Error;
+use magnus::RHash;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Ruby;
@@ -233,9 +234,18 @@ impl Operator {
     /// @param mode [String] operation mode, e.g., `r`, `w`, or `rb`.
     /// @raise [ArgumentError] invalid mode, or when the mode is not unique
     /// @return [OpenDAL::IO]
-    fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
+    fn open(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Io, Error> {
+        let args = scan_args::<(String,), (Option<Value>, Option<Value>), (), (), RHash, ()>(args)?;
+        let (path,) = args.required;
+        let (option_mode, option_permission) = args.optional;
+        let kwargs = args.keywords;
+
+        // Ruby handles Qnil safely (will not assign to Qnil)
+        let mode = option_mode.unwrap_or(ruby.str_new("r").as_value());
+        let permission = option_permission.unwrap_or(ruby.qnil().as_value());
+
         let operator = rb_self.blocking_op.clone();
-        Io::new(ruby, operator, path, mode)
+        Io::new(ruby, operator, path, mode, permission, kwargs)
     }
 
     /// @yard
@@ -293,7 +303,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("rename", method!(Operator::rename, 2))?;
     class.define_method("remove_all", method!(Operator::remove_all, 1))?;
     class.define_method("copy", method!(Operator::copy, 2))?;
-    class.define_method("open", method!(Operator::open, 2))?;
+    class.define_method("open", method!(Operator::open, -1))?;
     class.define_method("list", method!(Operator::list, -1))?;
     class.define_method("info", method!(Operator::info, 0))?;
 

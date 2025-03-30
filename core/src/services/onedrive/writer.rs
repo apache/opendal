@@ -55,11 +55,6 @@ impl oio::OneShotWrite for OneDriveWriter {
             self.write_chunked(bs).await?
         };
 
-        let versions = self.core.onedrive_list_versions(&self.path).await?;
-        if let Some(version) = versions.first() {
-            meta.set_version(&version.id);
-        }
-
         Ok(meta)
     }
 }

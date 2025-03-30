@@ -98,19 +98,19 @@ pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> 
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
     assert_eq!(stat_meta.content_length(), meta.content_length());
-    if stat_meta.etag().is_some() && meta.etag().is_some() {
+    if meta.etag().is_some() {
         assert_eq!(stat_meta.etag(), meta.etag(),);
     }
-    if stat_meta.last_modified().is_some() && meta.last_modified().is_some() {
+    if meta.last_modified().is_some() {
         assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if stat_meta.version().is_some() && meta.version().is_some() {
+    if meta.version().is_some() {
         assert_eq!(stat_meta.version(), meta.version());
     }
-    if stat_meta.content_md5().is_some() && meta.content_md5().is_some() {
+    if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if stat_meta.content_type().is_some() && meta.content_type().is_some() {
+    if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 
@@ -159,19 +159,19 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
     let stat_meta = op.stat(&path).expect("stat must succeed");
 
     assert_eq!(stat_meta.content_length(), meta.content_length());
-    if stat_meta.etag().is_some() && meta.etag().is_some() {
-        assert_eq!(stat_meta.etag(), meta.etag(),);
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag());
     }
-    if stat_meta.last_modified().is_some() && meta.last_modified().is_some() {
+    if meta.last_modified().is_some() {
         assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if stat_meta.version().is_some() && meta.version().is_some() {
+    if meta.version().is_some() {
         assert_eq!(stat_meta.version(), meta.version());
     }
-    if stat_meta.content_md5().is_some() && meta.content_md5().is_some() {
+    if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());
     }
-    if stat_meta.content_type().is_some() && meta.content_type().is_some() {
+    if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
 

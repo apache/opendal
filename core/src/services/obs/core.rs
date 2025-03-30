@@ -40,6 +40,7 @@ use crate::*;
 
 pub mod constants {
     pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";
+    pub const X_OBS_VERSION_ID: &str = "x-obs-version-id";
 }
 
 pub struct ObsCore {
@@ -474,6 +475,17 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Output of `CompleteMultipartUpload` operation
+#[derive(Debug, Default, Deserialize)]
+#[serde[default, rename_all = "PascalCase"]]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
 }

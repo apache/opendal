@@ -1,3 +1,47 @@
+# Upgrade to v0.53
+
+## Public API
+
+### Supabase service is now an S3-compatible servcice
+
+Supabase Storage is now an S3-compatible service instead: https://github.com/supabase/storage.
+
+We removed the supabase native service support in OpenDAL v0.53. Users who want to access Supabase Storage can use the S3 service instead.
+
+### All metrics related layers have been refactored
+
+All metrics layers have been refactored:
+
+- `PrometheusLayer`
+- `PrometheusClientLayer`
+- `MetricsLayer`
+
+They are now provides more metrics and more detailed information. All their public API have been redesigned.
+
+For more details, please refer to `opendal::layers::observe`'s module documentation.
+
+### `Operator::default_executor` has been replaced by `Operator::executor`
+
+In opendal v0.53, we introduced a new concept of `Context` which is used to store the context of the current operator. Thanks to this design, we can now get and set the `executor` and `http_client` for given Operator instead.
+
+All services `http_client` API has been deprecated and replaced by `Operator::update_http_client` API.
+
+### OpenDAL MSRV bumped to `1.80`
+
+Since v0.53, OpenDAL will require Rust 1.80.0 or later to build.
+
+## Raw API
+
+### Operation enum emerge
+
+To reduce the complexity of the `Operation`, we have merged the duplicated `Operation`.
+
+For example:
+
+- `Operation::ReaderRead` has been merged into `Operation::Read`
+- `Operation::BlockingRead` has been merged into `Operation::Read`
+
+
 # Upgrade to v0.52
 
 ## Public API

@@ -20,9 +20,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
+use super::core::{CompleteMultipartUploadRequestPart, CompleteMultipartUploadResult};
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -63,7 +63,8 @@ impl oio::MultipartWrite for GcsWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                let metadata = GcsCore::get_metadata_from_response(&self.path, resp.into_body())?;
+                let metadata =
+                    GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
                 Ok(metadata)
             }
             _ => Err(parse_error(resp)),
@@ -142,7 +143,11 @@ impl oio::MultipartWrite for GcsWriter {
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
-        let metadata = GcsCore::get_metadata_from_response(&self.path, resp.into_body())?;
+        let data: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(resp.into_body().reader())
+                .map_err(new_xml_deserialize_error)?;
+        let mut metadata = Metadata::new(EntryMode::from_path(&self.path));
+        metadata.set_etag(&data.etag);
         Ok(metadata)
     }
 

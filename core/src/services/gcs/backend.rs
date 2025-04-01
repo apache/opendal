@@ -429,7 +429,7 @@ impl Access for GcsBackend {
         }
 
         let slc = resp.into_body();
-        let m = GcsCore::get_metadata_from_response(path, slc)?;
+        let m = GcsCore::build_metadata_from_object_response(path, slc)?;
 
         Ok(RpStat::new(m))
     }

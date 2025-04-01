@@ -647,7 +647,7 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub fn get_metadata_from_response(path: &str, data: Buffer) -> Result<Metadata> {
+    pub fn build_metadata_from_object_response(path: &str, data: Buffer) -> Result<Metadata> {
         let meta: GetObjectJsonResponse =
             serde_json::from_reader(data.reader()).map_err(new_json_deserialize_error)?;
 
@@ -769,6 +769,16 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
 }
 
+/// Response of Complete a multipart upload
+///
+/// refer to: https://cloud.google.com/storage/docs/xml-api/post-object-complete
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadResult {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -841,7 +851,7 @@ mod tests {
   }
 }"#;
 
-        let meta = GcsCore::get_metadata_from_response("1.png", content.into())
+        let meta = GcsCore::build_metadata_from_object_response("1.png", content.into())
             .expect("parse metadata should not fail");
 
         assert_eq!(meta.content_length(), 56535);

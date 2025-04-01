@@ -40,7 +40,7 @@ serde = { version = "1.0.203", features = ["derive"] }
 
 [dev-dependencies]
 libtest-mimic = { version = "0.8.1" }
-logforth = { version = "0.21.0", default-features = false }
+logforth = { version = "0.23.1", default-features = false }
 opendal = { version = "0.52.0", path = "../../core", features = [
   "services-fs",
   "tests",

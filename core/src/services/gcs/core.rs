@@ -24,7 +24,7 @@ use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -646,6 +646,49 @@ impl GcsCore {
         self.sign(&mut req).await?;
         self.send(req).await
     }
+
+    pub fn get_metadata_from_response(path: &str, data: Buffer) -> Result<Metadata> {
+        let meta: GetObjectJsonResponse =
+            serde_json::from_reader(data.reader()).map_err(new_json_deserialize_error)?;
+
+        let mut m = Metadata::new(EntryMode::from_path(path));
+
+        m.set_etag(&meta.etag);
+        m.set_content_md5(&meta.md5_hash);
+
+        let size = meta
+            .size
+            .parse::<u64>()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
+        m.set_content_length(size);
+        if !meta.content_type.is_empty() {
+            m.set_content_type(&meta.content_type);
+        }
+
+        if !meta.content_encoding.is_empty() {
+            m.set_content_encoding(&meta.content_encoding);
+        }
+
+        if !meta.cache_control.is_empty() {
+            m.set_cache_control(&meta.cache_control);
+        }
+
+        if !meta.content_disposition.is_empty() {
+            m.set_content_disposition(&meta.content_disposition);
+        }
+
+        if !meta.generation.is_empty() {
+            m.set_version(&meta.generation);
+        }
+
+        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+
+        if !meta.metadata.is_empty() {
+            m.with_user_metadata(meta.metadata);
+        }
+
+        Ok(m)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -726,9 +769,100 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
 }
 
+/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GetObjectJsonResponse {
+    /// GCS will return size in string.
+    ///
+    /// For example: `"size": "56535"`
+    size: String,
+    /// etag is not quoted.
+    ///
+    /// For example: `"etag": "CKWasoTgyPkCEAE="`
+    etag: String,
+    /// RFC3339 styled datetime string.
+    ///
+    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
+    updated: String,
+    /// Content md5 hash
+    ///
+    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
+    md5_hash: String,
+    /// Content type of this object.
+    ///
+    /// For example: `"contentType": "image/png",`
+    content_type: String,
+    /// Content encoding of this object
+    ///
+    /// For example: "contentEncoding": "br"
+    content_encoding: String,
+    /// Content disposition of this object
+    content_disposition: String,
+    /// Cache-Control directive for the object data.
+    cache_control: String,
+    /// Content generation of this object. Used for object versioning and soft delete.
+    generation: String,
+    /// Custom metadata of this object.
+    ///
+    /// For example: `"metadata" : { "my-key": "my-value" }`
+    metadata: HashMap<String, String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_deserialize_get_object_json_response() {
+        let content = r#"{
+    "kind": "storage#object",
+    "id": "example/1.png/1660563214863653",
+    "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+    "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+    "name": "1.png",
+    "bucket": "example",
+    "generation": "1660563214863653",
+    "metageneration": "1",
+    "contentType": "image/png",
+    "contentEncoding": "br",
+    "contentDisposition": "attachment",
+    "cacheControl": "public, max-age=3600",
+    "storageClass": "STANDARD",
+    "size": "56535",
+    "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+    "crc32c": "j/un9g==",
+    "etag": "CKWasoTgyPkCEAE=",
+    "timeCreated": "2022-08-15T11:33:34.866Z",
+    "updated": "2022-08-15T11:33:34.866Z",
+    "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z",
+    "metadata" : {
+        "location" : "everywhere"
+  }
+}"#;
+
+        let meta = GcsCore::get_metadata_from_response("1.png", content.into())
+            .expect("parse metadata should not fail");
+
+        assert_eq!(meta.content_length(), 56535);
+        assert_eq!(
+            meta.last_modified(),
+            Some(
+                parse_datetime_from_rfc3339("2022-08-15T11:33:34.866Z")
+                    .expect("parse date should not fail")
+            )
+        );
+        assert_eq!(meta.content_md5(), Some("fHcEH1vPwA6eTPqxuasXcg=="));
+        assert_eq!(meta.etag(), Some("CKWasoTgyPkCEAE="));
+        assert_eq!(meta.content_type(), Some("image/png"));
+        assert_eq!(meta.content_encoding(), Some("br"));
+        assert_eq!(meta.content_disposition(), Some("attachment"));
+        assert_eq!(meta.cache_control(), Some("public, max-age=3600"));
+        assert_eq!(meta.version(), Some("1660563214863653"));
+
+        let metadata = HashMap::from_iter([("location".to_string(), "everywhere".to_string())]);
+        assert_eq!(meta.user_metadata(), Some(&metadata));
+    }
 
     #[test]
     fn test_deserialize_list_response() {

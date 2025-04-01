@@ -261,22 +261,7 @@ pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
     let meta = op.write(&path, content).await?;
     let stat_meta = op.stat(&path).await?;
 
-    assert_eq!(stat_meta.content_length(), meta.content_length());
-    if meta.etag().is_some() {
-        assert_eq!(stat_meta.etag(), meta.etag(),);
-    }
-    if meta.last_modified().is_some() {
-        assert_eq!(stat_meta.last_modified(), meta.last_modified());
-    }
-    if meta.version().is_some() {
-        assert_eq!(stat_meta.version(), meta.version());
-    }
-    if meta.content_md5().is_some() {
-        assert_eq!(stat_meta.content_md5(), meta.content_md5());
-    }
-    if meta.content_type().is_some() {
-        assert_eq!(stat_meta.content_type(), meta.content_type());
-    }
+    assert_metadata(stat_meta, meta);
 
     Ok(())
 }
@@ -593,22 +578,7 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
-    assert_eq!(stat_meta.content_length(), meta.content_length());
-    if meta.etag().is_some() {
-        assert_eq!(stat_meta.etag(), meta.etag(),);
-    }
-    if meta.last_modified().is_some() {
-        assert_eq!(stat_meta.last_modified(), meta.last_modified());
-    }
-    if meta.version().is_some() {
-        assert_eq!(stat_meta.version(), meta.version());
-    }
-    if meta.content_md5().is_some() {
-        assert_eq!(stat_meta.content_md5(), meta.content_md5());
-    }
-    if meta.content_type().is_some() {
-        assert_eq!(stat_meta.content_type(), meta.content_type());
-    }
+    assert_metadata(stat_meta, meta);
 
     Ok(())
 }
@@ -664,7 +634,12 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
         .expect("append to an existing file must success");
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
+    assert_metadata(stat_meta, meta);
 
+    Ok(())
+}
+
+fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
     assert_eq!(stat_meta.content_length(), meta.content_length());
     if meta.etag().is_some() {
         assert_eq!(stat_meta.etag(), meta.etag());
@@ -681,8 +656,12 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
     if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
-
-    Ok(())
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
 }
 
 /// Copy data from reader to writer

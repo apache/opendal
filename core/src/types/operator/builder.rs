@@ -376,6 +376,11 @@ impl Operator {
 
     /// Create a new layer with dynamic dispatch.
     ///
+    /// Please note that `Layer` can modify internal contexts such as `HttpClient`
+    /// and `Runtime` for the operator. Therefore, it is recommended to add layers
+    /// before interacting with the storage. Adding or duplicating layers after
+    /// accessing the storage may result in unexpected behavior.
+    ///
     /// # Notes
     ///
     /// `OperatorBuilder::layer()` is using static dispatch which is zero

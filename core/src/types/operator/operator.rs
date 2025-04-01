@@ -33,6 +33,10 @@ use crate::*;
 ///
 /// For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
 ///
+/// All cloned `Operator` instances share the same internal state, such as
+/// `HttpClient` and `Runtime`. Some layers may modify the internal state of
+/// the `Operator` too like inject logging and metrics for `HttpClient`.
+///
 /// ## Build
 ///
 /// Users can initialize an `Operator` through the following methods:
@@ -58,6 +62,11 @@ use crate::*;
 /// After the operator is built, users can add the layers they need on top of it.
 ///
 /// OpenDAL offers various layers for users to choose from, such as `RetryLayer`, `LoggingLayer`, and more. Visit [`layers`] for further details.
+///
+/// Please note that `Layer` can modify internal contexts such as `HttpClient`
+/// and `Runtime` for all clones of given operator. Therefore, it is recommended
+/// to add layers before interacting with the storage. Adding or duplicating
+/// layers after accessing the storage may result in unexpected behavior.
 ///
 /// ```
 /// # use anyhow::Result;
@@ -183,11 +192,33 @@ impl Operator {
 
     /// Update executor for the context.
     ///
+    /// All cloned `Operator` instances share the same internal state, such as
+    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
+    /// the `Operator` too like inject logging and metrics for `HttpClient`.
+    ///
     /// # Note
     ///
     /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
     pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
         self.accessor.info().update_executor(f);
+    }
+
+    /// Get the http client used by current operator.
+    pub fn http_client(&self) -> HttpClient {
+        self.accessor.info().http_client()
+    }
+
+    /// Update http client for the context.
+    ///
+    /// All cloned `Operator` instances share the same internal state, such as
+    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
+    /// the `Operator` too like inject logging and metrics for `HttpClient`.
+    ///
+    /// # Note
+    ///
+    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
+    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
+        self.accessor.info().update_http_client(f);
     }
 
     /// Create a new blocking operator.

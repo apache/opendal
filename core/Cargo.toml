@@ -384,7 +384,7 @@ async-backtrace = { version = "0.2.6", optional = true }
 # for layers-await-tree
 await-tree = { version = "0.2", optional = true }
 # for layers-throttle
-governor = { version = "0.6.0", optional = true, features = ["std"] }
+governor = { version = "0.10.0", optional = true, features = ["std"] }
 # for layers-metrics
 metrics = { version = "0.24", optional = true }
 # for layers-mime-guess

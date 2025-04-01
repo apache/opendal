@@ -32,7 +32,7 @@ Since v0.53, OpenDAL will require Rust 1.80.0 or later to build.
 
 ## Raw API
 
-### Operation enum emerge
+### Operation enum merge
 
 To reduce the complexity of the `Operation`, we have merged the duplicated `Operation`.
 

@@ -35,7 +35,7 @@ clap = { version = "4.5", features = ["cargo", "string", "derive"] }
 dirs = { version = "5.0" }
 futures = { version = "0.3" }
 humansize = { version = "2.1" }
-humantime = { version = "2.1" }
+humantime = { version = "2.2" }
 humantime-serde = { version = "1.1" }
 indicatif = { version = "0.17" }
 opendal = { version = "0.52.0", path = "../../core", features = [

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io;
+use std::io::IoSliceMut;
 use std::io::SeekFrom;
 use std::ops::Range;
 use std::pin::Pin;
@@ -104,7 +105,6 @@ impl AsyncBufRead for FuturesAsyncReader {
     }
 }
 
-/// TODO: implement vectored read.
 impl AsyncRead for FuturesAsyncReader {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -118,6 +118,42 @@ impl AsyncRead for FuturesAsyncReader {
                 let size = this.buf.remaining().min(buf.len());
                 this.buf.copy_to_slice(&mut buf[..size]);
                 this.pos += size as u64;
+                return Poll::Ready(Ok(size));
+            }
+
+            this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
+                Some(Ok(buf)) => buf,
+                Some(Err(err)) => return Poll::Ready(Err(format_std_io_error(err))),
+                None => return Poll::Ready(Ok(0)),
+            };
+        }
+    }
+
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+
+        loop {
+            if this.buf.remaining() > 0 {
+                let mut size = 0;
+                for buf in bufs.iter_mut() {
+                    if buf.len() == 0 {
+                        continue;
+                    }
+
+                    let len = this.buf.remaining().min(buf.len());
+                    this.buf.copy_to_slice(&mut buf[..len]);
+                    size += len;
+                    this.pos += len as u64;
+
+                    if len < buf.len() {
+                        break;
+                    }
+                }
+
                 return Poll::Ready(Ok(size));
             }
 
@@ -283,6 +319,46 @@ mod tests {
         fr.consume_unpin(1);
         let chunk = fr.fill_buf().await.unwrap();
         assert_eq!(chunk, "W".as_bytes());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_futures_async_read_vectored() -> Result<()> {
+        let op = Operator::via_iter(Scheme::Memory, [])?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
+
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+
+        let mut buf1 = [0u8; 2];
+        let mut buf2 = [0u8; 2];
+
+        {
+            let mut bufs = [IoSliceMut::new(&mut buf1), IoSliceMut::new(&mut buf2)];
+            let bytes_read = fr.read_vectored(&mut bufs).await.unwrap();
+            assert_eq!(bytes_read, 4);
+        }
+
+        assert_eq!(&buf1, b"oW");
+        assert_eq!(&buf2, b"or");
+
+        {
+            let mut bufs = [IoSliceMut::new(&mut buf1), IoSliceMut::new(&mut buf2)];
+            let bytes_read_eof = fr.read_vectored(&mut bufs).await.unwrap();
+            assert_eq!(bytes_read_eof, 0);
+        }
 
         Ok(())
     }

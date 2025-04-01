@@ -21,12 +21,13 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_tls::TlsConnector;
 use bb8::PooledConnection;
 use bb8::RunError;
+use futures_rustls::TlsConnector;
 use http::Uri;
 use log::debug;
 use suppaftp::list::File;
+use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
 use suppaftp::AsyncRustlsConnector;
@@ -223,9 +224,19 @@ impl bb8::ManageConnection for Manager {
         let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
+            let mut root_store = suppaftp::rustls::RootCertStore::empty();
+            for cert in
+                rustls_native_certs::load_native_certs().expect("could not load platform certs")
+            {
+                root_store.add(cert).unwrap();
+            }
+
+            let cfg = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
             stream
                 .into_secure(
-                    AsyncRustlsConnector::from(TlsConnector::default()),
+                    AsyncRustlsConnector::from(TlsConnector::from(Arc::new(cfg))),
                     &self.endpoint,
                 )
                 .await?

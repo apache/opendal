@@ -73,7 +73,7 @@ ipnet@2.11.0		X							X
 itoa@1.0.15		X							X				
 js-sys@0.3.77		X							X				
 libc@0.2.171		X							X				
-litemap@0.7.5											X		
+litemap@0.7.4											X		
 log@0.4.27		X							X				
 md-5@0.10.6		X							X				
 memchr@2.7.4									X			X	
@@ -189,7 +189,7 @@ writeable@0.5.5											X
 yoke@0.7.5											X		
 yoke-derive@0.7.5											X		
 zerocopy@0.8.24		X		X					X				
-zerofrom@0.1.6											X		
+zerofrom@0.1.5											X		
 zerofrom-derive@0.1.6											X		
 zeroize@1.8.1		X							X				
 zerovec@0.10.4											X		

@@ -38,8 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This same toolchain for rust 1.79.0 but nightly so we can use new features.
-  RUST_DOC_TOOLCHAIN: nightly-2024-06-13
+  # This same toolchain for rust 1.85.1 but nightly so we can use new features.
+  RUST_DOC_TOOLCHAIN: nightly-2025-03-18
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 

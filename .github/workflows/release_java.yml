@@ -90,7 +90,8 @@ jobs:
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
-            -Dcargo-build.enableZigbuild=true \
+            # Refer to https://github.com/apache/opendal/issues/5935
+            # -Dcargo-build.enableZigbuild=true \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \

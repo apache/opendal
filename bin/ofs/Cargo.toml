@@ -33,7 +33,7 @@ rust-version = "1.80"
 anyhow = { version = "1" }
 clap = { version = "4.5.21", features = ["derive", "env"] }
 log = { version = "0.4.22" }
-logforth = { version = "0.21.0", default-features = false }
+logforth = { version = "0.23.1", default-features = false }
 opendal = { version = "0.52.0", path = "../../core" }
 tokio = { version = "1.37.0", features = [
   "fs",
@@ -62,5 +62,5 @@ services-s3 = ["opendal/services-s3"]
 [dev-dependencies]
 opendal = { version = "0.52.0", path = "../../core", features = ["tests"] }
 tempfile = "3.16.0"
-test-context = "0.3.0"
+test-context = "0.4.1"
 walkdir = "2.5.0"

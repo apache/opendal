@@ -20,9 +20,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
+use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
-use super::core::{CompleteMultipartUploadRequestPart, CompleteMultipartUploadResult};
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -143,12 +143,10 @@ impl oio::MultipartWrite for GcsWriter {
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
-        let data: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(resp.into_body().reader())
-                .map_err(new_xml_deserialize_error)?;
-        let mut metadata = Metadata::new(EntryMode::from_path(&self.path));
-        metadata.set_etag(&data.etag);
-        Ok(metadata)
+        // we don't extract metadata from `CompleteMultipartUploadResult`, since we only need the `ETag` from it.
+        // However, the `ETag` differs from the `ETag` obtained through the `stat` operation.
+        // refer to: https://cloud.google.com/storage/docs/metadata#etags
+        Ok(Metadata::default())
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {

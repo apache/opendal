@@ -190,15 +190,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                 .pop_front()
                 .expect("tasks must be available")
                 .await;
+            self.completed.fetch_sub(1, Ordering::Relaxed);
             match o {
-                Ok(o) => {
-                    self.completed.fetch_sub(1, Ordering::Relaxed);
-                    self.results.push_back(o)
-                }
+                Ok(o) => self.results.push_back(o),
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
-                        self.tasks.push_back(self.create_task(i));
+                        self.tasks.push_front(self.create_task(i));
                     } else {
                         self.clear();
                         self.errored = true;
@@ -228,11 +226,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
         if let Some(task) = self.tasks.pop_front() {
             let (i, o) = task.await;
+            self.completed.fetch_sub(1, Ordering::Relaxed);
             return match o {
-                Ok(o) => {
-                    self.completed.fetch_sub(1, Ordering::Relaxed);
-                    Some(Ok(o))
-                }
+                Ok(o) => Some(Ok(o)),
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
@@ -258,6 +254,7 @@ mod tests {
     use tokio::time::sleep;
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn test_concurrent_tasks() {

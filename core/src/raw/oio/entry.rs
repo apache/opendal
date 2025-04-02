@@ -80,6 +80,13 @@ impl Entry {
         self.meta.mode()
     }
 
+    /// Consume self to convert into an Metadata.
+    ///
+    /// NOTE: implement this by hand to avoid leaking raw entry to end-users.
+    pub(crate) fn into_metadata(self) -> Metadata {
+        self.meta
+    }
+
     /// Consume self to convert into an Entry.
     ///
     /// NOTE: implement this by hand to avoid leaking raw entry to end-users.

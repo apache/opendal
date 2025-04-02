@@ -161,86 +161,149 @@ impl<A: Access> CompleteAccessor<A> {
         self.inner.blocking_create_dir(path, args)
     }
 
+    /// Completes a stat operation for a given path by handling both files and directories.
+    ///
+    /// This function attempts to retrieve metadata for the specified `path`.
+    /// When the path represents a directory (i.e., it is not "/" and ends with a `/`), it will:
+    ///
+    /// 1. If the service supports `create_dir`, it performs a standard stat and checks that the result
+    ///    is indeed a directory. If a file is found instead, it returns a `NotFound` error.
+    /// 2. If the service does not support `create_dir` but supports recursive listing (`list_with_recursive`),
+    ///    it falls back to listing the directory with a limit of 1 item to infer the directory's metadata.
+    ///
+    /// If the path does not represent a directory or if no specialized handling is applicable,
+    /// the function falls back to the inner service's `stat` method.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the file or directory for which metadata is requested.
+    /// * `args` - Additional options for the stat operation (wrapped in an `OpStat`).
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`RpStat`] containing the metadata on success, or an error if:
+    /// - The path represents a directory but a file is found.
+    /// - The directory cannot be found via the fallback listing mechanism.
+    /// - The inner stat operation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error of kind [`ErrorKind::NotFound`] if the metadata cannot be retrieved or if a directory
+    /// is expected but a file is encountered.
     async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.native_capability();
+        if path != "/" && path.ends_with('/') {
+            // when stat any directories
+            let capability = self.info.native_capability();
 
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
+            // When a service supports `create_dir`, the service usually can stat a directory.
+            if capability.create_dir {
+                let meta = self.inner.stat(path, args).await?.into_metadata();
 
-        // Forward to inner if create_dir is supported.
-        if path.ends_with('/') && capability.create_dir {
-            let meta = self.inner.stat(path, args).await?.into_metadata();
+                if meta.is_file() {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "stat expected a directory, but found a file",
+                    ));
+                }
 
-            if meta.is_file() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "stat expected a directory, but found a file",
-                ));
+                return Ok(RpStat::new(meta));
             }
 
-            return Ok(RpStat::new(meta));
+            // fallbacks to stat the directory by `list`.
+            if capability.list_with_recursive {
+                let (_, mut l) = self
+                    .inner
+                    .list(path, OpList::default().with_recursive(true).with_limit(1))
+                    .await?;
+
+                return oio::List::next(&mut l).await?.map_or_else(
+                    || {
+                        Err(Error::new(
+                            ErrorKind::NotFound,
+                            "the directory is not found",
+                        ))
+                    },
+                    |entry| Ok(RpStat::new(entry.into_metadata())),
+                );
+            }
         }
 
-        // Otherwise, we can simulate stat dir via `list`.
-        if path.ends_with('/') && capability.list_with_recursive {
-            let (_, mut l) = self
-                .inner
-                .list(path, OpList::default().with_recursive(true).with_limit(1))
-                .await?;
-
-            return if oio::List::next(&mut l).await?.is_some() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(Error::new(
-                    ErrorKind::NotFound,
-                    "the directory is not found",
-                ))
-            };
-        }
-
-        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        // defaults to stat with the service's implementation because we don't have more information about:
+        // - path
+        // - the service capability
+        // - what the service would do
         self.inner.stat(path, args).await
     }
 
+    /// Completes a stat operation for a given path by handling both files and directories.
+    ///
+    /// This function attempts to retrieve metadata for the specified `path`.
+    /// When the path represents a directory (i.e., it is not "/" and ends with a `/`), it will:
+    ///
+    /// 1. If the service supports `create_dir`, it performs a standard stat and checks that the result
+    ///    is indeed a directory. If a file is found instead, it returns a `NotFound` error.
+    /// 2. If the service does not support `create_dir` but supports recursive listing (`list_with_recursive`),
+    ///    it falls back to listing the directory with a limit of 1 item to infer the directory's metadata.
+    ///
+    /// If the path does not represent a directory or if no specialized handling is applicable,
+    /// the function falls back to the inner service's `stat` method.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the file or directory for which metadata is requested.
+    /// * `args` - Additional options for the stat operation (wrapped in an `OpStat`).
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`RpStat`] containing the metadata on success, or an error if:
+    /// - The path represents a directory but a file is found.
+    /// - The directory cannot be found via the fallback listing mechanism.
+    /// - The inner stat operation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error of kind [`ErrorKind::NotFound`] if the metadata cannot be retrieved or if a directory
     fn complete_blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.native_capability();
+        if path != "/" && path.ends_with('/') {
+            // when stat any directories
+            let capability = self.info.native_capability();
 
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
+            // When a service supports `create_dir`, the service usually can stat a directory.
+            if capability.create_dir {
+                let meta = self.inner.blocking_stat(path, args)?.into_metadata();
 
-        // Forward to inner if create dir is supported.
-        if path.ends_with('/') && capability.create_dir {
-            let meta = self.inner.blocking_stat(path, args)?.into_metadata();
+                if meta.is_file() {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "stat expected a directory, but found a file",
+                    ));
+                }
 
-            if meta.is_file() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "stat expected a directory, but found a file",
-                ));
+                return Ok(RpStat::new(meta));
             }
 
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            // fallbacks to stat the directory by `list`.
+            if capability.list_with_recursive {
+                let (_, mut l) = self
+                    .inner
+                    .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
+
+                return oio::BlockingList::next(&mut l)?.map_or_else(
+                    || {
+                        Err(Error::new(
+                            ErrorKind::NotFound,
+                            "the directory is not found",
+                        ))
+                    },
+                    |entry| Ok(RpStat::new(entry.into_metadata())),
+                );
+            }
         }
 
-        // Otherwise, we can simulate stat a dir path via `list`.
-        if path.ends_with('/') && capability.list_with_recursive {
-            let (_, mut l) = self
-                .inner
-                .blocking_list(path, OpList::default().with_recursive(true).with_limit(1))?;
-
-            return if oio::BlockingList::next(&mut l)?.is_some() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(Error::new(
-                    ErrorKind::NotFound,
-                    "the directory is not found",
-                ))
-            };
-        }
-
-        // Forward to underlying storage directly since we don't know how to handle stat dir.
+        // defaults to stat with the service's implementation because we don't have more information about:
+        // - path
+        // - the service capability
+        // - what the service would do
         self.inner.blocking_stat(path, args)
     }
 

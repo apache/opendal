@@ -272,10 +272,6 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         }
 
         if let Some(result) = self.results.pop_front() {
-            if self.is_concurrent() {
-                self.completed_but_unretrieved
-                    .fetch_sub(1, Ordering::Relaxed);
-            }
             return Some(Ok(result));
         }
 

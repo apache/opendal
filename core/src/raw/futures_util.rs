@@ -16,9 +16,6 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::task::Poll;
-
-use futures::poll;
 
 use crate::*;
 
@@ -163,66 +160,32 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             };
         }
 
-        loop {
-            // Try poll once to see if there is any ready task.
-            if let Some(task) = self.tasks.front_mut() {
-                if let Poll::Ready((i, o)) = poll!(task) {
-                    match o {
-                        Ok(o) => {
-                            let _ = self.tasks.pop_front();
-                            self.results.push_back(o)
-                        }
-                        Err(err) => {
-                            // Retry this task if the error is temporary
-                            if err.is_temporary() {
-                                self.tasks
-                                    .front_mut()
-                                    .expect("tasks must have at least one task")
-                                    .replace(self.executor.execute((self.factory)(i)));
-                            } else {
-                                self.clear();
-                                self.errored = true;
-                            }
-                            return Err(err);
-                        }
-                    }
-                }
-            }
-
-            // Try to push new task if there are available space.
-            if self.tasks.len() < self.tasks.capacity() {
-                self.tasks
-                    .push_back(self.executor.execute((self.factory)(input)));
-                return Ok(());
-            }
-
-            // Wait for the next task to be ready.
-            let task = self
+        // Try to push new task if there are available space.
+        if self.tasks.len() >= self.tasks.capacity() {
+            let (i, o) = self
                 .tasks
-                .front_mut()
-                .expect("tasks must have at least one task");
-            let (i, o) = task.await;
+                .pop_front()
+                .expect("tasks must be available")
+                .await;
             match o {
-                Ok(o) => {
-                    let _ = self.tasks.pop_front();
-                    self.results.push_back(o);
-                    continue;
-                }
+                Ok(o) => self.results.push_back(o),
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
                         self.tasks
-                            .front_mut()
-                            .expect("tasks must have at least one task")
-                            .replace(self.executor.execute((self.factory)(i)));
+                            .push_back(self.executor.execute((self.factory)(i)));
                     } else {
                         self.clear();
                         self.errored = true;
+                        return Err(err);
                     }
-                    return Err(err);
                 }
             }
         }
+
+        self.tasks
+            .push_back(self.executor.execute((self.factory)(input)));
+        Ok(())
     }
 
     /// Fetch the successful result from the result queue.

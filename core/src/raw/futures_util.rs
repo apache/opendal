@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::atomic::Ordering,
+    sync::{atomic::AtomicUsize, Arc},
+};
+
+use futures::FutureExt;
 
 use crate::*;
 
@@ -82,6 +88,10 @@ pub struct ConcurrentTasks<I, O> {
     /// `results` stores the successful results.
     results: VecDeque<O>,
 
+    /// The maximum number of concurrent tasks.
+    concurrent: usize,
+    /// `completed` is the counter of completed tasks.
+    completed: Arc<AtomicUsize>,
     /// hitting the last unrecoverable error.
     ///
     /// If concurrent tasks hit an unrecoverable error, it will stop executing new tasks and return
@@ -104,6 +114,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
             tasks: VecDeque::with_capacity(concurrent),
             results: VecDeque::with_capacity(concurrent),
+            concurrent,
+            completed: Arc::default(),
             errored: false,
         }
     }
@@ -125,13 +137,24 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Check if there are remaining space to push new tasks.
     #[inline]
     pub fn has_remaining(&self) -> bool {
-        self.tasks.len() < self.tasks.capacity()
+        self.tasks.len() < self.concurrent + self.completed.load(Ordering::Relaxed)
     }
 
     /// Chunk if there are remaining results to fetch.
     #[inline]
     pub fn has_result(&self) -> bool {
         !self.results.is_empty()
+    }
+
+    /// Create a task with given input.
+    pub fn create_task(&self, input: I) -> Task<(I, Result<O>)> {
+        let completed = self.completed.clone();
+
+        let fut = (self.factory)(input).inspect(move |_| {
+            completed.fetch_add(1, Ordering::Relaxed);
+        });
+
+        self.executor.execute(fut)
     }
 
     /// Execute the task with given input.
@@ -161,19 +184,21 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         }
 
         // Try to push new task if there are available space.
-        if self.tasks.len() >= self.tasks.capacity() {
+        if !self.has_remaining() {
             let (i, o) = self
                 .tasks
                 .pop_front()
                 .expect("tasks must be available")
                 .await;
             match o {
-                Ok(o) => self.results.push_back(o),
+                Ok(o) => {
+                    self.completed.fetch_sub(1, Ordering::Relaxed);
+                    self.results.push_back(o)
+                }
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
-                        self.tasks
-                            .push_back(self.executor.execute((self.factory)(i)));
+                        self.tasks.push_back(self.create_task(i));
                     } else {
                         self.clear();
                         self.errored = true;
@@ -183,8 +208,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             }
         }
 
-        self.tasks
-            .push_back(self.executor.execute((self.factory)(input)));
+        self.tasks.push_back(self.create_task(input));
         Ok(())
     }
 
@@ -198,23 +222,21 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         }
 
         if let Some(result) = self.results.pop_front() {
+            self.completed.fetch_sub(1, Ordering::Relaxed);
             return Some(Ok(result));
         }
 
-        if let Some(task) = self.tasks.front_mut() {
+        if let Some(task) = self.tasks.pop_front() {
             let (i, o) = task.await;
             return match o {
                 Ok(o) => {
-                    let _ = self.tasks.pop_front();
+                    self.completed.fetch_sub(1, Ordering::Relaxed);
                     Some(Ok(o))
                 }
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
-                        self.tasks
-                            .front_mut()
-                            .expect("tasks must have at least one task")
-                            .replace(self.executor.execute((self.factory)(i)));
+                        self.tasks.push_front(self.create_task(i));
                     } else {
                         self.clear();
                         self.errored = true;

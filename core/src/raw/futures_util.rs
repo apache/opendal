@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::task::Poll;
+use std::{
+    collections::VecDeque,
+    sync::atomic::Ordering,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
-use futures::poll;
+use futures::FutureExt;
 
 use crate::*;
 
@@ -61,6 +64,45 @@ impl<T> MaybeSend for T {}
 ///
 /// - `I` represents the input type of the task.
 /// - `O` represents the output type of the task.
+///
+/// # Implementation Notes
+///
+/// The code patterns below are intentional; please do not modify them unless you fully understand these notes.
+///
+/// ```skip
+///  let (i, o) = self
+///     .tasks
+///     .front_mut()                                        // Use `front_mut` instead of `pop_front`
+///     .expect("tasks must be available")
+///     .await;
+/// ...
+/// match o {
+///     Ok(o) => {
+///         let _ = self.tasks.pop_front();                 // `pop_front` after got `Ok(o)`
+///         self.results.push_back(o)
+///     }
+///     Err(err) => {
+///         if err.is_temporary() {
+///             let task = self.create_task(i);
+///             self.tasks
+///                 .front_mut()
+///                 .expect("tasks must be available")
+///                 .replace(task)                          // Use replace here to instead of `push_front`
+///         } else {
+///             self.clear();
+///             self.errored = true;
+///         }
+///         return Err(err);
+///     }
+/// }
+/// ```
+///
+/// Please keep in mind that there is no guarantee the task will be `await`ed until completion. It's possible
+/// the task may be dropped before it resolves. Therefore, we should keep the `Task` in the `tasks` queue until
+/// it is resolved.
+///
+/// For example, users may have a timeout for the task, and the task will be dropped if it exceeds the timeout.
+/// If we `pop_front` the task before it resolves, the task will be canceled and the result will be lost.
 pub struct ConcurrentTasks<I, O> {
     /// The executor to execute the tasks.
     ///
@@ -85,6 +127,16 @@ pub struct ConcurrentTasks<I, O> {
     /// `results` stores the successful results.
     results: VecDeque<O>,
 
+    /// The maximum number of concurrent tasks.
+    concurrent: usize,
+    /// Tracks the number of tasks that have finished execution but have not yet been collected.
+    /// This count is subtracted from the total concurrency capacity, ensuring that the system
+    /// always schedules new tasks to maintain the user's desired concurrency level.
+    ///
+    /// Example: If `concurrency = 10` and `completed_but_unretrieved = 3`,
+    ///          the system can still spawn 7 new tasks (since 3 slots are "logically occupied"
+    ///          by uncollected results).
+    completed_but_unretrieved: Arc<AtomicUsize>,
     /// hitting the last unrecoverable error.
     ///
     /// If concurrent tasks hit an unrecoverable error, it will stop executing new tasks and return
@@ -107,6 +159,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
             tasks: VecDeque::with_capacity(concurrent),
             results: VecDeque::with_capacity(concurrent),
+            concurrent,
+            completed_but_unretrieved: Arc::default(),
             errored: false,
         }
     }
@@ -114,7 +168,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Return true if the tasks are running concurrently.
     #[inline]
     fn is_concurrent(&self) -> bool {
-        self.tasks.capacity() > 1
+        self.concurrent > 1
     }
 
     /// Clear all tasks and results.
@@ -128,13 +182,24 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Check if there are remaining space to push new tasks.
     #[inline]
     pub fn has_remaining(&self) -> bool {
-        self.tasks.len() < self.tasks.capacity()
+        self.tasks.len() < self.concurrent + self.completed_but_unretrieved.load(Ordering::Relaxed)
     }
 
     /// Chunk if there are remaining results to fetch.
     #[inline]
     pub fn has_result(&self) -> bool {
         !self.results.is_empty()
+    }
+
+    /// Create a task with given input.
+    pub fn create_task(&self, input: I) -> Task<(I, Result<O>)> {
+        let completed = self.completed_but_unretrieved.clone();
+
+        let fut = (self.factory)(input).inspect(move |_| {
+            completed.fetch_add(1, Ordering::Relaxed);
+        });
+
+        self.executor.execute(fut)
     }
 
     /// Execute the task with given input.
@@ -163,58 +228,27 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             };
         }
 
-        loop {
-            // Try poll once to see if there is any ready task.
-            if let Some(task) = self.tasks.front_mut() {
-                if let Poll::Ready((i, o)) = poll!(task) {
-                    match o {
-                        Ok(o) => {
-                            let _ = self.tasks.pop_front();
-                            self.results.push_back(o)
-                        }
-                        Err(err) => {
-                            // Retry this task if the error is temporary
-                            if err.is_temporary() {
-                                self.tasks
-                                    .front_mut()
-                                    .expect("tasks must have at least one task")
-                                    .replace(self.executor.execute((self.factory)(i)));
-                            } else {
-                                self.clear();
-                                self.errored = true;
-                            }
-                            return Err(err);
-                        }
-                    }
-                }
-            }
-
-            // Try to push new task if there are available space.
-            if self.tasks.len() < self.tasks.capacity() {
-                self.tasks
-                    .push_back(self.executor.execute((self.factory)(input)));
-                return Ok(());
-            }
-
-            // Wait for the next task to be ready.
-            let task = self
+        if !self.has_remaining() {
+            let (i, o) = self
                 .tasks
                 .front_mut()
-                .expect("tasks must have at least one task");
-            let (i, o) = task.await;
+                .expect("tasks must be available")
+                .await;
+            self.completed_but_unretrieved
+                .fetch_sub(1, Ordering::Relaxed);
             match o {
                 Ok(o) => {
                     let _ = self.tasks.pop_front();
-                    self.results.push_back(o);
-                    continue;
+                    self.results.push_back(o)
                 }
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
+                        let task = self.create_task(i);
                         self.tasks
                             .front_mut()
-                            .expect("tasks must have at least one task")
-                            .replace(self.executor.execute((self.factory)(i)));
+                            .expect("tasks must be available")
+                            .replace(task)
                     } else {
                         self.clear();
                         self.errored = true;
@@ -223,6 +257,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                 }
             }
         }
+
+        self.tasks.push_back(self.create_task(input));
+        Ok(())
     }
 
     /// Fetch the successful result from the result queue.
@@ -240,6 +277,8 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
         if let Some(task) = self.tasks.front_mut() {
             let (i, o) = task.await;
+            self.completed_but_unretrieved
+                .fetch_sub(1, Ordering::Relaxed);
             return match o {
                 Ok(o) => {
                     let _ = self.tasks.pop_front();
@@ -248,10 +287,11 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                 Err(err) => {
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
+                        let task = self.create_task(i);
                         self.tasks
                             .front_mut()
-                            .expect("tasks must have at least one task")
-                            .replace(self.executor.execute((self.factory)(i)));
+                            .expect("tasks must be available")
+                            .replace(task)
                     } else {
                         self.clear();
                         self.errored = true;
@@ -273,6 +313,7 @@ mod tests {
     use tokio::time::sleep;
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn test_concurrent_tasks() {

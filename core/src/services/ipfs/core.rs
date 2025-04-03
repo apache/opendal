@@ -29,7 +29,6 @@ pub struct IpfsCore {
     pub info: Arc<AccessorInfo>,
     pub endpoint: String,
     pub root: String,
-    pub client: HttpClient,
 }
 
 impl Debug for IpfsCore {
@@ -37,7 +36,6 @@ impl Debug for IpfsCore {
         f.debug_struct("IpfsCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .field("client", &self.client)
             .finish()
     }
 }
@@ -56,7 +54,7 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
@@ -68,7 +66,7 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
@@ -86,6 +84,6 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }

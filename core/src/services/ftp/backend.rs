@@ -21,19 +21,15 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use super::core::FtpCore;
+use super::core::Manager;
 use bb8::PooledConnection;
 use bb8::RunError;
-use futures_rustls::TlsConnector;
 use http::Uri;
 use log::debug;
 use suppaftp::list::File;
-use suppaftp::rustls::ClientConfig;
-use suppaftp::types::FileType;
 use suppaftp::types::Response;
-use suppaftp::AsyncRustlsConnector;
-use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -167,128 +163,50 @@ impl Builder for FtpBuilder {
             Some(v) => v.clone(),
         };
 
-        Ok(FtpBackend {
-            info: {
-                let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Ftp)
-                    .set_root(&root)
-                    .set_native_capability(Capability {
-                        stat: true,
-                        stat_has_content_length: true,
-                        stat_has_last_modified: true,
+        let accessor_info = AccessorInfo::default();
+        accessor_info
+            .set_scheme(Scheme::Ftp)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
 
-                        read: true,
+                read: true,
 
-                        write: true,
-                        write_can_multi: true,
-                        write_can_append: true,
+                write: true,
+                write_can_multi: true,
+                write_can_append: true,
 
-                        delete: true,
-                        create_dir: true,
+                delete: true,
+                create_dir: true,
 
-                        list: true,
-                        list_has_content_length: true,
-                        list_has_last_modified: true,
+                list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
-
-                am.into()
-            },
+                ..Default::default()
+            });
+        let core = Arc::new(FtpCore {
+            info: accessor_info.into(),
             endpoint,
             root,
             user,
             password,
             enable_secure,
             pool: OnceCell::new(),
-        })
+        });
+
+        Ok(FtpBackend { core })
     }
 }
 
-pub struct Manager {
-    endpoint: String,
-    root: String,
-    user: String,
-    password: String,
-    enable_secure: bool,
-}
-
-#[async_trait::async_trait]
-impl bb8::ManageConnection for Manager {
-    type Connection = AsyncRustlsFtpStream;
-    type Error = FtpError;
-
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
-        // switch to secure mode if ssl/tls is on.
-        let mut ftp_stream = if self.enable_secure {
-            let mut root_store = suppaftp::rustls::RootCertStore::empty();
-            for cert in
-                rustls_native_certs::load_native_certs().expect("could not load platform certs")
-            {
-                root_store.add(cert).unwrap();
-            }
-
-            let cfg = ClientConfig::builder()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
-            stream
-                .into_secure(
-                    AsyncRustlsConnector::from(TlsConnector::from(Arc::new(cfg))),
-                    &self.endpoint,
-                )
-                .await?
-        } else {
-            stream
-        };
-
-        // login if needed
-        if !self.user.is_empty() {
-            ftp_stream.login(&self.user, &self.password).await?;
-        }
-
-        // change to the root path
-        match ftp_stream.cwd(&self.root).await {
-            Err(FtpError::UnexpectedResponse(e)) if e.status == Status::FileUnavailable => {
-                ftp_stream.mkdir(&self.root).await?;
-                // Then change to root path
-                ftp_stream.cwd(&self.root).await?;
-            }
-            // Other errors, return.
-            Err(e) => return Err(e),
-            // Do nothing if success.
-            Ok(_) => (),
-        }
-
-        ftp_stream.transfer_type(FileType::Binary).await?;
-
-        Ok(ftp_stream)
-    }
-
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.noop().await
-    }
-
-    /// Don't allow reuse conn.
-    ///
-    /// We need to investigate why reuse conn will cause error.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        true
-    }
-}
-
-/// Backend is used to serve `Accessor` support for ftp.
+// Backend is used to serve `Accessor` support for ftp.
 #[derive(Clone)]
 pub struct FtpBackend {
-    info: Arc<AccessorInfo>,
-    endpoint: String,
-    root: String,
-    user: String,
-    password: String,
-    enable_secure: bool,
-    pool: OnceCell<bb8::Pool<Manager>>,
+    core: Arc<FtpCore>,
 }
 
 impl Debug for FtpBackend {
@@ -308,7 +226,7 @@ impl Access for FtpBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -424,16 +342,17 @@ impl Access for FtpBackend {
 impl FtpBackend {
     pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
         let pool = self
+            .core
             .pool
             .get_or_try_init(|| async {
                 bb8::Pool::builder()
                     .max_size(64)
                     .build(Manager {
-                        endpoint: self.endpoint.to_string(),
-                        root: self.root.to_string(),
-                        user: self.user.to_string(),
-                        password: self.password.to_string(),
-                        enable_secure: self.enable_secure,
+                        endpoint: self.core.endpoint.to_string(),
+                        root: self.core.root.to_string(),
+                        user: self.core.user.to_string(),
+                        password: self.core.password.to_string(),
+                        enable_secure: self.core.enable_secure,
                     })
                     .await
             })

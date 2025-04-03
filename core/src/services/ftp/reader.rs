@@ -20,7 +20,7 @@ use bytes::BytesMut;
 use futures::AsyncRead;
 use futures::AsyncReadExt;
 
-use super::backend::Manager;
+use super::core::Manager;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;

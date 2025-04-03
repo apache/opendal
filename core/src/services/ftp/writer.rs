@@ -20,7 +20,7 @@ use bytes::Buf;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
-use super::backend::Manager;
+use super::core::Manager;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;

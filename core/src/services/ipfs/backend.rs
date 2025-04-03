@@ -19,12 +19,12 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
 
+use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
@@ -134,51 +134,47 @@ impl Builder for IpfsBuilder {
             })?
         };
 
-        Ok(IpfsBackend {
-            info: {
-                let ma = AccessorInfo::default();
-                ma.set_scheme(Scheme::Ipfs)
-                    .set_root(&root)
-                    .set_native_capability(Capability {
-                        stat: true,
-                        stat_has_content_length: true,
-                        stat_has_content_type: true,
-                        stat_has_etag: true,
-                        stat_has_content_disposition: true,
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Ipfs)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_etag: true,
+                stat_has_content_disposition: true,
 
-                        read: true,
+                read: true,
 
-                        list: true,
+                list: true,
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
+                ..Default::default()
+            });
 
-                ma.into()
-            },
+        let accessor_info = Arc::new(info);
+        let core = Arc::new(IpfsCore {
+            info: accessor_info,
             root,
             endpoint,
             client,
-        })
+        });
+
+        Ok(IpfsBackend { core })
     }
 }
 
 /// Backend for IPFS.
 #[derive(Clone)]
 pub struct IpfsBackend {
-    info: Arc<AccessorInfo>,
-    endpoint: String,
-    root: String,
-    client: HttpClient,
+    core: Arc<IpfsCore>,
 }
 
 impl Debug for IpfsBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .field("client", &self.client)
+        f.debug_struct("IpfsBackend")
+            .field("core", &self.core)
             .finish()
     }
 }
@@ -194,7 +190,7 @@ impl Access for IpfsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
+        self.core.info.clone()
     }
 
     /// IPFS's stat behavior highly depends on its implementation.
@@ -305,7 +301,7 @@ impl Access for IpfsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.ipfs_head(path).await?;
+        let resp = self.core.ipfs_head(path).await?;
 
         let status = resp.status();
 
@@ -349,7 +345,7 @@ impl Access for IpfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipfs_get(path, args.range()).await?;
+        let resp = self.core.ipfs_get(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -371,54 +367,6 @@ impl Access for IpfsBackend {
     }
 }
 
-impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.fetch(req).await
-    }
-
-    async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let req = Request::head(&url);
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        // Use "application/vnd.ipld.raw" to disable IPLD codec deserialization
-        // OpenDAL will parse ipld data directly.
-        //
-        // ref: https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md
-        req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-}
-
 pub struct DirStream {
     backend: Arc<IpfsBackend>,
     path: String,
@@ -435,7 +383,7 @@ impl DirStream {
 
 impl oio::PageList for DirStream {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.backend.ipfs_list(&self.path).await?;
+        let resp = self.backend.core.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));

@@ -72,6 +72,45 @@ impl AsyncWrite for FuturesAsyncWriter {
         }
     }
 
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+
+        if bufs.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        loop {
+            let mut total_size = 0;
+            let mut all_empty = true;
+            for buf in bufs {
+                if buf.is_empty() {
+                    continue;
+                }
+                all_empty = false;
+                let n = this.buf.put(buf);
+                total_size += n;
+                if n < buf.len() {
+                    break;
+                }
+            }
+            if total_size > 0 || all_empty {
+                return Poll::Ready(Ok(total_size));
+            }
+
+            ready!(this.sink.poll_ready_unpin(cx)).map_err(format_std_io_error)?;
+
+            let bs = this.buf.get().expect("frozen buffer must be valid");
+            this.sink
+                .start_send_unpin(Buffer::from(bs))
+                .map_err(format_std_io_error)?;
+            this.buf.clean();
+        }
+    }
+
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
 
@@ -111,10 +150,10 @@ impl AsyncWrite for FuturesAsyncWriter {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::raw::MaybeSend;
+    use futures::AsyncWriteExt;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_trait() {
@@ -132,5 +171,57 @@ mod tests {
         let v = FuturesAsyncWriter::new(write_gen);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
+
+    #[tokio::test]
+    async fn test_poll_write_vectored() {
+        let op = Operator::via_iter(Scheme::Memory, []).unwrap();
+
+        let acc = op.clone().into_inner();
+        let path = "test";
+        let ctx = Arc::new(WriteContext::new(
+            acc,
+            path.to_string(),
+            OpWrite::new(),
+            OpWriter::new().with_chunk(1),
+        ));
+        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+
+        let mut v = FuturesAsyncWriter::new(write_gen);
+        let _ = v
+            .write_vectored(&[io::IoSlice::new(b"Hello"), io::IoSlice::new(b"World")])
+            .await
+            .unwrap();
+        v.flush().await.unwrap();
+        v.close().await.unwrap();
+
+        let data = op.read(path).await.unwrap();
+        assert_eq!(data.to_vec(), b"HelloWorld");
+    }
+
+    #[tokio::test]
+    async fn test_poll_write_vectored_with_concurrent() {
+        let op = Operator::via_iter(Scheme::Memory, []).unwrap();
+
+        let acc = op.clone().into_inner();
+        let path = "test";
+        let ctx = Arc::new(WriteContext::new(
+            acc,
+            path.to_string(),
+            OpWrite::new().with_concurrent(3),
+            OpWriter::new().with_chunk(2),
+        ));
+        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+
+        let mut v = FuturesAsyncWriter::new(write_gen);
+        let _ = v
+            .write_vectored(&[io::IoSlice::new(b"Hello"), io::IoSlice::new(b"World")])
+            .await
+            .unwrap();
+        v.flush().await.unwrap();
+        v.close().await.unwrap();
+
+        let data = op.read(path).await.unwrap();
+        assert_eq!(data.to_vec(), b"HelloWorld");
     }
 }

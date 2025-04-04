@@ -62,7 +62,11 @@ impl oio::MultipartWrite for GcsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => {
+                let metadata =
+                    GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
+                Ok(metadata)
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -139,6 +143,9 @@ impl oio::MultipartWrite for GcsWriter {
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
+        // we don't extract metadata from `CompleteMultipartUploadResult`, since we only need the `ETag` from it.
+        // However, the `ETag` differs from the `ETag` obtained through the `stat` operation.
+        // refer to: https://cloud.google.com/storage/docs/metadata#etags
         Ok(Metadata::default())
     }
 

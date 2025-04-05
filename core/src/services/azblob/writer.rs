@@ -20,10 +20,10 @@ use std::sync::Arc;
 use http::StatusCode;
 use uuid::Uuid;
 
+use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::core::constants::X_MS_VERSION_ID;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -42,6 +42,8 @@ impl AzblobWriter {
         AzblobWriter { core, op, path }
     }
 
+    // skip extracting `content-md5` here, as it pertains to the content of the request rather than
+    // the content of the block itself for the `append` and `complete put block list` operations.
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
         let mut metadata = Metadata::default();
 
@@ -116,7 +118,6 @@ impl oio::AppendWrite for AzblobWriter {
 
         let resp = self.core.send(req).await?;
 
-        // skip extracting content-md5 here because it refers to the block being appended.
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {
@@ -167,8 +168,6 @@ impl oio::BlockWrite for AzblobWriter {
             .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
             .await?;
 
-        // skip extracting content-md5 here because it refers to the content of the request,
-        // not the content of the block itself.
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {

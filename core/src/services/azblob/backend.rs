@@ -32,6 +32,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::core::constants::X_MS_META_PREFIX;
+use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
@@ -39,7 +40,6 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
 use crate::raw::*;
-use crate::services::core::constants::X_MS_VERSION_ID;
 use crate::services::AzblobConfig;
 use crate::*;
 

@@ -429,7 +429,7 @@ impl Metadata {
     }
 
     /// Set user defined metadata of this entry
-    pub fn with_user_metadata(&mut self, data: HashMap<String, String>) -> &mut Self {
+    pub fn set_user_metadata(&mut self, data: HashMap<String, String>) -> &mut Self {
         self.user_metadata = Some(data);
         self
     }

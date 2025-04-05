@@ -29,19 +29,31 @@ This service can be used to:
 use anyhow::Result;
 use opendal::services::Postgresql;
 use opendal::Operator;
+use opendal::raw::oio::Read;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = Postgresql::default()
         .root("/")
-        .connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database")
-        .table("your_table")
+        // postgresql://username:password@host:port/database
+        // About more connection url's format
+        // Check https://www.postgresql.org/docs/current/libpq-connect.html
+        .connection_string("postgresql://username:password@host:port/database")
+        .table("table_name")
         // key field type in the table should be compatible with Rust's &str like text
-        .key_field("key")
+        .key_field("key_in_table")
         // value field type in the table should be compatible with Rust's Vec<u8> like bytea
         .value_field("value");
 
     let op = Operator::new(builder)?.finish();
+    
+    // write data
+    op.write("hello","world").await?;
+
+    // read data
+    let result= op.read("hello").await?.read_all().await?.to_bytes();
+    println!("read data: {:?}", String::from_utf8(result.to_vec()));
+
     Ok(())
 }
 ```

@@ -24,6 +24,8 @@ mod ipld;
 mod backend;
 #[cfg(feature = "services-ipfs")]
 pub use backend::IpfsBuilder as Ipfs;
+#[cfg(feature = "services-ipfs")]
+mod core;
 
 mod config;
 pub use config::IpfsConfig;

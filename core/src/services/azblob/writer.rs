@@ -23,6 +23,7 @@ use uuid::Uuid;
 use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::core::constants::X_MS_VERSION_ID;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -39,6 +40,28 @@ pub struct AzblobWriter {
 impl AzblobWriter {
     pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
         AzblobWriter { core, op, path }
+    }
+
+    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(last_modified) = parse_last_modified(headers)? {
+            metadata.set_last_modified(last_modified);
+        }
+        let etag = parse_etag(headers)?;
+        if let Some(etag) = etag {
+            metadata.set_etag(etag);
+        }
+        let md5 = parse_content_md5(headers)?;
+        if let Some(md5) = md5 {
+            metadata.set_content_md5(md5);
+        }
+        let version_id = parse_header_to_str(headers, X_MS_VERSION_ID)?;
+        if let Some(version_id) = version_id {
+            metadata.set_version(version_id);
+        }
+
+        Ok(metadata)
     }
 }
 
@@ -97,9 +120,10 @@ impl oio::AppendWrite for AzblobWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {
-            StatusCode::CREATED => Ok(Metadata::default()),
+            StatusCode::CREATED => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -116,8 +140,9 @@ impl oio::BlockWrite for AzblobWriter {
 
         let status = resp.status();
 
+        let meta = AzblobWriter::parse_metadata(resp.headers())?;
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -141,9 +166,10 @@ impl oio::BlockWrite for AzblobWriter {
             .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
             .await?;
 
+        let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

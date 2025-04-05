@@ -47,6 +47,7 @@ use crate::raw::*;
 use crate::*;
 
 pub mod constants {
+    // Indicates the Blob Storage version that was used to execute the request
     pub const X_MS_VERSION: &str = "x-ms-version";
 
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -54,6 +55,9 @@ pub mod constants {
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
     pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
+
+    // indicates the version of the blob, and it can be used in subsequent requests to access the blob.
+    pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
 
     // Server-side encryption with customer-provided headers
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";

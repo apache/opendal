@@ -52,10 +52,6 @@ impl AzblobWriter {
         if let Some(etag) = etag {
             metadata.set_etag(etag);
         }
-        let md5 = parse_content_md5(headers)?;
-        if let Some(md5) = md5 {
-            metadata.set_content_md5(md5);
-        }
         let version_id = parse_header_to_str(headers, X_MS_VERSION_ID)?;
         if let Some(version_id) = version_id {
             metadata.set_version(version_id);
@@ -120,6 +116,7 @@ impl oio::AppendWrite for AzblobWriter {
 
         let resp = self.core.send(req).await?;
 
+        // skip extracting content-md5 here because it refers to the block being appended.
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {
@@ -140,7 +137,11 @@ impl oio::BlockWrite for AzblobWriter {
 
         let status = resp.status();
 
-        let meta = AzblobWriter::parse_metadata(resp.headers())?;
+        let mut meta = AzblobWriter::parse_metadata(resp.headers())?;
+        let md5 = parse_content_md5(resp.headers())?;
+        if let Some(md5) = md5 {
+            meta.set_content_md5(md5);
+        }
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
@@ -166,6 +167,8 @@ impl oio::BlockWrite for AzblobWriter {
             .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
             .await?;
 
+        // skip extracting content-md5 here because it refers to the content of the request,
+        // not the content of the block itself.
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
         match status {

@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::err::parse_error;
 use crate::raw::AccessorInfo;
 use crate::*;
 use bb8::Pool;
+use bb8::PooledConnection;
+use bb8::RunError;
 use futures_rustls::TlsConnector;
+use raw::Operation;
 use std::sync::Arc;
 use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
@@ -29,18 +33,33 @@ use tokio::sync::OnceCell;
 
 pub struct FtpCore {
     pub info: Arc<AccessorInfo>,
-    pub endpoint: String,
-    pub root: String,
-    pub user: String,
-    pub password: String,
-    pub enable_secure: bool,
+    pub manager: Manager,
     pub pool: OnceCell<Pool<Manager>>,
 }
 
 impl FtpCore {
-    // pub fn
+    pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
+        let pool = self
+            .pool
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(self.manager.clone())
+                    .await
+            })
+            .await
+            .map_err(parse_error)?;
+
+        pool.get_owned().await.map_err(|err| match err {
+            RunError::User(err) => parse_error(err),
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+            }
+        })
+    }
 }
 
+#[derive(Clone)]
 pub struct Manager {
     pub endpoint: String,
     pub root: String,

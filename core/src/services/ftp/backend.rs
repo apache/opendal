@@ -22,9 +22,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use super::core::FtpCore;
-use super::core::Manager;
-use bb8::PooledConnection;
-use bb8::RunError;
 use http::Uri;
 use log::debug;
 use suppaftp::list::File;
@@ -230,7 +227,7 @@ impl Access for FtpBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut ftp_stream = self.ftp_connect(Operation::CreateDir).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
 
@@ -273,7 +270,7 @@ impl Access for FtpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let ftp_stream = self.ftp_connect(Operation::Read).await?;
+        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
         Ok((RpRead::new(), reader))
@@ -285,7 +282,7 @@ impl Access for FtpBackend {
         let paths: Vec<&str> = parent.split('/').collect();
 
         // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
         let mut curr_path = String::new();
 
         for path in paths {
@@ -327,7 +324,7 @@ impl Access for FtpBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let mut ftp_stream = self.ftp_connect(Operation::List).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
         let files = ftp_stream.list(pathname).await.map_err(parse_error)?;
@@ -340,35 +337,8 @@ impl Access for FtpBackend {
 }
 
 impl FtpBackend {
-    pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
-        let pool = self
-            .core
-            .pool
-            .get_or_try_init(|| async {
-                bb8::Pool::builder()
-                    .max_size(64)
-                    .build(Manager {
-                        endpoint: self.core.endpoint.to_string(),
-                        root: self.core.root.to_string(),
-                        user: self.core.user.to_string(),
-                        password: self.core.password.to_string(),
-                        enable_secure: self.core.enable_secure,
-                    })
-                    .await
-            })
-            .await
-            .map_err(parse_error)?;
-
-        pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => parse_error(err),
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
-            }
-        })
-    }
-
     pub async fn ftp_stat(&self, path: &str) -> Result<File> {
-        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Stat).await?;
 
         let (parent, basename) = (get_parent(path), get_basename(path));
 

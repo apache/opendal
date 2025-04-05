@@ -27,6 +27,7 @@
 "hsa" = "hsa"
 # Tech words
 "WRONLY" = "WRONLY"
+"typ" = "typ"
 
 [files]
 extend-exclude = [

@@ -24,6 +24,7 @@ use std::sync::Arc;
 use super::core::FtpCore;
 use http::Uri;
 use log::debug;
+use services::ftp::core::Manager;
 use suppaftp::list::File;
 use suppaftp::types::Response;
 use suppaftp::FtpError;
@@ -186,13 +187,16 @@ impl Builder for FtpBuilder {
 
                 ..Default::default()
             });
+        let manager = Manager {
+            endpoint: endpoint.clone(),
+            root: root.clone(),
+            user: user.clone(),
+            password: password.clone(),
+            enable_secure,
+        };
         let core = Arc::new(FtpCore {
             info: accessor_info.into(),
-            endpoint,
-            root,
-            user,
-            password,
-            enable_secure,
+            manager,
             pool: OnceCell::new(),
         });
 
@@ -319,7 +323,7 @@ impl Access for FtpBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(FtpDeleter::new(Arc::new(self.clone()))),
+            oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone())),
         ))
     }
 

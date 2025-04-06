@@ -684,7 +684,7 @@ impl GcsCore {
         m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
         if !meta.metadata.is_empty() {
-            m.with_user_metadata(meta.metadata);
+            m = m.with_user_metadata(meta.metadata);
         }
 
         Ok(m)

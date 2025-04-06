@@ -239,7 +239,7 @@ impl OssCore {
         let mut m = parse_into_metadata(path, headers)?;
         let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
-            m.with_user_metadata(user_meta);
+            m = m.with_user_metadata(user_meta);
         }
 
         Ok(m)

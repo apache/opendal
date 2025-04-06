@@ -570,7 +570,7 @@ impl Access for AzblobBackend {
 
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
+                    meta = meta.with_user_metadata(user_meta);
                 }
 
                 Ok(RpStat::new(meta))

@@ -32,6 +32,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::core::constants::X_MS_META_PREFIX;
+use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
@@ -567,6 +568,9 @@ impl Access for AzblobBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+                if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
+                    meta.set_version(version_id);
+                }
 
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {

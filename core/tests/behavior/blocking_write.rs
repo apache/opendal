@@ -113,6 +113,12 @@ pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> 
     if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
 
     Ok(())
 }
@@ -157,7 +163,11 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
         .expect("append to an existing file must success");
 
     let stat_meta = op.stat(&path).expect("stat must succeed");
+    assert_metadata(stat_meta, meta);
+    Ok(())
+}
 
+fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
     assert_eq!(stat_meta.content_length(), meta.content_length());
     if meta.etag().is_some() {
         assert_eq!(stat_meta.etag(), meta.etag());
@@ -174,8 +184,12 @@ pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) ->
     if meta.content_type().is_some() {
         assert_eq!(stat_meta.content_type(), meta.content_type());
     }
-
-    Ok(())
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
 }
 
 /// Copy data from reader to writer

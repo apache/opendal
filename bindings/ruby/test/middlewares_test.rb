@@ -17,19 +17,30 @@
 
 # frozen_string_literal: true
 
-module OpenDAL
-  class Entry
-    # Returns the canonical data about an entry
-    # @return [Hash]
-    def to_h
-      {
-        path: path,
-        metadata: metadata
-      }
-    end
+require "test_helper"
 
-    def inspect
-      "#<#{self.class.name} path: \"#{path}\", metadata: #{metadata.inspect}>"
+class MiddlewaresTest < ActiveSupport::TestCase
+  test "builds a retry middleware" do
+    assert_nothing_raised do
+      OpenDAL::RetryMiddleware.new
+    end
+  end
+
+  test "builds a concurrent limit middleware" do
+    assert_nothing_raised do
+      OpenDAL::ConcurrentLimitMiddleware.new(10)
+    end
+  end
+
+  test "builds a throttle middleware" do
+    assert_nothing_raised do
+      OpenDAL::ThrottleMiddleware.new(100, 10)
+    end
+  end
+
+  test "builds a timeout middleware" do
+    assert_nothing_raised do
+      OpenDAL::TimeoutMiddleware.new(1.23, 1.0)
     end
   end
 end

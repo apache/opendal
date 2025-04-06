@@ -18,18 +18,27 @@
 # frozen_string_literal: true
 
 module OpenDAL
-  class Entry
-    # Returns the canonical data about an entry
-    # @return [Hash]
-    def to_h
-      {
-        path: path,
-        metadata: metadata
-      }
+  class Metadata
+    FILE = "File"
+    DIRECTORY = "Directory"
+
+    # Returns `True` if this is a file.
+    # @return [Boolean]
+    def file?
+      mode == FILE
+    end
+
+    # Returns `True` if this is a directory.
+    # @return [Boolean]
+    def dir?
+      mode == DIRECTORY
     end
 
     def inspect
-      "#<#{self.class.name} path: \"#{path}\", metadata: #{metadata.inspect}>"
+      # Be concise to keep a few attributes
+      "#<#{self.class.name} mode: #{entry_mode}, \
+        content_type: #{content_type}, \
+        content_length: #{content_length}>"
     end
   end
 end

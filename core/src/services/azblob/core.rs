@@ -18,7 +18,6 @@
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -248,7 +247,7 @@ impl AzblobCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let mut req = Request::put(&self.build_path_url(path));
+        let mut req = Request::put(self.build_path_url(path));
 
         req = req.header(
             HeaderName::from_static(constants::X_MS_BLOB_TYPE),
@@ -314,7 +313,7 @@ impl AzblobCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let mut req = Request::put(&self.build_path_url(path));
+        let mut req = Request::put(self.build_path_url(path));
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
@@ -358,9 +357,7 @@ impl AzblobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let url = QueryPairsWriter::new(&self.build_path_url(path))
-            .push("comp", "appendblock")
-            .finish();
+        let url = format!("{}?comp=appendblock", &self.build_path_url(path));
 
         let mut req = Request::put(&url);
 
@@ -434,9 +431,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let url = QueryPairsWriter::new(&self.build_path_url(path))
-            .push("comp", "blocklist")
-            .finish();
+        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
 
         let req = Request::put(&url);
 
@@ -480,7 +475,7 @@ impl AzblobCore {
     }
 
     pub fn azblob_head_blob_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let mut req = Request::head(&self.build_path_url(path));
+        let mut req = Request::head(self.build_path_url(path));
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
@@ -510,7 +505,7 @@ impl AzblobCore {
     }
 
     pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
-        let req = Request::delete(&self.build_path_url(path));
+        let req = Request::delete(self.build_path_url(path));
 
         req.header(CONTENT_LENGTH, 0)
             .body(Buffer::new())

@@ -18,6 +18,6 @@
 import pytest
 
 
-@pytest.mark.need_capability("check")
+@pytest.mark.need_capability("list")
 def test_sync_copy(service_name, operator, async_operator):
     operator.check()

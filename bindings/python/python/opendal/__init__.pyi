@@ -201,7 +201,6 @@ class Capability:
     delete: bool
     copy: bool
     rename: bool
-    check: bool
 
     list: bool
     list_with_limit: bool

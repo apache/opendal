@@ -97,6 +97,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
+    pub disable_list_objects_v2: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
@@ -676,6 +677,42 @@ impl S3Core {
         self.send(req).await
     }
 
+    pub async fn s3_list_objects_v1(
+        &self,
+        path: &str,
+        marker: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let mut url = self.endpoint.to_string();
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(&p))
+                .expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+        }
+        if !marker.is_empty() {
+            write!(url, "&marker={}", percent_encode_path(marker))
+                .expect("write into string must succeed");
+        }
+
+        let mut req = Request::get(&url)
+            // Inject operation to the request.
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
     pub async fn s3_list_objects_v2(
         &self,
         path: &str,
@@ -1070,6 +1107,25 @@ pub struct DeleteObjectsResultError {
     pub version_id: Option<String>,
 }
 
+/// Output of ListBucket/ListObjects (a.k.a ListObjectsV1).
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutputV1 {
+    pub is_truncated: Option<bool>,
+    /// ## Notes
+    ///
+    /// `next_marker` is returned only if we have the delimiter request parameter
+    /// specified. If the response does not include the NextMarker element and it
+    /// is truncated, we should use the value of the last Key element in the
+    /// response as the marker parameter in the subsequent request to get the
+    /// next set of object keys.
+    ///
+    /// If the contents is empty, we should find common_prefixes instead.
+    pub next_marker: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub contents: Vec<ListObjectsOutputContent>,
+}
+
 /// Output of ListBucketV2/ListObjectsV2.
 ///
 /// ## Note
@@ -1368,8 +1424,69 @@ mod tests {
         assert_eq!(out.error.len(), 0);
     }
 
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples
     #[test]
-    fn test_parse_list_output() {
+    fn test_parse_list_output_v1() {
+        let bs = bytes::Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+            <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                <Name>bucket</Name>
+                <Prefix/>
+                <Marker/>
+                <MaxKeys>1000</MaxKeys>
+                <IsTruncated>false</IsTruncated>
+                <Contents>
+                    <Key>my-image.jpg</Key>
+                    <LastModified>2009-10-12T17:50:30.000Z</LastModified>
+                    <ETag>"fba9dede5f27731c9771645a39863328"</ETag>
+                    <Size>434234</Size>
+                    <StorageClass>STANDARD</StorageClass>
+                    <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                        <DisplayName>mtd@amazon.com</DisplayName>
+                    </Owner>
+                </Contents>
+                <Contents>
+                   <Key>my-third-image.jpg</Key>
+                     <LastModified>2009-10-12T17:50:30.000Z</LastModified>
+                     <ETag>"1b2cf535f27731c974343645a3985328"</ETag>
+                     <Size>64994</Size>
+                     <StorageClass>STANDARD_IA</StorageClass>
+                     <Owner>
+                        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                        <DisplayName>mtd@amazon.com</DisplayName>
+                    </Owner>
+                </Contents>
+            </ListBucketResult>"#,
+        );
+
+        let out: ListObjectsOutputV1 =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert!(!out.is_truncated.unwrap());
+        assert!(out.next_marker.is_none());
+        assert!(out.common_prefixes.is_empty());
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "my-image.jpg".to_string(),
+                    size: 434234,
+                    etag: Some("\"fba9dede5f27731c9771645a39863328\"".to_string()),
+                    last_modified: "2009-10-12T17:50:30.000Z".to_string(),
+                },
+                ListObjectsOutputContent {
+                    key: "my-third-image.jpg".to_string(),
+                    size: 64994,
+                    last_modified: "2009-10-12T17:50:30.000Z".to_string(),
+                    etag: Some("\"1b2cf535f27731c974343645a3985328\"".to_string()),
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn test_parse_list_output_v2() {
         let bs = bytes::Bytes::from(
             r#"<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>example-bucket</Name>

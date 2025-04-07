@@ -43,7 +43,7 @@ use std::sync::LazyLock;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::lister::{S3ListerV2, S3Listers, S3ObjectVersionsLister};
+use super::lister::{S3ListerV1, S3ListerV2, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::oio::PageLister;
@@ -994,6 +994,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
+                disable_list_objects_v2: self.config.disable_list_objects_v2,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
@@ -1089,13 +1090,19 @@ impl Access for S3Backend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = if args.versions() || args.deleted() {
-            TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
+            ThreeWays::Three(PageLister::new(S3ObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else if self.core.disable_list_objects_v2 {
+            ThreeWays::One(PageLister::new(S3ListerV1::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else {
-            TwoWays::One(PageLister::new(S3ListerV2::new(
+            ThreeWays::Two(PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
                 args,

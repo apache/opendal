@@ -449,10 +449,10 @@ impl AsyncOperator {
     }
 
     /// Check if this operator can work correctly.
-    pub fn check<'p>(&'p self) -> PyResult<Bound<'p, PyAny>> {
+    pub fn check<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move {
-            this.core.check().await.map_err(format_pyerr)
+            this.check().await.map_err(format_pyerr)
         })   
     }
 

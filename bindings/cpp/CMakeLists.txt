@@ -97,7 +97,15 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 else()
     set(RUST_LIB ${CARGO_TARGET_DIR}/release/${CMAKE_STATIC_LIBRARY_PREFIX}opendal_cpp${CMAKE_STATIC_LIBRARY_SUFFIX})
 endif()
-set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
+
+set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
+                    ${PROJECT_SOURCE_DIR}/src
+                    ${CARGO_TARGET_DIR}/cxxbridge
+                    ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
+
+file(GLOB CPP_SOURCE_FILE "src/details/*.cpp")
+file(GLOB CPP_HEADER_FILE "src/details/*.hpp")
+
 list(APPEND CPP_SOURCE_FILE src/opendal.cpp)
 list(APPEND CPP_HEADER_FILE include/opendal.hpp)
 if (OPENDAL_ENABLE_ASYNC)

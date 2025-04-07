@@ -236,7 +236,6 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
-futures-rustls = { version = "^0.26", optional = true } 
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
 async-trait = "0.1.68"

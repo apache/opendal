@@ -686,23 +686,22 @@ impl S3Core {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = self.endpoint.to_string();
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !marker.is_empty() {
-            write!(url, "&marker={}", percent_encode_path(marker))
-                .expect("write into string must succeed");
+            url = url.push("marker", &percent_encode_path(marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())

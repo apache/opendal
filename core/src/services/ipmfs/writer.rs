@@ -15,28 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use http::StatusCode;
 
-use super::backend::IpmfsBackend;
+use super::core::IpmfsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct IpmfsWriter {
-    backend: IpmfsBackend,
-
+    core: Arc<IpmfsCore>,
     path: String,
 }
 
 impl IpmfsWriter {
-    pub fn new(backend: IpmfsBackend, path: String) -> Self {
-        IpmfsWriter { backend, path }
+    pub fn new(core: Arc<IpmfsCore>, path: String) -> Self {
+        IpmfsWriter { core, path }
     }
 }
 
 impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
+        let resp = self.core.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
 

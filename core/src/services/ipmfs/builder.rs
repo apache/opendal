@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use log::debug;
 
 use super::backend::IpmfsBackend;
+use super::core::IpmfsCore;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;
@@ -137,6 +140,34 @@ impl Builder for IpmfsBuilder {
             })?
         };
 
-        Ok(IpmfsBackend::new(root, client, endpoint))
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Ipmfs)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+
+                read: true,
+
+                write: true,
+                delete: true,
+
+                list: true,
+                list_has_content_length: true,
+
+                shared: true,
+
+                ..Default::default()
+            });
+
+        let accessor_info = Arc::new(info);
+        let core = Arc::new(IpmfsCore {
+            info: accessor_info,
+            root: root.to_string(),
+            endpoint: endpoint.to_string(),
+            client: client.clone(),
+        });
+
+        Ok(IpmfsBackend { core })
     }
 }

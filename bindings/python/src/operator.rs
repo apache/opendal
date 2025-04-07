@@ -451,9 +451,7 @@ impl AsyncOperator {
     /// Check if this operator can work correctly.
     pub fn check<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
-        future_into_py(py, async move {
-            this.check().await.map_err(format_pyerr)
-        })   
+        future_into_py(py, async move { this.check().await.map_err(format_pyerr) })
     }
 
     /// Create a dir at given path.

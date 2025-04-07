@@ -722,35 +722,33 @@ impl S3Core {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!("{}?list-type=2", self.endpoint);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("list-type", "2");
+
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if let Some(start_after) = start_after {
-            write!(url, "&start-after={}", percent_encode_path(&start_after))
-                .expect("write into string must succeed");
+            url = url.push("start-after", &percent_encode_path(&start_after));
         }
         if !continuation_token.is_empty() {
             // AWS S3 could return continuation-token that contains `=`
             // which could lead `reqsign` parse query wrongly.
             // URL encode continuation-token before starting signing so that
             // our signer will not be confused.
-            write!(
-                url,
-                "&continuation-token={}",
-                percent_encode_path(continuation_token)
-            )
-            .expect("write into string must succeed");
+            url = url.push(
+                "continuation-token",
+                &percent_encode_path(continuation_token),
+            );
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())

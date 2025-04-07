@@ -43,7 +43,7 @@ use std::sync::LazyLock;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
+use super::lister::{S3ListerV2, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::oio::PageLister;
@@ -1095,7 +1095,7 @@ impl Access for S3Backend {
                 args,
             )))
         } else {
-            TwoWays::One(PageLister::new(S3Lister::new(
+            TwoWays::One(PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
                 args,

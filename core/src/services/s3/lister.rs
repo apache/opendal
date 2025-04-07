@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use super::core::S3Core;
-use super::core::{ListObjectVersionsOutput, ListObjectsOutput};
+use super::core::{ListObjectVersionsOutput, ListObjectsOutputV2};
 use super::error::parse_error;
 use crate::raw::oio::PageContext;
 use crate::raw::*;
@@ -29,9 +29,10 @@ use crate::Result;
 use bytes::Buf;
 use quick_xml::de;
 
-pub type S3Listers = TwoWays<oio::PageLister<S3Lister>, oio::PageLister<S3ObjectVersionsLister>>;
+pub type S3Listers = TwoWays<oio::PageLister<S3ListerV2>, oio::PageLister<S3ObjectVersionsLister>>;
 
-pub struct S3Lister {
+/// S3ListerV2 implements ListObjectV2 for s3 backend.
+pub struct S3ListerV2 {
     core: Arc<S3Core>,
 
     path: String,
@@ -41,7 +42,7 @@ pub struct S3Lister {
     abs_start_after: Option<String>,
 }
 
-impl S3Lister {
+impl S3ListerV2 {
     pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
@@ -59,11 +60,11 @@ impl S3Lister {
     }
 }
 
-impl oio::PageList for S3Lister {
+impl oio::PageList for S3ListerV2 {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .s3_list_objects(
+            .s3_list_objects_v2(
                 &self.path,
                 &ctx.token,
                 self.delimiter,
@@ -82,7 +83,7 @@ impl oio::PageList for S3Lister {
         }
         let bs = resp.into_body();
 
-        let output: ListObjectsOutput = de::from_reader(bs.reader())
+        let output: ListObjectsOutputV2 = de::from_reader(bs.reader())
             .map_err(new_xml_deserialize_error)
             // Allow S3 list to retry on XML deserialization errors.
             //

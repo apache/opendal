@@ -676,7 +676,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_list_objects(
+    pub async fn s3_list_objects_v2(
         &self,
         path: &str,
         continuation_token: &str,
@@ -1070,7 +1070,7 @@ pub struct DeleteObjectsResultError {
     pub version_id: Option<String>,
 }
 
-/// Output of ListBucket/ListObjects.
+/// Output of ListBucketV2/ListObjectsV2.
 ///
 /// ## Note
 ///
@@ -1081,7 +1081,7 @@ pub struct DeleteObjectsResultError {
 /// is not exist.
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct ListObjectsOutput {
+pub struct ListObjectsOutputV2 {
     pub is_truncated: Option<bool>,
     pub next_continuation_token: Option<String>,
     pub common_prefixes: Vec<OutputCommonPrefix>,
@@ -1407,7 +1407,8 @@ mod tests {
 </ListBucketResult>"#,
         );
 
-        let out: ListObjectsOutput = quick_xml::de::from_reader(bs.reader()).expect("must success");
+        let out: ListObjectsOutputV2 =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
 
         assert!(!out.is_truncated.unwrap());
         assert!(out.next_continuation_token.is_none());

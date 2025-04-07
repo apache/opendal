@@ -25,7 +25,6 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 @pytest.mark.need_capability("read", "write", "copy")
 def test_sync_copy(service_name, operator, async_operator):
-    operator.check()
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)

@@ -76,7 +76,7 @@ impl QueryPairsWriter {
         // 256 is the average size we observed of a url
         // in production.
         //
-        // We eargely allocate the string to avoid multiple
+        // We eagerly allocate the string to avoid multiple
         // allocations.
         let mut base = String::with_capacity(256);
         base.push_str(s);
@@ -90,7 +90,7 @@ impl QueryPairsWriter {
     /// Push a new pair of key and value to the url.
     ///
     /// The input key and value must already been percent
-    /// encoded correcrtly.
+    /// encoded correctly.
     pub fn push(mut self, key: &str, value: &str) -> Self {
         if self.has_query {
             self.base.push('&');

@@ -32,6 +32,8 @@ mod writer;
 mod backend;
 #[cfg(feature = "services-sftp")]
 pub use backend::SftpBuilder as Sftp;
+#[cfg(feature = "services-sftp")]
+mod core;
 
 mod config;
 pub use config::SftpConfig;

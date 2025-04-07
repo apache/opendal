@@ -99,7 +99,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::ReaderStart)
+                err.with_operation(Operation::Read)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
@@ -117,7 +117,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::WriterStart)
+                err.with_operation(Operation::Write)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -160,7 +160,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::DeleterStart)
+                err.with_operation(Operation::Delete)
                     .with_context("service", self.info.scheme())
             })
     }
@@ -176,7 +176,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::ListerStart)
+                err.with_operation(Operation::List)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -210,7 +210,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::ReaderStart)
+                err.with_operation(Operation::Read)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
                     .with_context("range", range.to_string())
@@ -227,7 +227,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::WriterStart)
+                err.with_operation(Operation::Write)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -269,7 +269,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::DeleterStart)
+                err.with_operation(Operation::Delete)
                     .with_context("service", self.info.scheme())
             })
     }
@@ -284,7 +284,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::ListerStart)
+                err.with_operation(Operation::List)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
             })
@@ -325,7 +325,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
                 self.processed += bs.len() as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::ReaderRead)
+                err.with_operation(Operation::Read)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("range", self.range.to_string())
@@ -342,7 +342,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
                 self.processed += bs.len() as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::ReaderRead)
+                err.with_operation(Operation::Read)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("range", self.range.to_string())
@@ -361,7 +361,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
                 self.processed += size as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::WriterWrite)
+                err.with_operation(Operation::Write)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
@@ -371,7 +371,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await.map_err(|err| {
-            err.with_operation(Operation::WriterClose)
+            err.with_operation(Operation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("written", self.processed.to_string())
@@ -380,7 +380,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
-            err.with_operation(Operation::WriterAbort)
+            err.with_operation(Operation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("processed", self.processed.to_string())
@@ -397,7 +397,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
                 self.processed += size as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::WriterWrite)
+                err.with_operation(Operation::Write)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
@@ -407,7 +407,7 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
 
     fn close(&mut self) -> Result<Metadata> {
         self.inner.close().map_err(|err| {
-            err.with_operation(Operation::WriterClose)
+            err.with_operation(Operation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("written", self.processed.to_string())
@@ -424,7 +424,7 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
                 self.processed += bs.is_some() as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::ListerNext)
+                err.with_operation(Operation::List)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())
@@ -440,7 +440,7 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
                 self.processed += bs.is_some() as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::ListerNext)
+                err.with_operation(Operation::List)
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("listed", self.processed.to_string())
@@ -451,7 +451,7 @@ impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
 impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.delete(path, args).map_err(|err| {
-            err.with_operation(Operation::DeleterDelete)
+            err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("path", path)
                 .with_context("deleted", self.processed.to_string())
@@ -466,7 +466,7 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
                 self.processed += n as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::DeleterFlush)
+                err.with_operation(Operation::Delete)
                     .with_context("service", self.scheme)
                     .with_context("deleted", self.processed.to_string())
             })
@@ -476,7 +476,7 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
 impl<T: oio::BlockingDelete> oio::BlockingDelete for ErrorContextWrapper<T> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.delete(path, args).map_err(|err| {
-            err.with_operation(Operation::DeleterDelete)
+            err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("path", path)
                 .with_context("deleted", self.processed.to_string())
@@ -490,7 +490,7 @@ impl<T: oio::BlockingDelete> oio::BlockingDelete for ErrorContextWrapper<T> {
                 self.processed += n as u64;
             })
             .map_err(|err| {
-                err.with_operation(Operation::DeleterFlush)
+                err.with_operation(Operation::Delete)
                     .with_context("service", self.scheme)
                     .with_context("deleted", self.processed.to_string())
             })

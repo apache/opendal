@@ -169,8 +169,6 @@ impl Builder for HuggingfaceBuilder {
 
         let token = self.config.token.as_ref().cloned();
 
-        let client = HttpClient::new()?;
-
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
                 info: {
@@ -199,7 +197,6 @@ impl Builder for HuggingfaceBuilder {
                 revision,
                 root,
                 token,
-                client,
             }),
         })
     }

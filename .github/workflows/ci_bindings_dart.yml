@@ -77,6 +77,10 @@ jobs:
         working-directory: bindings/dart
         run: flutter pub get
 
+      - name: Check Clippy
+        working-directory: bindings/dart/rust
+        run: cargo clippy -- -D warnings
+
       - name: build lib
         working-directory: bindings/dart/rust
         run: |

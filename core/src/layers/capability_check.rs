@@ -30,11 +30,11 @@ use std::sync::Arc;
 ///
 /// There are two main differences between this checker with the `CorrectnessChecker`:
 /// 1. This checker provides additional checks for capabilities like write_with_content_type and
-///     list_with_versions, among others. These capabilities do not affect data integrity, even if
-///     the underlying storage services do not support them.
+///    list_with_versions, among others. These capabilities do not affect data integrity, even if
+///    the underlying storage services do not support them.
 ///
 /// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to
-///     enforce stricter requirements.
+///    enforce stricter requirements.
 ///
 /// # examples
 ///
@@ -102,21 +102,21 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "content_type",
             ));
         }
         if !capability.write_with_cache_control && args.cache_control().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "cache_control",
             ));
         }
         if !capability.write_with_content_disposition && args.content_disposition().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "content_disposition",
             ));
         }
@@ -133,7 +133,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::ListerStart,
+                Operation::List,
                 "version",
             ));
         }
@@ -158,21 +158,21 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "content_type",
             ));
         }
         if !capability.write_with_cache_control && args.cache_control().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "cache_control",
             ));
         }
         if !capability.write_with_content_disposition && args.content_disposition().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::WriterStart,
+                Operation::Write,
                 "content_disposition",
             ));
         }
@@ -193,7 +193,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::ListerStart,
+                Operation::List,
                 "version",
             ));
         }

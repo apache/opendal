@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.8.0';
 
   @override
-  int get rustContentHash => 229275691;
+  int get rustContentHash => 775125233;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -108,10 +108,10 @@ abstract class RustLibApi extends BaseApi {
   void crateApiOpendalApiOperatorDeleteSync(
       {required Operator that, required String path});
 
-  Future<bool> crateApiOpendalApiOperatorIsExist(
+  Future<bool> crateApiOpendalApiOperatorExists(
       {required Operator that, required String path});
 
-  bool crateApiOpendalApiOperatorIsExistSync(
+  bool crateApiOpendalApiOperatorExistsSync(
       {required Operator that, required String path});
 
   Operator crateApiOpendalApiOperatorNew(
@@ -492,7 +492,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiOpendalApiOperatorIsExist(
+  Future<bool> crateApiOpendalApiOperatorExists(
       {required Operator that, required String path}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -507,20 +507,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiOperatorIsExistConstMeta,
+      constMeta: kCrateApiOpendalApiOperatorExistsConstMeta,
       argValues: [that, path],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiOperatorIsExistConstMeta =>
+  TaskConstMeta get kCrateApiOpendalApiOperatorExistsConstMeta =>
       const TaskConstMeta(
-        debugName: "Operator_is_exist",
+        debugName: "Operator_exists",
         argNames: ["that", "path"],
       );
 
   @override
-  bool crateApiOpendalApiOperatorIsExistSync(
+  bool crateApiOpendalApiOperatorExistsSync(
       {required Operator that, required String path}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -534,15 +534,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiOpendalApiOperatorIsExistSyncConstMeta,
+      constMeta: kCrateApiOpendalApiOperatorExistsSyncConstMeta,
       argValues: [that, path],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiOpendalApiOperatorIsExistSyncConstMeta =>
+  TaskConstMeta get kCrateApiOpendalApiOperatorExistsSyncConstMeta =>
       const TaskConstMeta(
-        debugName: "Operator_is_exist_sync",
+        debugName: "Operator_exists_sync",
         argNames: ["that", "path"],
       );
 
@@ -1257,11 +1257,11 @@ class OperatorImpl extends RustOpaque implements Operator {
   void deleteSync({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorDeleteSync(that: this, path: path);
 
-  Future<bool> isExist({required String path}) => RustLib.instance.api
-      .crateApiOpendalApiOperatorIsExist(that: this, path: path);
+  Future<bool> exists({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorExists(that: this, path: path);
 
-  bool isExistSync({required String path}) => RustLib.instance.api
-      .crateApiOpendalApiOperatorIsExistSync(that: this, path: path);
+  bool existsSync({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorExistsSync(that: this, path: path);
 
   Future<void> rename({required String from, required String to}) =>
       RustLib.instance.api

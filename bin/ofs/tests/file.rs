@@ -113,7 +113,7 @@ fn test_file_truncate(ctx: &mut OfsTestContext) {
         .truncate(true)
         .open(&path)
         .unwrap();
-    file.write_all(TEST_TEXT[..TEST_TEXT.len() / 2].as_bytes())
+    file.write_all(&TEST_TEXT.as_bytes()[..TEST_TEXT.len() / 2])
         .unwrap();
     drop(file);
 

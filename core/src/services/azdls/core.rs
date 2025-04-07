@@ -43,7 +43,6 @@ pub struct AzdlsCore {
     pub root: String,
     pub endpoint: String,
 
-    pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
 }
@@ -93,7 +92,7 @@ impl AzdlsCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -117,7 +116,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`
@@ -241,7 +240,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn azdls_delete(&self, path: &str) -> Result<Response<Buffer>> {

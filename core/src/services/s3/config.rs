@@ -188,6 +188,11 @@ pub struct S3Config {
 
     /// Enable write with append so that opendal will send write request with append headers.
     pub enable_write_with_append: bool,
+
+    /// OpenDAL uses List Objects V2 by default to list objects.
+    /// However, some legacy services do not yet support V2.
+    /// This option allows users to switch back to the older List Objects V1.
+    pub disable_list_objects_v2: bool,
 }
 
 impl Debug for S3Config {

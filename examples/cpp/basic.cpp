@@ -5,11 +5,10 @@
 #include <iostream>
 
 int main() {
-  char s[] = "memory";
   std::vector<uint8_t> data = {'a', 'b', 'c'};
 
   // Init operator
-  opendal::Operator op = opendal::Operator(s);
+  opendal::Operator op = opendal::Operator("memory");
 
   // Write data to operator
   op.write("test", data);
@@ -19,8 +18,8 @@ int main() {
 
   // Using reader
   auto reader = op.reader("test");
-  opendal::ReaderStream stream(reader);
+  opendal::ReaderStream stream(std::move(reader));
   std::string res2;
   stream >> res2; // res2 == "abc"
-  std::cout<<res2<<std::endl;
+  std::cout << res2 << std::endl;
 }

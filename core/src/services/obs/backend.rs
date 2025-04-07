@@ -131,6 +131,13 @@ impl ObsBuilder {
         self
     }
 
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -348,6 +355,10 @@ impl Access for ObsBackend {
 
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
+                }
+
+                if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
+                    meta.set_version(v);
                 }
 
                 Ok(RpStat::new(meta))

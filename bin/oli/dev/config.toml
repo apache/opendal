@@ -16,11 +16,11 @@
 # under the License.
 
 [profiles.demo]
-type = "s3"
 access_key_id = "minioadmin"
-secret_access_key = "minioadmin"
 bucket = "test-bucket"
+enable_virtual_host_style = "false"
 endpoint = "http://127.0.0.1:9000"
 region = "us-east-1"
 root = "/benchmarks"
-enable_virtual_host_style = "false"
+secret_access_key = "minioadmin"
+type = "s3"

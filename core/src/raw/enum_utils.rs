@@ -163,6 +163,16 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     }
 }
 
+impl<ONE: oio::List, TWO: oio::List, THREE: oio::List> oio::List for ThreeWays<ONE, TWO, THREE> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
+        }
+    }
+}
+
 /// FourWays is used to implement traits that based on four ways.
 ///
 /// Users can wrap four different trait types together.

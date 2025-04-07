@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.80"
-version = "0.50.0"
+version = "0.51.0"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
@@ -42,16 +42,16 @@ flagset = "0.4"
 futures = "0.3"
 futures-util = "0.3"
 object_store = "0.11"
-opendal = { version = "0.52.0", path = "../../core", default-features = false }
+opendal = { version = "0.53.0", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-datafusion = "45.0.0"
+datafusion = "46.0.1"
 libtest-mimic = "0.8.1"
-opendal = { version = "0.52.0", path = "../../core", features = [
+opendal = { version = "0.53.0", path = "../../core", features = [
   "services-memory",
   "services-s3",
   "tests",

@@ -172,8 +172,6 @@ impl Builder for LakefsBuilder {
                 .with_context("service", Scheme::Lakefs)),
         }?;
 
-        let client = HttpClient::new()?;
-
         Ok(LakefsBackend {
             core: Arc::new(LakefsCore {
                 info: {
@@ -204,7 +202,6 @@ impl Builder for LakefsBuilder {
                 root,
                 username,
                 password,
-                client,
             }),
         })
     }

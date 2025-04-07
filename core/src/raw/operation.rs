@@ -33,47 +33,20 @@ pub enum Operation {
     Info,
     /// Operation to create a directory.
     CreateDir,
-    /// Operation to start reading from a file.
-    ///
-    /// This operation only start to read from the file, it does not read any data.
-    ///
-    /// For example:
-    ///
-    /// - On fs alike storage, this operation is used to open a file.
-    /// - On s3 alike storage, this operation is used to send a request but not consume it's body.
-    ReaderStart,
-    /// Operation to perform a single read I/O operation on a file.
-    ///
-    /// Reader might have to call this operation multiple times to read the whole file.
-    ReaderRead,
-    /// Operation to start writing to a file.
-    ///
-    /// This operation only start to write into the file, it does not write any data.
-    WriterStart,
-    /// Operation to perform a single write I/O operation on a file.
-    ///
-    /// Writer might have to call this operation multiple times to write the whole file.
-    WriterWrite,
-    /// Operation to close the writer and finish writing.
-    WriterClose,
-    /// Operation to abort the writer and discard the data.
-    WriterAbort,
+    /// Operation to read a file.
+    Read,
+    /// Operation to write to a file.
+    Write,
     /// Operation to copy a file.
     Copy,
     /// Operation to rename a file.
     Rename,
     /// Operation to stat a file or a directory.
     Stat,
-    /// Operation to start deleting files.
-    DeleterStart,
-    /// Operation to push a delete operation into the queue.
-    DeleterDelete,
-    /// Operation to flush the deleter queue and perform real delete operations.
-    DeleterFlush,
-    /// Operation to start listing files.
-    ListerStart,
+    /// Operation to delete files.
+    Delete,
     /// Operation to get the next file from the list.
-    ListerNext,
+    List,
     /// Operation to generate a presigned URL.
     Presign,
 }
@@ -82,21 +55,6 @@ impl Operation {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
-    }
-
-    /// Check if given operation is oneshot or not.
-    ///
-    /// For example, `Stat` is oneshot but `ReaderRead` could happen multiple times.
-    ///
-    /// This function can be used to decide take actions based on operations like logging.
-    pub fn is_oneshot(&self) -> bool {
-        !matches!(
-            self,
-            Operation::ReaderRead
-                | Operation::WriterWrite
-                | Operation::ListerNext
-                | Operation::DeleterDelete
-        )
     }
 }
 
@@ -111,20 +69,13 @@ impl From<Operation> for &'static str {
         match v {
             Operation::Info => "info",
             Operation::CreateDir => "create_dir",
-            Operation::ReaderStart => "reader::start",
-            Operation::ReaderRead => "reader::read",
-            Operation::WriterStart => "writer::start",
-            Operation::WriterWrite => "writer::write",
-            Operation::WriterClose => "writer::close",
-            Operation::WriterAbort => "writer::abort",
+            Operation::Read => "read",
+            Operation::Write => "write",
             Operation::Copy => "copy",
             Operation::Rename => "rename",
             Operation::Stat => "stat",
-            Operation::DeleterStart => "deleter::start",
-            Operation::DeleterDelete => "deleter::delete",
-            Operation::DeleterFlush => "deleter::flush",
-            Operation::ListerStart => "lister::start",
-            Operation::ListerNext => "lister::next",
+            Operation::Delete => "delete",
+            Operation::List => "list",
             Operation::Presign => "presign",
         }
     }

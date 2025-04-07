@@ -74,8 +74,6 @@ pub struct WebdavCore {
     pub server_path: String,
     pub root: String,
     pub authorization: Option<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for WebdavCore {
@@ -111,7 +109,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -151,7 +149,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn webdav_put(
@@ -184,7 +182,7 @@ impl WebdavCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -199,7 +197,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -225,7 +223,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -251,7 +249,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<Buffer>> {
@@ -276,7 +274,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Create dir recursively for given path.
@@ -332,7 +330,7 @@ impl WebdavCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         let status = resp.status();
 
         match status {

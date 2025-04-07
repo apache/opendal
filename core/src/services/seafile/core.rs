@@ -49,8 +49,6 @@ pub struct SeafileCore {
 
     /// signer of this backend.
     pub signer: Arc<RwLock<SeafileSigner>>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for SeafileCore {
@@ -67,7 +65,7 @@ impl Debug for SeafileCore {
 impl SeafileCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// get auth info
@@ -93,7 +91,7 @@ impl SeafileCore {
                 .body(Buffer::from(Bytes::from(body)))
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let resp = self.info.http_client().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -122,7 +120,7 @@ impl SeafileCore {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let resp = self.info.http_client().send(req).await?;
 
             let status = resp.status();
 
@@ -229,7 +227,7 @@ impl SeafileCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     /// file detail

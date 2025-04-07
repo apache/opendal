@@ -80,6 +80,9 @@ pub struct Capability {
     /// If operator supports rename.
     pub rename: bool,
 
+    /// If operator supports check.
+    pub check: bool,
+
     /// If operator supports list.
     pub list: bool,
     /// If backend supports list with limit.

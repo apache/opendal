@@ -226,6 +226,9 @@ pub struct Capability {
 
     /// Indicates if blocking operations are supported.
     pub blocking: bool,
+
+    /// Indicates if check operations are supported.
+    pub check: bool,
 }
 
 impl Debug for Capability {

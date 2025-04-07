@@ -30,7 +30,6 @@ pub struct IpmfsCore {
     pub info: Arc<AccessorInfo>,
     pub root: String,
     pub endpoint: String,
-    pub client: HttpClient,
 }
 
 impl Debug for IpmfsCore {
@@ -55,7 +54,7 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -75,7 +74,7 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
@@ -90,7 +89,7 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<Buffer>> {
@@ -105,7 +104,7 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<Buffer>> {
@@ -120,7 +119,7 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Support write from reader.
@@ -138,6 +137,6 @@ impl IpmfsCore {
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }

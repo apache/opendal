@@ -27,6 +27,8 @@ use crate::*;
 
 impl Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         IpmfsBuilder {
             config: self,
@@ -78,6 +80,8 @@ impl Configurator for IpmfsConfig {
 #[derive(Default, Debug)]
 pub struct IpmfsBuilder {
     config: IpmfsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -111,6 +115,8 @@ impl IpmfsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -130,15 +136,6 @@ impl Builder for IpmfsBuilder {
             .endpoint
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Ipmfs)
-            })?
-        };
 
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Ipmfs)
@@ -165,7 +162,6 @@ impl Builder for IpmfsBuilder {
             info: accessor_info,
             root: root.to_string(),
             endpoint: endpoint.to_string(),
-            client: client.clone(),
         });
 
         Ok(IpmfsBackend { core })

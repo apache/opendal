@@ -185,13 +185,16 @@ impl AzblobCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let mut url = QueryPairsWriter::new(&self.build_path_url(path));
+        let mut url = self.build_path_url(path);
 
         if let Some(override_content_disposition) = args.override_content_disposition() {
-            url = url.push("rscd", &percent_encode_path(override_content_disposition));
+            url.push_str(&format!(
+                "?rscd={}",
+                percent_encode_path(override_content_disposition)
+            ));
         }
 
-        let mut req = Request::get(url.finish());
+        let mut req = Request::get(&url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
@@ -520,11 +523,8 @@ impl AzblobCore {
     }
 
     pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
-
-        let source = self.build_path_url(&source);
-        let target = self.build_path_url(&target);
+        let source = self.build_path_url(from);
+        let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)
             .header(constants::X_MS_COPY_SOURCE, source)
@@ -570,10 +570,10 @@ impl AzblobCore {
     }
 
     pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<Buffer>> {
-        let url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.container))
-            .push("restype", "container")
-            .push("comp", "batch")
-            .finish();
+        let url = format!(
+            "{}/{}?restype=container&comp=batch",
+            self.endpoint, self.container
+        );
 
         let mut multipart = Multipart::new();
 

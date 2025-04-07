@@ -26,6 +26,7 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
 async def test_async_copy(service_name, operator, async_operator):
+    await operator.check()
     source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)

@@ -389,7 +389,7 @@ impl AzblobCore {
         let url = QueryPairsWriter::new(&self.build_path_url(path))
             .push("comp", "block")
             .push(
-                "blocked",
+                "blockid",
                 &percent_encode_path(&BASE64_STANDARD.encode(block_id.as_bytes())),
             )
             .finish();

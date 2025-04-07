@@ -21,17 +21,11 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bb8::PooledConnection;
-use bb8::RunError;
-use futures_rustls::TlsConnector;
 use super::core::FtpCore;
 use http::Uri;
 use log::debug;
 use services::ftp::core::Manager;
 use suppaftp::list::File;
-use suppaftp::rustls::ClientConfig;
-use suppaftp::rustls::RootCertStore;
-use suppaftp::types::FileType;
 use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
@@ -199,44 +193,6 @@ impl Builder for FtpBuilder {
             user: user.clone(),
             password: password.clone(),
             enable_secure,
-            pool: OnceCell::new(),
-        })
-    }
-}
-
-pub struct Manager {
-    endpoint: String,
-    root: String,
-    user: String,
-    password: String,
-    enable_secure: bool,
-}
-
-#[async_trait::async_trait]
-impl bb8::ManageConnection for Manager {
-    type Connection = AsyncRustlsFtpStream;
-    type Error = FtpError;
-
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
-        let mut ftp_stream = if self.enable_secure {
-            // Create a root certificate store
-            let root_store = RootCertStore::empty();
-            // Optionally, add certificates (e.g., system certs or custom ones)
-            // For now, we'll leave it empty as an example
-
-            // Build the ClientConfig
-            let config = ClientConfig::builder()
-                .with_root_certificates(root_store)
-                .with_no_client_auth(); // No client-side authentication
-
-            let tls_connector = TlsConnector::from(Arc::new(config));
-
-            stream
-                .into_secure(AsyncRustlsConnector::from(tls_connector), &self.endpoint)
-                .await?
-        } else {
-            stream
         };
         let core = Arc::new(FtpCore {
             info: accessor_info.into(),

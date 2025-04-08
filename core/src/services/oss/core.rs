@@ -441,8 +441,8 @@ impl OssCore {
 
         let endpoint = self.get_endpoint(false);
         let mut url = QueryPairsWriter::new(endpoint);
-        url.push("list-type", "2");
-        url.push("delimiter", delimiter);
+        url = url.push("list-type", "2");
+        url = url.push("delimiter", delimiter);
         // prefix
         if !p.is_empty() {
             url = url.push("prefix", &percent_encode_path(&p));
@@ -531,7 +531,7 @@ impl OssCore {
         let p = build_abs_path(&self.root, prefix);
 
         let mut url = format!("{}?versions", self.endpoint);
-        let mut url = QueryPairsWriter::new(url);
+        let mut url = QueryPairsWriter::new(&url);
 
         if !p.is_empty() {
             url = url.push("prefix", &percent_encode_path(p.as_str()));

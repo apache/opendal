@@ -153,14 +153,10 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Build and install dependencies
+      - name: Install and build Docs
         working-directory: bindings/python
         run: |
           uv sync --all-groups --all-extras
-
-      - name: Build Docs
-        working-directory: bindings/python
-        run: |
           uv run pdoc -t ./template --output-dir ./docs opendal
 
       - name: Upload docs

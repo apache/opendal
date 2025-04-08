@@ -37,7 +37,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     env.add_function("make_python_type", make_python_type);
     let tmpl = env.get_template("python")?;
 
-    let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
+    let output = workspace_dir.join("bindings/python/python/opendal/base.pyi");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
     Ok(())
 }

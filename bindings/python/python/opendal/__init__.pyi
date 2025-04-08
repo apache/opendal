@@ -21,7 +21,7 @@ from typing import AsyncIterable, Iterable, Optional, Type, Union, final
 
 from opendal import exceptions as exceptions
 from opendal import layers as layers
-from opendal.__base import _Base
+from opendal.base import _Base
 from opendal.layers import Layer
 
 PathBuf = Union[str, os.PathLike]

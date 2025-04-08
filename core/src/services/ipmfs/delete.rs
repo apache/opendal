@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::IpmfsBackend;
+use super::core::IpmfsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -23,11 +23,11 @@ use http::StatusCode;
 use std::sync::Arc;
 
 pub struct IpmfsDeleter {
-    core: Arc<IpmfsBackend>,
+    core: Arc<IpmfsCore>,
 }
 
 impl IpmfsDeleter {
-    pub fn new(core: Arc<IpmfsBackend>) -> Self {
+    pub fn new(core: Arc<IpmfsCore>) -> Self {
         Self { core }
     }
 }

@@ -101,8 +101,10 @@ impl QueryPairsWriter {
 
         // Append the key and value to the base string
         self.base.push_str(key);
-        self.base.push('=');
-        self.base.push_str(value);
+        if !value.is_empty() {
+            self.base.push('=');
+            self.base.push_str(value);
+        }
 
         self
     }

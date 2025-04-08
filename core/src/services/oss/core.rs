@@ -440,34 +440,31 @@ impl OssCore {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
-        let mut url = format!("{}/?list-type=2", endpoint);
-
-        write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        let mut url = QueryPairsWriter::new(endpoint);
+        url.push("list-type", "2");
+        url.push("delimiter", delimiter);
         // prefix
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(&p));
         }
 
         // max-key
         if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
 
         // continuation_token
         if !token.is_empty() {
-            write!(url, "&continuation-token={}", percent_encode_path(token))
-                .expect("write into string must succeed");
+            url = url.push("continuation-token", &percent_encode_path(token));
         }
 
         // start-after
         if let Some(start_after) = start_after {
             let start_after = build_abs_path(&self.root, &start_after);
-            write!(url, "&start-after={}", percent_encode_path(&start_after))
-                .expect("write into string must succeed");
+            url = url.push("start-after", &percent_encode_path(&start_after));
         }
 
-        let req = Request::get(&url)
+        let req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -534,31 +531,26 @@ impl OssCore {
         let p = build_abs_path(&self.root, prefix);
 
         let mut url = format!("{}?versions", self.endpoint);
+        let mut url = QueryPairsWriter::new(url);
+
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(p.as_str()));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", percent_encode_path(key_marker))
-                .expect("write into string must succeed");
+            url = url.push("key-marker", &percent_encode_path(key_marker));
         }
         if !version_id_marker.is_empty() {
-            write!(
-                url,
-                "&version-id-marker={}",
-                percent_encode_path(version_id_marker)
-            )
-            .expect("write into string must succeed");
+            url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

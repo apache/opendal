@@ -511,22 +511,20 @@ impl GcsCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
-            "{}/storage/v1/b/{}/o?prefix={}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket,);
+
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("prefix", &percent_encode_path(&p));
+
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            write!(url, "&maxResults={limit}").expect("write into string must succeed");
+            url = url.push("maxResults", &limit.to_string());
         }
         if let Some(start_after) = start_after {
             let start_after = build_abs_path(&self.root, &start_after);
-            write!(url, "&startOffset={}", percent_encode_path(&start_after))
-                .expect("write into string must succeed");
+            url = url.push("startOffset", &percent_encode_path(&start_after));
         }
 
         if !page_token.is_empty() {
@@ -536,11 +534,10 @@ impl GcsCore {
             //
             // Don't know how will those tokens be like so this part are copied
             // directly from AWS S3 service.
-            write!(url, "&pageToken={}", percent_encode_path(page_token))
-                .expect("write into string must succeed");
+            url = url.push("pageToken", &percent_encode_path(page_token));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

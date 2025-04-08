@@ -497,8 +497,8 @@ impl CosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let url = format!("{}?versions", self.endpoint);
-        let mut url = QueryPairsWriter::new(&url);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("versions", "");
         if !p.is_empty() {
             url = url.push("prefix", &percent_encode_path(p.as_str()));
         }

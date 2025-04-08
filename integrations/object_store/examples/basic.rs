@@ -21,13 +21,7 @@ async fn main() {
 
     s3_store.put(&path, bytes.clone().into()).await.unwrap();
 
-    let content = s3_store
-        .get(&path)
-        .await
-        .unwrap()
-        .bytes()
-        .await
-        .unwrap();
+    let content = s3_store.get(&path).await.unwrap().bytes().await.unwrap();
 
     assert_eq!(content, bytes);
 }

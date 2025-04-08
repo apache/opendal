@@ -103,8 +103,8 @@ impl QueryPairsWriter {
         self.base.push_str(key);
         if !value.is_empty() {
             self.base.push('=');
+            self.base.push_str(value);
         }
-        self.base.push_str(value);
 
         self
     }

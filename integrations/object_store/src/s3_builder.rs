@@ -17,22 +17,23 @@
 
 use crate::utils::format_object_store_error;
 use crate::OpendalStore;
+use object_store::aws::AmazonS3ConfigKey;
 use opendal::services::S3;
 use opendal::Operator;
 
-pub struct AmazonS3Builder {
+pub struct S3Builder {
     builder: S3,
 }
 
-impl Default for AmazonS3Builder {
+impl Default for S3Builder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AmazonS3Builder {
+impl S3Builder {
     pub fn new() -> Self {
-        AmazonS3Builder {
+        S3Builder {
             builder: S3::default(),
         }
     }
@@ -87,11 +88,61 @@ impl AmazonS3Builder {
         }
         self
     }
+
     pub fn build(self) -> object_store::Result<OpendalStore> {
         let op = Operator::new(self.builder)
             .map_err(|err| format_object_store_error(err, ""))?
             .finish();
 
         Ok(OpendalStore::new(op))
+    }
+}
+impl OpendalStore {
+    pub fn new_from_aws_s3_builder(
+        builder: object_store::aws::AmazonS3Builder,
+    ) -> object_store::Result<OpendalStore> {
+        let mut s3 = S3Builder::new();
+        if let Some(endpoint) = builder.get_config_value(&AmazonS3ConfigKey::Endpoint) {
+            s3 = s3.with_endpoint(endpoint.as_str());
+        }
+        if let Some(region) = builder.get_config_value(&AmazonS3ConfigKey::Region) {
+            s3 = s3.with_region(region.as_str());
+        }
+        if let Some(bucket_name) = builder.get_config_value(&AmazonS3ConfigKey::Bucket) {
+            s3 = s3.with_bucket_name(bucket_name.as_str());
+        }
+        if let Some(access_key_id) = builder.get_config_value(&AmazonS3ConfigKey::AccessKeyId) {
+            s3 = s3.with_access_key_id(access_key_id.as_str());
+        }
+        if let Some(secret_access_key) =
+            builder.get_config_value(&AmazonS3ConfigKey::SecretAccessKey)
+        {
+            s3 = s3.with_secret_access_key(secret_access_key.as_str());
+        }
+        if let Some(token) = builder.get_config_value(&AmazonS3ConfigKey::Token) {
+            s3 = s3.with_token(token.as_str());
+        }
+        if let Some(virtual_hosted_style_request) =
+            builder.get_config_value(&AmazonS3ConfigKey::VirtualHostedStyleRequest)
+        {
+            let r = virtual_hosted_style_request
+                .parse::<bool>()
+                .map_err(|err| object_store::Error::Generic {
+                    store: "s3",
+                    source: Box::new(err),
+                })?;
+            s3 = s3.with_virtual_hosted_style_request(r);
+        }
+        if let Some(skip_signature) = builder.get_config_value(&AmazonS3ConfigKey::SkipSignature) {
+            let r = skip_signature
+                .parse::<bool>()
+                .map_err(|err| object_store::Error::Generic {
+                    store: "s3",
+                    source: Box::new(err),
+                })?;
+            s3 = s3.with_skip_signature(r);
+        }
+
+        s3.build()
     }
 }

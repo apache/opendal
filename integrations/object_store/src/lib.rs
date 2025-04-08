@@ -68,7 +68,7 @@ mod utils;
 #[cfg(feature = "services-s3")]
 mod s3_builder;
 #[cfg(feature = "services-s3")]
-pub use s3_builder::AmazonS3Builder;
+pub use s3_builder::S3Builder;
 
 // Make sure `send_wrapper` works as expected
 #[cfg(all(feature = "send_wrapper", test))]

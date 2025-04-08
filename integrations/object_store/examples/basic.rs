@@ -1,16 +1,13 @@
-use std::sync::Arc;
-
 use bytes::Bytes;
 use object_store::path::Path;
 use object_store::ObjectStore;
-
 #[cfg(feature = "services-s3")]
-use object_store_opendal::AmazonS3Builder;
+use object_store_opendal::S3Builder;
 
 #[cfg(feature = "services-s3")]
 #[tokio::main]
 async fn main() {
-    let s3_store = AmazonS3Builder::new()
+    let s3_store = S3Builder::new()
         .with_access_key_id("my_access_key")
         .with_secret_access_key("my_secret_key")
         .with_endpoint("my_endpoint")
@@ -19,14 +16,12 @@ async fn main() {
         .build()
         .unwrap();
 
-    let object_store = Arc::new(s3_store);
-
     let path = Path::from("data/nested/test.txt");
     let bytes = Bytes::from_static(b"hello, world! I am nested.");
 
-    object_store.put(&path, bytes.clone().into()).await.unwrap();
+    s3_store.put(&path, bytes.clone().into()).await.unwrap();
 
-    let content = object_store
+    let content = s3_store
         .get(&path)
         .await
         .unwrap()

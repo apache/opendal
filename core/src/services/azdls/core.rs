@@ -28,7 +28,6 @@ use reqsign::AzureStorageSigner;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -273,23 +272,20 @@ impl AzdlsCore {
             .trim_end_matches('/')
             .to_string();
 
-        let mut url = format!(
-            "{}/{}?resource=filesystem&recursive=false",
-            self.endpoint, self.filesystem
-        );
+        let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.filesystem))
+            .push("resource", "filesystem")
+            .push("recursive", "false");
         if !p.is_empty() {
-            write!(url, "&directory={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("directory", &percent_encode_path(&p));
         }
         if let Some(limit) = limit {
-            write!(url, "&maxResults={limit}").expect("write into string must succeed");
+            url = url.push("maxResults", &limit.to_string());
         }
         if !continuation.is_empty() {
-            write!(url, "&continuation={}", percent_encode_path(continuation))
-                .expect("write into string must succeed");
+            url = url.push("continuation", &percent_encode_path(continuation));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

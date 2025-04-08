@@ -151,11 +151,12 @@ jobs:
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          python -m pip install -e .[docs]
+          uv sync --all-groups --all-extras
 
       - name: Build Docs
         working-directory: bindings/python
-        run: pdoc -t ./template --output-dir ./docs opendal
+        run: |
+          uv run pdoc -t ./template --output-dir ./docs opendal
 
       - name: Upload docs
         uses: actions/upload-artifact@v4

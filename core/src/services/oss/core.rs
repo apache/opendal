@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -530,7 +529,7 @@ impl OssCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let mut url = format!("{}?versions", self.endpoint);
+        let url = format!("{}?versions", self.endpoint);
         let mut url = QueryPairsWriter::new(&url);
 
         if !p.is_empty() {

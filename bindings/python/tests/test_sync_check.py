@@ -20,5 +20,5 @@ import pytest
 
 @pytest.mark.need_capability("list")
 def test_sync_check(service_name, operator, async_operator):
-    operator.check()
     operator.list("/")
+    operator.check()

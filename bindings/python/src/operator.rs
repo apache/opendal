@@ -20,11 +20,11 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
-use pyo3::IntoPyObjectExt;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -238,6 +238,9 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     pub fn check(&self) -> PyResult<()> {
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+
         self.core.check().map_err(format_pyerr)
     }
 

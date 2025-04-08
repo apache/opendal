@@ -440,34 +440,31 @@ impl OssCore {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
-        let mut url = format!("{}/?list-type=2", endpoint);
-
-        write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        let mut url = QueryPairsWriter::new(endpoint);
+        url = url.push("list-type", "2");
+        url = url.push("delimiter", delimiter);
         // prefix
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(&p));
         }
 
         // max-key
         if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+            url = url.push("max-keys", limit);
         }
 
         // continuation_token
         if !token.is_empty() {
-            write!(url, "&continuation-token={}", percent_encode_path(token))
-                .expect("write into string must succeed");
+            url = url.push("continuation-token", &percent_encode_path(token));
         }
 
         // start-after
         if let Some(start_after) = start_after {
             let start_after = build_abs_path(&self.root, &start_after);
-            write!(url, "&start-after={}", percent_encode_path(&start_after))
-                .expect("write into string must succeed");
+            url = url.push("start-after", &percent_encode_path(&start_after));
         }
 
-        let req = Request::get(&url)
+        let req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         Ok(req)

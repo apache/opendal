@@ -450,7 +450,7 @@ impl OssCore {
 
         // max-key
         if let Some(limit) = limit {
-            url = url.push("max-keys", limit);
+            url = url.push("max-keys", &limit.to_string());
         }
 
         // continuation_token

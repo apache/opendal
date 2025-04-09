@@ -123,6 +123,17 @@ impl Operator {
         self.0.check().await.map_err(format_napi_error)
     }
 
+    /// Check the op synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.checkSync();
+    /// ```
+    #[napi]
+    pub fn check_sync(&self) -> Result<()> {
+        self.0.blocking().check().map_err(format_napi_error)
+    }
+
     /// Check if this path exists or not.
     ///
     /// ### Example
@@ -451,28 +462,6 @@ impl Operator {
     #[napi]
     pub fn delete_sync(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
-    }
-
-    /// Check the op asynchronously.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// await op.check();
-    /// ```
-    #[napi]
-    pub async fn check(&self) -> Result<()> {
-        self.0.check().await.map_err(format_napi_error)
-    }
-
-    /// Check the op synchronously.
-    ///
-    /// ### Example
-    /// ```javascript
-    /// op.checkSync();
-    /// ```
-    #[napi]
-    pub fn check_sync(&self) -> Result<()> {
-        self.0.blocking().check().map_err(format_napi_error)
     }
 
     /// Remove given paths.

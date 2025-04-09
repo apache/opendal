@@ -156,15 +156,26 @@ jobs:
           VERSION: "latest"
         run: |
           go run generate.go
-      - name: Setup Go Workspace
+      - name: Setup Go Workspace (Linux/macOS)
         env:
           SERVICE: ${{ matrix.service }}
         working-directory: bindings/go/tests
+        if: runner.os != 'Windows'
         run: |
           go work init
           go work use ..
           go work use ./behavior_tests
           go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
+      - name: Setup Go Workspace (Windows)
+        env:
+          SERVICE: ${{ matrix.service }}
+        working-directory: bindings/go/tests
+        if: runner.os == 'Windows'
+        run: |
+          go work init
+          go work use ..
+          go work use ./behavior_tests
+          go work use $env:GITHUB_WORKSPACE/$($env:SERVICE -replace '-','_')
       - name: Run tests (Linux/macOS)
         env:
           OPENDAL_TEST: ${{ matrix.service }}

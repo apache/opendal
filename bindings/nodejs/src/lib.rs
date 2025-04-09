@@ -453,6 +453,28 @@ impl Operator {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 
+    /// Delete the given path asynchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.check();
+    /// ```
+    #[napi]
+    pub async fn check(&self) -> Result<()> {
+        self.0.check().await.map_err(format_napi_error)
+    }
+
+    /// Delete the given path synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.checkSync();
+    /// ```
+    #[napi]
+    pub fn check_sync(&self) -> Result<()> {
+        self.0.blocking().check().map_err(format_napi_error)
+    }
+
     /// Remove given paths.
     ///
     /// ### Notes

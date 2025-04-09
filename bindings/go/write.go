@@ -25,7 +25,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Write writes the given bytes to the specified path.
@@ -199,7 +198,7 @@ var withOperatorWrite = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWrite {
 	return func(op *opendalOperator, path string, data []byte) error {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
 		}
@@ -225,7 +224,7 @@ var withOperatorCreateDir = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorCreateDir {
 	return func(op *opendalOperator, path string) error {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
 		}
@@ -249,7 +248,7 @@ var withOperatorWriter = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWriter {
 	return func(op *opendalOperator, path string) (*opendalWriter, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
 		}

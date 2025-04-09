@@ -30,7 +30,6 @@ use reqsign::AzureStorageSigner;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use super::error::parse_error;
@@ -338,7 +337,7 @@ impl AzfileCore {
         &self,
         path: &str,
         limit: &Option<usize>,
-        continuation: &String,
+        continuation: &str,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
@@ -357,7 +356,7 @@ impl AzfileCore {
             .push("include", "Timestamps,ETag");
 
         if !continuation.is_empty() {
-            url = url.push("marker", &continuation);
+            url = url.push("marker", continuation);
         }
 
         if let Some(limit) = limit {

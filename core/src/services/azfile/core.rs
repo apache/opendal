@@ -344,22 +344,27 @@ impl AzfileCore {
             .trim_start_matches('/')
             .to_string();
 
-        let mut url = format!(
-            "{}/{}/{}?restype=directory&comp=list&include=Timestamps,ETag",
+        let url = format!(
+            "{}/{}/{}",
             self.endpoint,
             self.share_name,
             percent_encode_path(&p),
         );
 
+        let mut url = QueryPairsWriter::new(&url)
+            .push("restype", "directory")
+            .push("comp", "list")
+            .push("include", "Timestamps,ETag");
+
         if !continuation.is_empty() {
-            write!(url, "&marker={}", &continuation).expect("write into string must succeed");
+            url = url.push("marker", &continuation);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&maxresults={}", limit).expect("write into string must succeed");
+            url = url.push("maxresults", &limit.to_string());
         }
 
-        let req = Request::get(&url);
+        let req = Request::get(url.finish());
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

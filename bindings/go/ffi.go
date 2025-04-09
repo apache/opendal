@@ -40,7 +40,7 @@ func contextWithFFIs(path string) (ctx context.Context, cancel context.CancelFun
 		}
 	}
 	cancel = func() {
-		FreeLibrary(libopendal)
+		_ = FreeLibrary(libopendal)
 	}
 	return
 }

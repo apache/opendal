@@ -453,7 +453,7 @@ impl Operator {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 
-    /// Delete the given path asynchronously.
+    /// Check the op asynchronously.
     ///
     /// ### Example
     /// ```javascript
@@ -464,7 +464,7 @@ impl Operator {
         self.0.check().await.map_err(format_napi_error)
     }
 
-    /// Delete the given path synchronously.
+    /// Check the op synchronously.
     ///
     /// ### Example
     /// ```javascript

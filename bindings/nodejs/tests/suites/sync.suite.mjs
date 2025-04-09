@@ -29,6 +29,7 @@ export function run(op) {
       const filename = `random_file_${randomUUID()}`
 
       try {
+        op.checkSync()
         op.statSync(filename)
       } catch (error) {
         assert.include(error.message, 'NotFound')

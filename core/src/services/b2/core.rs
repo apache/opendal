@@ -416,32 +416,29 @@ impl B2Core {
     ) -> Result<Response<Buffer>> {
         let auth_info = self.get_auth_info().await?;
 
-        let mut url = format!(
-            "{}/b2api/v2/b2_list_file_names?bucketId={}",
-            auth_info.api_url, self.bucket_id
-        );
+        let url = format!("{}/b2api/v2/b2_list_file_names", auth_info.api_url);
+
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("bucketId", &self.bucket_id);
 
         if let Some(prefix) = prefix {
             let prefix = build_abs_path(&self.root, prefix);
-            url.push_str(&format!("&prefix={}", percent_encode_path(&prefix)));
+            url = url.push("prefix", &percent_encode_path(&prefix));
         }
 
         if let Some(limit) = limit {
-            url.push_str(&format!("&maxFileCount={}", limit));
+            url = url.push("maxFileCount", &limit.to_string());
         }
 
         if let Some(start_after) = start_after {
-            url.push_str(&format!(
-                "&startFileName={}",
-                percent_encode_path(&start_after)
-            ));
+            url = url.push("startFileName", &percent_encode_path(&start_after));
         }
 
         if let Some(delimiter) = delimiter {
-            url.push_str(&format!("&delimiter={}", delimiter));
+            url = url.push("delimiter", delimiter);
         }
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(url.finish());
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 

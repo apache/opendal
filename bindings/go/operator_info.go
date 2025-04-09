@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Info returns metadata about the Operator.
@@ -325,7 +324,7 @@ var withOperatorInfoGetScheme = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })
 
@@ -344,7 +343,7 @@ var withOperatorInfoGetRoot = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })
 
@@ -363,6 +362,6 @@ var withOperatorInfoGetName = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })

@@ -22,7 +22,7 @@ go 1.22.4
 toolchain go1.22.5
 
 require (
-	github.com/ebitengine/purego v0.7.1
-	github.com/jupiterrider/ffi v0.1.0
+	github.com/ebitengine/purego v0.8.2
+	github.com/jupiterrider/ffi v0.4.0
 	golang.org/x/sys v0.24.0
 )

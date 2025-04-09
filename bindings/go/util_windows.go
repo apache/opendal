@@ -27,7 +27,7 @@ import (
 
 func BytePtrFromString(s string) (*byte, error) {
 	if s == "" {
-		return nil, nil
+		return new(byte), nil
 	}
 	return windows.BytePtrFromString(s)
 }

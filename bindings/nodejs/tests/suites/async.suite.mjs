@@ -29,7 +29,6 @@ export function run(op) {
       const filename = `random_file_${randomUUID()}`
 
       try {
-        await op.check()
         await op.stat(filename)
       } catch (error) {
         assert.include(error.message, 'NotFound')
@@ -114,6 +113,10 @@ export function run(op) {
       if (op.capability().delete) {
         op.deleteSync(filename)
       }
+    })
+
+    test.runIf(op.capability().list)('test check', async () => {
+      await op.check()
     })
   })
 }

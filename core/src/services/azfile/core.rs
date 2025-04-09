@@ -337,7 +337,7 @@ impl AzfileCore {
         &self,
         path: &str,
         limit: &Option<usize>,
-        continuation: &String,
+        continuation: &str,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')

@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -442,7 +441,9 @@ impl OssCore {
         let endpoint = self.get_endpoint(false);
         let mut url = QueryPairsWriter::new(endpoint);
         url = url.push("list-type", "2");
-        url = url.push("delimiter", delimiter);
+        if !delimiter.is_empty() {
+            url = url.push("delimiter", delimiter);
+        }
         // prefix
         if !p.is_empty() {
             url = url.push("prefix", &percent_encode_path(&p));
@@ -530,32 +531,27 @@ impl OssCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let mut url = format!("{}?versions", self.endpoint);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("versions", "");
+
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(p.as_str()));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", percent_encode_path(key_marker))
-                .expect("write into string must succeed");
+            url = url.push("key-marker", &percent_encode_path(key_marker));
         }
         if !version_id_marker.is_empty() {
-            write!(
-                url,
-                "&version-id-marker={}",
-                percent_encode_path(version_id_marker)
-            )
-            .expect("write into string must succeed");
+            url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

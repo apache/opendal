@@ -245,6 +245,15 @@ export class Operator {
    */
   check(): Promise<void>
   /**
+   * Check the op synchronously.
+   *
+   * ### Example
+   * ```javascript
+   * op.checkSync();
+   * ```
+   */
+  checkSync(): void
+  /**
    * Check if this path exists or not.
    *
    * ### Example

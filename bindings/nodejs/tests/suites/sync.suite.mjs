@@ -111,5 +111,9 @@ export function run(op) {
         op.deleteSync(filename)
       }
     })
+
+    test.runIf(op.capability().list)('blocking check', () => {
+      op.checkSync()
+    })
   })
 }

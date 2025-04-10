@@ -423,7 +423,9 @@ impl B2Core {
 
         if let Some(prefix) = prefix {
             let prefix = build_abs_path(&self.root, prefix);
-            url = url.push("prefix", &percent_encode_path(&prefix));
+            if !prefix.is_empty() {
+                url = url.push("prefix", &percent_encode_path(&prefix));
+            }
         }
 
         if let Some(limit) = limit {

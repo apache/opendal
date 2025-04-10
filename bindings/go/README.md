@@ -114,10 +114,10 @@ go test -bench .
 
 <details>
   <summary>
-  A benchmark between [purego+libffi](https://github.com/apache/opendal/commit/bf15cecd5e3be6ecaa7056b5594589c9f4d85673) vs [CGO](https://github.com/apache/opendal/commit/9ef494d6df2e9a13c4e5b9b03bcb36ec30c0a7c0)
+  A benchmark between purego+libffi vs CGO
   </summary>
 
-**purego+libffi** (as `new.txt`)
+[**purego+libffi**](https://github.com/apache/opendal/commit/bf15cecd5e3be6ecaa7056b5594589c9f4d85673) (as `new.txt`)
 ```
 goos: linux
 goarch: arm64
@@ -134,7 +134,7 @@ PASS
 ok
 ```
 
-**CGO** (as `old.txt`)
+[**CGO**](https://github.com/apache/opendal/commit/9ef494d6df2e9a13c4e5b9b03bcb36ec30c0a7c0) (as `old.txt`)
 ```
 go test -bench=. -tags dynamic .
 goos: linux
@@ -209,15 +209,23 @@ geomean          129.7µ
 
 ## Development
 
-The guide is based on Linux. For other platforms, please adjust the commands accordingly.
+The guide is based on Linux and Windows. For other platforms, please adjust the commands accordingly.
 
 To develop the Go binding, you need to have the following dependencies installed:
 
 - zstd
 - Rust toolchain
 - Go
+- (Required for Windows) libffi-8.dll in the root of the workspace directory
 
 We use `go workspace` to manage and build the dependencies. To set up the workspace, run the following commands:
+
+<details>
+  <summary>
+  For Linux
+  </summary>
+
+<br/>
 
 ```bash
 mkdir opendal_workspace
@@ -235,20 +243,58 @@ go work use ./opendal-go-services/memory
 cat <<EOF > ./make_test.sh
 #!/bin/bash
 
+# Check if OPENDAL_TEST is set
+if [ -z "\$OPENDAL_TEST" ]; then
+    echo "Error: OPENDAL_TEST environment variable is not set"
+    echo "Please set OPENDAL_TEST to specify which backend to test (e.g., fs or memory)"
+    exit 1
+fi
+
+# Specify the backend to test
+export SERVICE="\$OPENDAL_TEST"
+
+# Get architecture
 architecture=\$(uname -m)
 if [ "\$architecture" = "x86_64" ]; then
     ARCH="x86_64"
+    GOARCH="amd64"
 elif [ "\$architecture" = "aarch64" ] || [ "\$architecture" = "arm64" ]; then
     ARCH="arm64"
+    GOARCH="arm64"
 else
     ARCH="unknown"
 fi
 
+# Build opendal
 cd opendal/bindings/c
 cargo build
 cd -
-zstd -19 opendal/bindings/c/target/debug/libopendal_c.so -o opendal-go-services/fs/libopendal_c.linux.\$ARCH.so.zst
 
+# Set environment variables
+export GITHUB_WORKSPACE="\$PWD/opendal-go-services"
+export VERSION="latest"
+export TARGET="linux"
+export DIR="\$GITHUB_WORKSPACE/libopendal_c_\$VERSION_\$SERVICE_\$TARGET"
+
+# Create directory if not exists
+mkdir -p "\$DIR"
+
+export OUTPUT="\$DIR/libopendal_c_\$VERSION_\$SERVICE_\$TARGET.so"
+# Compress with zstd
+zstd -19 opendal/bindings/c/target/debug/libopendal_c.so -o \$OUTPUT
+
+# Generate code
+cd opendal-go-services/internal/generate
+go run generate.go
+cd -
+
+# Delete unnecessary files
+rm -rf \$DIR
+
+# Set environment variables for test
+export MATRIX='{"build": [{"target":"linux", "goos":"linux", "goarch": "'\$GOARCH'"}], "service": ["fs"]}'
+
+# Run tests
 go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
 EOF
 
@@ -271,6 +317,52 @@ export OPENDAL_FS_ROOT=/tmp/opendal
 
 cd -
 ```
+
+</details>
+
+<details>
+  <summary>
+  For Windows
+  </summary>
+
+<br/>
+
+```powershell
+New-Item -ItemType Directory -Path opendal_workspace
+Set-Location -Path opendal_workspace
+
+git clone --depth 1 git@github.com:apache/opendal.git
+git clone --depth 1 git@github.com:apache/opendal-go-services.git
+
+go work init
+go work use ./opendal/bindings/go
+go work use ./opendal/bindings/go/tests/behavior_tests
+# use the backend you want to test, e.g., fs or memory
+go work use ./opendal-go-services/fs
+go work use ./opendal-go-services/memory
+
+@'
+# Check if OPENDAL_TEST is set\;if (-not $env:OPENDAL_TEST) {\;    Write-Error "OPENDAL_TEST environment variable is not set"\;    Write-Host "Please set OPENDAL_TEST to specify which backend to test (e.g., fs or memory)"\;    exit 1\;}\;# Specify the backend to test\;Set-Item -Path Env:SERVICE -Value "$env:OPENDAL_TEST"\;# Get architecture\;$architecture = (Get-WmiObject Win32_OperatingSystem).OSArchitecture\;\;if ($architecture -like "*64*") {\;    $ARCH = "x86_64"\;} else {\;    $ARCH = "unknown" \;}\;\;# Build opendal\;Push-Location opendal/bindings/c\;cargo build\;Pop-Location\;\;# Rename dll file\;Rename-Item opendal/bindings/c/target/debug/opendal_c.dll libopendal_c.dll\;\;# Set environment variables\;Set-Item -Path Env:GITHUB_WORKSPACE -Value "$PWD/opendal-go-services"\;Set-Item -Path Env:VERSION -Value "latest"\;Set-Item -Path Env:TARGET -Value "windows"\;Set-Item -Path Env:DIR -Value "$($env:GITHUB_WORKSPACE)/libopendal_c_$($env:VERSION)_$($env:SERVICE)_$($env:TARGET)"\;\;if (-not (Test-Path $env:DIR)) {\;    New-Item -ItemType Directory -Path $env:DIR\;}\;\;# Compress with zstd\;zstd -19 opendal/bindings/c/target/debug/libopendal_c.dll -o "$($env:DIR)/libopendal_c.windows.dll.zst"\;\;Push-Location opendal-go-services/internal/generate\;go run generate.go\;Pop-Location\;# Remove Unnecessary files\;Remove-Item -Path $env:DIR -Recurse -Force\;# Set environment variables\;Set-Item -Path Env:MATRIX -Value '{"build": [{"target":"windows", "goos":"windows", "goarch": "amd64"}], "service": ["fs"]}'\;# Assume that libffi-8.dll is in the root of workspace directory\;Set-Item -Path Env:PATH -Value "$($env:PATH);$PWD"\;# Run tests\;go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior\;
+'@ -replace "\\;","`n" | Out-File -FilePath "MakeTest.ps1" -Encoding UTF8
+
+Pop-Location
+```
+
+To build and run tests, run the following commands:
+
+```powershell
+Set-Location -Path opendal_workspace
+# specify the backend to test
+$env:OPENDAL_TEST = "fs"
+$env:OPENDAL_FS_ROOT = $env:TEMP
+
+# build the C binding and run the tests
+.\MakeTest.ps1
+
+Pop-Location
+```
+
+</details>
 
 ## License and Trademarks
 

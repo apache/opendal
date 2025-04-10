@@ -71,7 +71,7 @@ func main() {
 	}
 
 	// Check for any errors that occurred during iteration
-	if err := lister.Error()\;\; err != nil {
+	if err := lister.Error(); err != nil {
 		panic(err)
 	}
 
@@ -216,15 +216,16 @@ To develop the Go binding, you need to have the following dependencies installed
 - zstd
 - Rust toolchain
 - Go
-- (Optional for Windows) libffi-8.dll
+- (Required for Windows) libffi-8.dll in the root of the workspace directory
 
 We use `go workspace` to manage and build the dependencies. To set up the workspace, run the following commands:
 
 <details>
   <summary>
-  **For Linux**
+  For Linux
   </summary>
 
+<br/>
 
 ```bash
 mkdir opendal_workspace
@@ -256,8 +257,10 @@ export SERVICE="\$OPENDAL_TEST"
 architecture=\$(uname -m)
 if [ "\$architecture" = "x86_64" ]; then
     ARCH="x86_64"
+    GOARCH="amd64"
 elif [ "\$architecture" = "aarch64" ] || [ "\$architecture" = "arm64" ]; then
     ARCH="arm64"
+    GOARCH="arm64"
 else
     ARCH="unknown"
 fi
@@ -289,7 +292,7 @@ cd -
 rm -rf \$DIR
 
 # Set environment variables for test
-export MATRIX='{"build": [{"target":"linux", "goos":"linux", "goarch": "amd64"}], "service": ["fs"]}'
+export MATRIX='{"build": [{"target":"linux", "goos":"linux", "goarch": "'\$GOARCH'"}], "service": ["fs"]}'
 
 # Run tests
 go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
@@ -319,9 +322,10 @@ cd -
 
 <details>
   <summary>
-  **For Windows**
+  For Windows
   </summary>
 
+<br/>
 
 ```powershell
 New-Item -ItemType Directory -Path opendal_workspace

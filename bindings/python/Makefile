@@ -15,6 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ._opendal import *
+doc:
+	uv run sphinx-build -n -W -b html docs build/docs
 
-__all__ = _opendal.__all__
+serve-doc:
+	python -m http.server --directory build/docs
+
+clean-doc:
+	@rm -rfv build/docs
+
+.PHONY: doc clean-doc serve-doc

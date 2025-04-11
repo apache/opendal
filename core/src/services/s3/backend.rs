@@ -32,18 +32,18 @@ use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use once_cell::sync::Lazy;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
+use std::sync::LazyLock;
 
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
+use super::lister::{S3ListerV1, S3ListerV2, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::oio::PageLister;
@@ -53,7 +53,7 @@ use crate::*;
 use constants::X_AMZ_VERSION_ID;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
-static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     // AWS S3 Service.
     m.insert(
@@ -935,9 +935,6 @@ impl Builder for S3Builder {
                             write_with_if_match: !self.config.disable_write_with_if_match,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
-                            write_has_content_length: true,
-                            write_has_etag: true,
-                            write_has_version: self.config.enable_versioning,
 
                             // The min multipart size of S3 is 5 MiB.
                             //
@@ -997,6 +994,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
+                disable_list_objects_v2: self.config.disable_list_objects_v2,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
@@ -1092,13 +1090,19 @@ impl Access for S3Backend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = if args.versions() || args.deleted() {
-            TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
+            ThreeWays::Three(PageLister::new(S3ObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else if self.core.disable_list_objects_v2 {
+            ThreeWays::One(PageLister::new(S3ListerV1::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else {
-            TwoWays::One(PageLister::new(S3Lister::new(
+            ThreeWays::Two(PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
                 args,

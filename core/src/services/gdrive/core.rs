@@ -41,8 +41,6 @@ pub struct GdriveCore {
 
     pub root: String,
 
-    pub client: HttpClient,
-
     pub signer: Arc<Mutex<GdriveSigner>>,
 
     /// Cache the mapping from path to file id
@@ -75,7 +73,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -96,7 +94,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn gdrive_list(
@@ -106,21 +104,20 @@ impl GdriveCore {
         next_page_token: &str,
     ) -> Result<Response<Buffer>> {
         let q = format!("'{}' in parents and trashed = false", file_id);
-        let mut url = format!(
-            "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
-            page_size,
-            percent_encode_path(&q)
-        );
+        let url = "https://www.googleapis.com/drive/v3/files";
+        let mut url = QueryPairsWriter::new(url);
+        url = url.push("pageSize", &page_size.to_string());
+        url = url.push("q", &percent_encode_path(&q));
         if !next_page_token.is_empty() {
-            url += &format!("&pageToken={next_page_token}");
+            url = url.push("pageToken", next_page_token);
         };
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     // Update with content and metadata
@@ -159,7 +156,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<Buffer>> {
@@ -176,7 +173,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Create a file with the content.
@@ -222,7 +219,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Overwrite the file with the content.
@@ -250,7 +247,7 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
@@ -261,7 +258,7 @@ impl GdriveCore {
 
 #[derive(Clone)]
 pub struct GdriveSigner {
-    pub client: HttpClient,
+    pub info: Arc<AccessorInfo>,
 
     pub client_id: String,
     pub client_secret: String,
@@ -273,9 +270,9 @@ pub struct GdriveSigner {
 
 impl GdriveSigner {
     /// Create a new signer.
-    pub fn new(client: HttpClient) -> Self {
+    pub fn new(info: Arc<AccessorInfo>) -> Self {
         GdriveSigner {
-            client,
+            info,
 
             client_id: "".to_string(),
             client_secret: "".to_string(),
@@ -307,7 +304,7 @@ impl GdriveSigner {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let resp = self.info.http_client().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -336,13 +333,13 @@ impl GdriveSigner {
 }
 
 pub struct GdrivePathQuery {
-    pub client: HttpClient,
+    pub info: Arc<AccessorInfo>,
     pub signer: Arc<Mutex<GdriveSigner>>,
 }
 
 impl GdrivePathQuery {
-    pub fn new(client: HttpClient, signer: Arc<Mutex<GdriveSigner>>) -> Self {
-        GdrivePathQuery { client, signer }
+    pub fn new(info: Arc<AccessorInfo>, signer: Arc<Mutex<GdriveSigner>>) -> Self {
+        GdrivePathQuery { info, signer }
     }
 }
 
@@ -379,7 +376,7 @@ impl PathQuery for GdrivePathQuery {
 
         self.signer.lock().await.sign(&mut req).await?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -416,7 +413,7 @@ impl PathQuery for GdrivePathQuery {
 
         self.signer.lock().await.sign(&mut req).await?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }

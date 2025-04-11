@@ -15,29 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: PR Labeler
+# frozen_string_literal: true
 
-on:
-  pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited]
+module OpenDAL
+  class Metadata
+    FILE = "File"
+    DIRECTORY = "Directory"
 
-permissions:
-  pull-requests: write
-  contents: read
+    # Returns `True` if this is a file.
+    # @return [Boolean]
+    def file?
+      mode == FILE
+    end
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+    # Returns `True` if this is a directory.
+    # @return [Boolean]
+    def dir?
+      mode == DIRECTORY
+    end
 
-jobs:
-  pr_labeler:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: github/issue-labeler@v3.4
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          configuration-path: .github/labeler.yml
-          enable-versioned-regex: 0
-          include-title: 1
+    def inspect
+      # Be concise to keep a few attributes
+      "#<#{self.class.name} mode: #{entry_mode}, \
+        content_type: #{content_type}, \
+        content_length: #{content_length}>"
+    end
+  end
+end

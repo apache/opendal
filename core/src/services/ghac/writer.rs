@@ -127,7 +127,6 @@ impl GhacWriter {
                     encryption_key: None,
                     encryption_key_sha256: None,
                     encryption_algorithm: None,
-                    client: core.http_client.clone(),
                     loader: {
                         let config = reqsign::AzureStorageConfig {
                             sas_token: Some(query.to_string()),
@@ -177,7 +176,7 @@ impl oio::Write for GhacWriterV1 {
         );
         let req = req.body(bs).map_err(new_request_build_error)?;
 
-        let resp = self.core.http_client.send(req).await?;
+        let resp = self.core.info.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }

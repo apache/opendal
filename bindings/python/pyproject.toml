@@ -32,7 +32,12 @@ requires-python = ">=3.10"
 
 dynamic = ['version']
 
-[project.optional-dependencies]
+[project.urls]
+Documentation = "https://opendal.apache.org/docs/python/index.html"
+Homepage = "https://opendal.apache.org/"
+Repository = "https://github.com/apache/opendal"
+
+[dependency-groups]
 benchmark = [
   "boto3>=1.37.9",
   "boto3-stubs[essential]>=1.37.9",
@@ -42,14 +47,14 @@ benchmark = [
   "pydantic>=2.10.6",
 ]
 dev = ["maturin>=1.8.2"]
-docs = ["pdoc>=15.0.1"]
+docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 lint = ["ruff>=0.9.10"]
-test = ["pytest>=8.3.5", "pytest-asyncio>=0.25.3", "python-dotenv>=1.0.1", "pydantic-settings>=2.8.1"]
-
-[project.urls]
-Documentation = "https://opendal.apache.org/docs/python/opendal.html"
-Homepage = "https://opendal.apache.org/"
-Repository = "https://github.com/apache/opendal"
+test = [
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.25.3",
+  "python-dotenv>=1.0.1",
+  "pydantic-settings>=2.8.1",
+]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
@@ -66,7 +71,7 @@ cache-keys = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
 ignore = ["E402", "F403", "F405"]
+select = ["E", "F", "I"]
 [tool.ruff.lint.isort]
 known-first-party = ["opendal"]

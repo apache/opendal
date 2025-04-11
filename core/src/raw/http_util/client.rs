@@ -27,8 +27,8 @@ use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use raw::oio::Read;
+use std::sync::LazyLock;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
@@ -40,7 +40,8 @@ use crate::*;
 /// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
 /// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
 #[allow(dead_code)]
-pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+pub(crate) static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> =
+    LazyLock::new(reqwest::Client::new);
 
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Arc<dyn HttpFetchDyn>;

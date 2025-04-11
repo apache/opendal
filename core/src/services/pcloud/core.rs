@@ -42,8 +42,6 @@ pub struct PcloudCore {
     pub username: String,
     /// The password of this backend.
     pub password: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for PcloudCore {
@@ -59,7 +57,7 @@ impl Debug for PcloudCore {
 impl PcloudCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -118,7 +116,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {

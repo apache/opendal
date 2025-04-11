@@ -26,8 +26,8 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
-version = "0.41.17"
+rust-version = "1.80"
+version = "0.41.18"
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -35,10 +35,10 @@ clap = { version = "4.5", features = ["cargo", "string", "derive"] }
 dirs = { version = "5.0" }
 futures = { version = "0.3" }
 humansize = { version = "2.1" }
-humantime = { version = "2.1" }
+humantime = { version = "2.2" }
 humantime-serde = { version = "1.1" }
 indicatif = { version = "0.17" }
-opendal = { version = "0.52.0", path = "../../core", features = [
+opendal = { version = "0.53.0", path = "../../core", features = [
   "services-azblob",
   "services-azdls",
   "services-cos",

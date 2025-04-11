@@ -28,7 +28,6 @@ use reqsign::AzureStorageSigner;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -43,7 +42,6 @@ pub struct AzdlsCore {
     pub root: String,
     pub endpoint: String,
 
-    pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
 }
@@ -93,7 +91,7 @@ impl AzdlsCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -117,7 +115,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`
@@ -241,7 +239,7 @@ impl AzdlsCore {
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn azdls_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -274,23 +272,20 @@ impl AzdlsCore {
             .trim_end_matches('/')
             .to_string();
 
-        let mut url = format!(
-            "{}/{}?resource=filesystem&recursive=false",
-            self.endpoint, self.filesystem
-        );
+        let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.filesystem))
+            .push("resource", "filesystem")
+            .push("recursive", "false");
         if !p.is_empty() {
-            write!(url, "&directory={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("directory", &percent_encode_path(&p));
         }
         if let Some(limit) = limit {
-            write!(url, "&maxResults={limit}").expect("write into string must succeed");
+            url = url.push("maxResults", &limit.to_string());
         }
         if !continuation.is_empty() {
-            write!(url, "&continuation={}", percent_encode_path(continuation))
-                .expect("write into string must succeed");
+            url = url.push("continuation", &percent_encode_path(continuation));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

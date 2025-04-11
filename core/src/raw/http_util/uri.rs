@@ -64,6 +64,57 @@ pub fn percent_decode_path(path: &str) -> String {
     }
 }
 
+/// QueryPairsWriter is used to write query pairs to a url.
+pub struct QueryPairsWriter {
+    base: String,
+    has_query: bool,
+}
+
+impl QueryPairsWriter {
+    /// Create a new QueryPairsWriter with the given base.
+    pub fn new(s: &str) -> Self {
+        // 256 is the average size we observed of a url
+        // in production.
+        //
+        // We eagerly allocate the string to avoid multiple
+        // allocations.
+        let mut base = String::with_capacity(256);
+        base.push_str(s);
+
+        Self {
+            base,
+            has_query: false,
+        }
+    }
+
+    /// Push a new pair of key and value to the url.
+    ///
+    /// The input key and value must already been percent
+    /// encoded correctly.
+    pub fn push(mut self, key: &str, value: &str) -> Self {
+        if self.has_query {
+            self.base.push('&');
+        } else {
+            self.base.push('?');
+            self.has_query = true;
+        }
+
+        // Append the key and value to the base string
+        self.base.push_str(key);
+        if !value.is_empty() {
+            self.base.push('=');
+            self.base.push_str(value);
+        }
+
+        self
+    }
+
+    /// Finish the url and return it.
+    pub fn finish(self) -> String {
+        self.base
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

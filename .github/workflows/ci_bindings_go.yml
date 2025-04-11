@@ -31,6 +31,7 @@ on:
       - "bindings/c/**"
       - "bindings/go/**"
       - ".github/workflows/ci_bindings_go.yml"
+      - ".github/scripts/test_go_binding/matrix.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -82,10 +83,17 @@ jobs:
             path: "tools"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Setup Target
+      - name: Setup Target (Linux/macOS)
+        if: runner.os != 'Windows'
         env:
           TARGET: ${{ matrix.build.target }}
         run: rustup target add $TARGET
+      - name: Setup Target (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TARGET: ${{ matrix.build.target }}
+        run: |
+          rustup target add $env:TARGET
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -104,8 +112,12 @@ jobs:
       - name: Install dependencies (macOS)
         if: ${{ matrix.build.os == 'macos-latest' }}
         run: brew install zstd libffi
-      - name: Build C Binding
+      - name: Install dependencies (Windows)
+        if: ${{ matrix.build.os == 'windows-latest' }}
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Build C Binding (Linux/macOS)
         working-directory: bindings/c
+        if: runner.os != 'Windows'
         env:
           VERSION: "latest"
           SERVICE: ${{ matrix.service }}
@@ -113,7 +125,7 @@ jobs:
           CC: ${{ matrix.build.cc }}
           OS: ${{ matrix.build.os }}
         run: |
-          cargo build --target $TARGET  --release
+          cargo build --target $TARGET --release
           DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
           mkdir $DIR
           if [ ${OS} == 'ubuntu-latest' ]; then
@@ -122,6 +134,21 @@ jobs:
             SO=dylib
           fi
           zstd -19 ./target/$TARGET/release/libopendal_c.$SO -o $DIR/libopendal_c.$TARGET.$SO.zst
+      - name: Build C Binding (Windows)
+        working-directory: bindings/c
+        if: runner.os == 'Windows'
+        env:
+          VERSION: "latest"
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.build.target }}
+          CC: ${{ matrix.build.cc }}
+          OS: ${{ matrix.build.os }}
+        run: |
+          cargo build --target $env:TARGET --release
+          $DIR="$env:GITHUB_WORKSPACE\libopendal_c_${env:VERSION}_${env:SERVICE}_${env:TARGET}"
+          Rename-Item -Path "./target/$env:TARGET/release/opendal_c.dll" -NewName "libopendal_c.dll"
+          New-Item -ItemType Directory -Force -Path $DIR
+          zstd -19 "./target/${env:TARGET}/release/libopendal_c.dll" -o "$DIR/libopendal_c.${env:TARGET}.dll.zst"
       - name: Build Go Artifact
         working-directory: tools/internal/generate
         env:
@@ -129,22 +156,43 @@ jobs:
           VERSION: "latest"
         run: |
           go run generate.go
-      - name: Setup Go Workspace
+      - name: Setup Go Workspace (Linux/macOS)
         env:
           SERVICE: ${{ matrix.service }}
         working-directory: bindings/go/tests
+        if: runner.os != 'Windows'
         run: |
           go work init
           go work use ..
           go work use ./behavior_tests
           go work use $GITHUB_WORKSPACE/$(echo $SERVICE | sed 's/-/_/g')
-      - name: Run tests
+      - name: Setup Go Workspace (Windows)
+        env:
+          SERVICE: ${{ matrix.service }}
+        working-directory: bindings/go/tests
+        if: runner.os == 'Windows'
+        run: |
+          go work init
+          go work use ..
+          go work use ./behavior_tests
+          go work use $env:GITHUB_WORKSPACE/$($env:SERVICE -replace '-','_')
+      - name: Run tests (Linux/macOS)
         env:
           OPENDAL_TEST: ${{ matrix.service }}
-          OPENDAL_FS_ROOT: "/tmp/opendal/"
+          OPENDAL_FS_ROOT: runner.temp
         working-directory: bindings/go/tests/behavior_tests
+        if: runner.os != 'Windows'
         run: |
           if [ ${{ matrix.build.os }} == 'macos-latest' ]; then
             export DYLD_FALLBACK_LIBRARY_PATH=$DYLD_FALLBACK_LIBRARY_PATH:/opt/homebrew/opt/libffi/lib
           fi
           CGO_ENABLE=0 go test -v -run TestBehavior
+      - name: Run tests (Windows)
+        env:
+          OPENDAL_TEST: ${{ matrix.service }}
+          OPENDAL_FS_ROOT: runner.temp
+        working-directory: bindings/go/tests/behavior_tests
+        if: runner.os == 'Windows'
+        run: |
+          $env:CGO_ENABLE = "0"
+          go test -v -run TestBehavior

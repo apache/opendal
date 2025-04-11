@@ -35,6 +35,8 @@ use crate::*;
 
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         WebdavBuilder {
             config: self,
@@ -48,6 +50,8 @@ impl Configurator for WebdavConfig {
 #[derive(Default)]
 pub struct WebdavBuilder {
     config: WebdavConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -122,6 +126,8 @@ impl WebdavBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -156,15 +162,6 @@ impl Builder for WebdavBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Webdav)
-            })?
-        };
-
         let mut authorization = None;
         if let Some(username) = &self.config.username {
             authorization = Some(format_authorization_by_basic(
@@ -178,8 +175,8 @@ impl Builder for WebdavBuilder {
 
         let core = Arc::new(WebdavCore {
             info: {
-                let ma = AccessorInfo::default();
-                ma.set_scheme(Scheme::Webdav)
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Webdav)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
@@ -213,13 +210,18 @@ impl Builder for WebdavBuilder {
                         ..Default::default()
                     });
 
-                ma.into()
+                // allow deprecated api here for compatibility
+                #[allow(deprecated)]
+                if let Some(client) = self.http_client {
+                    am.update_http_client(|_| client);
+                }
+
+                am.into()
             },
             endpoint: endpoint.to_string(),
             server_path,
             authorization,
             root,
-            client,
         });
         Ok(WebdavBackend { core })
     }

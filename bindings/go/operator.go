@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Copy duplicates a file from the source path to the destination path.
@@ -111,7 +110,7 @@ var withOperatorNew = withFFI(ffiOpts{
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorNew {
 	return func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
 		var byteName *byte
-		byteName, err = unix.BytePtrFromString(scheme.Name())
+		byteName, err = BytePtrFromString(scheme.Name())
 		if err != nil {
 			return
 		}
@@ -177,11 +176,11 @@ var withOperatorOptionsSet = withFFI(ffiOpts{
 			byteKey   *byte
 			byteValue *byte
 		)
-		byteKey, err = unix.BytePtrFromString(key)
+		byteKey, err = BytePtrFromString(key)
 		if err != nil {
 			return err
 		}
-		byteValue, err = unix.BytePtrFromString(value)
+		byteValue, err = BytePtrFromString(value)
 		if err != nil {
 			return err
 		}
@@ -226,11 +225,11 @@ var withOperatorCopy = withFFI(ffiOpts{
 			byteSrc  *byte
 			byteDest *byte
 		)
-		byteSrc, err = unix.BytePtrFromString(src)
+		byteSrc, err = BytePtrFromString(src)
 		if err != nil {
 			return err
 		}
-		byteDest, err = unix.BytePtrFromString(dest)
+		byteDest, err = BytePtrFromString(dest)
 		if err != nil {
 			return err
 		}
@@ -259,11 +258,11 @@ var withOperatorRename = withFFI(ffiOpts{
 			byteSrc  *byte
 			byteDest *byte
 		)
-		byteSrc, err = unix.BytePtrFromString(src)
+		byteSrc, err = BytePtrFromString(src)
 		if err != nil {
 			return err
 		}
-		byteDest, err = unix.BytePtrFromString(dest)
+		byteDest, err = BytePtrFromString(dest)
 		if err != nil {
 			return err
 		}

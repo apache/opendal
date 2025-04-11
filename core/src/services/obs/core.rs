@@ -40,6 +40,7 @@ use crate::*;
 
 pub mod constants {
     pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";
+    pub const X_OBS_VERSION_ID: &str = "x-obs-version-id";
 }
 
 pub struct ObsCore {
@@ -290,28 +291,22 @@ impl ObsCore {
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
 
-        let mut queries = vec![];
         if !path.is_empty() {
-            queries.push(format!("prefix={}", percent_encode_path(&p)));
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            queries.push(format!("delimiter={delimiter}"));
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            queries.push(format!("max-keys={limit}"));
+            url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            queries.push(format!("marker={next_marker}"));
+            url = url.push("marker", next_marker);
         }
 
-        let url = if queries.is_empty() {
-            self.endpoint.to_string()
-        } else {
-            format!("{}?{}", self.endpoint, queries.join("&"))
-        };
-
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -474,6 +469,17 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Output of `CompleteMultipartUpload` operation
+#[derive(Debug, Default, Deserialize)]
+#[serde[default, rename_all = "PascalCase"]]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
 }

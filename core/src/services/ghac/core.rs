@@ -15,22 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::error::parse_error;
-use crate::raw::{
-    build_abs_path, new_json_deserialize_error, new_json_serialize_error, new_request_build_error,
-    percent_encode_path, AccessorInfo, HttpClient,
-};
-use crate::*;
+use std::env;
+use std::fmt::{Debug, Formatter};
+use std::str::FromStr;
+use std::sync::Arc;
+
 use ::ghac::v1 as ghac_types;
 use bytes::{Buf, Bytes};
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Request, StatusCode, Uri};
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::fmt::{Debug, Formatter};
-use std::str::FromStr;
-use std::sync::Arc;
+
+use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 /// The base url for cache url.
 pub const CACHE_URL_BASE: &str = "_apis/artifactcache";
@@ -76,7 +75,6 @@ pub struct GhacCore {
     pub version: String,
 
     pub service_version: GhacVersion,
-    pub http_client: HttpClient,
 }
 
 impl Debug for GhacCore {
@@ -108,7 +106,7 @@ impl GhacCore {
                 req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
                 let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let slc = resp.into_body();
                     let query_resp: GhacQueryResponse = serde_json::from_reader(slc.reader())
@@ -141,7 +139,7 @@ impl GhacCore {
                     .header(CONTENT_LENGTH, body.len())
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let slc = resp.into_body();
                     let query_resp = ghac_types::GetCacheEntryDownloadUrlResponse::decode(slc)
@@ -195,7 +193,7 @@ impl GhacCore {
                 let req = req
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 let cache_id = if resp.status().is_success() {
                     let slc = resp.into_body();
                     let reserve_resp: GhacReserveResponse = serde_json::from_reader(slc.reader())
@@ -227,7 +225,7 @@ impl GhacCore {
                     .header(CONTENT_LENGTH, body.len())
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let (parts, slc) = resp.into_parts();
                     let query_resp = ghac_types::CreateCacheEntryResponse::decode(slc)
@@ -263,7 +261,7 @@ impl GhacCore {
                     .header(CONTENT_LENGTH, bs.len())
                     .body(Buffer::from(bs))
                     .map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 if resp.status().is_success() {
                     Ok(())
                 } else {
@@ -291,7 +289,7 @@ impl GhacCore {
                     .header(CONTENT_LENGTH, body.len())
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.http_client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
                 if resp.status() != StatusCode::OK {
                     return Err(parse_error(resp));
                 };

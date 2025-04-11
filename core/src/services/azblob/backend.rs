@@ -32,6 +32,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::core::constants::X_MS_META_PREFIX;
+use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
@@ -56,9 +57,12 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzblobBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -68,6 +72,8 @@ impl Configurator for AzblobConfig {
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
     config: AzblobConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -244,6 +250,8 @@ impl AzblobBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -369,15 +377,6 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob)
-            })?
-        };
-
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self
@@ -494,6 +493,12 @@ impl Builder for AzblobBuilder {
                             ..Default::default()
                         });
 
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
                     am.into()
                 },
                 root,
@@ -503,7 +508,6 @@ impl Builder for AzblobBuilder {
                 encryption_algorithm,
                 container: self.config.container.clone(),
 
-                client,
                 loader: cred_loader,
                 signer,
             }),
@@ -564,6 +568,9 @@ impl Access for AzblobBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+                if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
+                    meta.set_version(version_id);
+                }
 
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {

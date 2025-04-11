@@ -1109,6 +1109,30 @@ impl BlockingOperator {
             |inner, path, args| BlockingLister::create(inner, &path, args),
         ))
     }
+
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a `list` request to path and return any errors we met.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::ErrorKind;
+    ///
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.check()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn check(&self) -> Result<()> {
+        let mut ds = self.lister("/")?;
+
+        match ds.next() {
+            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl From<BlockingOperator> for Operator {

@@ -74,6 +74,31 @@ impl HttpBody {
         }
     }
 
+    /// Map the inner stream.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn map_inner(
+        mut self,
+        f: impl FnOnce(
+            Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
+        )
+            -> Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
+    ) -> Self {
+        self.stream = f(self.stream);
+        self
+    }
+
+    /// Map the inner stream.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn map_inner(
+        mut self,
+        f: impl FnOnce(
+            Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
+        ) -> Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
+    ) -> Self {
+        self.stream = f(self.stream);
+        self
+    }
+
     /// Check if the consumed data is equal to the expected content length.
     #[inline]
     fn check(&self) -> Result<()> {

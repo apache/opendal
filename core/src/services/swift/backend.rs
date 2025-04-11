@@ -152,8 +152,6 @@ impl Builder for SwiftBuilder {
 
         let token = self.config.token.unwrap_or_default();
 
-        let client = HttpClient::new()?;
-
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
                 info: {
@@ -197,7 +195,6 @@ impl Builder for SwiftBuilder {
                 endpoint,
                 container,
                 token,
-                client,
             }),
         })
     }

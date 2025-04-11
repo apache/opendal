@@ -238,13 +238,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.io_timeout(Operation::ReaderStart, self.inner.read(path, args))
+        self.io_timeout(Operation::Read, self.inner.read(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.io_timeout(Operation::WriterStart, self.inner.write(path, args))
+        self.io_timeout(Operation::Write, self.inner.write(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
@@ -265,13 +265,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.timeout(Operation::DeleterStart, self.inner.delete())
+        self.timeout(Operation::Delete, self.inner.delete())
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.io_timeout(Operation::ListerStart, self.inner.list(path, args))
+        self.io_timeout(Operation::List, self.inner.list(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
@@ -348,31 +348,31 @@ impl<R> TimeoutWrapper<R> {
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, Operation::ReaderRead.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
     }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, Operation::WriterWrite.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::WriterClose.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, Operation::WriterAbort.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, Operation::ListerNext.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::List.into_static(), fut).await
     }
 }
 
@@ -383,7 +383,7 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
 
     async fn flush(&mut self) -> Result<usize> {
         let fut = self.inner.flush();
-        Self::io_timeout(self.timeout, Operation::DeleterFlush.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 }
 

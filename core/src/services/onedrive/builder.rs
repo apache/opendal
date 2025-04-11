@@ -129,6 +129,12 @@ impl OnedriveBuilder {
         self.config.client_secret = Some(client_secret.to_string());
         self
     }
+
+    /// Enable versioning support for OneDrive
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+        self
+    }
 }
 
 impl Builder for OnedriveBuilder {
@@ -147,19 +153,32 @@ impl Builder for OnedriveBuilder {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_with_if_match: true,
+                // OneDrive supports the file size up to 250GB
+                // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
+                // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
+                // file up to this size.
+                // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
+                copy: true,
+                rename: true,
 
                 stat: true,
+                stat_with_if_none_match: true,
                 stat_has_content_length: true,
                 stat_has_etag: true,
                 stat_has_last_modified: true,
+                stat_with_version: self.config.enable_versioning,
 
                 delete: true,
                 create_dir: true,
 
                 list: true,
+                list_with_limit: true,
+                list_with_versions: self.config.enable_versioning,
                 list_has_content_length: true,
                 list_has_etag: true,
                 list_has_last_modified: true,
+                list_has_version: self.config.enable_versioning, // same as `list_with_versions`?
 
                 shared: true,
 

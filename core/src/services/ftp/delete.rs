@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::FtpBackend;
+use super::core::FtpCore;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -25,18 +25,18 @@ use suppaftp::FtpError;
 use suppaftp::Status;
 
 pub struct FtpDeleter {
-    core: Arc<FtpBackend>,
+    core: Arc<FtpCore>,
 }
 
 impl FtpDeleter {
-    pub fn new(core: Arc<FtpBackend>) -> Self {
+    pub fn new(core: Arc<FtpCore>) -> Self {
         Self { core }
     }
 }
 
 impl oio::OneShotDelete for FtpDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let mut ftp_stream = self.core.ftp_connect(Operation::DeleterStart).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Delete).await?;
 
         let result = if path.ends_with('/') {
             ftp_stream.rmdir(&path).await

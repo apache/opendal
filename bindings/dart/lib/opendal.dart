@@ -36,11 +36,49 @@ class Storage {
       var path = "rust/target/release/";  // default path
       final name = Platform.operatingSystem;
       final arch = SysInfo.kernelArchitecture;
-      // if (name == "linux" && arch == "x86_64"){
-      //   path = "rust/target/x86_64-unknown-linux-gnu/release/";
-      // }
-      // todo: more system and arch
-
+      // Set appropriate binary path based on OS and architecture
+      final nameLower = name.toLowerCase();
+      final archLower = arch.toString().toLowerCase();
+      
+      if (nameLower == "linux") {
+        if (archLower == "x86_64") {
+          path = "rust/target/x86_64-unknown-linux-gnu/release/";
+        } else if (archLower == "aarch64" || archLower == "arm64") {
+          path = "rust/target/aarch64-unknown-linux-gnu/release/";
+        } else if (archLower == "arm") {
+          path = "rust/target/armv7-unknown-linux-gnueabihf/release/";
+        }
+      } else if (nameLower == "windows") {
+        if (archLower == "x86_64" || archLower == "amd64") {
+          path = "rust/target/x86_64-pc-windows-msvc/release/";
+        } else if (archLower == "x86" || archLower == "i386") {
+          path = "rust/target/i686-pc-windows-msvc/release/";
+        } else if (archLower == "aarch64" || archLower == "arm64") {
+          path = "rust/target/aarch64-pc-windows-msvc/release/";
+        }
+      } else if (nameLower == "macos") {
+        if (archLower == "x86_64") {
+          path = "rust/target/x86_64-apple-darwin/release/";
+        } else if (archLower == "aarch64" || archLower == "arm64") {
+          path = "rust/target/aarch64-apple-darwin/release/";
+        }
+      } else if (nameLower == "android") {
+        if (archLower == "aarch64" || archLower == "arm64") {
+          path = "rust/target/aarch64-linux-android/release/";
+        } else if (archLower == "x86_64") {
+          path = "rust/target/x86_64-linux-android/release/";
+        } else if (archLower == "x86" || archLower == "i386") {
+          path = "rust/target/i686-linux-android/release/";
+        } else if (archLower == "arm") {
+          path = "rust/target/armv7-linux-androideabi/release/";
+        }
+      } else if (nameLower == "ios") {
+        if (archLower == "aarch64" || archLower == "arm64") {
+          path = "rust/target/aarch64-apple-ios/release/";
+        } else if (archLower == "x86_64") {
+          path = "rust/target/x86_64-apple-ios/release/";
+        }
+      }
       var config = ExternalLibraryLoaderConfig( // https://github.com/fzyzcjy/flutter_rust_bridge/issues/2460
         stem: 'opendal_dart',
         ioDirectory: path,
@@ -70,11 +108,11 @@ class File {
       : _operator = operator;
 
   Future<bool> exists() {
-    return _operator.isExist(path: path);
+    return _operator.exists(path: path);
   }
 
   bool existsSync() {
-    return _operator.isExistSync(path: path);
+    return _operator.existsSync(path: path);
   }
 
   Future<Metadata> stat() {
@@ -118,11 +156,11 @@ class Directory {
   }
 
   Future<bool> exists() {
-    return _operator.isExist(path: path);
+    return _operator.exists(path: path);
   }
 
   bool existsSync() {
-    return _operator.isExistSync(path: path);
+    return _operator.existsSync(path: path);
   }
 
   Future<void> rename(String newPath) {

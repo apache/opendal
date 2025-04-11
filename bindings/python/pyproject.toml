@@ -47,7 +47,7 @@ benchmark = [
   "pydantic>=2.10.6",
 ]
 dev = ["maturin>=1.8.2"]
-docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]"]
+docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 lint = ["ruff>=0.9.10"]
 test = [
   "pytest>=8.3.5",

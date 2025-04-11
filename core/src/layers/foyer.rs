@@ -6,11 +6,11 @@ use bytes::Bytes;
 use foyer::{DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder};
 use serde::{Deserialize, Serialize};
 
-pub struct CacheLayer {
+pub struct FoyerLayer {
     cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
-impl CacheLayer {
+impl FoyerLayer {
     pub async fn new(
         disk_cache_dir: &str,
         disk_capacity_mb: usize,
@@ -35,7 +35,7 @@ impl CacheLayer {
     }
 }
 
-impl<A: Access> Layer<A> for CacheLayer {
+impl<A: Access> Layer<A> for FoyerLayer {
     type LayeredAccess = CacheAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {

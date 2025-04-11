@@ -117,10 +117,10 @@ mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
 
-#[cfg(feature = "layers-cache")]
-mod cache;
-#[cfg(feature = "layers-cache")]
-pub use self::cache::CacheLayer;
+#[cfg(feature = "layers-foyer")]
+mod foyer;
+#[cfg(feature = "layers-foyer")]
+pub use self::foyer::FoyerLayer;
 
 pub mod observe;
 

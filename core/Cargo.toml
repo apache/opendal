@@ -105,7 +105,7 @@ layers-async-backtrace = ["dep:async-backtrace"]
 layers-blocking = ["internal-tokio-rt"]
 layers-dtrace = ["dep:probe"]
 # Enable layers cache support.
-layers-cache = ["dep:foyer"]
+layers-foyer = ["dep:foyer"]
 
 services-aliyun-drive = []
 services-alluxio = []

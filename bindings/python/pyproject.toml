@@ -48,10 +48,9 @@ benchmark = [
 ]
 dev = ["maturin>=1.8.2"]
 docs = [
-    "furo",
-    "sphinx",
-    "sphinx-autodoc-typehints>=3.0.1",
-    "sphinx-copybutton",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
 ]
 lint = ["ruff>=0.9.10"]
 test = [

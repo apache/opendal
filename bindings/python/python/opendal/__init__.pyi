@@ -17,7 +17,7 @@
 
 import os
 from types import TracebackType
-from typing import AsyncIterable, Iterable, Optional, Type, Union, final
+from typing import Any, AsyncIterable, Iterable, Optional, Type, Union, final
 
 from opendal import exceptions as exceptions
 from opendal import layers as layers
@@ -28,9 +28,57 @@ PathBuf = Union[str, os.PathLike]
 
 @final
 class Operator(_Base):
-    def layer(self, layer: Layer) -> "Operator": ...
-    def open(self, path: PathBuf, mode: str) -> File: ...
-    def read(self, path: PathBuf) -> bytes: ...
+    """The entry class for all public blocking APIs.
+
+    Args:
+        scheme (str): The service name that OpenDAL supports.
+        **options (any): The options for the service.
+            See the documentation of each service for more details.
+
+    Example:
+        ```python
+        import opendal
+        op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
+        op.write("hello.txt", b"hello world")
+        ```
+    """
+    def __init__(self, scheme: str, **options: Any) -> None: ...
+    def layer(self, layer: Layer) -> "Operator":
+        """Add new layers upon the current operator.
+
+        Args:
+            layer (Layer): The layer to be added.
+
+        Returns:
+            The new operator with the layer added.
+        """
+    def open(self, path: PathBuf, mode: str) -> File:
+        """Open a file at the given path for reading or writing.
+
+        Args:
+            path (str|Path): The path to the file.
+            mode (str): The mode to open the file. Can be "rb" or "wb".
+
+        Returns:
+            A file-like object that can be used to read or write the file.
+
+        Example:
+            ```python
+            import opendal
+            op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
+            with op.open("hello.txt", "wb") as f:
+                f.write(b"hello world")
+            ```
+        """
+    def read(self, path: PathBuf) -> bytes:
+        """Read the content of the object at the given path.
+
+        Args:
+            path (str|Path): The path to the object.
+
+        Returns:
+            The content of the object as bytes.
+        """
     def write(
         self,
         path: PathBuf,

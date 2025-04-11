@@ -72,4 +72,5 @@ build/docs
 .python-version
 
 # Generated docs
+site/
 Cargo.lock

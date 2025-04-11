@@ -41,6 +41,7 @@ nav:
       - api/file.md
       - api/async_operator.md
       - api/async_file.md
+      - api/metadata.md
 
 markdown_extensions:
   - pymdownx.highlight:

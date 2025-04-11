@@ -160,7 +160,7 @@ jobs:
 
       - name: Build Docs
         working-directory: bindings/python
-        run: make doc
+        run: uv run sphinx-build -n -W -b html docs build/docs
 
       - name: Upload docs
         uses: actions/upload-artifact@v4

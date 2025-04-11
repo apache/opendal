@@ -156,17 +156,17 @@ jobs:
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          uv sync --all-groups --all-extras
+          uv sync --group docs
 
       - name: Build Docs
         working-directory: bindings/python
-        run: uv run pdoc -t ./template --output-dir ./docs opendal
+        run: uv run mkdocs build
 
       - name: Upload docs
         uses: actions/upload-artifact@v4
         with:
           name: python-docs
-          path: ./bindings/python/docs
+          path: ./bindings/python/site
 
   build-ruby-doc:
     runs-on: ubuntu-latest

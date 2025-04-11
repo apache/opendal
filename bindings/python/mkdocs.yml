@@ -26,6 +26,8 @@ theme:
 
 plugins:
   - search
+  - mkdocs-jupyter:
+      include_source: True
   - mkdocstrings:
       enable_inventory: true
       handlers:
@@ -36,6 +38,10 @@ plugins:
 
 nav:
   - Overview: index.md
+  - Examples:
+      - Basic: examples/basic.ipynb
+      - Pandas: examples/pandas.ipynb
+      - Polars: examples/polars.ipynb
   - API Reference:
       - api/operator.md
       - api/file.md

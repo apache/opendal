@@ -11,7 +11,7 @@ This package intends to build a native python binding for Apache OpenDAL.
 ## Useful Links
 
 - [Documentation](https://opendal.apache.org/docs/python/)
-- [Examples](./examples)
+- [Examples](./docs/examples)
 - [Upgrade Guide](./upgrade.md)
 
 ## Installation

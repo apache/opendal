@@ -35,8 +35,13 @@ plugins:
             docstring_style: google
 
 nav:
-  - index.md
-  - api.md
+  - Overview: index.md
+  - API Reference:
+      - api/operator.md
+      - api/file.md
+      - api/async_operator.md
+      - api/async_file.md
+      - api/metadata.md
 
 markdown_extensions:
   - pymdownx.highlight:

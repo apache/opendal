@@ -183,9 +183,49 @@ class Operator(_Base):
 
 @final
 class AsyncOperator(_Base):
+    """The entry class for all public async APIs.
+
+    Args:
+        scheme (str): The service name that OpenDAL supports.
+        **options (any): The options for the service.
+            See the documentation of each service for more details.
+
+    Example:
+        ```python
+        import opendal
+        op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
+        await op.write("hello.txt", b"hello world")
+        ```
+    """
+    def __init__(self, scheme: str, **options: Any) -> None: ...
     def layer(self, layer: Layer) -> "AsyncOperator": ...
-    async def open(self, path: PathBuf, mode: str) -> AsyncFile: ...
-    async def read(self, path: PathBuf) -> bytes: ...
+    async def open(self, path: PathBuf, mode: str) -> AsyncFile:
+        """Open a file at the given path for reading or writing.
+
+        Args:
+            path (str|Path): The path to the file.
+            mode (str): The mode to open the file. Can be "rb" or "wb".
+
+        Returns:
+            A file-like object that can be used to read or write the file.
+
+        Example:
+            ```python
+            import opendal
+            op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
+            async with await op.open("hello.txt", "wb") as f:
+                await f.write(b"hello world")
+            ```
+        """
+    async def read(self, path: PathBuf) -> bytes:
+        """Read the content of the object at the given path.
+
+        Args:
+            path (str|Path): The path to the object.
+
+        Returns:
+            The content of the object as bytes.
+        """
     async def write(
         self,
         path: PathBuf,
@@ -196,73 +236,270 @@ class AsyncOperator(_Base):
         content_type: str = ...,
         content_disposition: str = ...,
         cache_control: str = ...,
-    ) -> None: ...
-    async def stat(self, path: PathBuf) -> Metadata: ...
-    async def create_dir(self, path: PathBuf) -> None: ...
-    async def delete(self, path: PathBuf) -> None: ...
-    async def exists(self, path: PathBuf) -> bool: ...
-    async def list(self, path: PathBuf) -> AsyncIterable[Entry]: ...
+    ) -> None:
+        """Write the content to the object at the given path.
+
+        Args:
+            path (str|Path): The path to the object.
+            bs (bytes): The content to write.
+            append (bool): Whether to append the content to the object.
+                Defaults to False.
+            chunk (int): The chunk size for writing. Defaults to write all.
+            content_type (str): The content type of the object.
+                Defaults to None.
+            content_disposition (str): The content disposition of the object.
+                Defaults to None.
+            cache_control (str): The cache control of the object.
+                Defaults to None.
+        """
+    async def stat(self, path: PathBuf) -> Metadata:
+        """Get the metadata of the object at the given path.
+
+        Args:
+            path (str|Path): The path to the object.
+
+        Returns:
+            The metadata of the object.
+        """
+    async def create_dir(self, path: PathBuf) -> None:
+        """Create a directory at the given path.
+
+        Args:
+            path (str|Path): The path to the directory.
+        """
+    async def delete(self, path: PathBuf) -> None:
+        """Delete the object at the given path.
+
+        Args:
+            path (str|Path): The path to the object.
+        """
+    async def exists(self, path: PathBuf) -> bool:
+        """Check if the object at the given path exists.
+
+        Args:
+            path (str|Path): The path to the object.
+
+        Returns:
+            True if the object exists, False otherwise.
+        """
+    async def list(self, path: PathBuf) -> AsyncIterable[Entry]:
+        """List the objects at the given path.
+
+        Args:
+            path (str|Path): The path to the directory.
+
+        Returns:
+            An iterable of entries representing the objects in the directory.
+        """
     async def scan(self, path: PathBuf) -> AsyncIterable[Entry]: ...
     async def presign_stat(
         self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest: ...
+    ) -> PresignedRequest:
+        """Generate a presigned URL for stat operation.
+
+        Args:
+            path (str|Path): The path to the object.
+            expire_second (int): The expiration time in seconds.
+
+        Returns:
+            A presigned request object.
+        """
     async def presign_read(
         self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest: ...
+    ) -> PresignedRequest:
+        """Generate a presigned URL for read operation.
+
+        Args:
+            path (str|Path): The path to the object.
+            expire_second (int): The expiration time in seconds.
+
+        Returns:
+            A presigned request object.
+        """
     async def presign_write(
         self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest: ...
+    ) -> PresignedRequest:
+        """Generate a presigned URL for write operation.
+
+        Args:
+            path (str|Path): The path to the object.
+            expire_second (int): The expiration time in seconds.
+
+        Returns:
+            A presigned request object.
+        """
     async def presign_delete(
         self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest: ...
+    ) -> PresignedRequest:
+        """Generate a presigned URL for delete operation.
+
+        Args:
+            path (str|Path): The path to the object.
+            expire_second (int): The expiration time in seconds.
+
+        Returns:
+            A presigned request object.
+        """
     def capability(self) -> Capability: ...
-    async def copy(self, source: PathBuf, target: PathBuf) -> None: ...
-    async def rename(self, source: PathBuf, target: PathBuf) -> None: ...
-    async def remove_all(self, path: PathBuf) -> None: ...
+    async def copy(self, source: PathBuf, target: PathBuf) -> None:
+        """Copy the object from source to target.
+
+        Args:
+            source (str|Path): The source path.
+            target (str|Path): The target path.
+        """
+    async def rename(self, source: PathBuf, target: PathBuf) -> None:
+        """Rename the object from source to target.
+
+        Args:
+            source (str|Path): The source path.
+            target (str|Path): The target path.
+        """
+    async def remove_all(self, path: PathBuf) -> None:
+        """Remove all objects at the given path.
+
+        Args:
+            path (str|Path): The path to the directory.
+        """
     def to_operator(self) -> Operator: ...
 
 @final
 class File:
-    def read(self, size: Optional[int] = None) -> bytes: ...
-    def readline(self, size: Optional[int] = None) -> bytes: ...
-    def write(self, bs: bytes) -> None: ...
-    def seek(self, pos: int, whence: int = 0) -> int: ...
-    def tell(self) -> int: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> File: ...
+    """
+    A file-like object for reading and writing data.
+
+    Created by the `open` method of the `Operator` class.
+    """
+    def read(self, size: Optional[int] = None) -> bytes:
+        """Read the content of the file.
+
+        Args:
+            size (int): The number of bytes to read. If None, read all.
+
+        Returns:
+            The content of the file as bytes.
+        """
+    def readline(self, size: Optional[int] = None) -> bytes:
+        """Read a single line from the file.
+
+        Args:
+            size (int): The number of bytes to read. If None, read until newline.
+
+        Returns:
+            The line read from the file as bytes.
+        """
+    def write(self, bs: bytes) -> None:
+        """Write the content to the file.
+
+        Args:
+            bs (bytes): The content to write.
+        """
+    def seek(self, pos: int, whence: int = 0) -> int:
+        """Set the file's current position.
+
+        Args:
+            pos (int): The position to set.
+            whence (int): The reference point for the position. Can be 0, 1, or 2.
+
+        Returns:
+            The new position in the file.
+        """
+    def tell(self) -> int:
+        """Get the current position in the file.
+
+        Returns:
+            The current position in the file.
+        """
+    def close(self) -> None:
+        """Close the file."""
+    def __enter__(self) -> File:
+        """Enter the runtime context related to this object."""
     def __exit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
-    ) -> None: ...
+    ) -> None:
+        """Exit the runtime context related to this object."""
     @property
-    def closed(self) -> bool: ...
-    def flush(self) -> None: ...
-    def readable(self) -> bool: ...
-    def readinto(self, buffer: Union[bytes, bytearray]) -> int: ...
-    def seekable(self) -> bool: ...
-    def writable(self) -> bool: ...
+    def closed(self) -> bool:
+        """Check if the file is closed."""
+    def flush(self) -> None:
+        """Flush the internal buffer."""
+    def readable(self) -> bool:
+        """Check if the file is readable."""
+    def readinto(self, buffer: Union[bytes, bytearray]) -> int:
+        """Read bytes into a buffer.
+
+        Args:
+            buffer (bytes|bytearray): The buffer to read into.
+
+        Returns:
+            The number of bytes read.
+        """
+    def seekable(self) -> bool:
+        """Check if the file supports seeking."""
+    def writable(self) -> bool:
+        """Check if the file is writable."""
 
 @final
 class AsyncFile:
-    async def read(self, size: Optional[int] = None) -> bytes: ...
-    async def write(self, bs: bytes) -> None: ...
-    async def seek(self, pos: int, whence: int = 0) -> int: ...
-    async def tell(self) -> int: ...
-    async def close(self) -> None: ...
-    def __aenter__(self) -> AsyncFile: ...
+    """
+    A file-like object for reading and writing data.
+
+    Created by the `open` method of the `AsyncOperator` class.
+    """
+    async def read(self, size: Optional[int] = None) -> bytes:
+        """Read the content of the file.
+
+        Args:
+            size (int): The number of bytes to read. If None, read all.
+
+        Returns:
+            The content of the file as bytes.
+        """
+    async def write(self, bs: bytes) -> None:
+        """Write the content to the file.
+
+        Args:
+            bs (bytes): The content to write.
+        """
+    async def seek(self, pos: int, whence: int = 0) -> int:
+        """Set the file's current position.
+
+        Args:
+            pos (int): The position to set.
+            whence (int): The reference point for the position. Can be 0, 1, or 2.
+
+        Returns:
+            The new position in the file.
+        """
+    async def tell(self) -> int:
+        """Get the current position in the file.
+
+        Returns:
+            The current position in the file.
+        """
+    async def close(self) -> None:
+        """Close the file."""
+    def __aenter__(self) -> AsyncFile:
+        """Enter the runtime context related to this object."""
     def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
-    ) -> None: ...
+    ) -> None:
+        """Exit the runtime context related to this object."""
     @property
-    async def closed(self) -> bool: ...
-    async def readable(self) -> bool: ...
-    async def seekable(self) -> bool: ...
-    async def writable(self) -> bool: ...
+    async def closed(self) -> bool:
+        """Check if the file is closed."""
+    async def readable(self) -> bool:
+        """Check if the file is readable."""
+    async def seekable(self) -> bool:
+        """Check if the file supports seeking."""
+    async def writable(self) -> bool:
+        """Check if the file is writable."""
 
 @final
 class Entry:

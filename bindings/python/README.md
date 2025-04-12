@@ -1,12 +1,12 @@
 # Apache OpenDAL™ Python Binding
 
-[![](https://img.shields.io/badge/status-released-blue)](https://pypi.org/project/opendal/)
+[![img](https://img.shields.io/badge/status-released-blue)](https://pypi.org/project/opendal/)
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/python/)
 
 This package intends to build a native python binding for Apache OpenDAL.
 
-![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![img](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Useful Links
 
@@ -23,6 +23,7 @@ pip install opendal
 ## Usage
 
 fs service example:
+
 ```python
 import opendal
 
@@ -46,6 +47,7 @@ asyncio.run(main())
 ```
 
 s3 service example:
+
 ```python
 import opendal
 
@@ -68,13 +70,12 @@ async def main():
 asyncio.run(main())
 ```
 
-
 ## Development
 
 Setup virtualenv:
 
 ```shell
-uv venv --python 3.10
+uv venv --python 3.11
 ```
 
 Install all the dependencies:
@@ -93,7 +94,7 @@ OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -vk test_write
 Build API docs:
 
 ```shell
-uv run pdoc -t ./template opendal
+uv run mkdocs build
 ```
 
 ## Used by

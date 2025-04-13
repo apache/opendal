@@ -1,30 +1,25 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use crate::raw::*;
 use crate::*;
-use bytes::Bytes;
-use foyer::{DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder};
+use foyer::{Code, CodeError, HybridCache, HybridCacheBuilderPhaseStorage};
+use foyer_common::code::HashBuilder;
 use serde::{Deserialize, Serialize};
 
-pub struct FoyerLayer {
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
+pub struct FoyerLayer<S>
+where
+    S: HashBuilder + core::fmt::Debug,
+{
+    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
 }
 
-impl FoyerLayer {
-    pub async fn new(
-        disk_cache_dir: &str,
-        disk_capacity_mb: usize,
-        memory_capacity_mb: usize,
-    ) -> Result<Self> {
-        const MB: usize = 1 << 20;
-
-        let cache = HybridCacheBuilder::new()
-            .with_name("opendal")
-            .memory(memory_capacity_mb * MB)
-            .storage(Engine::Large)
-            .with_device_options(
-                DirectFsDeviceOptions::new(disk_cache_dir).with_capacity(disk_capacity_mb * MB),
-            )
+// TODO: re-export foyer crate to have access to the cache builder
+impl<S> FoyerLayer<S>
+where
+    S: HashBuilder + core::fmt::Debug,
+{
+    pub async fn new(builder: HybridCacheBuilderPhaseStorage<CacheKey, Buffer, S>) -> Result<Self> {
+        let cache = builder
             .build()
             .await
             .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
@@ -35,8 +30,12 @@ impl FoyerLayer {
     }
 }
 
-impl<A: Access> Layer<A> for FoyerLayer {
-    type LayeredAccess = CacheAccessor<A>;
+impl<A, S> Layer<A> for FoyerLayer<S>
+where
+    A: Access,
+    S: HashBuilder + core::fmt::Debug,
+{
+    type LayeredAccess = CacheAccessor<A, S>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         CacheAccessor {
@@ -47,24 +46,48 @@ impl<A: Access> Layer<A> for FoyerLayer {
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-struct CacheKey {
+pub struct CacheKey {
     path: String,
     args: OpRead,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CacheValue {
-    rp: RpRead,
-    bytes: Bytes,
-}
-
 #[derive(Debug)]
-pub struct CacheAccessor<A: Access> {
+pub struct CacheAccessor<A, S>
+where
+    A: Access,
+    S: HashBuilder + core::fmt::Debug,
+{
     inner: A,
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
+    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
 }
 
-impl<A: Access> LayeredAccess for CacheAccessor<A> {
+impl Code for Buffer {
+    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+        writer
+            .write_vectored(&self.to_io_slice())
+            .map_err(CodeError::Io)?;
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    where
+        Self: Sized,
+    {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).map_err(CodeError::Io)?;
+        Ok(Buffer::from(buf))
+    }
+
+    fn estimated_size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<A, S> LayeredAccess for CacheAccessor<A, S>
+where
+    A: Access,
+    S: HashBuilder + core::fmt::Debug,
+{
     type Inner = A;
 
     fn inner(&self) -> &Self::Inner {
@@ -98,7 +121,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             .await
             .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
         {
-            return Ok((entry.rp, Box::new(entry.bytes.clone())));
+            return Ok((RpRead::default(), Box::new(entry.deref().clone())));
         }
 
         self.inner.read(path, args).await.map(|(rp, reader)| {
@@ -141,19 +164,25 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
     }
 }
 
-pub struct CacheWrapper<R> {
+pub struct CacheWrapper<R, S>
+where
+    S: HashBuilder + core::fmt::Debug,
+{
     inner: R,
     rp: RpRead,
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
+    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
     cache_key: CacheKey,
     buffers: Vec<Buffer>,
 }
 
-impl<R> CacheWrapper<R> {
+impl<R, S> CacheWrapper<R, S>
+where
+    S: HashBuilder + core::fmt::Debug,
+{
     fn new(
         inner: R,
         rp: RpRead,
-        cache: Arc<HybridCache<CacheKey, CacheValue>>,
+        cache: Arc<HybridCache<CacheKey, Buffer, S>>,
         cache_key: CacheKey,
     ) -> Self {
         Self {
@@ -166,7 +195,11 @@ impl<R> CacheWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for CacheWrapper<R> {
+impl<R, S> oio::Read for CacheWrapper<R, S>
+where
+    R: oio::Read,
+    S: HashBuilder + core::fmt::Debug,
+{
     async fn read(&mut self) -> Result<Buffer> {
         let buffer = self.inner.read().await?;
 
@@ -176,11 +209,7 @@ impl<R: oio::Read> oio::Read for CacheWrapper<R> {
         }
         let flattened_buffer: Buffer = self.buffers.drain(..).flatten().collect();
 
-        let cache_value = CacheValue {
-            rp: self.rp,
-            bytes: flattened_buffer.to_bytes(),
-        };
-        self.cache.insert(self.cache_key.clone(), cache_value);
+        self.cache.insert(self.cache_key.clone(), flattened_buffer);
 
         Ok(buffer)
     }

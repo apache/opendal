@@ -30,16 +30,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/apache/opendal-go-services/fs"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
-
-// Add more schemes for behavior tests here.
-var schemes = []opendal.Scheme{
-	fs.Scheme,
-}
 
 var op *opendal.Operator
 

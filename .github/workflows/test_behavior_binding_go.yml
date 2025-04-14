@@ -166,24 +166,31 @@ jobs:
           go work use ..
           go work use ./behavior_tests
           go work use $env:GITHUB_WORKSPACE/$($env:SERVICE -replace '-','_')
-      - name: Run tests (Linux/macOS)
+      - name: Generate Test Scheme
         env:
-          OPENDAL_TEST: ${{ matrix.cases.service }}
-          OPENDAL_FS_ROOT: runner.temp
+          SERVICE: ${{ matrix.cases.service }}
+        run: |
+          python ./.github/scripts/test_go_binding/generate_test_scheme.py
+      - name: Setup Go Module (Linux/macOS)
+        env:
+          SERVICE: ${{ matrix.cases.service }}
         working-directory: bindings/go/tests/behavior_tests
         if: runner.os != 'Windows'
         run: |
-          if [ ${{ matrix.build.os }} == 'macos-latest' ]; then
-            export DYLD_FALLBACK_LIBRARY_PATH=$DYLD_FALLBACK_LIBRARY_PATH:/opt/homebrew/opt/libffi/lib
-          fi
-          CGO_ENABLE=0 go test -v -run TestBehavior
-      - name: Run tests (Windows)
+          go mod edit -replace=github.com/apache/opendal-go-services/${SERVICE}=$GITHUB_WORKSPACE/$SERVICE
+          go mod tidy
+      - name: Setup Go Module (Windows)
         env:
-          OPENDAL_TEST: ${{ matrix.cases.service }}
-          OPENDAL_FS_ROOT: runner.temp
+          SERVICE: ${{ matrix.cases.service }}
         working-directory: bindings/go/tests/behavior_tests
         if: runner.os == 'Windows'
         run: |
-          $env:CGO_ENABLE = "0"
-          go test -v -run TestBehavior
+          go mod edit -replace=github.com/apache/opendal-go-services/$env:SERVICE=$env:GITHUB_WORKSPACE/$env:SERVICE
+          go mod tidy
+      - name: Test Core
+        uses: ./.github/actions/test_behavior_binding_go
+        with:
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
 

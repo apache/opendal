@@ -5,7 +5,6 @@
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
-  "type": "module",
   "description": "Apache OpenDAL: Access data freely",
   "repository": "git@github.com/apache/opendal.git",
   "napi": {

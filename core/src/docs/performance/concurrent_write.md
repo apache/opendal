@@ -40,8 +40,8 @@ The underlying implementation of concurrent writes may vary depending on the bac
 
 There are two parameters that can be tuned to optimize concurrent writes:
 
-- `concurrent`: This parameter controls the maximum number of concurrent writes. Increasing this value can improve performance, but it may also increase resource usage. The default value is 1.
-- `chunk`: This parameter specifies the size of each chunk of data to be written. A larger chunk size can improve performance, but it may also increase memory usage. The default value is vary for different storage services.
+- `concurrent`: This parameter controls the maximum number of concurrent writes. The default value is 1.
+- `chunk`: This parameter specifies the size of each chunk of data to be written. The default value is vary for different storage services.
 
 ### `concurrent`
 
@@ -49,7 +49,9 @@ The most important thing to understand is that `concurrent` is not a strict limi
 
 For example, if you set `concurrent` to 8, OpenDAL will attempt to perform up to 8 concurrent writes. However, if the input data throughput is low, it might only carry out 2 or 3 concurrent writes at a time, as there isn't enough data to keep all 8 writes active.
 
-The best value for `concurrent` depends on the specific use case and the underlying storage service. In general, a higher value can lead to better performance, but it may also increase resource usage. It's recommended to start with a lower value like `2` or `4` and gradually increase it while monitoring performance and resource usage.
+The best value for `concurrent` depends on the specific use case and the underlying storage service. In general, a higher value can lead to better performance, but it highly depends on the storage service and the network conditions. For example, if the storage service is robust and bandwidth is sufficient, you may observe a linear increase in performance with higher `concurrent` values. However, if the storage service has request limits or the network is nearly saturated, increasing `concurrent` may not lead to any performance improvement—and could even degrade performance due to infinite retries on errors.
+
+It's recommended to start with a lower value like `2` or `4` and gradually increase it while monitoring performance and resource usage.
 
 ### `chunk`
 

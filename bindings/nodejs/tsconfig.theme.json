@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "module": "ES2015",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "esModuleInterop": true,

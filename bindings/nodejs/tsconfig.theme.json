@@ -11,7 +11,5 @@
     "jsxFactory": "JSX.createElement",
     "jsxFragmentFactory": "JSX.Fragment"
   },
-  "include": [
-    "theme"
-  ]
+  "include": ["theme"]
 }

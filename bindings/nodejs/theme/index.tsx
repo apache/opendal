@@ -35,7 +35,7 @@ class FooterWithASFCopyright extends DefaultThemeRenderContext {
 
 class FooterOverrideTheme extends DefaultTheme {
   getRenderContext(pageEvent: PageEvent<Reflection>): DefaultThemeRenderContext {
-    return new FooterWithASFCopyright(this.router, this, pageEvent, this.application.options);
+    return new FooterWithASFCopyright(this.router, this, pageEvent, this.application.options)
   }
 }
 

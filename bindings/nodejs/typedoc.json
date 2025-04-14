@@ -1,7 +1,5 @@
 {
-  "entryPoints": [
-    "index.d.ts"
-  ],
+  "entryPoints": ["index.d.ts"],
   "out": "docs",
   "name": "Apache OpenDAL™",
   "tsconfig": "tsconfig.json",
@@ -10,14 +8,9 @@
   "excludeExternals": true,
   "includeVersion": true,
   "githubPages": false,
-  "plugin": [
-    "./theme/dist/index.js"
-  ],
+  "plugin": ["./theme/dist/index.js"],
   "theme": "opendal",
-  "projectDocuments": [
-    "./CONTRIBUTING.md",
-    "./upgrade.md",
-  ],
+  "projectDocuments": ["./CONTRIBUTING.md", "./upgrade.md"],
   "navigationLinks": {
     "Homepage": "https://opendal.apache.org/",
     "GitHub": "https://github.com/apache/opendal/tree/main/bindings/nodejs"

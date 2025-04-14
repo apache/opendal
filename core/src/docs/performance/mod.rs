@@ -27,3 +27,6 @@
 
 #[doc = include_str!("concurrent_write.md")]
 pub mod concurrent_write {}
+
+#[doc = include_str!("http_optimization.md")]
+pub mod http_optimization {}

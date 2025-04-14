@@ -154,6 +154,7 @@ impl Default for Buffer {
         Self::new()
     }
 }
+
 impl Buffer {
     /// Create a new empty buffer.
     ///
@@ -659,7 +660,24 @@ impl Seek for Buffer {
 
 impl BufRead for Buffer {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        Ok(self.chunk())
+        let chunk = match &self.0 {
+            Inner::Contiguous(b) => b.chunk(),
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                if *size == 0 {
+                    return Ok(&[]);
+                }
+
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                &parts[*idx][*offset..*offset + n]
+            }
+        };
+        Ok(chunk)
     }
 
     fn consume(&mut self, amt: usize) {
@@ -901,9 +919,9 @@ mod tests {
     #[test]
     fn test_seek_trait() {
         let mut buffer = Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]);
-        buffer.seek(SeekFrom::Start(6)).unwrap();
+        buffer.seek(SeekFrom::Start(5)).unwrap();
         let mut output = vec![0; 5];
-        buffer.read(&mut output).unwrap();
+        buffer.read_exact(&mut output).unwrap();
         assert_eq!(&output, b"World");
     }
 
@@ -931,8 +949,8 @@ mod tests {
         assert_eq!(&output, b"Part");
 
         let size = buffer.read(&mut output).unwrap();
-        assert_eq!(size, 4);
-        assert_eq!(&output, b"ialR");
+        assert_eq!(size, 3);
+        assert_eq!(&output[..3], b"ial");
     }
 
     #[test]
@@ -940,7 +958,7 @@ mod tests {
         let mut buffer = Buffer::from(vec![Bytes::from("SeekAndRead")]);
         buffer.seek(SeekFrom::Start(4)).unwrap();
         let mut output = vec![0; 3];
-        buffer.read(&mut output).unwrap();
+        buffer.read_exact(&mut output).unwrap();
         assert_eq!(&output, b"And");
     }
 

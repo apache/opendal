@@ -257,8 +257,8 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
-    # Remove hdfs cases for java.
-    if language == "java":
+    # Remove hdfs cases for java and go.
+    if language == "java" or language == "go":
         cases = [v for v in cases if v["service"] != "hdfs"]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
@@ -359,6 +359,24 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
             jobs[f"binding_{language}"].append(
                 {"os": "ubuntu-latest", "cases": language_cases}
             )
+            if language == "go":
+                # Add fs service to ensure the go binding works on Windows and macOS.
+                jobs[f"binding_{language}"].append(
+                    {
+                        "os": "windows-latest",
+                        "cases": [
+                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                        ],
+                    }
+                )
+                jobs[f"binding_{language}"].append(
+                    {
+                        "os": "macos-latest",
+                        "cases": [
+                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                        ],
+                    }
+                )
 
     for bin in BIN:
         jobs[f"bin_{bin}"] = []

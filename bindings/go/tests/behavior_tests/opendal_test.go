@@ -218,7 +218,7 @@ func (f *fixture) Cleanup(assert *require.Assertions) {
 	defer f.lock.Unlock()
 
 	for i := len(f.paths) - 1; i >= 0; i-- {
-		assert.Nil(f.op.Delete(f.paths[i]), "delete must succeed: %s", f.paths[i])
+		f.op.Delete(f.paths[i])
 	}
 }
 

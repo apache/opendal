@@ -258,8 +258,13 @@ def generate_language_binding_cases(
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
     # Remove hdfs cases for java and go.
-    if language == "java" or language == "go":
+    if language == "java":
         cases = [v for v in cases if v["service"] != "hdfs"]
+    elif language == "go":
+        # sqlite: https://github.com/apache/opendal/actions/runs/14443414830/job/40498759995?pr=6018#step:22:243
+        # hdfs: has problem with ListEmptyDir
+        # oss: timed out with ListSubDir
+        cases = [v for v in cases if v["service"] not in ["hdfs", "oss", "sqlite"]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

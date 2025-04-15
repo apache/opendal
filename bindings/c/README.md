@@ -84,6 +84,23 @@ sudo apt-get install cmake
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
+For Fedora:
+
+```shell
+# install C/C++ toolchain
+sudo dnf groupinstall "Development Tools" "Development Libraries"
+sudo dnf install gcc-c++
+
+# install clang-format
+sudo dnf install clang-tools-extra
+
+# install and build GTest library
+sudo dnf install gtest-devel
+
+# install CMake 
+sudo dnf install cmake
+```
+
 ## Makefile
 
 - To **build the library and header file**.

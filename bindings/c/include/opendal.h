@@ -864,6 +864,56 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
                                                  const char *path);
 
 /**
+ * \brief Blocking read a range of data from `path`.
+ *
+ * Read a range of data from `path` blocking by operator. The range starts from `offset`
+ * with size of `size`.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to read the data out
+ * @param offset The start position of the range to read
+ * @param size The size of the range to read
+ * @see opendal_operator
+ * @see opendal_result_read
+ * @see opendal_error
+ * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+ * opendal_bytes containing the range of data, the `error` field contains the error. If the
+ * `error` is not NULL, then the operation failed and the `data` field contains empty bytes.
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * // ... you have write "Hello, World!" to path "/testpath"
+ *
+ * // Read 5 bytes starting from offset 0
+ * opendal_result_read r = opendal_operator_read_range(op, "/testpath", 0, 5);
+ * assert(r.error == NULL);
+ *
+ * opendal_bytes bytes = r.data;
+ * assert(bytes.len == 5);
+ * opendal_bytes_free(&bytes);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_read opendal_operator_read_range(const struct opendal_operator *op,
+                                                       const char *path,
+                                                       uint64_t offset,
+                                                       uint64_t size);
+
+/**
  * \brief Blocking read the data from `path`.
  *
  * Read the data out from `path` blocking by operator, returns

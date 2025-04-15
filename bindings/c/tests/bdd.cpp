@@ -93,6 +93,14 @@ TEST_F(OpendalBddTest, FeatureTest)
         EXPECT_EQ(this->content[i], (char)(r.data.data[i]));
     }
 
+    // The blocking file "test" must have content "Hello"
+    struct opendal_result_read r2 = opendal_operator_read_range(this->p, this->path.c_str(), 0, 5);
+    EXPECT_EQ(r2.error, nullptr);
+    EXPECT_EQ(r2.data.len, 5);
+    for (int i = 0; i < r2.data.len; i++) {
+        EXPECT_EQ(this->content[i], (char)(r2.data.data[i]));
+    }
+
     // The blocking file should be deleted
     error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);

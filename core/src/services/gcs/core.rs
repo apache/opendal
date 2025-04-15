@@ -608,7 +608,7 @@ impl GcsCore {
         let req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
-            .map_err(new_xml_deserialize_error)?;
+            .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.

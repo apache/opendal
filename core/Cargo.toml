@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.80"
-version = "0.53.0"
+version = "0.53.1"
 
 [lints.clippy]
 unused_async = "warn"
@@ -255,7 +255,7 @@ http = "1.1"
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
-quick-xml = { version = "0.36", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.2", features = [
   "stream",
 ], default-features = false }
@@ -281,7 +281,7 @@ sqlx = { version = "0.8.0", features = [
 ], optional = true }
 
 # For http based services.
-reqsign = { version = "0.16.1", default-features = false, optional = true }
+reqsign = { version = "0.16.3", default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.53.1] - 2025-04-14
+
+### Added
+* feat(services/gcs): implement write returns metadata by @meteorgan in https://github.com/apache/opendal/pull/5933
+* feat(bindings/ruby): support layers by @erickguan in https://github.com/apache/opendal/pull/5874
+* feat(gridfs): implement GridfsCore for GridFS service by @uruemu in https://github.com/apache/opendal/pull/5966
+* feat(bindings/nodejs): add check in js by @asukaminato0721 in https://github.com/apache/opendal/pull/5996
+### Changed
+* refactor: Remove dead code ConcurrentFutures by @Xuanwo in https://github.com/apache/opendal/pull/5939
+* refactor(layers/tracing): Ensure the entire async function been traced by @Xuanwo in https://github.com/apache/opendal/pull/6000
+### Fixed
+* fix(core): Fix head-of-line blocking in concurrent tasks by @Xuanwo in https://github.com/apache/opendal/pull/5941
+* fix(services/ipmfs): fix Ipmfs behavior tests by @miroim in https://github.com/apache/opendal/pull/5969
+* chore(core): Fix clippy for services azfile by @asukaminato0721 in https://github.com/apache/opendal/pull/5994
+### CI
+* ci: add test for cpp example by @silver-ymz in https://github.com/apache/opendal/pull/5952
+### Chore
+* chore: rm in favor of dosubot by @asukaminato0721 in https://github.com/apache/opendal/pull/5946
+* chore: Fix clippy for rust 1.86 by @Xuanwo in https://github.com/apache/opendal/pull/5951
+* chore: sync cpp example by @silver-ymz in https://github.com/apache/opendal/pull/5944
+* chore: update typos version by @yihong0618 in https://github.com/apache/opendal/pull/5954
+* chore(core): fix typos for the QueryPairsWriter by @kemingy in https://github.com/apache/opendal/pull/5978
+* chore(service/azdls): use QueryPairsWriter for url write by @kemingy in https://github.com/apache/opendal/pull/5988
+* chore(services/obs): Use QueryPairsWriter for url write by @asukaminato0721 in https://github.com/apache/opendal/pull/5985
+
 ## [v0.53.0] - 2025-04-01
 
 ### Added
@@ -4460,6 +4485,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.53.1]: https://github.com/apache/opendal/compare/v0.53.0...v0.53.1
 [v0.53.0]: https://github.com/apache/opendal/compare/v0.52.0...v0.53.0
 [v0.52.0]: https://github.com/apache/opendal/compare/v0.51.2...v0.52.0
 [v0.51.2]: https://github.com/apache/opendal/compare/v0.51.1...v0.51.2

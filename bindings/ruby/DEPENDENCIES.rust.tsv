@@ -3,12 +3,13 @@ addr2line@0.24.2		X							X
 adler2@2.0.0	X	X							X				
 aes@0.8.4		X							X				
 aho-corasick@1.1.3									X			X	
+allocator-api2@0.2.21		X							X				
 android-tzdata@0.1.1		X							X				
 android_system_properties@0.1.5		X							X				
-anyhow@1.0.97		X							X				
+anyhow@1.0.98		X							X				
 async-trait@0.1.88		X							X				
 autocfg@1.4.0		X							X				
-backon@1.4.1		X											
+backon@1.5.0		X											
 backtrace@0.3.74		X							X				
 base64@0.22.1		X							X				
 base64ct@1.7.3		X							X				
@@ -20,7 +21,7 @@ bumpalo@3.17.0		X							X
 byteorder@1.5.0									X			X	
 bytes@1.10.1									X				
 cbc@0.1.2		X							X				
-cc@1.2.17		X							X				
+cc@1.2.19		X							X				
 cexpr@0.6.0		X							X				
 cfg-if@1.0.0		X							X				
 chrono@0.4.40		X							X				
@@ -30,14 +31,18 @@ const-oid@0.9.6		X							X
 core-foundation-sys@0.8.7		X							X				
 cpufeatures@0.2.17		X							X				
 crc32c@0.6.8		X							X				
+crossbeam-utils@0.8.21		X							X				
 crypto-common@0.1.6		X							X				
+dashmap@6.1.0									X				
 der@0.7.9		X							X				
-deranged@0.4.1		X							X				
+deranged@0.4.0		X							X				
 digest@0.10.7		X							X				
 displaydoc@0.2.5		X							X				
 either@1.15.0		X							X				
+equivalent@1.0.2		X							X				
 fastrand@2.3.0		X							X				
 fnv@1.0.7		X							X				
+foldhash@0.1.5													X
 form_urlencoded@1.2.1		X							X				
 futures@0.3.31		X							X				
 futures-channel@0.3.31		X							X				
@@ -46,6 +51,7 @@ futures-io@0.3.31		X							X
 futures-macro@0.3.31		X							X				
 futures-sink@0.3.31		X							X				
 futures-task@0.3.31		X							X				
+futures-timer@3.0.3		X							X				
 futures-util@0.3.31		X							X				
 generic-array@0.14.7									X				
 getrandom@0.2.15		X							X				
@@ -54,6 +60,9 @@ ghac@0.2.0		X
 gimli@0.31.1		X							X				
 glob@0.3.2		X							X				
 gloo-timers@0.3.0		X							X				
+governor@0.10.0									X				
+hashbrown@0.14.5		X							X				
+hashbrown@0.15.2		X							X				
 hex@0.4.3		X							X				
 hmac@0.12.1		X							X				
 home@0.5.11		X							X				
@@ -91,6 +100,7 @@ libc@0.2.171		X							X
 libloading@0.8.6							X						
 libm@0.2.11		X							X				
 litemap@0.7.5											X		
+lock_api@0.4.12		X							X				
 log@0.4.27		X							X				
 magnus@0.7.1									X				
 magnus-macros@0.6.0									X				
@@ -98,9 +108,10 @@ md-5@0.10.6		X							X
 memchr@2.7.4									X			X	
 mime@0.3.17		X							X				
 minimal-lexical@0.2.1		X							X				
-miniz_oxide@0.8.5		X							X				X
+miniz_oxide@0.8.8		X							X				X
 mio@1.0.3									X				
 nom@7.1.3									X				
+nonzero_ext@0.3.0		X											
 num-bigint@0.4.6		X							X				
 num-bigint-dig@0.8.4		X							X				
 num-conv@0.1.0		X							X				
@@ -109,8 +120,10 @@ num-iter@0.1.45		X							X
 num-traits@0.2.19		X							X				
 object@0.36.7		X							X				
 once_cell@1.21.3		X							X				
-opendal@0.53.0		X											
+opendal@0.53.1		X											
 opendal-ruby@0.0.0		X											
+parking_lot@0.12.3		X							X				
+parking_lot_core@0.9.10		X							X				
 pbkdf2@0.12.2		X							X				
 pem@3.0.5									X				
 pem-rfc7468@0.7.0		X							X				
@@ -120,38 +133,46 @@ pin-utils@0.1.0		X							X
 pkcs1@0.7.5		X							X				
 pkcs5@0.7.1		X							X				
 pkcs8@0.10.2		X							X				
+portable-atomic@1.11.0		X							X				
 powerfmt@0.2.0		X							X				
 ppv-lite86@0.2.21		X							X				
 proc-macro2@1.0.94		X							X				
 prost@0.13.5		X											
 prost-derive@0.13.5		X											
-quick-xml@0.35.0									X				
+quanta@0.12.5									X				
 quick-xml@0.36.2									X				
+quick-xml@0.37.4									X				
 quote@1.0.40		X							X				
 r-efi@5.2.0		X						X	X				
 rand@0.8.5		X							X				
+rand@0.9.0		X							X				
 rand_chacha@0.3.1		X							X				
+rand_chacha@0.9.0		X							X				
 rand_core@0.6.4		X							X				
+rand_core@0.9.3		X							X				
+raw-cpuid@11.5.0									X				
 rb-sys@0.9.111		X							X				
 rb-sys-build@0.9.111		X							X				
 rb-sys-env@0.1.2		X							X				
+redox_syscall@0.5.11									X				
 regex@1.11.1		X							X				
 regex-automata@0.4.9		X							X				
 regex-syntax@0.8.5		X							X				
-reqsign@0.16.1		X											
+reqsign@0.16.2		X											
 reqwest@0.12.15		X							X				
 ring@0.17.14		X					X						
 rsa@0.9.8		X							X				
 rustc-demangle@0.1.24		X							X				
 rustc-hash@1.1.0		X							X				
 rustc_version@0.4.1		X							X				
-rustls@0.23.25		X					X		X				
+rustls@0.23.26		X					X		X				
 rustls-pemfile@2.2.0		X					X		X				
 rustls-pki-types@1.11.0		X							X				
 rustls-webpki@0.103.1							X						
 rustversion@1.0.20		X							X				
 ryu@1.0.20		X				X							
 salsa20@0.10.2		X							X				
+scopeguard@1.2.0		X							X				
 scrypt@0.11.0		X							X				
 semver@1.0.26		X							X				
 seq-macro@0.3.6		X							X				
@@ -166,9 +187,10 @@ shlex@1.3.0		X							X
 signature@2.2.0		X							X				
 simple_asn1@0.6.3							X						
 slab@0.4.9									X				
-smallvec@1.14.0		X							X				
+smallvec@1.15.0		X							X				
 socket2@0.5.9		X							X				
 spin@0.9.8									X				
+spinning_top@0.3.0		X							X				
 spki@0.7.3		X							X				
 stable_deref_trait@1.2.0		X							X				
 subtle@2.6.1					X								
@@ -181,7 +203,7 @@ time@0.3.41		X							X
 time-core@0.1.4		X							X				
 time-macros@0.2.22		X							X				
 tinystr@0.7.6											X		
-tokio@1.44.1									X				
+tokio@1.44.2									X				
 tokio-rustls@0.26.2		X							X				
 tokio-util@0.7.14									X				
 tower@0.5.2									X				
@@ -209,7 +231,11 @@ wasm-bindgen-macro-support@0.2.100		X							X
 wasm-bindgen-shared@0.2.100		X							X				
 wasm-streams@0.4.2		X							X				
 web-sys@0.3.77		X							X				
+web-time@1.1.0		X							X				
 webpki-roots@0.26.8										X			
+winapi@0.3.9		X							X				
+winapi-i686-pc-windows-gnu@0.4.0		X							X				
+winapi-x86_64-pc-windows-gnu@0.4.0		X							X				
 windows-core@0.61.0		X							X				
 windows-implement@0.60.0		X							X				
 windows-interface@0.59.1		X							X				

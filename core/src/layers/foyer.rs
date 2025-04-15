@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
 use crate::raw::*;
@@ -8,15 +9,14 @@ use serde::{Deserialize, Serialize};
 
 pub struct FoyerLayer<S>
 where
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     cache: Arc<HybridCache<CacheKey, Buffer, S>>,
 }
 
-// TODO: re-export foyer crate to have access to the cache builder
 impl<S> FoyerLayer<S>
 where
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     pub async fn new(builder: HybridCacheBuilderPhaseStorage<CacheKey, Buffer, S>) -> Result<Self> {
         let cache = builder
@@ -33,7 +33,7 @@ where
 impl<A, S> Layer<A> for FoyerLayer<S>
 where
     A: Access,
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     type LayeredAccess = CacheAccessor<A, S>;
 
@@ -55,7 +55,7 @@ pub struct CacheKey {
 pub struct CacheAccessor<A, S>
 where
     A: Access,
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     inner: A,
     cache: Arc<HybridCache<CacheKey, Buffer, S>>,
@@ -86,7 +86,7 @@ impl Code for Buffer {
 impl<A, S> LayeredAccess for CacheAccessor<A, S>
 where
     A: Access,
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     type Inner = A;
 
@@ -127,7 +127,6 @@ where
         self.inner.read(path, args).await.map(|(rp, reader)| {
             let reader: oio::Reader = Box::new(CacheWrapper::new(
                 reader,
-                rp,
                 Arc::clone(&self.cache),
                 cache_key,
             ));
@@ -166,10 +165,9 @@ where
 
 pub struct CacheWrapper<R, S>
 where
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     inner: R,
-    rp: RpRead,
     cache: Arc<HybridCache<CacheKey, Buffer, S>>,
     cache_key: CacheKey,
     buffers: Vec<Buffer>,
@@ -177,17 +175,11 @@ where
 
 impl<R, S> CacheWrapper<R, S>
 where
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
-    fn new(
-        inner: R,
-        rp: RpRead,
-        cache: Arc<HybridCache<CacheKey, Buffer, S>>,
-        cache_key: CacheKey,
-    ) -> Self {
+    fn new(inner: R, cache: Arc<HybridCache<CacheKey, Buffer, S>>, cache_key: CacheKey) -> Self {
         Self {
             inner,
-            rp,
             cache_key,
             cache,
             buffers: Vec::new(),
@@ -198,7 +190,7 @@ where
 impl<R, S> oio::Read for CacheWrapper<R, S>
 where
     R: oio::Read,
-    S: HashBuilder + core::fmt::Debug,
+    S: HashBuilder + fmt::Debug,
 {
     async fn read(&mut self) -> Result<Buffer> {
         let buffer = self.inner.read().await?;

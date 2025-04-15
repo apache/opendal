@@ -93,7 +93,7 @@ where
         &self.inner
     }
 
-    type Reader = oio::Reader;
+    type Reader = TwoWays<Buffer, CacheWrapper<A::Reader, S>>;
 
     type Writer = A::Writer;
 
@@ -120,11 +120,11 @@ where
             .await
             .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
         {
-            return Ok((RpRead::default(), Box::new(entry.deref().clone())));
+            return Ok((RpRead::default(), TwoWays::One(entry.deref().clone())));
         }
 
         self.inner.read(path, args).await.map(|(rp, reader)| {
-            let reader: oio::Reader = Box::new(CacheWrapper::new(
+            let reader = TwoWays::Two(CacheWrapper::new(
                 reader,
                 Arc::clone(&self.cache),
                 cache_key,

@@ -1,42 +1,25 @@
-use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
 use crate::raw::*;
 use crate::*;
 use chrono::{DateTime, Utc};
-use foyer::{Code, CodeError, HybridCache, HybridCacheBuilderPhaseStorage};
-use foyer_common::code::HashBuilder;
+use foyer::{Code, CodeError, HybridCache};
 use serde::{Deserialize, Serialize};
 
-pub struct FoyerLayer<S>
-where
-    S: HashBuilder + fmt::Debug,
-{
-    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
+pub struct FoyerLayer {
+    cache: Arc<HybridCache<CacheKey, Buffer>>,
 }
 
-impl<S> FoyerLayer<S>
-where
-    S: HashBuilder + fmt::Debug,
-{
-    pub async fn new(builder: HybridCacheBuilderPhaseStorage<CacheKey, Buffer, S>) -> Result<Self> {
-        let cache = builder
-            .build()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?;
-
+impl FoyerLayer {
+    pub async fn new(cache: HybridCache<CacheKey, Buffer>) -> Result<Self> {
         Ok(Self {
             cache: Arc::new(cache),
         })
     }
 }
 
-impl<A, S> Layer<A> for FoyerLayer<S>
-where
-    A: Access,
-    S: HashBuilder + fmt::Debug,
-{
-    type LayeredAccess = CacheAccessor<A, S>;
+impl<A: Access> Layer<A> for FoyerLayer {
+    type LayeredAccess = CacheAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         CacheAccessor {
@@ -58,7 +41,7 @@ pub struct CacheKey {
 }
 
 impl CacheKey {
-    fn new(path: &str, args: OpRead) -> CacheKey {
+    fn new(path: &str, args: &OpRead) -> CacheKey {
         CacheKey {
             path: path.to_string(),
             range: args.range(),
@@ -72,13 +55,9 @@ impl CacheKey {
 }
 
 #[derive(Debug)]
-pub struct CacheAccessor<A, S>
-where
-    A: Access,
-    S: HashBuilder + fmt::Debug,
-{
+pub struct CacheAccessor<A: Access> {
     inner: A,
-    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
+    cache: Arc<HybridCache<CacheKey, Buffer>>,
 }
 
 impl Code for Buffer {
@@ -102,18 +81,14 @@ impl Code for Buffer {
     }
 }
 
-impl<A, S> LayeredAccess for CacheAccessor<A, S>
-where
-    A: Access,
-    S: HashBuilder + fmt::Debug,
-{
+impl<A: Access> LayeredAccess for CacheAccessor<A> {
     type Inner = A;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
-    type Reader = TwoWays<Buffer, CacheWrapper<A::Reader, S>>;
+    type Reader = TwoWays<Buffer, CacheWrapper<A::Reader>>;
 
     type Writer = A::Writer;
 
@@ -130,7 +105,7 @@ where
     type BlockingDeleter = A::BlockingDeleter;
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let cache_key = CacheKey::new(path, args);
+        let cache_key = CacheKey::new(path, &args);
         if let Some(entry) = self
             .cache
             .get(&cache_key)
@@ -179,21 +154,15 @@ where
     }
 }
 
-pub struct CacheWrapper<R, S>
-where
-    S: HashBuilder + fmt::Debug,
-{
+pub struct CacheWrapper<R> {
     inner: R,
-    cache: Arc<HybridCache<CacheKey, Buffer, S>>,
+    cache: Arc<HybridCache<CacheKey, Buffer>>,
     cache_key: CacheKey,
     buffers: Vec<Buffer>,
 }
 
-impl<R, S> CacheWrapper<R, S>
-where
-    S: HashBuilder + fmt::Debug,
-{
-    fn new(inner: R, cache: Arc<HybridCache<CacheKey, Buffer, S>>, cache_key: CacheKey) -> Self {
+impl<R> CacheWrapper<R> {
+    fn new(inner: R, cache: Arc<HybridCache<CacheKey, Buffer>>, cache_key: CacheKey) -> Self {
         Self {
             inner,
             cache_key,
@@ -203,11 +172,7 @@ where
     }
 }
 
-impl<R, S> oio::Read for CacheWrapper<R, S>
-where
-    R: oio::Read,
-    S: HashBuilder + fmt::Debug,
-{
+impl<R: oio::Read> oio::Read for CacheWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buffer = self.inner.read().await?;
 

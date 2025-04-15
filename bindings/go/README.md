@@ -256,7 +256,7 @@ export SERVICE="\$OPENDAL_TEST"
 # Get architecture
 architecture=\$(uname -m)
 if [ "\$architecture" = "x86_64" ]; then
-    ARCH="x86_64"
+    ARCH="amd64"
     GOARCH="amd64"
 elif [ "\$architecture" = "aarch64" ] || [ "\$architecture" = "arm64" ]; then
     ARCH="arm64"
@@ -274,14 +274,17 @@ cd -
 export GITHUB_WORKSPACE="\$PWD/opendal-go-services"
 export VERSION="latest"
 export TARGET="linux"
-export DIR="\$GITHUB_WORKSPACE/libopendal_c_\$VERSION_\$SERVICE_\$TARGET"
+export DIR="\$GITHUB_WORKSPACE/libopendal_c_\${VERSION}_\${SERVICE}_\${TARGET}"
 
 # Create directory if not exists
 mkdir -p "\$DIR"
 
-export OUTPUT="\$DIR/libopendal_c_\$VERSION_\$SERVICE_\$TARGET.so"
+export OUTPUT="\$DIR/libopendal_c.\$TARGET.so.zst"
 # Compress with zstd
 zstd -19 opendal/bindings/c/target/debug/libopendal_c.so -o \$OUTPUT
+
+# Set environment variables for test
+export MATRIX='{"build": [{"target":"linux", "goos":"linux", "goarch": "'\$GOARCH'"}], "service": ["fs"]}'
 
 # Generate code
 cd opendal-go-services/internal/generate
@@ -290,9 +293,6 @@ cd -
 
 # Delete unnecessary files
 rm -rf \$DIR
-
-# Set environment variables for test
-export MATRIX='{"build": [{"target":"linux", "goos":"linux", "goarch": "'\$GOARCH'"}], "service": ["fs"]}'
 
 # Run tests
 go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior

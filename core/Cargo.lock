@@ -5780,7 +5780,6 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bb8",
- "bincode",
  "bytes",
  "cacache",
  "chrono",

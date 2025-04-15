@@ -3,6 +3,7 @@ use std::{ops::Deref, sync::Arc};
 
 use crate::raw::*;
 use crate::*;
+use chrono::{DateTime, Utc};
 use foyer::{Code, CodeError, HybridCache, HybridCacheBuilderPhaseStorage};
 use foyer_common::code::HashBuilder;
 use serde::{Deserialize, Serialize};
@@ -48,7 +49,26 @@ where
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CacheKey {
     path: String,
-    args: OpRead,
+    range: BytesRange,
+    if_match: Option<String>,
+    if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
+    version: Option<String>,
+}
+
+impl CacheKey {
+    fn new(path: &str, args: OpRead) -> CacheKey {
+        CacheKey {
+            path: path.to_string(),
+            range: args.range(),
+            if_match: args.if_match().map(ToString::to_string),
+            if_none_match: args.if_none_match().map(ToString::to_string),
+            if_modified_since: args.if_modified_since(),
+            if_unmodified_since: args.if_unmodified_since(),
+            version: args.version().map(ToString::to_string),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -110,10 +130,7 @@ where
     type BlockingDeleter = A::BlockingDeleter;
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let cache_key = CacheKey {
-            path: path.to_string(),
-            args: args.clone(),
-        };
+        let cache_key = CacheKey::new(path, args);
         if let Some(entry) = self
             .cache
             .get(&cache_key)

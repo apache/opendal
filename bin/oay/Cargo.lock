@@ -1032,7 +1032,7 @@ dependencies = [
  "log",
  "logforth",
  "opendal",
- "quick-xml",
+ "quick-xml 0.36.2",
  "serde",
  "tokio",
  "toml",
@@ -1067,10 +1067,11 @@ dependencies = [
  "futures",
  "getrandom 0.2.15",
  "http",
+ "http-body",
  "log",
  "md-5",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.37.4",
  "reqwest",
  "serde",
  "serde_json",
@@ -1183,6 +1184,16 @@ name = "quick-xml"
 version = "0.36.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7649a7b4df05aed9ea7ec6f628c67c9953a43869b8bc50929569b2999d443fe"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.37.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ce8c88de324ff838700f36fb6ab86c96df0e3c4ab6ef3a9b2044465cce1369"
 dependencies = [
  "memchr",
  "serde",

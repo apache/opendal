@@ -138,7 +138,7 @@ prettyplease@0.2.32		X								X
 proc-macro2@1.0.94		X								X						
 prometheus@0.13.4		X														
 proxy-protocol@0.5.0		X								X						
-quick-xml@0.36.2										X						
+quick-xml@0.37.4										X						
 quote@1.0.40		X								X						
 r-efi@5.2.0		X							X	X						
 rand@0.8.5		X								X						
@@ -150,7 +150,7 @@ regex-automata@0.1.10										X					X
 regex-automata@0.4.9		X								X						
 regex-syntax@0.6.29		X								X						
 regex-syntax@0.8.5		X								X						
-reqsign@0.16.2		X														
+reqsign@0.16.3		X														
 reqwest@0.12.15		X								X						
 ring@0.17.14		X						X								
 rustc-demangle@0.1.24		X								X						

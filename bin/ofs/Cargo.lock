@@ -1225,10 +1225,11 @@ dependencies = [
  "futures",
  "getrandom 0.2.15",
  "http",
+ "http-body",
  "log",
  "md-5",
  "percent-encoding",
- "quick-xml 0.36.2",
+ "quick-xml",
  "rand 0.8.5",
  "reqsign",
  "reqwest",
@@ -1310,16 +1311,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.36.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7649a7b4df05aed9ea7ec6f628c67c9953a43869b8bc50929569b2999d443fe"
-dependencies = [
- "memchr",
- "serde",
 ]
 
 [[package]]
@@ -1492,9 +1483,9 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "reqsign"
-version = "0.16.2"
+version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "295e00c4cc1e63e77796dc177c1d02f264bcc8b6b69488222ff6af16a061fcfc"
+checksum = "9323c0afb30e54f793f4705b10c890395bccc87c6e6ea62c4e7e82d09a380dc6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1508,7 +1499,7 @@ dependencies = [
  "http",
  "log",
  "percent-encoding",
- "quick-xml 0.37.4",
+ "quick-xml",
  "rand 0.8.5",
  "reqwest",
  "rust-ini",

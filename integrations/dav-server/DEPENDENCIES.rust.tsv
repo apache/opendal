@@ -101,7 +101,7 @@ pin-project-lite@0.2.16		X						X
 pin-utils@0.1.0		X						X				
 powerfmt@0.2.0		X						X				
 proc-macro2@1.0.94		X						X				
-quick-xml@0.36.2								X				
+quick-xml@0.37.4								X				
 quote@1.0.40		X						X				
 r-efi@5.2.0		X					X	X				
 redox_syscall@0.5.11								X				

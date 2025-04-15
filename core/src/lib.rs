@@ -124,6 +124,12 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Useful Links
+//!
+//! - [Concept][crate::docs::concepts]
+//! - [Internals][crate::docs::internals]
+//! - [Performance Guide][crate::docs::performance]
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]

@@ -15,29 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! This module holds documentation for OpenDAL.
+//! OpenDAL Performance Guide
 //!
-//! It's highly recommended that you start by reading [`concepts`] first.
+//! OpenDAL is designed in a zero-cost abstraction way, which means that
+//! users won't pay for the abstraction cost if they don't use it. But this
+//! can also means that users can't maximize the performance of OpenDAL
+//! if they don't know how to use it.
+//!
+//! This document will introduce some tips to improve the performance of
+//! OpenDAL.
 
-#![allow(rustdoc::bare_urls)]
+#[doc = include_str!("concurrent_write.md")]
+pub mod concurrent_write {}
 
-pub mod comparisons;
-
-pub mod concepts;
-
-pub mod internals;
-
-pub mod performance;
-
-/// Changes log for all OpenDAL released versions.
-#[doc = include_str!("../../CHANGELOG.md")]
-#[cfg(not(doctest))]
-pub mod changelog {}
-
-#[cfg(not(doctest))]
-pub mod rfcs;
-
-/// Upgrade and migrate procedures while OpenDAL meets breaking changes.
-#[doc = include_str!("upgrade.md")]
-#[cfg(not(doctest))]
-pub mod upgrade {}
+#[doc = include_str!("http_optimization.md")]
+pub mod http_optimization {}

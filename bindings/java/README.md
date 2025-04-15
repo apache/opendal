@@ -56,17 +56,17 @@ Then add the dependency to `opendal` as following:
 
 ```xml
 <dependencies>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-</dependency>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-  <classifier>${os.detected.classifier}</classifier>
-</dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+  </dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+    <classifier>${os.detected.classifier}</classifier>
+  </dependency>
 </dependencies>
 ```
 

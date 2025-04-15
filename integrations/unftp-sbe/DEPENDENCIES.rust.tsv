@@ -3,16 +3,16 @@ addr2line@0.24.2		X								X
 adler2@2.0.0	X	X								X						
 android-tzdata@0.1.1		X								X						
 android_system_properties@0.1.5		X								X						
-anyhow@1.0.97		X								X						
+anyhow@1.0.98		X								X						
 arc-swap@1.7.1		X								X						
 asn1-rs@0.6.2		X								X						
 asn1-rs-derive@0.5.1		X								X						
 asn1-rs-impl@0.2.0		X								X						
 async-trait@0.1.88		X								X						
 autocfg@1.4.0		X								X						
-aws-lc-rs@1.12.6		X						X								
-aws-lc-sys@0.27.1		X						X					X			
-backon@1.4.1		X														
+aws-lc-rs@1.13.0		X						X								
+aws-lc-sys@0.28.0		X						X					X			
+backon@1.5.0		X														
 backtrace@0.3.74		X								X						
 base64@0.22.1		X								X						
 bindgen@0.69.5					X											
@@ -20,7 +20,7 @@ bitflags@2.9.0		X								X
 block-buffer@0.10.4		X								X						
 bumpalo@3.17.0		X								X						
 bytes@1.10.1										X						
-cc@1.2.17		X								X						
+cc@1.2.19		X								X						
 cexpr@0.6.0		X								X						
 cfg-if@1.0.0		X								X						
 cfg_aliases@0.2.1										X						
@@ -32,21 +32,21 @@ convert_case@0.4.0										X
 core-foundation-sys@0.8.7		X								X						
 cpufeatures@0.2.17		X								X						
 crc32c@0.6.8		X								X						
-crossbeam-channel@0.5.14		X								X						
+crossbeam-channel@0.5.15		X								X						
 crossbeam-epoch@0.9.18		X								X						
 crossbeam-utils@0.8.21		X								X						
 crypto-common@0.1.6		X								X						
 dashmap@5.5.3										X						
-data-encoding@2.8.0										X						
+data-encoding@2.9.0										X						
 der-parser@9.0.0		X								X						
-deranged@0.4.1		X								X						
+deranged@0.4.0		X								X						
 derive_more@0.99.19										X						
 digest@0.10.7		X								X						
 displaydoc@0.2.5		X								X						
 doc-comment@0.3.3										X						
 dunce@1.0.5		X					X				X					
 either@1.15.0		X								X						
-errno@0.3.10		X								X						
+errno@0.3.11		X								X						
 fastrand@2.3.0		X								X						
 fnv@1.0.7		X								X						
 form_urlencoded@1.2.1		X								X						
@@ -94,7 +94,7 @@ idna_adapter@1.2.0		X								X
 ipnet@2.11.0		X								X						
 itertools@0.12.1		X								X						
 itoa@1.0.15		X								X						
-jobserver@0.1.32		X								X						
+jobserver@0.1.33		X								X						
 js-sys@0.3.77		X								X						
 lazy_static@1.5.0		X								X						
 lazycell@1.3.0		X								X						
@@ -111,7 +111,7 @@ md-5@0.10.6		X								X
 memchr@2.7.4										X					X	
 mime@0.3.17		X								X						
 minimal-lexical@0.2.1		X								X						
-miniz_oxide@0.8.5		X								X						X
+miniz_oxide@0.8.8		X								X						X
 mio@1.0.3										X						
 moka@0.12.10		X								X						
 nix@0.29.0										X						
@@ -124,7 +124,7 @@ num-traits@0.2.19		X								X
 object@0.36.7		X								X						
 oid-registry@0.7.1		X								X						
 once_cell@1.21.3		X								X						
-opendal@0.53.0		X														
+opendal@0.53.1		X														
 overload@0.1.1										X						
 parking_lot@0.12.3		X								X						
 parking_lot_core@0.9.10		X								X						
@@ -134,7 +134,7 @@ pin-utils@0.1.0		X								X
 portable-atomic@1.11.0		X								X						
 powerfmt@0.2.0		X								X						
 ppv-lite86@0.2.21		X								X						
-prettyplease@0.2.31		X								X						
+prettyplease@0.2.32		X								X						
 proc-macro2@1.0.94		X								X						
 prometheus@0.13.4		X														
 proxy-protocol@0.5.0		X								X						
@@ -144,13 +144,13 @@ r-efi@5.2.0		X							X	X
 rand@0.8.5		X								X						
 rand_chacha@0.3.1		X								X						
 rand_core@0.6.4		X								X						
-redox_syscall@0.5.10										X						
+redox_syscall@0.5.11										X						
 regex@1.11.1		X								X						
 regex-automata@0.1.10										X					X	
 regex-automata@0.4.9		X								X						
 regex-syntax@0.6.29		X								X						
 regex-syntax@0.8.5		X								X						
-reqsign@0.16.1		X														
+reqsign@0.16.2		X														
 reqwest@0.12.15		X								X						
 ring@0.17.14		X						X								
 rustc-demangle@0.1.24		X								X						
@@ -158,7 +158,7 @@ rustc-hash@1.1.0		X								X
 rustc_version@0.4.1		X								X						
 rusticata-macros@4.1.0		X								X						
 rustix@0.38.44		X	X							X						
-rustls@0.23.25		X						X		X						
+rustls@0.23.26		X						X		X						
 rustls-pemfile@2.2.0		X						X		X						
 rustls-pki-types@1.11.0		X								X						
 rustls-webpki@0.103.1								X								
@@ -180,7 +180,7 @@ slab@0.4.9										X
 slog@2.7.0		X								X		X				
 slog-scope@4.4.0		X								X		X				
 slog-stdlog@4.1.1		X								X		X				
-smallvec@1.14.0		X								X						
+smallvec@1.15.0		X								X						
 snafu@0.6.10		X								X						
 snafu-derive@0.6.10		X								X						
 socket2@0.5.9		X								X						
@@ -198,7 +198,7 @@ time@0.3.41		X								X
 time-core@0.1.4		X								X						
 time-macros@0.2.22		X								X						
 tinystr@0.7.6														X		
-tokio@1.44.1										X						
+tokio@1.44.2										X						
 tokio-macros@2.5.0										X						
 tokio-rustls@0.26.2		X								X						
 tokio-util@0.7.14										X						
@@ -212,7 +212,7 @@ tracing-log@0.2.0										X
 tracing-subscriber@0.3.19										X						
 try-lock@0.2.5										X						
 typenum@1.18.0		X								X						
-unftp-sbe-opendal@0.1.0		X														
+unftp-sbe-opendal@0.1.1		X														
 unicode-ident@1.0.18		X								X				X		
 untrusted@0.9.0								X								
 url@2.5.4		X								X						

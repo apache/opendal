@@ -116,6 +116,7 @@ var withFFIs = []contextWithFFI{
 
 	withOperatorCreateDir,
 	withOperatorRead,
+	withOperatorReadRange,
 	withOperatorWrite,
 	withOperatorDelete,
 	withOperatorStat,

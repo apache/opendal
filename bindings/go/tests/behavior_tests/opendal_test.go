@@ -163,6 +163,15 @@ func genFixedBytes(size uint) []byte {
 	return content
 }
 
+func genOffsetLength(size uint) (uint64, uint64) {
+	n, _ := rand.Int(rand.Reader, big.NewInt(int64(size-1)))
+	offset := uint64(n.Int64())
+	n, _ = rand.Int(rand.Reader, big.NewInt(int64(uint64(size)-offset)))
+	length := uint64(n.Int64()) + 1
+
+	return offset, length
+}
+
 type fixture struct {
 	op   *opendal.Operator
 	lock *sync.Mutex

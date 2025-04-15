@@ -866,13 +866,13 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
 /**
  * \brief Blocking read a range of data from `path`.
  *
- * Read a range of data from `path` blocking by operator. The range starts from `offset`
- * with size of `size`.
+ * Read a range of data from `path` blocking by operator. The range starts from `start`
+ * to `end`.
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to read the data out
- * @param offset The start position of the range to read
- * @param size The size of the range to read
+ * @param start The start position of the range to read. 0 means the start of the file.
+ * @param end The end position of the range to read. 0 means the end of the file.
  * @see opendal_operator
  * @see opendal_result_read
  * @see opendal_error
@@ -889,7 +889,7 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  * ```C
  * // ... you have write "Hello, World!" to path "/testpath"
  *
- * // Read 5 bytes starting from offset 0
+ * // Read bytes starting from 0 to 5
  * opendal_result_read r = opendal_operator_read_range(op, "/testpath", 0, 5);
  * assert(r.error == NULL);
  *
@@ -910,8 +910,8 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  */
 struct opendal_result_read opendal_operator_read_range(const struct opendal_operator *op,
                                                        const char *path,
-                                                       uint64_t offset,
-                                                       uint64_t size);
+                                                       uint64_t start,
+                                                       uint64_t end);
 
 /**
  * \brief Blocking read the data from `path`.

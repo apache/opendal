@@ -297,13 +297,13 @@ pub unsafe extern "C" fn opendal_operator_read(
 
 /// \brief Blocking read a range of data from `path`.
 ///
-/// Read a range of data from `path` blocking by operator. The range starts from `offset` 
-/// with size of `size`.
+/// Read a range of data from `path` blocking by operator. The range starts from `start`
+/// to `end`.
 ///
 /// @param op The opendal_operator created previously
 /// @param path The path you want to read the data out
-/// @param offset The start position of the range to read
-/// @param size The size of the range to read
+/// @param start The start position of the range to read. 0 means the start of the file.
+/// @param end The end position of the range to read. 0 means the end of the file.
 /// @see opendal_operator
 /// @see opendal_result_read
 /// @see opendal_error
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn opendal_operator_read(
 /// ```C
 /// // ... you have write "Hello, World!" to path "/testpath"
 ///
-/// // Read 5 bytes starting from offset 0
+/// // Read bytes starting from 0 to 5
 /// opendal_result_read r = opendal_operator_read_range(op, "/testpath", 0, 5);
 /// assert(r.error == NULL);
 ///
@@ -342,19 +342,14 @@ pub unsafe extern "C" fn opendal_operator_read(
 pub unsafe extern "C" fn opendal_operator_read_range(
     op: &opendal_operator,
     path: *const c_char,
-    offset: u64,
-    size: u64,
+    start: u64,
+    end: u64,
 ) -> opendal_result_read {
     assert!(!path.is_null());
     let path = std::ffi::CStr::from_ptr(path)
         .to_str()
         .expect("malformed path");
-    match op
-        .deref()
-        .read_with(path)
-        .range(offset..offset + size)
-        .call()
-    {
+    match op.deref().read_with(path).range(start..end).call() {
         Ok(b) => opendal_result_read {
             data: opendal_bytes::new(b),
             error: std::ptr::null_mut(),

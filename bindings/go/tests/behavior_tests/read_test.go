@@ -31,6 +31,7 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 	}
 	return []behaviorTest{
 		testReadFull,
+		testReadRange,
 		testReader,
 		testReadNotExist,
 		testReadWithDirPath,
@@ -47,6 +48,18 @@ func testReadFull(assert *require.Assertions, op *opendal.Operator, fixture *fix
 	assert.Nil(err)
 	assert.Equal(size, uint(len(bs)), "read size")
 	assert.Equal(content, bs, "read content")
+}
+
+func testReadRange(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+	offset, length := genOffsetLength(size)
+
+	bs, err := op.Read(path, opendal.ReadBetween(offset, offset+length))
+	assert.Nil(err)
+	assert.Equal(length, uint64(len(bs)), "read size")
+	assert.Equal(content[offset:offset+length], bs, "read content")
 }
 
 func testReader(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {

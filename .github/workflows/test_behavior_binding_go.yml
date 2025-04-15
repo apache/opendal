@@ -88,6 +88,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+          cache-dependency-path: |
+            bindings/go/go.sum
+            bindings/go/tests/behavior_tests/go.sum
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"

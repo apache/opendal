@@ -122,6 +122,8 @@ mod foyer;
 #[cfg(feature = "layers-foyer")]
 pub use self::foyer::CacheKey;
 #[cfg(feature = "layers-foyer")]
+pub use self::foyer::CacheValue;
+#[cfg(feature = "layers-foyer")]
 pub use self::foyer::FoyerLayer;
 
 pub mod observe;

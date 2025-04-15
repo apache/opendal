@@ -3,14 +3,14 @@ use crate::*;
 use chrono::{DateTime, Utc};
 use foyer::{Code, CodeError, HybridCache};
 use serde::{Deserialize, Serialize};
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 pub struct FoyerLayer {
-    cache: Arc<HybridCache<CacheKey, Buffer>>,
+    cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
 impl FoyerLayer {
-    pub async fn new(cache: HybridCache<CacheKey, Buffer>) -> Result<Self> {
+    pub async fn new(cache: HybridCache<CacheKey, CacheValue>) -> Result<Self> {
         Ok(Self {
             cache: Arc::new(cache),
         })
@@ -53,15 +53,12 @@ impl CacheKey {
     }
 }
 
-#[derive(Debug)]
-pub struct CacheAccessor<A: Access> {
-    inner: A,
-    cache: Arc<HybridCache<CacheKey, Buffer>>,
-}
+#[derive(Debug, Clone)]
+pub struct CacheValue(Buffer);
 
-impl Code for Buffer {
+impl Code for CacheValue {
     fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        let mut reader = self.clone();
+        let mut reader = self.0.clone();
         std::io::copy(&mut reader, writer).map_err(CodeError::Io)?;
         Ok(())
     }
@@ -72,12 +69,18 @@ impl Code for Buffer {
     {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).map_err(CodeError::Io)?;
-        Ok(Buffer::from(buf))
+        Ok(CacheValue(Buffer::from(buf)))
     }
 
     fn estimated_size(&self) -> usize {
-        self.len()
+        self.0.len()
     }
+}
+
+#[derive(Debug)]
+pub struct CacheAccessor<A: Access> {
+    inner: A,
+    cache: Arc<HybridCache<CacheKey, CacheValue>>,
 }
 
 impl<A: Access> LayeredAccess for CacheAccessor<A> {
@@ -111,7 +114,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
             .await
             .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
         {
-            return Ok((RpRead::default(), TwoWays::One(entry.deref().clone())));
+            return Ok((RpRead::default(), TwoWays::One(entry.0.clone())));
         }
 
         self.inner.read(path, args).await.map(|(rp, reader)| {
@@ -155,13 +158,13 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
 
 pub struct CacheWrapper<R> {
     inner: R,
-    cache: Arc<HybridCache<CacheKey, Buffer>>,
+    cache: Arc<HybridCache<CacheKey, CacheValue>>,
     cache_key: CacheKey,
     buffers: Vec<Buffer>,
 }
 
 impl<R> CacheWrapper<R> {
-    fn new(inner: R, cache: Arc<HybridCache<CacheKey, Buffer>>, cache_key: CacheKey) -> Self {
+    fn new(inner: R, cache: Arc<HybridCache<CacheKey, CacheValue>>, cache_key: CacheKey) -> Self {
         Self {
             inner,
             cache_key,
@@ -181,7 +184,8 @@ impl<R: oio::Read> oio::Read for CacheWrapper<R> {
         }
         let flattened_buffer: Buffer = self.buffers.drain(..).flatten().collect();
 
-        self.cache.insert(self.cache_key.clone(), flattened_buffer);
+        self.cache
+            .insert(self.cache_key.clone(), CacheValue(flattened_buffer));
 
         Ok(buffer)
     }

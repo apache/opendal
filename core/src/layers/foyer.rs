@@ -86,10 +86,6 @@ pub struct CacheAccessor<A: Access> {
 impl<A: Access> LayeredAccess for CacheAccessor<A> {
     type Inner = A;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
-
     type Reader = TwoWays<Buffer, CacheWrapper<A::Reader>>;
 
     type Writer = A::Writer;
@@ -105,6 +101,10 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
     type BlockingLister = A::BlockingLister;
 
     type BlockingDeleter = A::BlockingDeleter;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let cache_key = CacheKey::new(path, &args);

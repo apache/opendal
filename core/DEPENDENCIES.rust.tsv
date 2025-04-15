@@ -73,7 +73,7 @@ ipnet@2.11.0		X							X
 itoa@1.0.15		X							X				
 js-sys@0.3.77		X							X				
 libc@0.2.171		X							X				
-litemap@0.7.5											X		
+litemap@0.7.4											X		
 log@0.4.27		X							X				
 md-5@0.10.6		X							X				
 memchr@2.7.4									X			X	
@@ -89,14 +89,13 @@ pin-project-lite@0.2.16		X							X
 pin-utils@0.1.0		X							X				
 ppv-lite86@0.2.21		X							X				
 proc-macro2@1.0.94		X							X				
-quick-xml@0.36.2									X				
 quick-xml@0.37.4									X				
 quote@1.0.40		X							X				
 r-efi@5.2.0		X						X	X				
 rand@0.8.5		X							X				
 rand_chacha@0.3.1		X							X				
 rand_core@0.6.4		X							X				
-reqsign@0.16.2		X											
+reqsign@0.16.3		X											
 reqwest@0.12.15		X							X				
 ring@0.17.14		X					X						
 rustc-demangle@0.1.24		X							X				
@@ -189,7 +188,7 @@ writeable@0.5.5											X
 yoke@0.7.5											X		
 yoke-derive@0.7.5											X		
 zerocopy@0.8.24		X		X					X				
-zerofrom@0.1.6											X		
+zerofrom@0.1.5											X		
 zerofrom-derive@0.1.6											X		
 zeroize@1.8.1		X							X				
 zerovec@0.10.4											X		

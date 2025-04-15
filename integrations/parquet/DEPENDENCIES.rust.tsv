@@ -119,13 +119,13 @@ pin-project-lite@0.2.16		X								X
 pin-utils@0.1.0		X								X				
 ppv-lite86@0.2.21		X								X				
 proc-macro2@1.0.94		X								X				
-quick-xml@0.36.2										X				
+quick-xml@0.37.4										X				
 quote@1.0.40		X								X				
 r-efi@5.2.0		X							X	X				
 rand@0.8.5		X								X				
 rand_chacha@0.3.1		X								X				
 rand_core@0.6.4		X								X				
-reqsign@0.16.2		X												
+reqsign@0.16.3		X												
 reqwest@0.12.15		X								X				
 ring@0.17.14		X						X						
 rustc-demangle@0.1.24		X								X				

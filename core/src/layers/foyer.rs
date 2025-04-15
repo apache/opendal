@@ -63,9 +63,8 @@ where
 
 impl Code for Buffer {
     fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        writer
-            .write_vectored(&self.to_io_slice())
-            .map_err(CodeError::Io)?;
+        let mut reader = self.clone();
+        std::io::copy(&mut reader, writer).map_err(CodeError::Io)?;
         Ok(())
     }
 

@@ -252,13 +252,12 @@ futures = { version = "0.3", default-features = false, features = [
 ] }
 ghac = { version = "0.2.0", optional = true }
 http = "1.1"
+http-body = "1"
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
 quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
-reqwest = { version = "0.12.2", features = [
-  "stream",
-], default-features = false }
+reqwest = { version = "0.12.8", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.27", features = ["sync", "io-util"] }

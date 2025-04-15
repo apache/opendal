@@ -103,7 +103,7 @@ impl ConcurrentLimitLayer {
     ///
     /// This will limit the number of concurrent HTTP requests made by the
     /// operator.
-    pub fn with_http_concurent_limit(mut self, permits: usize) -> Self {
+    pub fn with_http_concurrent_limit(mut self, permits: usize) -> Self {
         self.http_semaphore = Some(Arc::new(Semaphore::new(permits)));
         self
     }

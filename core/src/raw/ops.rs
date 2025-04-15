@@ -21,7 +21,6 @@
 
 use crate::raw::*;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -302,7 +301,7 @@ impl From<OpDelete> for PresignOperation {
 }
 
 /// Args for `read` operation.
-#[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct OpRead {
     range: BytesRange,
     if_match: Option<String>,

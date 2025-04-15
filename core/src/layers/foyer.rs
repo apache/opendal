@@ -58,8 +58,7 @@ pub struct CacheValue(Buffer);
 
 impl Code for CacheValue {
     fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        let mut reader = self.0.clone();
-        std::io::copy(&mut reader, writer).map_err(CodeError::Io)?;
+        writer.write_vectored(&self.0.to_io_slice())?;
         Ok(())
     }
 

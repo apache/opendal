@@ -26,7 +26,10 @@ pub struct FoyerLayer {
 }
 
 impl FoyerLayer {
-    pub async fn new(cache: HybridCache<String, CacheValue>) -> Result<Self> {
+    pub async fn new(
+        cache: HybridCache<String, CacheValue>,
+        max_value_size: usize,
+    ) -> Result<Self> {
         Ok(Self {
             cache: Arc::new(cache),
         })
@@ -40,6 +43,7 @@ impl<A: Access> Layer<A> for FoyerLayer {
         CacheAccessor {
             inner,
             cache: Arc::clone(&self.cache),
+            max_value_size: self.max_value_size,
         }
     }
 }
@@ -71,6 +75,7 @@ impl Code for CacheValue {
 pub struct CacheAccessor<A: Access> {
     inner: A,
     cache: Arc<HybridCache<String, CacheValue>>,
+    max_value_size: usize,
 }
 
 impl<A: Access> LayeredAccess for CacheAccessor<A> {
@@ -110,6 +115,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
                 reader,
                 Arc::clone(&self.cache),
                 cache_key,
+                self.max_value_size,
             ));
             (rp, reader)
         })
@@ -149,15 +155,24 @@ pub struct CacheWrapper<R> {
     cache: Arc<HybridCache<String, CacheValue>>,
     cache_key: String,
     buffers: Vec<Buffer>,
+    max_value_size: usize,
+    current_value_size: usize,
 }
 
 impl<R> CacheWrapper<R> {
-    fn new(inner: R, cache: Arc<HybridCache<String, CacheValue>>, cache_key: String) -> Self {
+    fn new(
+        inner: R,
+        cache: Arc<HybridCache<String, CacheValue>>,
+        cache_key: String,
+        max_value_size: usize,
+    ) -> Self {
         Self {
             inner,
             cache_key,
             cache,
             buffers: Vec::new(),
+            max_value_size,
+            current_value_size: 0,
         }
     }
 }
@@ -165,6 +180,11 @@ impl<R> CacheWrapper<R> {
 impl<R: oio::Read> oio::Read for CacheWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buffer = self.inner.read().await?;
+        self.current_value_size += buffer.len();
+
+        if self.current_value_size > self.max_value_size {
+            return Ok(buffer);
+        }
 
         if !buffer.is_empty() {
             self.buffers.push(buffer.clone());

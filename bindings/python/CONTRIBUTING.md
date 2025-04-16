@@ -63,6 +63,9 @@ OpenDAL adopts `pytest` for behavior tests:
 ```shell
 # To run `test_write.py` and use `fs` operator
 OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -vk test_write
+
+# To run `test_sync_write` in `test_write.py` and use `fs` operator
+OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -v tests/test_write.py::test_sync_write
 ```
 
 ## Docs

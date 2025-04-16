@@ -298,7 +298,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
 impl<I: Send + 'static> Drop for BlockingWrapper<I> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
-            self.handle.spawn(async move {
+            self.handle.block_on(async move {
                 drop(inner);
             });
         }

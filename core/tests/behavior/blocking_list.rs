@@ -28,6 +28,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     if cap.read && cap.write && cap.copy && cap.blocking && cap.list {
         tests.extend(blocking_trials!(
             op,
+            test_check,
             test_blocking_list_dir,
             test_blocking_list_non_exist_dir,
             test_blocking_list_not_exist_dir_with_recursive,

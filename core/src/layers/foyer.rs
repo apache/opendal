@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 pub struct FoyerLayer {
     cache: Arc<HybridCache<String, CacheValue>>,
+    max_value_size: usize,
 }
 
 impl FoyerLayer {
@@ -32,6 +33,7 @@ impl FoyerLayer {
     ) -> Result<Self> {
         Ok(Self {
             cache: Arc::new(cache),
+            max_value_size,
         })
     }
 }

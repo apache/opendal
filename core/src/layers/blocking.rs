@@ -292,7 +292,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     }
 }
 
-impl<I: oio::Write + 'static> Drop for BlockingWrapper<I> {
+impl<I> Drop for BlockingWrapper<I> {
     fn drop(&mut self) {
         // Attempt to close the inner writer, blocking on the current handle.
         // This might panic if called from within an existing `block_on` scope
@@ -320,21 +320,6 @@ impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
 
     fn flush(&mut self) -> Result<usize> {
         self.handle.block_on(self.inner.flush())
-    }
-}
-
-impl<I: oio::Delete + 'static> Drop for BlockingWrapper<I> {
-    fn drop(&mut self) {
-        // Attempt to flush the inner deleter, blocking on the current handle.
-        // This might panic if called from within an existing `block_on` scope
-        // on the same runtime handle.
-        // We ignore the result because drop should not panic.
-        if let Err(err) = self.handle.block_on(self.inner.flush()) {
-            eprintln!(
-                "BlockingWrapper::drop: failed to flush inner deleter: {:?}",
-                err
-            );
-        }
     }
 }
 

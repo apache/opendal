@@ -15,22 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-hdfs")]
-mod delete;
-#[cfg(feature = "services-hdfs")]
-mod lister;
-#[cfg(feature = "services-hdfs")]
-mod reader;
-#[cfg(feature = "services-hdfs")]
-mod writer;
+use std::{io::Result, sync::Arc};
 
-#[cfg(feature = "services-hdfs")]
-mod backend;
-#[cfg(feature = "services-hdfs")]
-pub use backend::HdfsBuilder as Hdfs;
+use hdrs::Metadata;
 
-#[cfg(feature = "services-hdfs")]
-mod core;
+use crate::raw::AccessorInfo;
 
-mod config;
-pub use config::HdfsConfig;
+#[derive(Clone, Debug)]
+pub struct HdfsCore {
+    pub info: Arc<AccessorInfo>,
+    pub client: Arc<hdrs::Client>,
+}
+
+impl HdfsCore {
+    pub fn get_metadata(&self, path: &str) -> Result<Metadata> {
+        let metadata = self.client.metadata(path)?;
+
+        Ok(metadata)
+    }
+}

@@ -1,16 +1,14 @@
 use crate::raw::*;
 use crate::*;
-use chrono::{DateTime, Utc};
 use foyer::{Code, CodeError, HybridCache};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub struct FoyerLayer {
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
+    cache: Arc<HybridCache<String, CacheValue>>,
 }
 
 impl FoyerLayer {
-    pub async fn new(cache: HybridCache<CacheKey, CacheValue>) -> Result<Self> {
+    pub async fn new(cache: HybridCache<String, CacheValue>) -> Result<Self> {
         Ok(Self {
             cache: Arc::new(cache),
         })
@@ -24,31 +22,6 @@ impl<A: Access> Layer<A> for FoyerLayer {
         CacheAccessor {
             inner,
             cache: Arc::clone(&self.cache),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CacheKey {
-    path: String,
-    range: BytesRange,
-    if_match: Option<String>,
-    if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
-    version: Option<String>,
-}
-
-impl CacheKey {
-    fn new(path: &str, args: &OpRead) -> CacheKey {
-        CacheKey {
-            path: path.to_string(),
-            range: args.range(),
-            if_match: args.if_match().map(ToString::to_string),
-            if_none_match: args.if_none_match().map(ToString::to_string),
-            if_modified_since: args.if_modified_since(),
-            if_unmodified_since: args.if_unmodified_since(),
-            version: args.version().map(ToString::to_string),
         }
     }
 }
@@ -79,7 +52,7 @@ impl Code for CacheValue {
 #[derive(Debug)]
 pub struct CacheAccessor<A: Access> {
     inner: A,
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
+    cache: Arc<HybridCache<String, CacheValue>>,
 }
 
 impl<A: Access> LayeredAccess for CacheAccessor<A> {
@@ -106,7 +79,7 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let cache_key = CacheKey::new(path, &args);
+        let cache_key = build_cache_key(path, &args);
         if let Some(entry) = self
             .cache
             .get(&cache_key)
@@ -157,13 +130,13 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
 
 pub struct CacheWrapper<R> {
     inner: R,
-    cache: Arc<HybridCache<CacheKey, CacheValue>>,
-    cache_key: CacheKey,
+    cache: Arc<HybridCache<String, CacheValue>>,
+    cache_key: String,
     buffers: Vec<Buffer>,
 }
 
 impl<R> CacheWrapper<R> {
-    fn new(inner: R, cache: Arc<HybridCache<CacheKey, CacheValue>>, cache_key: CacheKey) -> Self {
+    fn new(inner: R, cache: Arc<HybridCache<String, CacheValue>>, cache_key: String) -> Self {
         Self {
             inner,
             cache_key,
@@ -187,5 +160,54 @@ impl<R: oio::Read> oio::Read for CacheWrapper<R> {
             .insert(self.cache_key.clone(), CacheValue(flattened_buffer));
 
         Ok(buffer)
+    }
+}
+
+fn build_cache_key(path: &str, args: &OpRead) -> String {
+    let version = args.version().unwrap_or_default();
+    let range = args.range();
+    format!("{path}-{version}-{range}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_cache_key_with_default_args() {
+        let args = OpRead::default();
+        let path = "test";
+
+        let cache_key = build_cache_key(path, &args);
+        assert_eq!("test--0-", cache_key);
+    }
+
+    #[test]
+    fn test_build_cache_key_with_version() {
+        let args = OpRead::default().with_version("version");
+        let path = "test";
+
+        let cache_key = build_cache_key(path, &args);
+        assert_eq!("test-version-0-", cache_key);
+    }
+
+    #[test]
+    fn test_build_cache_key_with_range() {
+        let args = OpRead::default().with_range(BytesRange::from(1024..2048));
+        let path = "test";
+
+        let cache_key = build_cache_key(path, &args);
+        assert_eq!("test--1024-2047", cache_key);
+    }
+
+    #[test]
+    fn test_build_cache_key_with_range_and_version() {
+        let args = OpRead::default()
+            .with_version("version")
+            .with_range(BytesRange::from(1024..2048));
+        let path = "test";
+
+        let cache_key = build_cache_key(path, &args);
+        assert_eq!("test-version-1024-2047", cache_key);
     }
 }

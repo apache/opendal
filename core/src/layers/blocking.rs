@@ -286,7 +286,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         self.handle.block_on(self.inner.write(bs))
     }
-    
+
     fn close(&mut self) -> Result<Metadata> {
         self.handle.block_on(self.inner.close())
     }

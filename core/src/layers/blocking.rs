@@ -292,7 +292,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     }
 }
 
-impl<I> Drop for BlockingWrapper<I> {
+impl<I: oio::Write + 'static> Drop for BlockingWrapper<I> {
     fn drop(&mut self) {
         // Attempt to close the inner writer, blocking on the current handle.
         // This might panic if called from within an existing `block_on` scope

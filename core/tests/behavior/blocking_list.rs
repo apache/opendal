@@ -39,6 +39,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 }
 
+/// Check should be OK.
+pub fn test_check(op: BlockingOperator) -> Result<()> {
+    op.check().expect("operator check is ok");
+
+    Ok(())
+}
+
 /// List dir should return newly created file.
 pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();

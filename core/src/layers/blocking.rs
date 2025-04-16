@@ -292,17 +292,12 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     }
 }
 
-impl<I: oio::Write + 'static> Drop for BlockingWrapper<I> {
+impl<I> Drop for BlockingWrapper<I> {
     fn drop(&mut self) {
-        // Attempt to close the inner writer, blocking on the current handle.
-        // This might panic if called from within an existing `block_on` scope
-        // on the same runtime handle.
-        // We ignore the result because drop should not panic.
-        if let Err(err) = self.handle.block_on(self.inner.close()) {
-            eprintln!(
-                "BlockingWrapper::drop: failed to close inner writer: {:?}",
-                err
-            );
+        if let Some(inner) = self.inner.take() {
+            self.handle.spawn(async move {
+                drop(inner);
+            });
         }
     }
 }

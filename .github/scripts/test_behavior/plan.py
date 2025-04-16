@@ -158,6 +158,11 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"binding_{language}", True)
                 hint.all_service = True
 
+        # c affected
+        if p.startswith("bindings/c/"):
+            hint.binding_go = True
+            hint.all_service = True
+
         # bin affected
         for bin in BIN:
             if p.startswith(f"bin/{bin}"):

@@ -18,6 +18,7 @@
 use crate::raw::*;
 use crate::*;
 use foyer::{Code, CodeError, HybridCache};
+use log::warn;
 use std::sync::Arc;
 
 pub struct FoyerLayer {
@@ -97,14 +98,12 @@ impl<A: Access> LayeredAccess for CacheAccessor<A> {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let cache_key = build_cache_key(path, &args);
-        if let Some(entry) = self
-            .cache
-            .get(&cache_key)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Unexpected, e.to_string()))?
-        {
-            return Ok((RpRead::default(), TwoWays::One(entry.0.clone())));
-        }
+
+        match self.cache.get(&cache_key).await {
+            Ok(Some(entry)) => return Ok((RpRead::default(), TwoWays::One(entry.0.clone()))),
+            Ok(None) => (),
+            Err(error) => warn!("cache access failed for key {cache_key}: {error}"),
+        };
 
         self.inner.read(path, args).await.map(|(rp, reader)| {
             let reader = TwoWays::Two(CacheWrapper::new(

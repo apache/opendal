@@ -267,32 +267,35 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
 
 pub struct BlockingWrapper<I> {
     handle: Handle,
-    inner: I,
+    inner: Option<I>,
 }
 
 impl<I> BlockingWrapper<I> {
     fn new(handle: Handle, inner: I) -> Self {
-        Self { handle, inner }
+        Self {
+            handle,
+            inner: Some(inner),
+        }
     }
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     fn read(&mut self) -> Result<Buffer> {
-        self.handle.block_on(self.inner.read())
+        self.handle.block_on(self.inner.as_mut().unwrap().read())
     }
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.handle.block_on(self.inner.write(bs))
+        self.handle.block_on(self.inner.as_mut().unwrap().write(bs))
     }
 
     fn close(&mut self) -> Result<Metadata> {
-        self.handle.block_on(self.inner.close())
+        self.handle.block_on(self.inner.as_mut().unwrap().close())
     }
 }
 
-impl<I> Drop for BlockingWrapper<I> {
+impl<I: Send + 'static> Drop for BlockingWrapper<I> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             self.handle.spawn(async move {
@@ -304,17 +307,17 @@ impl<I> Drop for BlockingWrapper<I> {
 
 impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.handle.block_on(self.inner.next())
+        self.handle.block_on(self.inner.as_mut().unwrap().next())
     }
 }
 
 impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
+        self.inner.as_mut().unwrap().delete(path, args)
     }
 
     fn flush(&mut self) -> Result<usize> {
-        self.handle.block_on(self.inner.flush())
+        self.handle.block_on(self.inner.as_mut().unwrap().flush())
     }
 }
 

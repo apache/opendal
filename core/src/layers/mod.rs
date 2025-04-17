@@ -117,6 +117,13 @@ mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
 
+#[cfg(feature = "layers-foyer")]
+mod foyer;
+#[cfg(feature = "layers-foyer")]
+pub use self::foyer::CacheValue;
+#[cfg(feature = "layers-foyer")]
+pub use self::foyer::FoyerLayer;
+
 pub mod observe;
 
 mod correctness_check;

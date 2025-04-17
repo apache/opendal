@@ -46,7 +46,7 @@ package opendal_test
 
 import (
 	opendal "github.com/apache/opendal/bindings/go"
-    "github.com/apache/opendal-go-services/{SERVICE}"
+	"github.com/apache/opendal-go-services/{SERVICE}"
 )
 
 // Add more schemes for behavior tests here.

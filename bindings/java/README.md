@@ -56,17 +56,17 @@ Then add the dependency to `opendal` as following:
 
 ```xml
 <dependencies>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-</dependency>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-  <classifier>${os.detected.classifier}</classifier>
-</dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+  </dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+    <classifier>${os.detected.classifier}</classifier>
+  </dependency>
 </dependencies>
 ```
 
@@ -140,11 +140,11 @@ Services behavior tests read necessary configs from env vars or the `.env` file.
 
 You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
 
-Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
+Take `fs` for example, we need to enable bench on `fs` on `/tmp/`:
 
 ```properties
 OPENDAL_TEST=fs
-OPENDAL_FS_ROOT=/tmp
+OPENDAL_FS_ROOT=/tmp/
 ```
 
 You can run service behavior tests of enabled with the following command:

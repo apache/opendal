@@ -1290,9 +1290,9 @@ public interface ServiceConfig {
          */
         public final String root;
         /**
-         * <p>url of this backend</p>
+         * <p>name_node of this backend</p>
          */
-        public final String url;
+        public final String nameNode;
         /**
          * <p>enable the append capacity</p>
          */
@@ -1309,8 +1309,8 @@ public interface ServiceConfig {
             if (root != null) {
                 map.put("root", root);
             }
-            if (url != null) {
-                map.put("url", url);
+            if (nameNode != null) {
+                map.put("name_node", nameNode);
             }
             if (enableAppend != null) {
                 map.put("enable_append", String.valueOf(enableAppend));
@@ -2154,6 +2154,10 @@ public interface ServiceConfig {
          * <p>Bucket for obs.</p>
          */
         public final String bucket;
+        /**
+         * <p>Is bucket versioning enabled for this bucket</p>
+         */
+        public final Boolean enableVersioning;
 
         @Override
         public String scheme() {
@@ -2178,6 +2182,9 @@ public interface ServiceConfig {
             if (bucket != null) {
                 map.put("bucket", bucket);
             }
+            if (enableVersioning != null) {
+                map.put("enable_versioning", String.valueOf(enableVersioning));
+            }
             return map;
         }
     }
@@ -2190,13 +2197,29 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Onedrive implements ServiceConfig {
         /**
-         * <p>bearer access token for OneDrive</p>
+         * <p>The root path for the OneDrive service for the file access</p>
+         */
+        public final String root;
+        /**
+         * <p>Microsoft Graph API (also OneDrive API) access token</p>
          */
         public final String accessToken;
         /**
-         * <p>root path of OneDrive folder.</p>
+         * <p>Microsoft Graph API (also OneDrive API) refresh token</p>
          */
-        public final String root;
+        public final String refreshToken;
+        /**
+         * <p>Microsoft Graph API Application (client) ID that is in the Azure's app registration portal</p>
+         */
+        public final String clientId;
+        /**
+         * <p>Microsoft Graph API Application client secret that is in the Azure's app registration portal</p>
+         */
+        public final String clientSecret;
+        /**
+         * <p>Enabling version support</p>
+         */
+        public final Boolean enableVersioning;
 
         @Override
         public String scheme() {
@@ -2206,12 +2229,44 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
-            if (accessToken != null) {
-                map.put("access_token", accessToken);
-            }
             if (root != null) {
                 map.put("root", root);
             }
+            if (accessToken != null) {
+                map.put("access_token", accessToken);
+            }
+            if (refreshToken != null) {
+                map.put("refresh_token", refreshToken);
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
+            }
+            if (enableVersioning != null) {
+                map.put("enable_versioning", String.valueOf(enableVersioning));
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service opfs.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Opfs implements ServiceConfig {
+
+        @Override
+        public String scheme() {
+            return "opfs";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
             return map;
         }
     }
@@ -2786,6 +2841,7 @@ public interface ServiceConfig {
          * <li><code>GLACIER_IR</code></li>
          * <li><code>INTELLIGENT_TIERING</code></li>
          * <li><code>ONEZONE_IA</code></li>
+         * <li><code>EXPRESS_ONEZONE</code></li>
          * <li><code>OUTPOSTS</code></li>
          * <li><code>REDUCED_REDUNDANCY</code></li>
          * <li><code>STANDARD</code></li>
@@ -2838,6 +2894,16 @@ public interface ServiceConfig {
          * <p>For example, Ceph RADOS S3 doesn't support write with if match.</p>
          */
         public final Boolean disableWriteWithIfMatch;
+        /**
+         * <p>Enable write with append so that opendal will send write request with append headers.</p>
+         */
+        public final Boolean enableWriteWithAppend;
+        /**
+         * <p>OpenDAL uses List Objects V2 by default to list objects.
+         * However, some legacy services do not yet support V2.
+         * This option allows users to switch back to the older List Objects V1.</p>
+         */
+        public final Boolean disableListObjectsV2;
 
         @Override
         public String scheme() {
@@ -2922,6 +2988,12 @@ public interface ServiceConfig {
             }
             if (disableWriteWithIfMatch != null) {
                 map.put("disable_write_with_if_match", String.valueOf(disableWriteWithIfMatch));
+            }
+            if (enableWriteWithAppend != null) {
+                map.put("enable_write_with_append", String.valueOf(enableWriteWithAppend));
+            }
+            if (disableListObjectsV2 != null) {
+                map.put("disable_list_objects_v2", String.valueOf(disableListObjectsV2));
             }
             return map;
         }
@@ -3469,6 +3541,10 @@ public interface ServiceConfig {
          */
         public final String endpoint;
         /**
+         * <p>Name of the user for webhdfs.</p>
+         */
+        public final String userName;
+        /**
          * <p>Delegation token for webhdfs.</p>
          */
         public final String delegation;
@@ -3494,6 +3570,9 @@ public interface ServiceConfig {
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
+            }
+            if (userName != null) {
+                map.put("user_name", userName);
             }
             if (delegation != null) {
                 map.put("delegation", delegation);

@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Stat retrieves metadata for the specified path.
@@ -111,7 +110,7 @@ var withOperatorStat = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorStat {
 	return func(op *opendalOperator, path string) (*opendalMetadata, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +137,7 @@ var withOperatorIsExists = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorIsExist {
 	return func(op *opendalOperator, path string) (bool, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return false, err
 		}

@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -344,27 +343,22 @@ impl CosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut queries = vec![];
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+
         if !p.is_empty() {
-            queries.push(format!("prefix={}", percent_encode_path(&p)));
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            queries.push(format!("delimiter={delimiter}"));
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            queries.push(format!("max-keys={limit}"));
+            url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            queries.push(format!("marker={next_marker}"));
+            url = url.push("marker", next_marker);
         }
 
-        let url = if queries.is_empty() {
-            self.endpoint.to_string()
-        } else {
-            format!("{}?{}", self.endpoint, queries.join("&"))
-        };
-
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -456,7 +450,7 @@ impl CosCore {
         let req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
-            .map_err(new_xml_deserialize_error)?;
+            .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -503,32 +497,26 @@ impl CosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let mut url = format!("{}?versions", self.endpoint);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("versions", "");
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(p.as_str()));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", percent_encode_path(key_marker))
-                .expect("write into string must succeed");
+            url = url.push("key-marker", &percent_encode_path(key_marker));
         }
         if !version_id_marker.is_empty() {
-            write!(
-                url,
-                "&version-id-marker={}",
-                percent_encode_path(version_id_marker)
-            )
-            .expect("write into string must succeed");
+            url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

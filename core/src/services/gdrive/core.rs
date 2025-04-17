@@ -104,16 +104,15 @@ impl GdriveCore {
         next_page_token: &str,
     ) -> Result<Response<Buffer>> {
         let q = format!("'{}' in parents and trashed = false", file_id);
-        let mut url = format!(
-            "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
-            page_size,
-            percent_encode_path(&q)
-        );
+        let url = "https://www.googleapis.com/drive/v3/files";
+        let mut url = QueryPairsWriter::new(url);
+        url = url.push("pageSize", &page_size.to_string());
+        url = url.push("q", &percent_encode_path(&q));
         if !next_page_token.is_empty() {
-            url += &format!("&pageToken={next_page_token}");
+            url = url.push("pageToken", next_page_token);
         };
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

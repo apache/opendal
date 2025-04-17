@@ -453,7 +453,7 @@ impl AzblobCore {
                 })
                 .collect(),
         })
-        .map_err(new_xml_deserialize_error)?;
+        .map_err(new_xml_serialize_error)?;
 
         req = req.header(CONTENT_LENGTH, content.len());
 

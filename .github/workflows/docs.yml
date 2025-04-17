@@ -148,20 +148,25 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          python -m pip install -e .[docs]
+          uv sync --group docs
 
       - name: Build Docs
         working-directory: bindings/python
-        run: pdoc -t ./template --output-dir ./docs opendal
+        run: uv run mkdocs build
 
       - name: Upload docs
         uses: actions/upload-artifact@v4
         with:
           name: python-docs
-          path: ./bindings/python/docs
+          path: ./bindings/python/site
 
   build-ruby-doc:
     runs-on: ubuntu-latest

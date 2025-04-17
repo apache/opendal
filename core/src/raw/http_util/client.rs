@@ -15,18 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
+use bytes::Bytes;
 use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use http_body::Frame;
+use http_body::SizeHint;
 use raw::oio::Read;
 use std::sync::LazyLock;
 
@@ -171,7 +178,7 @@ impl HttpFetch for reqwest::Client {
         if !body.is_empty() {
             #[cfg(not(target_arch = "wasm32"))]
             {
-                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
+                req_builder = req_builder.body(reqwest::Body::wrap(HttpBufferBody(body)))
             }
             #[cfg(target_arch = "wasm32")]
             {
@@ -239,4 +246,29 @@ fn is_temporary_error(err: &reqwest::Error) -> bool {
     err.is_body() ||
     // error decoding response body, for example, connection reset.
     err.is_decode()
+}
+
+struct HttpBufferBody(Buffer);
+
+impl http_body::Body for HttpBufferBody {
+    type Data = Bytes;
+    type Error = Infallible;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        match self.0.next() {
+            Some(bs) => Poll::Ready(Some(Ok(Frame::data(bs)))),
+            None => Poll::Ready(None),
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        SizeHint::with_exact(self.0.len() as u64)
+    }
 }

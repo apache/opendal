@@ -123,6 +123,17 @@ impl Operator {
         self.0.check().await.map_err(format_napi_error)
     }
 
+    /// Check the op synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.checkSync();
+    /// ```
+    #[napi]
+    pub fn check_sync(&self) -> Result<()> {
+        self.0.blocking().check().map_err(format_napi_error)
+    }
+
     /// Check if this path exists or not.
     ///
     /// ### Example

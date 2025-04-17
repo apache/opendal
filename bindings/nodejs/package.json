@@ -1,8 +1,9 @@
 {
   "name": "opendal",
   "author": "Apache OpenDAL <dev@opendal.apache.org>",
-  "version": "0.48.0",
+  "version": "0.48.1",
   "license": "Apache-2.0",
+  "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
   "description": "Apache OpenDAL: Access data freely",
@@ -56,7 +57,7 @@
     "benny": "^3.7.1",
     "dotenv": "^16.0.3",
     "prettier": "^2.8.4",
-    "typedoc": "^0.25",
+    "typedoc": "^0.28",
     "typescript": "^5.0.2",
     "vitest": "^3.0.8"
   },

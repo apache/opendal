@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs"]
+LANGUAGE_BINDING = ["java", "python", "nodejs", "go"]
 
 BIN = ["ofs"]
 
@@ -86,6 +86,8 @@ class Hint:
     binding_python: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
+    # Is binding go affected?
+    binding_go: bool = field(default=False, init=False)
     # Is bin ofs affected?
     bin_ofs: bool = field(default=False, init=False)
     # Is integration object_store affected ?
@@ -155,6 +157,16 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             if p.startswith(f"bindings/{language}/"):
                 setattr(hint, f"binding_{language}", True)
                 hint.all_service = True
+
+        # c affected
+        if p.startswith("bindings/c/"):
+            hint.binding_go = True
+            hint.all_service = True
+
+        # go affected
+        if p.startswith(".github/scripts/test_go_binding"):
+            hint.binding_go = True
+            hint.all_service = True
 
         # bin affected
         for bin in BIN:
@@ -255,9 +267,13 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
-    # Remove hdfs cases for jav:a.
+    # Remove hdfs cases for java and go.
     if language == "java":
         cases = [v for v in cases if v["service"] != "hdfs"]
+    elif language == "go":
+        # hdfs: has problem with ListEmptyDir
+        # oss: timed out with ListSubDir
+        cases = [v for v in cases if v["service"] not in ["hdfs", "oss"]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
@@ -357,6 +373,24 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
             jobs[f"binding_{language}"].append(
                 {"os": "ubuntu-latest", "cases": language_cases}
             )
+            if language == "go":
+                # Add fs service to ensure the go binding works on Windows and macOS.
+                jobs[f"binding_{language}"].append(
+                    {
+                        "os": "windows-latest",
+                        "cases": [
+                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                        ],
+                    }
+                )
+                jobs[f"binding_{language}"].append(
+                    {
+                        "os": "macos-latest",
+                        "cases": [
+                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                        ],
+                    }
+                )
 
     for bin in BIN:
         jobs[f"bin_{bin}"] = []

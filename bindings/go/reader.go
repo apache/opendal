@@ -25,7 +25,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Read reads the entire contents of the file at the specified path into a byte slice.
@@ -210,7 +209,7 @@ var withOperatorRead = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorRead {
 	return func(op *opendalOperator, path string) (opendalBytes, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return opendalBytes{}, err
 		}
@@ -234,7 +233,7 @@ var withOperatorReader = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorReader {
 	return func(op *opendalOperator, path string) (*opendalReader, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
 		}

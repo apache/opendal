@@ -163,6 +163,11 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_go = True
             hint.all_service = True
 
+        # go affected
+        if p.startswith(".github/scripts/test_go_binding"):
+            hint.binding_go = True
+            hint.all_service = True
+
         # bin affected
         for bin in BIN:
             if p.startswith(f"bin/{bin}"):
@@ -266,10 +271,9 @@ def generate_language_binding_cases(
     if language == "java":
         cases = [v for v in cases if v["service"] != "hdfs"]
     elif language == "go":
-        # sqlite: https://github.com/apache/opendal/actions/runs/14443414830/job/40498759995?pr=6018#step:22:243
         # hdfs: has problem with ListEmptyDir
         # oss: timed out with ListSubDir
-        cases = [v for v in cases if v["service"] not in ["hdfs", "oss", "sqlite"]]
+        cases = [v for v in cases if v["service"] not in ["hdfs", "oss"]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

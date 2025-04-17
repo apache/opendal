@@ -238,7 +238,6 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     pub fn check(&self) -> PyResult<()> {
-
         self.core.check().map_err(format_pyerr)
     }
 

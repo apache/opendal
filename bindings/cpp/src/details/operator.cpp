@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 #include "details/operator.hpp"
 
 #include "details/common.hpp"

@@ -138,7 +138,7 @@ Lister::~Lister() = default;
 
 std::optional<Entry> Lister::next() {
   auto entry = raw_lister_->next();
-  
+
   if (!entry.has_value) {
     return std::nullopt;
   }
@@ -147,7 +147,7 @@ std::optional<Entry> Lister::next() {
 }
 
 Reader::Reader(std::unique_ptr<details::Reader> &&reader)
-      : raw_reader_{std::move(reader)} {}
+    : raw_reader_{std::move(reader)} {}
 
 Reader::Reader(Reader &&) = default;
 

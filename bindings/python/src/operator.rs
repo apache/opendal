@@ -238,8 +238,6 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     pub fn check(&self) -> PyResult<()> {
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
-        let _guard = runtime.enter();
 
         self.core.check().map_err(format_pyerr)
     }

@@ -266,6 +266,8 @@ impl OssCore {
         // set sse headers
         req = self.insert_sse_headers(req);
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
@@ -293,6 +295,8 @@ impl OssCore {
 
         // set sse headers
         req = self.insert_sse_headers(req);
+
+        let req = req.extension(Operation::Write);
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -361,6 +365,8 @@ impl OssCore {
             );
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -386,6 +392,8 @@ impl OssCore {
         }
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -423,6 +431,9 @@ impl OssCore {
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
+
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -466,6 +477,7 @@ impl OssCore {
         }
 
         let req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -500,6 +512,8 @@ impl OssCore {
         req = self.insert_sse_headers(req);
 
         req = req.header("x-oss-copy-source", source);
+
+        let req = req.extension(Operation::Copy);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -552,6 +566,7 @@ impl OssCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -592,6 +607,8 @@ impl OssCore {
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
+        let req = req.extension(Operation::Delete);
+
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -631,6 +648,9 @@ impl OssCore {
             req = req.header(CACHE_CONTROL, cache_control);
         }
         req = self.insert_sse_headers(req);
+
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -659,6 +679,9 @@ impl OssCore {
 
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
+
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -691,6 +714,8 @@ impl OssCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -716,6 +741,7 @@ impl OssCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

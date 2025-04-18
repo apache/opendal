@@ -79,7 +79,7 @@ impl OpDeleter {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return per-request.
@@ -96,13 +96,6 @@ pub struct OpList {
     ///
     /// Default to `false`.
     recursive: bool,
-    /// The concurrent of stat operations inside list operation.
-    /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
-    ///
-    /// - If this is set to <= 1, the list operation will be sequential.
-    /// - If this is set to > 1, the list operation will be concurrent,
-    ///   and the maximum number of concurrent operations will be determined by this value.
-    concurrent: usize,
     /// The version is used to control whether the object versions should be returned.
     ///
     /// - If `false`, list operation will not return with object versions
@@ -119,19 +112,6 @@ pub struct OpList {
     ///
     /// Default to `false`
     deleted: bool,
-}
-
-impl Default for OpList {
-    fn default() -> Self {
-        OpList {
-            limit: None,
-            start_after: None,
-            recursive: false,
-            concurrent: 1,
-            versions: false,
-            deleted: false,
-        }
-    }
 }
 
 impl OpList {
@@ -181,14 +161,16 @@ impl OpList {
     /// Change the concurrent of this list operation.
     ///
     /// The default concurrent is 1.
-    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
-        self.concurrent = concurrent;
+    #[deprecated(since = "0.53.2", note = "concurrent in list is no-op")]
+    pub fn with_concurrent(self, concurrent: usize) -> Self {
+        let _ = concurrent;
         self
     }
 
     /// Get the concurrent of list operation.
+    #[deprecated(since = "0.53.2", note = "concurrent in list is no-op")]
     pub fn concurrent(&self) -> usize {
-        self.concurrent
+        0
     }
 
     /// Change the version of this list operation

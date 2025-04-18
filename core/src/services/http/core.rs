@@ -79,6 +79,8 @@ impl HttpCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
@@ -110,6 +112,8 @@ impl HttpCore {
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
+
+        let req = req.extension(Operation::Stat);
 
         req.body(Buffer::new()).map_err(new_request_build_error)
     }

@@ -112,6 +112,8 @@ impl AzfileCore {
             req = req.header(RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.info.http_client().fetch(req).await
@@ -152,6 +154,8 @@ impl AzfileCore {
             req = req.header(CONTENT_DISPOSITION, pos);
         }
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -186,6 +190,8 @@ impl AzfileCore {
             BytesRange::from(position..position + size).to_header(),
         );
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -201,6 +207,8 @@ impl AzfileCore {
         );
 
         let req = Request::head(&url);
+
+        let req = req.extension(Operation::Stat);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -218,6 +226,8 @@ impl AzfileCore {
         );
 
         let req = Request::head(&url);
+
+        let req = req.extension(Operation::Stat);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -269,6 +279,8 @@ impl AzfileCore {
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
+        let req = req.extension(Operation::Rename);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -290,6 +302,8 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
+        let req = req.extension(Operation::CreateDir);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -309,6 +323,8 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
+        let req = req.extension(Operation::Delete);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -327,6 +343,8 @@ impl AzfileCore {
         );
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -364,6 +382,8 @@ impl AzfileCore {
         }
 
         let req = Request::get(url.finish());
+
+        let req = req.extension(Operation::List);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

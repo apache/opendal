@@ -205,6 +205,8 @@ impl GcsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -238,6 +240,8 @@ impl GcsCore {
                 format_datetime_into_http_date(if_unmodified_since),
             );
         }
+
+        let req = req.extension(Operation::Read);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -301,6 +305,7 @@ impl GcsCore {
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if request_metadata.is_empty() {
+            let req = req.extension(Operation::Write);
             // If the metadata is empty, we do not set any `Content-Type` header,
             // since if we had it in the `op.content_type()`, it would be already set in the
             // `multipart` metadata body and this branch won't be executed.
@@ -330,7 +335,8 @@ impl GcsCore {
                 .content(body);
             multipart = multipart.part(media_part);
 
-            let req = multipart.apply(Request::post(url))?;
+            let req = multipart.apply(Request::post(url).extension(Operation::Write))?;
+
             Ok(req)
         }
     }
@@ -370,6 +376,8 @@ impl GcsCore {
             req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -395,6 +403,8 @@ impl GcsCore {
             req = req.header(IF_MATCH, if_match);
         }
 
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -419,6 +429,8 @@ impl GcsCore {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
+
+        let req = req.extension(Operation::Stat);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -472,7 +484,7 @@ impl GcsCore {
             );
         }
 
-        let req = Request::post(uri);
+        let req = Request::post(uri).extension(Operation::Delete);
         let mut req = multipart.apply(req)?;
 
         self.sign(&mut req).await?;
@@ -494,6 +506,7 @@ impl GcsCore {
 
         let mut req = Request::post(req_uri)
             .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Copy)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -538,6 +551,7 @@ impl GcsCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -553,6 +567,7 @@ impl GcsCore {
 
         let mut req = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -582,6 +597,8 @@ impl GcsCore {
         let mut req = Request::put(&url);
 
         req = req.header(CONTENT_LENGTH, size);
+
+        let req = req.extension(Operation::Write);
 
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -614,6 +631,8 @@ impl GcsCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -638,6 +657,7 @@ impl GcsCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

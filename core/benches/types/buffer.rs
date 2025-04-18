@@ -16,107 +16,98 @@
 // under the License.
 
 use bytes::Buf;
-use criterion::Criterion;
+use bytes::Bytes;
+use divan::{black_box, Bencher};
 use opendal::Buffer;
-use rand::thread_rng;
-use size::Size;
 
-use super::utils::*;
+mod chunk {
+    use super::*;
 
-pub fn bench_non_contiguous_buffer(c: &mut Criterion) {
-    let mut group = c.benchmark_group("bench_non_contiguous_buffer");
-
-    let mut rng = thread_rng();
-
-    for size in [Size::from_kibibytes(256), Size::from_mebibytes(4)] {
-        for num in [4, 32] {
-            let bytes_buf = gen_bytes(&mut rng, size.bytes() as usize * num);
-            let mut bytes_vec = vec![];
-            for _ in 0..num {
-                bytes_vec.push(gen_bytes(&mut rng, size.bytes() as usize));
-            }
-            let buffer = Buffer::from(bytes_vec);
-
-            let bytes_buf_name = format!("bytes buf {} * {} ", size.to_string(), num);
-            let buffer_name = format!("buffer {} * {}", size.to_string(), num);
-
-            group.bench_function(format!("{} {}", bytes_buf_name, "chunk"), |b| {
-                b.iter(|| bytes_buf.chunk())
+    #[divan::bench]
+    fn bytes(b: Bencher) {
+        b.with_inputs(|| Bytes::from(vec![1; 10]))
+            .bench_refs(|buffer| {
+                black_box(buffer.chunk());
             });
-            group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
-                b.iter(|| buffer.chunk())
-            });
-
-            group.bench_function(format!("{} {}", bytes_buf_name, "advance"), |b| {
-                b.iter(|| {
-                    let mut bytes_buf = bytes_buf.clone();
-                    // Advance non-integer number of Bytes.
-                    bytes_buf.advance((size.bytes() as f64 * 3.5) as usize);
-                })
-            });
-            group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
-                b.iter(|| {
-                    let mut buffer = buffer.clone();
-                    // Advance non-integer number of Bytes.
-                    buffer.advance((size.bytes() as f64 * 3.5) as usize);
-                })
-            });
-
-            group.bench_function(format!("{} {}", bytes_buf_name, "truncate"), |b| {
-                b.iter(|| {
-                    let mut bytes_buf = bytes_buf.clone();
-                    // Truncate non-integer number of Bytes.
-                    bytes_buf.truncate((size.bytes() as f64 * 3.5) as usize);
-                })
-            });
-            group.bench_function(format!("{} {}", buffer_name, "truncate"), |b| {
-                b.iter(|| {
-                    let mut buffer = buffer.clone();
-                    // Truncate non-integer number of Bytes.
-                    buffer.truncate((size.bytes() as f64 * 3.5) as usize);
-                })
-            });
-        }
     }
 
-    group.finish()
+    #[divan::bench]
+    fn contiguous(b: Bencher) {
+        b.with_inputs(|| Buffer::from(vec![1; 10]))
+            .bench_refs(|buffer| {
+                black_box(buffer.chunk());
+            });
+    }
+
+    #[divan::bench(args = [10, 1_000, 1_000_000])]
+    fn non_contiguous(b: Bencher, parts: usize) {
+        b.with_inputs(|| Buffer::from([1; 1].repeat(parts)))
+            .bench_refs(|buffer| {
+                black_box(buffer.chunk());
+            });
+    }
 }
 
-pub fn bench_non_contiguous_buffer_with_extreme(c: &mut Criterion) {
-    let mut group: criterion::BenchmarkGroup<criterion::measurement::WallTime> =
-        c.benchmark_group("bench_non_contiguous_buffer_with_extreme");
+mod advance {
+    use super::*;
 
-    let mut rng = thread_rng();
-
-    let size = Size::from_kibibytes(256);
-    let bytes = gen_bytes(&mut rng, size.bytes() as usize);
-    for num in [1000, 10000, 100000, 1000000] {
-        let repeated_bytes = RepeatedBytes {
-            bytes: bytes.clone(),
-            index: 0,
-            count: num,
-        };
-        let buffer = Buffer::from_iter(repeated_bytes);
-        let buffer_name = format!("{} * {}k", size.to_string(), num / 1000);
-
-        group.bench_function(format!("{} {}", buffer_name, "chunk"), |b| {
-            b.iter(|| buffer.chunk())
-        });
-
-        group.bench_function(format!("{} {}", buffer_name, "advance"), |b| {
-            b.iter(|| {
-                let mut buffer = buffer.clone();
-                buffer.advance(buffer.len());
-            })
-        });
-
-        group.bench_function(format!("{} {}", buffer_name, "truncate"), |b| {
-            b.iter(|| {
-                let mut buffer = buffer.clone();
-                buffer.truncate(buffer.len());
-            })
-        });
+    #[divan::bench]
+    fn bytes(b: Bencher) {
+        b.with_inputs(|| Bytes::from(vec![1; 10]))
+            .bench_refs(|buffer| buffer.advance(4));
     }
 
-    group.finish()
+    #[divan::bench]
+    fn contiguous(b: Bencher) {
+        b.with_inputs(|| Buffer::from(vec![1; 10]))
+            .bench_refs(|buffer| buffer.advance(4));
+    }
+
+    #[divan::bench(args = [10, 1_000, 1_000_000])]
+    fn non_contiguous(b: Bencher, parts: usize) {
+        b.with_inputs(|| Buffer::from([1; 1].repeat(parts)))
+            .bench_refs(|buffer| buffer.advance(4));
+    }
+}
+
+mod truncate {
+    use super::*;
+
+    #[divan::bench]
+    fn bytes(b: Bencher) {
+        b.with_inputs(|| Bytes::from(vec![1; 10]))
+            .bench_refs(|buffer| buffer.truncate(5));
+    }
+
+    #[divan::bench]
+    fn contiguous(b: Bencher) {
+        b.with_inputs(|| Buffer::from(vec![1; 10]))
+            .bench_refs(|buffer| buffer.truncate(5));
+    }
+
+    #[divan::bench(args = [10, 1_000, 1_000_000])]
+    fn non_contiguous(b: Bencher, parts: usize) {
+        b.with_inputs(|| Buffer::from([1; 1].repeat(parts)))
+            .bench_refs(|buffer| buffer.truncate(4));
+    }
+}
+
+mod iterator {
+    use super::*;
+
+    #[divan::bench]
+    fn contiguous(b: Bencher) {
+        b.with_inputs(|| Buffer::from(vec![1; 1_000_000]))
+            .bench_refs(|buffer| loop {
+                let Some(_) = buffer.next() else { break };
+            });
+    }
+
+    #[divan::bench(args = [10, 1_000, 1_000_000])]
+    fn non_contiguous(b: Bencher, parts: usize) {
+        b.with_inputs(|| Buffer::from(vec![1; 1_000_000 / parts].repeat(parts)))
+            .bench_refs(|buffer| loop {
+                let Some(_) = buffer.next() else { break };
+            });
+    }
 }

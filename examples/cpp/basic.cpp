@@ -1,11 +1,10 @@
 #include "opendal.hpp"
 
 #include <string>
-#include <vector>
 #include <iostream>
 
 int main() {
-  std::vector<uint8_t> data = {'a', 'b', 'c'};
+  std::string_view data = "abc";
 
   // Init operator
   opendal::Operator op = opendal::Operator("memory");
@@ -15,11 +14,17 @@ int main() {
 
   // Read data from operator
   auto res = op.read("test"); // res == data
+  std::cout << res << std::endl;
 
   // Using reader
   auto reader = op.reader("test");
-  opendal::ReaderStream stream(std::move(reader));
-  std::string res2;
-  stream >> res2; // res2 == "abc"
+  std::string res2(3, 0);
+  reader.read(res2.data(), data.size()); // res2 == "abc"
   std::cout << res2 << std::endl;
+
+  // Using reader stream
+  opendal::ReaderStream stream(op.reader("test"));
+  std::string res3;
+  stream >> res3; // res3 == "abc"
+  std::cout << res3 << std::endl;
 }

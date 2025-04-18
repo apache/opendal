@@ -19,24 +19,29 @@
 
 #pragma once
 
-#include <memory>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/date_time/posix_time/ptime.hpp"
 #include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream.hpp"
-#include "lib.rs.h"
 
 namespace opendal {
+
+namespace details {
+class Operator;
+class Reader;
+class Lister;
+}  // namespace details
 
 /**
  * @enum EntryMode
  * @brief The mode of the entry
  */
-enum EntryMode {
+enum class EntryMode : int {
   FILE = 1,
   DIR = 2,
   UNKNOWN = 0,
@@ -55,8 +60,6 @@ struct Metadata {
   std::optional<std::string> content_type;
   std::optional<std::string> etag;
   std::optional<boost::posix_time::ptime> last_modified;
-
-  Metadata(ffi::Metadata &&);
 };
 
 /**
@@ -65,8 +68,6 @@ struct Metadata {
  */
 struct Entry {
   std::string path;
-
-  Entry(ffi::Entry &&);
 };
 
 class Reader;
@@ -78,7 +79,7 @@ class Lister;
  */
 class Operator {
  public:
-  Operator() = default;
+  Operator();
 
   /**
    * @brief Construct a new Operator object
@@ -94,9 +95,10 @@ class Operator {
   Operator &operator=(const Operator &) = delete;
 
   // Enable move
-  Operator(Operator &&) = default;
-  Operator &operator=(Operator &&) = default;
-  ~Operator() = default;
+  Operator(Operator &&);
+  Operator &operator=(Operator &&);
+
+  ~Operator();
 
   /**
    * @brief Check if the operator is available
@@ -113,7 +115,7 @@ class Operator {
    * @param path The path of the data
    * @return The data read from the operator
    */
-  std::vector<uint8_t> read(std::string_view path);
+  std::string read(std::string_view path);
 
   /**
    * @brief Write data to the operator
@@ -121,7 +123,7 @@ class Operator {
    * @param path The path of the data
    * @param data The data to write
    */
-  void write(std::string_view path, const std::vector<uint8_t> &data);
+  void write(std::string_view path, std::string_view data);
 
   /**
    * @brief Read data from the operator
@@ -198,7 +200,7 @@ class Operator {
   Lister lister(std::string_view path);
 
  private:
-  std::optional<rust::Box<opendal::ffi::Operator>> operator_;
+  std::unique_ptr<details::Operator> operator_;
 };
 
 /**
@@ -213,14 +215,18 @@ class Operator {
 class Reader
     : public boost::iostreams::device<boost::iostreams::input_seekable> {
  public:
-  Reader(rust::Box<opendal::ffi::Reader> &&reader)
-      : raw_reader_(std::move(reader)) {}
+  Reader(std::unique_ptr<details::Reader> &&reader);
+
+  Reader(Reader &&);
+
+  ~Reader();
 
   std::streamsize read(void *s, std::streamsize n);
+
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
  private:
-  rust::Box<opendal::ffi::Reader> raw_reader_;
+  std::unique_ptr<details::Reader> raw_reader_;
 };
 
 // Boost IOStreams requires it to be copyable. So we need to use
@@ -259,8 +265,11 @@ class ReaderStream
  */
 class Lister {
  public:
-  Lister(rust::Box<opendal::ffi::Lister> &&lister)
-      : raw_lister_(std::move(lister)) {}
+  Lister(std::unique_ptr<details::Lister> lister);
+
+  Lister(Lister &&);
+
+  ~Lister();
 
   /**
    * @class ListerIterator
@@ -268,7 +277,7 @@ class Lister {
    * @note It's an undefined behavior to make multiple iterators from one
    * Lister.
    */
-  class ListerIterator {
+  class Iterator {
    public:
     using iterator_category = std::input_iterator_tag;
     using value_type = Entry;
@@ -276,27 +285,27 @@ class Lister {
     using pointer = Entry *;
     using reference = Entry &;
 
-    ListerIterator(Lister &lister) : lister_(lister) {
+    Iterator(Lister &lister) : lister_{lister} {
       current_entry_ = lister_.next();
     }
 
     Entry operator*() { return current_entry_.value(); }
 
-    ListerIterator &operator++() {
+    Iterator &operator++() {
       if (current_entry_) {
         current_entry_ = lister_.next();
       }
       return *this;
     }
 
-    bool operator!=(const ListerIterator &other) const {
+    bool operator!=(const Iterator &other) const {
       return current_entry_ != std::nullopt ||
              other.current_entry_ != std::nullopt;
     }
 
    protected:
     // Only used for end iterator
-    ListerIterator(Lister &lister, bool /*end*/) : lister_(lister) {}
+    Iterator(Lister &lister, bool /*end*/) : lister_(lister) {}
 
    private:
     Lister &lister_;
@@ -312,10 +321,11 @@ class Lister {
    */
   std::optional<Entry> next();
 
-  ListerIterator begin() { return ListerIterator(*this); }
-  ListerIterator end() { return ListerIterator(*this, true); }
+  Iterator begin() { return Iterator(*this); }
+  Iterator end() { return Iterator(*this, true); }
 
  private:
-  rust::Box<opendal::ffi::Lister> raw_lister_;
+  std::unique_ptr<details::Lister> raw_lister_;
 };
+
 }  // namespace opendal

@@ -27,6 +27,34 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
+type readOption struct {
+	Range *Range
+}
+
+// withReadOption is a functional option type for configuring read options.
+type withReadOption func(*readOption)
+
+// ReadFrom creates a WithReadOption that specifies the starting position for reading.
+func ReadFrom(value uint64) withReadOption {
+	return func(o *readOption) {
+		o.Range = rangeFrom(value)
+	}
+}
+
+// ReadUntil creates a WithReadOption that specifies the ending position for reading.
+func ReadUntil(value uint64) withReadOption {
+	return func(o *readOption) {
+		o.Range = rangeUntil(value)
+	}
+}
+
+// ReadBetween creates a WithReadOption that specifies a range for reading.
+func ReadBetween(start, end uint64) withReadOption {
+	return func(o *readOption) {
+		o.Range = rangeBetween(start, end)
+	}
+}
+
 // Read reads the entire contents of the file at the specified path into a byte slice.
 //
 // This function is a wrapper around the C-binding function `opendal_operator_read`.
@@ -57,9 +85,22 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Read(path string) ([]byte, error) {
-	read := getFFI[operatorRead](op.ctx, symOperatorRead)
-	bytes, err := read(op.inner, path)
+func (op *Operator) Read(path string, opts ...withReadOption) ([]byte, error) {
+	var (
+		bytes opendalBytes
+		err   error
+	)
+	var opt readOption
+	for _, o := range opts {
+		o(&opt)
+	}
+	if opt.Range != nil {
+		read := getFFI[operatorReadRange](op.ctx, symOperatorReadRange)
+		bytes, err = read(op.inner, path, opt.Range.Start(), opt.Range.End())
+	} else {
+		read := getFFI[operatorRead](op.ctx, symOperatorRead)
+		bytes, err = read(op.inner, path)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +259,32 @@ var withOperatorRead = withFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+		)
+		return result.data, parseError(ctx, result.error)
+	}
+})
+
+const symOperatorReadRange = "opendal_operator_read_range"
+
+type operatorReadRange func(op *opendalOperator, path string, start uint64, end uint64) (opendalBytes, error)
+
+var withOperatorReadRange = withFFI(ffiOpts{
+	sym:    symOperatorReadRange,
+	rType:  &typeResultRead,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypeUint64},
+}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorReadRange {
+	return func(op *opendalOperator, path string, start uint64, end uint64) (opendalBytes, error) {
+		bytePath, err := BytePtrFromString(path)
+		if err != nil {
+			return opendalBytes{}, err
+		}
+		var result resultRead
+		ffiCall(
+			unsafe.Pointer(&result),
+			unsafe.Pointer(&op),
+			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&start),
+			unsafe.Pointer(&end),
 		)
 		return result.data, parseError(ctx, result.error)
 	}

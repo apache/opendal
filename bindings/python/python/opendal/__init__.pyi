@@ -135,20 +135,22 @@ class Operator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    def list(self, path: PathBuf) -> Iterable[Entry]:
+    def list(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
         """List the objects at the given path.
 
         Args:
             path (str|Path): The path to the directory.
+            start_after (str | None): The key to start listing from.
 
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    def scan(self, path: PathBuf) -> Iterable[Entry]:
-        """Scan the objects at the given path.
+    def scan(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
+        """Scan the objects at the given path recursively.
 
         Args:
             path (str|Path): The path to the directory.
+            start_after (str | None): The key to start listing from.
 
         Returns:
             An iterable of entries representing the objects in the directory.
@@ -282,16 +284,26 @@ class AsyncOperator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    async def list(self, path: PathBuf) -> AsyncIterable[Entry]:
+    async def list(self, path: PathBuf, *, start_after: str | None = None) -> AsyncIterable[Entry]:
         """List the objects at the given path.
 
         Args:
             path (str|Path): The path to the directory.
+            start_after (str | None): The key to start listing from.
 
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    async def scan(self, path: PathBuf) -> AsyncIterable[Entry]: ...
+    async def scan(self, path: PathBuf, *, start_after: str | None = None) -> AsyncIterable[Entry]:
+        """Scan the objects at the given path recursively.
+
+        Args:
+            path (str|Path): The path to the directory.
+            start_after (str | None): The key to start listing from.
+
+        Returns:
+            An iterable of entries representing the objects in the directory.
+        """
     async def presign_stat(
         self, path: PathBuf, expire_second: int
     ) -> PresignedRequest:

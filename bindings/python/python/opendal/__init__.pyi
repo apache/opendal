@@ -284,7 +284,9 @@ class AsyncOperator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    async def list(self, path: PathBuf, *, start_after: str | None = None) -> AsyncIterable[Entry]:
+    async def list(
+        self, path: PathBuf, *, start_after: str | None = None
+    ) -> AsyncIterable[Entry]:
         """List the objects at the given path.
 
         Args:
@@ -294,7 +296,9 @@ class AsyncOperator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    async def scan(self, path: PathBuf, *, start_after: str | None = None) -> AsyncIterable[Entry]:
+    async def scan(
+        self, path: PathBuf, *, start_after: str | None = None
+    ) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
 
         Args:
@@ -304,9 +308,7 @@ class AsyncOperator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    async def presign_stat(
-        self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest:
+    async def presign_stat(self, path: PathBuf, expire_second: int) -> PresignedRequest:
         """Generate a presigned URL for stat operation.
 
         Args:
@@ -316,9 +318,7 @@ class AsyncOperator(_Base):
         Returns:
             A presigned request object.
         """
-    async def presign_read(
-        self, path: PathBuf, expire_second: int
-    ) -> PresignedRequest:
+    async def presign_read(self, path: PathBuf, expire_second: int) -> PresignedRequest:
         """Generate a presigned URL for read operation.
 
         Args:

@@ -29,6 +29,7 @@ version = "0.51.1"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
+services-s3 = ["opendal/services-s3", "object_store/aws"]
 
 [[test]]
 harness = false
@@ -38,9 +39,7 @@ path = "tests/behavior/main.rs"
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
-flagset = "0.4"
 futures = "0.3"
-futures-util = "0.3"
 object_store = "0.11"
 opendal = { version = "0.53.0", path = "../../core", default-features = false }
 pin-project = "1.1"

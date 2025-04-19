@@ -509,7 +509,12 @@ impl AsyncOperator {
 
     /// List current dir path.
     #[pyo3(signature = (path, *, start_after=None))]
-    pub fn list<\'p>(&\'p self, py: Python<\'p>, path: PathBuf, start_after: Option<String>) -> PyResult<Bound<\'p, PyAny>> {
+    pub fn list<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        start_after: Option<String>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
@@ -526,7 +531,12 @@ impl AsyncOperator {
 
     /// List dir in flat way.
     #[pyo3(signature = (path, *, start_after=None))]
-    pub fn scan<\'p>(&\'p self, py: Python<\'p>, path: PathBuf, start_after: Option<String>) -> PyResult<Bound<\'p, PyAny>> {
+    pub fn scan<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        start_after: Option<String>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {

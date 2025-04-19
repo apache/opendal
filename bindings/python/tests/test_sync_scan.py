@@ -70,7 +70,6 @@ def test_sync_scan_with_start_after(operator, test_scan_dir):
     start_after_path = files[start_after_index]
 
     entries = list(operator.scan(dir_name, start_after=start_after_path))
-    # Exclude the base directory and the start_after path itself from results for comparison
     entry_paths = sorted(
         [e.path for e in entries if e.path != dir_name and e.path != start_after_path]
     )

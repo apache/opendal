@@ -18,9 +18,6 @@
 from uuid import uuid4
 import pytest
 
-# Reuse the synchronous fixture for setup, as setup operations can be sync
-from .test_sync_list import test_list_dir
-
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability(
@@ -38,7 +35,6 @@ async def test_async_list_with_start_after(async_operator, test_list_dir):
     ):
         entries.append(entry)
 
-    # Exclude the base directory and the start_after path itself from results for comparison
     entry_paths = sorted(
         [e.path for e in entries if e.path != dir_name and e.path != start_after_path]
     )

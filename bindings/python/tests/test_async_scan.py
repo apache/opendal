@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 from uuid import uuid4
 import pytest
-
-# Reuse the synchronous fixture for setup
-from .test_sync_scan import test_scan_dir
 
 
 @pytest.mark.asyncio
@@ -44,7 +40,6 @@ async def test_async_scan_with_start_after(async_operator, test_scan_dir):
     ):
         entries.append(entry)
 
-    # Exclude the base directory and the start_after path itself from results for comparison
     entry_paths = sorted(
         [e.path for e in entries if e.path != dir_name and e.path != start_after_path]
     )

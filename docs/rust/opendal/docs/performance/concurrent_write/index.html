@@ -1,0 +1,65 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Concurrent Write"><title>opendal::docs::performance::concurrent_write - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (43a2e9d2c 2025-03-17)" data-channel="nightly" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js"><script src="../../../../static.files/storage-d8ac8691.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.53.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module concurrent_<wbr>write</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#concurrent-write" title="Concurrent Write">Concurrent Write</a><ul><li><a href="#tuning" title="Tuning">Tuning</a></li><li><a href="#usage" title="Usage">Usage</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>performance</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">performance</a></div><h1>Module <span>concurrent_write</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal/docs/performance/mod.rs.html#29">Source</a> </span></div><span class="item-info"><div class="stab portability">Available on <strong><code>docsrs</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="concurrent-write"><a class="doc-anchor" href="#concurrent-write">§</a>Concurrent Write</h2>
+<p>OpenDAL writes data sequentially by default.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>w = op.writer(<span class="string">"test.txt"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+w.write(data1).<span class="kw">await</span><span class="question-mark">?</span>;
+w.write(data2).<span class="kw">await</span><span class="question-mark">?</span>;
+w.close().<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div>
+<p>Most of the time, this can’t maximize write performance due to limitations on a single connection. We can perform concurrent writes to improve performance.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>w = op
+    .writer_with(<span class="string">"test.txt"</span>)
+    .concurrent(<span class="number">8</span>)
+    .<span class="kw">await</span><span class="question-mark">?</span>;
+
+w.write(data1).<span class="kw">await</span><span class="question-mark">?</span>;
+w.write(data2).<span class="kw">await</span><span class="question-mark">?</span>;
+w.close().<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div>
+<p>After setting <code>concurrent</code>, OpenDAL will attempt to write the specified file concurrently. The maximum level of concurrency is determined by the <code>concurrent</code> parameter. By default, it is set to 1, indicating a sequential write operation.</p>
+<p>Under the hood, OpenDAL maintains a task queue to manage concurrent writes. It spawns asynchronous tasks in the background using the <a href="../../../struct.Executor.html" title="struct opendal::Executor"><code>Executor</code></a> and tracks the status of each task. The task queue is flushed when the writer is closed, allowing data to be written concurrently without blocking the main thread.</p>
+<p>Take our example here, the write of <code>data1</code> will not block the write of <code>data2</code>. The two writes will be executed concurrently.</p>
+<p>The underlying implementation of concurrent writes may vary depending on the backend. For instance, the <code>s3</code> backend leverages the S3 Multipart Uploads API to handle concurrent writes, while the <code>azblob</code> backend utilizes the Block API for the same purpose.</p>
+<h3 id="tuning"><a class="doc-anchor" href="#tuning">§</a>Tuning</h3>
+<p>There are two parameters that can be tuned to optimize concurrent writes:</p>
+<ul>
+<li><code>concurrent</code>: This parameter controls the maximum number of concurrent writes. The default value is 1.</li>
+<li><code>chunk</code>: This parameter specifies the size of each chunk of data to be written. The default value is vary for different storage services.</li>
+</ul>
+<h4 id="concurrent"><a class="doc-anchor" href="#concurrent">§</a><code>concurrent</code></h4>
+<p>The most important thing to understand is that <code>concurrent</code> is not a strict limit. It represents the maximum number of concurrent writes that OpenDAL will attempt to perform. The actual number of concurrent writes may be lower, depending on the input data throughput.</p>
+<p>For example, if you set <code>concurrent</code> to 8, OpenDAL will attempt to perform up to 8 concurrent writes. However, if the input data throughput is low, it might only carry out 2 or 3 concurrent writes at a time, as there isn’t enough data to keep all 8 writes active.</p>
+<p>The best value for <code>concurrent</code> depends on the specific use case and the underlying storage service. In general, a higher value can lead to better performance, but it highly depends on the storage service and the network conditions. For example, if the storage service is robust and bandwidth is sufficient, you may observe a linear increase in performance with higher <code>concurrent</code> values. However, if the storage service has request limits or the network is nearly saturated, increasing <code>concurrent</code> may not lead to any performance improvement—and could even degrade performance due to infinite retries on errors.</p>
+<p>It’s recommended to start with a lower value like <code>2</code> or <code>4</code> and gradually increase it while monitoring performance and resource usage.</p>
+<h4 id="chunk"><a class="doc-anchor" href="#chunk">§</a><code>chunk</code></h4>
+<p>The <code>chunk</code> parameter specifies the size of each chunk of data to be written. A larger chunk size can improve performance, but it may also increase memory usage. The default value is vary for different storage services.</p>
+<p>For example, s3 is using <code>5MiB</code> as the default chunk size. It’s also the minimum chunk size for s3. If you set a smaller chunk size, OpenDAL will automatically adjust it to <code>5MiB</code>.</p>
+<p>The best value for <code>chunk</code> depends on the specific use case and the underlying storage service. For most object storage services, a chunk size of <code>8MiB</code> or larger is recommended. However, if you’re working with smaller files or have limited memory resources, you may want to use a smaller chunk size.</p>
+<p>Please note that if you input small chunks of data, OpenDAL will attempt to merge them into a larger chunk before writing. This helps avoid the overhead of writing numerous small chunks, which can negatively affect performance.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>To upload a large in-memory chunk concurrently:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>data = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="number">10 </span>* <span class="number">1024 </span>* <span class="number">1024</span>]; <span class="comment">// 10MiB
+</span><span class="kw">let _ </span>= op.write_with(<span class="string">"test.txt"</span>, data).concurrent(<span class="number">4</span>).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div>
+<p><code>concurrent</code> and <code>chunk</code> also works in <a href="../../../struct.Writer.html#method.into_sink" title="method opendal::Writer::into_sink"><code>into_sink</code></a>, <a href="../../../struct.Writer.html#method.into_bytes_sink" title="method opendal::Writer::into_bytes_sink"><code>into_bytes_sink</code></a> and <a href="../../../struct.Writer.html#method.into_futures_async_write" title="method opendal::Writer::into_futures_async_write"><code>into_futures_async_write</code></a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::io;
+
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>futures::SinkExt;
+<span class="kw">use </span>opendal::{Buffer, Operator};
+<span class="kw">use </span>opendal::Result;
+
+<span class="kw">async fn </span>test(op: Operator) -&gt; io::Result&lt;()&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>w = op
+        .writer_with(<span class="string">"hello.txt"</span>)
+        .concurrent(<span class="number">8</span>)
+        .chunk(<span class="number">256</span>)
+        .<span class="kw">await</span><span class="question-mark">?
+        </span>.into_sink();
+    <span class="kw">let </span>bs = <span class="string">"Hello, World!"</span>.as_bytes();
+    w.send(Buffer::from(bs)).<span class="kw">await</span><span class="question-mark">?</span>;
+    w.close().<span class="kw">await</span><span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div>
+</div></details></section></div></main></body></html>

@@ -420,6 +420,14 @@ impl S3Builder {
         self
     }
 
+    /// Enable request payer so that OpenDAL will send requests with `x-amz-request-payer` header.
+    ///
+    /// With this option the client accepts to pay for the request and data transfer costs.
+    pub fn enable_request_payer(mut self) -> Self {
+        self.config.enable_request_payer = true;
+        self
+    }
+
     /// Disable load credential from ec2 metadata.
     ///
     /// This option is used to disable the default behavior of opendal
@@ -1005,6 +1013,7 @@ impl Builder for S3Builder {
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_list_objects_v2: self.config.disable_list_objects_v2,
+                enable_request_payer: self.config.enable_request_payer,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),

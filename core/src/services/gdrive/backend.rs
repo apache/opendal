@@ -169,7 +169,9 @@ impl Access for GdriveBackend {
         });
         let body = Buffer::from(Bytes::from(request_body.to_string()));
 
+        // TODO: move this request to core.rs
         let mut req = Request::post(&url)
+            .extension(Operation::Copy)
             .body(body)
             .map_err(new_request_build_error)?;
         self.core.sign(&mut req).await?;

@@ -154,6 +154,8 @@ impl B2Core {
             req = req.header(header::RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
@@ -170,6 +172,8 @@ impl B2Core {
         let mut req = Request::get(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -264,6 +268,8 @@ impl B2Core {
             req = req.header(header::CONTENT_DISPOSITION, pos)
         }
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -291,6 +297,8 @@ impl B2Core {
             mime.clone_into(&mut start_large_file_request.content_type)
         }
 
+        let req = req.extension(Operation::Write);
+
         let body =
             serde_json::to_vec(&start_large_file_request).map_err(new_json_serialize_error)?;
         let body = bytes::Bytes::from(body);
@@ -313,6 +321,8 @@ impl B2Core {
         let mut req = Request::get(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -350,6 +360,8 @@ impl B2Core {
 
         req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -368,6 +380,8 @@ impl B2Core {
         let mut req = Request::post(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         let body = serde_json::to_vec(&FinishLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -392,6 +406,8 @@ impl B2Core {
         let mut req = Request::post(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         let body = serde_json::to_vec(&CancelLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -444,6 +460,8 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
+        let req = req.extension(Operation::List);
+
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -460,6 +478,8 @@ impl B2Core {
         let mut req = Request::post(url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Copy);
 
         let body = CopyFileRequest {
             source_file_id,
@@ -487,6 +507,8 @@ impl B2Core {
         let mut req = Request::post(url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Delete);
 
         let body = HideFileRequest {
             bucket_id: self.bucket_id.clone(),

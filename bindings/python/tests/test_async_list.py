@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from uuid import uuid4
-import pytest
 import asyncio
+from uuid import uuid4
+
+import pytest
 
 
 @pytest.mark.asyncio

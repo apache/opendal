@@ -530,11 +530,7 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(
-        &'p self,
-        py: Python<'p>,
-        path: PathBuf,
-    ) -> PyResult<Bound<'p, PyAny>> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {

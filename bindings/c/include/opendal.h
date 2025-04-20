@@ -1482,7 +1482,7 @@ struct opendal_result_operator_new opendal_async_operator_new(const char *scheme
  * `op` must be a valid pointer previously returned by `opendal_async_operator_new`.
  * Calling with NULL does nothing.
  */
-void opendal_async_operator_free(struct opendal_async_operator *op);
+void opendal_async_operator_free(const struct opendal_async_operator *op);
 
 /**
  * \brief Asynchronously gets metadata of a path.

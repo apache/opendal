@@ -234,6 +234,7 @@ impl Access for YandexDiskBackend {
 
         let req = Request::get(download_url)
             .header(header::RANGE, args.range().to_header())
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let resp = self.core.info.http_client().fetch(req).await?;

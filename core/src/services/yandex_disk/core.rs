@@ -74,6 +74,8 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::Write);
+
         let req = self.sign(req);
 
         // Set body
@@ -105,6 +107,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Read);
 
         let req = self.sign(req);
 
@@ -155,6 +159,8 @@ impl YandexDiskCore {
 
         let req = Request::put(url);
 
+        let req = req.extension(Operation::CreateDir);
+
         let req = self.sign(req);
 
         // Set body
@@ -174,6 +180,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::post(url);
+
+        let req = req.extension(Operation::Copy);
 
         let req = self.sign(req);
 
@@ -195,6 +203,8 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
+        let req = req.extension(Operation::Rename);
+
         let req = self.sign(req);
 
         // Set body
@@ -212,6 +222,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::delete(url);
+
+        let req = req.extension(Operation::Delete);
 
         let req = self.sign(req);
 
@@ -243,6 +255,8 @@ impl YandexDiskCore {
         }
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Stat);
 
         let req = self.sign(req);
 

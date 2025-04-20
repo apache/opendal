@@ -20,6 +20,7 @@ import pytest
 import asyncio
 
 
+@pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy", "list", "list_with_start_after")
 async def test_async_list_with_start_after(service_name, operator, async_operator):
     test_dir = f"test_async_list_dir_{uuid4()}/"

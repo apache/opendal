@@ -153,13 +153,13 @@ pub unsafe extern "C" fn opendal_async_operator_new(
 /// `op` must be a valid pointer previously returned by `opendal_async_operator_new`.
 /// Calling with NULL does nothing.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_async_operator_free(op: *mut opendal_async_operator) {
+pub unsafe extern "C" fn opendal_async_operator_free(op: *const opendal_async_operator) {
     if !op.is_null() {
         // Drop the inner Operator and the Handle
         drop(Box::from_raw((*op).inner));
         drop(Box::from_raw((*op).rt as *mut Handle));
         // Drop the container struct itself
-        drop(Box::from_raw(op));
+        drop(Box::from_raw(op as *mut opendal_async_operator));
     }
 }
 

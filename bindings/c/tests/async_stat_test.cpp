@@ -3,32 +3,38 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // For usleep
-
+#include "gtest/gtest.h"
 // Include the generated OpenDAL C header
-#include "opendal.h"
+extern "C" {
+    #include "opendal.h"
+    }
+    
+class OpendalAsyncStatTest : public ::testing::Test {
+    protected:
+        const opendal_async_operator* op;
+    
+        void SetUp() override
+        {
+            opendal_result_operator_new result_op = opendal_async_operator_new("memory", NULL);
+            EXPECT_TRUE(result_op.error == nullptr);
+            EXPECT_TRUE(result_op.op != nullptr);
 
-int main(int argc, char *argv[]) {
-    printf("Starting OpenDAL C async stat test...\n");
+            this->op = (opendal_async_operator *)result_op.op;
+            EXPECT_TRUE(this->op);
+        }
+    
+        void TearDown() override {
+            opendal_async_operator_free(this->op); // Use the async free function
+        }
+    };
 
-    // 1. Create Operator
-    // Use memory backend for testing, no options needed
-    opendal_result_operator_new result_op = opendal_async_operator_new("memory", NULL);
-    assert(result_op.error == NULL);
-
-    // IMPORTANT: Cast the operator pointer to the async type
-    opendal_async_operator *op = (opendal_async_operator *)result_op.op;
-    assert(op != NULL);
-    printf("Async Operator created successfully.\n");
-
-    // 2. Call async stat for a non-existent file
+TEST_F(OpendalAsyncStatTest, AsyncStatTest) {
+    // Call async stat for a non-existent file
     const char *path = "non_existent_file.txt";
-    printf("Calling async stat for path: %s\n", path);
-    opendal_future_stat *future_stat = opendal_async_operator_stat(op, path);
-    assert(future_stat != NULL);
-    printf("Async stat future created.\n");
+    opendal_future_stat *future_stat = opendal_async_operator_stat(this->op, path);
+    EXPECT_TRUE(future_stat != nullptr);
 
-    // 3. Poll the future until it's ready
-    printf("Polling future status...\n");
+    // Poll the future until it's ready
     opendal_future_poll_status status;
     int poll_count = 0;
     while ((status = opendal_future_stat_poll(future_stat)) == PENDING) {
@@ -37,30 +43,20 @@ int main(int argc, char *argv[]) {
         // In a real application, you might integrate this with an event loop.
         usleep(10000);
     }
-    printf("Future is READY after %d polls.\n", poll_count);
     assert(status == READY);
 
-    // 4. Get the result
-    printf("Getting future result...\n");
+    // Get the result
     opendal_result_stat result_stat = opendal_future_stat_get(future_stat);
 
-    // 5. Verify the result (should be NotFound error)
-    assert(result_stat.meta == NULL); // Meta should be NULL for error
-    assert(result_stat.error != NULL); // Error should be non-NULL
+    // Verify the result (should be NotFound error)
+    EXPECT_TRUE(result_stat.meta == nullptr); // Meta should be NULL for error
+    EXPECT_TRUE(result_stat.error != nullptr); // Error should be non-NULL
 
     opendal_code error_code = result_stat.error->code;
     const char *error_message = (const char*)result_stat.error->message.data;
 
-    printf("Received expected error: Code %d, Message: %s\n", error_code, error_message); // Be careful with %s if not null-terminated
-    assert(error_code == OPENDAL_NOT_FOUND);
-
-    // 6. Free resources
-    printf("Freeing resources...\n");
+    EXPECT_TRUE(error_code == OPENDAL_NOT_FOUND);
+    // Free resources
     opendal_error_free(result_stat.error);
     opendal_future_stat_free(future_stat);
-    opendal_async_operator_free(op); // Use the async free function
-
-    printf("OpenDAL C async stat test finished successfully!\n");
-
-    return 0;
 }

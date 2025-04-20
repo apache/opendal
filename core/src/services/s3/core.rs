@@ -425,7 +425,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Stat);
+        req = req.extension(Operation::Stat);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -513,7 +513,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        req = req.extension(Operation::Read);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -561,7 +561,7 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -598,7 +598,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, true);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -843,13 +843,13 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, true);
 
         // Set SSE headers.
-        let req = self.insert_checksum_type_header(req);
+        req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        req = req.extension(Operation::Write);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -893,7 +893,7 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -916,23 +916,23 @@ impl S3Core {
             percent_encode_path(upload_id)
         );
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, true);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
 
         // Set request payer header if enabled.
-        let req = self.insert_request_payer_header(req);
+        req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        req = req.extension(Operation::Write);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -979,7 +979,7 @@ impl S3Core {
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
@@ -993,17 +993,17 @@ impl S3Core {
         .map_err(new_xml_serialize_error)?;
 
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+        req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         // Set request payer header if enabled.
-        let req = self.insert_request_payer_header(req);
+        req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        let req = req.extension(Operation::Delete);
+        req = req.extension(Operation::Delete);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))

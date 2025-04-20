@@ -44,6 +44,7 @@ impl oio::OneShotWrite for YandexDiskWriter {
 
         let upload_url = self.core.get_upload_url(&self.path).await?;
 
+        // TODO: move this request to core.rs
         let req = Request::put(upload_url)
             .extension(Operation::Write)
             .body(bs)

@@ -18,7 +18,6 @@
  */
 
 #include <ctime>
-#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -52,7 +51,7 @@ TEST_F(OpendalTest, BasicTest) {
   std::string file_path_copied = "test_copied";
   std::string file_path_renamed = "test_renamed";
   std::string dir_path = "test_dir/";
-  std::vector<uint8_t> data = {1, 2, 3, 4, 5};
+  std::string_view data = "abc";
 
   // write
   op.write(file_path, data);
@@ -94,7 +93,7 @@ TEST_F(OpendalTest, BasicTest) {
 TEST_F(OpendalTest, ReaderTest) {
   std::string file_path = "test";
   constexpr int size = 2000;
-  std::vector<uint8_t> data(size);
+  std::string data(size, 0);
 
   for (auto &d : data) {
     d = rng() % 256;
@@ -105,9 +104,10 @@ TEST_F(OpendalTest, ReaderTest) {
 
   // reader
   auto reader = op.reader(file_path);
-  uint8_t part_data[100];
+  // uint8_t part_data[100];
+  std::string part_data(100, 0);
   reader.seek(200, std::ios::cur);
-  reader.read(part_data, 100);
+  reader.read(part_data.data(), 100);
   EXPECT_EQ(reader.seek(0, std::ios::cur), 300);
   for (int i = 0; i < 100; ++i) {
     EXPECT_EQ(part_data[i], data[200 + i]);
@@ -115,7 +115,7 @@ TEST_F(OpendalTest, ReaderTest) {
   reader.seek(0, std::ios::beg);
 
   // stream
-  opendal::ReaderStream stream(std::move(reader));
+  opendal::ReaderStream stream(op.reader(file_path));
 
   auto read_fn = [&](std::size_t to_read, std::streampos expected_tellg) {
     std::vector<char> v(to_read);
@@ -133,7 +133,7 @@ TEST_F(OpendalTest, ReaderTest) {
   read_fn(1000, 1041);
 
   stream.seekg(0, std::ios::beg);
-  std::vector<uint8_t> reader_data(std::istreambuf_iterator<char>{stream}, {});
+  std::string reader_data(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(reader_data, data);
 }
 
@@ -141,9 +141,9 @@ TEST_F(OpendalTest, ListerTest) {
   std::string dir_path = "test_dir/";
   op.create_dir(dir_path);
   auto test1_path = dir_path + "test1";
-  op.write(test1_path, {1, 2, 3});
+  op.write(test1_path, "123");
   auto test2_path = dir_path + "test2";
-  op.write(test2_path, {4, 5, 6});
+  op.write(test2_path, "456");
 
   auto lister = op.lister("test_dir/");
 

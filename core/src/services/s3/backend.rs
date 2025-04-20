@@ -410,6 +410,16 @@ impl S3Builder {
         self
     }
 
+    /// Disable list objects v2 so that opendal will not use the older
+    /// List Objects V1 to list objects.
+    ///
+    /// By default, OpenDAL uses List Objects V2 to list objects. However,
+    /// some legacy services do not yet support V2.
+    pub fn disable_list_objects_v2(mut self) -> Self {
+        self.config.disable_list_objects_v2 = true;
+        self
+    }
+
     /// Disable load credential from ec2 metadata.
     ///
     /// This option is used to disable the default behavior of opendal

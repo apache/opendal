@@ -3,14 +3,8 @@ project(opendal-cpp-examples)
 
 set(CMAKE_CXX_STANDARD 17)
 
-include(FetchContent)
-FetchContent_Declare(
-  opendal-cpp
-  GIT_REPOSITORY https://github.com/apache/opendal.git
-  GIT_TAG        v0.52.0
-  SOURCE_SUBDIR  bindings/cpp
-)
-FetchContent_MakeAvailable(opendal-cpp)
+# use local bindings/cpp directory
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../bindings/cpp opendal_cpp_build)
 
 add_executable(basic-example basic.cpp)
 target_link_libraries(basic-example opendal_cpp)

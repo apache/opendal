@@ -23,8 +23,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
+
 import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
@@ -93,7 +95,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
         final String path = UUID.randomUUID().toString();
 
         assertThatThrownBy(() -> asyncOp().stat(path).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+            .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
     /**
@@ -138,7 +140,7 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
         final String path = UUID.randomUUID().toString();
 
         assertThatThrownBy(() -> asyncOp().read(path).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+            .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
     /**
@@ -149,6 +151,6 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
         final String path = UUID.randomUUID().toString() + "/";
 
         assertThatThrownBy(() -> asyncOp().read(path).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+            .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
     }
 }

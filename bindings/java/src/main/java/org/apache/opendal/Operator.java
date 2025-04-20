@@ -99,6 +99,14 @@ public class Operator extends NativeObject {
         return read(nativeHandle, path);
     }
 
+    public byte[] read(String path, long offset, long len) {
+        return read_with_offset(nativeHandle, offset, len, path);
+    }
+
+    public byte[] read(String path, ReadOptions options) {
+        return read_with_options(nativeHandle, options);
+    }
+
     public OperatorInputStream createInputStream(String path) {
         return new OperatorInputStream(this, path);
     }
@@ -143,6 +151,10 @@ public class Operator extends NativeObject {
     private static native void write(long op, String path, byte[] content, WriteOptions options);
 
     private static native byte[] read(long op, String path);
+
+    private static native byte[] read_with_offset(long op, long offset, long len, String path);
+
+    private static native byte[] read_with_options(long op, ReadOptions options);
 
     private static native void delete(long op, String path);
 

@@ -185,7 +185,6 @@ public class AsyncOperator extends NativeObject {
      * You must close the current operator on demand to avoid resource leak.
      *
      * @param layer the layer to be applied.
-     *
      * @return the layered new operator.
      */
     public AsyncOperator layer(Layer layer) {
@@ -209,9 +208,9 @@ public class AsyncOperator extends NativeObject {
 
     public CompletableFuture<Void> write(String path, String content) {
         return write(
-                path,
-                content.getBytes(StandardCharsets.UTF_8),
-                WriteOptions.builder().build());
+            path,
+            content.getBytes(StandardCharsets.UTF_8),
+            WriteOptions.builder().build());
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
@@ -243,6 +242,11 @@ public class AsyncOperator extends NativeObject {
 
     public CompletableFuture<byte[]> read(String path) {
         final long requestId = read(nativeHandle, executorHandle, path);
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<byte[]> read(String path, long offset, long len) {
+        final long requestId = read_with_offset(nativeHandle, executorHandle, offset, len, path);
         return AsyncRegistry.take(requestId);
     }
 
@@ -305,8 +309,10 @@ public class AsyncOperator extends NativeObject {
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 
+    private static native long read_with_offset(long nativeHandle, long executorHandle, long offset, long len, String path);
+
     private static native long write(
-            long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
+        long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 

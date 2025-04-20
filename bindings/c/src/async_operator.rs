@@ -104,7 +104,7 @@ pub unsafe extern "C" fn opendal_async_operator_new(
         }
     };
 
-    let map: HashMap<_, _>  = if options.is_null() {
+    let map: HashMap<_, _> = if options.is_null() {
         HashMap::default()
     } else {
         (*options)

@@ -35,7 +35,7 @@ async def test_async_list_with_start_after(service_name, operator, async_operato
     )
 
     # 2. Test basic list
-    entries = []
+    entries = [test_dir]
     async for entry in await async_operator.list(test_dir):
         entries.append(entry.path)
     entries.sort()  # Ensure order for comparison

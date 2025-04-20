@@ -145,12 +145,11 @@ class Operator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    def scan(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
+    def scan(self, path: PathBuf) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
 
         Args:
             path (str|Path): The path to the directory.
-            start_after (str | None): The key to start listing from.
 
         Returns:
             An iterable of entries representing the objects in the directory.

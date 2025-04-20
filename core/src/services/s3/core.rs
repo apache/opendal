@@ -53,6 +53,7 @@ pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
+    pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-server-side-encryption-customer-algorithm";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
@@ -98,6 +99,7 @@ pub struct S3Core {
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
+    pub enable_request_payer: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
@@ -340,6 +342,19 @@ impl S3Core {
         }
         req
     }
+
+    pub fn insert_request_payer_header(
+        &self,
+        mut req: http::request::Builder,
+    ) -> http::request::Builder {
+        if self.enable_request_payer {
+            req = req.header(
+                HeaderName::from_static(constants::X_AMZ_SERVER_REQUEST_PAYER.0),
+                HeaderValue::from_static(constants::X_AMZ_SERVER_REQUEST_PAYER.1),
+            );
+        }
+        req
+    }
 }
 
 impl S3Core {
@@ -405,6 +420,9 @@ impl S3Core {
                 format_datetime_into_http_date(if_unmodified_since),
             );
         }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
         let req = req.extension(Operation::Stat);
@@ -487,6 +505,9 @@ impl S3Core {
             );
         }
 
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
@@ -526,6 +547,9 @@ impl S3Core {
         let mut req = Request::put(&url);
 
         req = self.insert_metadata_headers(req, size, args);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -567,6 +591,9 @@ impl S3Core {
 
         req = req.header(constants::X_AMZ_WRITE_OFFSET_BYTES, position.to_string());
 
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -606,7 +633,12 @@ impl S3Core {
             url.push_str(&format!("?{}", query_args.join("&")));
         }
 
-        let mut req = Request::delete(&url)
+        let mut req = Request::delete(&url);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
             .body(Buffer::new())
@@ -665,6 +697,9 @@ impl S3Core {
             )
         }
 
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
         let mut req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
@@ -701,7 +736,12 @@ impl S3Core {
             url = url.push("marker", &percent_encode_path(marker));
         }
 
-        let mut req = Request::get(url.finish())
+        let mut req = Request::get(url.finish());
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())
@@ -748,7 +788,12 @@ impl S3Core {
             );
         }
 
-        let mut req = Request::get(url.finish())
+        let mut req = Request::get(url.finish());
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())
@@ -794,6 +839,9 @@ impl S3Core {
             }
         }
 
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
@@ -832,6 +880,9 @@ impl S3Core {
         let mut req = Request::put(&url);
 
         req = req.header(CONTENT_LENGTH, size);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -877,6 +928,9 @@ impl S3Core {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
+        // Set request payer header if enabled.
+        let req = self.insert_request_payer_header(req);
+
         // Inject operation to the request.
         let req = req.extension(Operation::Write);
 
@@ -904,11 +958,17 @@ impl S3Core {
             percent_encode_path(upload_id)
         );
 
-        let mut req = Request::delete(&url)
+        let mut req = Request::delete(&url);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
+
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -938,6 +998,9 @@ impl S3Core {
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+
+        // Set request payer header if enabled.
+        let req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
         let req = req.extension(Operation::Delete);
@@ -986,7 +1049,12 @@ impl S3Core {
             .expect("write into string must succeed");
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(&url);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())

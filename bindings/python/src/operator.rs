@@ -534,7 +534,7 @@ impl AsyncOperator {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let mut builder = this.lister_with(&path).recursive(true);
+            let builder = this.lister_with(&path).recursive(true);
             let lister = builder.await.map_err(format_pyerr)?;
             let pylister: PyObject =
                 Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;

@@ -57,7 +57,7 @@ async def test_async_list_with_start_after(service_name, operator, async_operato
     # Expected files are those lexicographically after start_after_file
     expected_files_after = sorted([f for f in files_to_create if f > start_after_file])
     assert entries_after == expected_files_after, (
-        f"List with start_after failed. Expected {expected_files_after} after {start_after_file}, got {entries_after}"
+        f"Expected {expected_files_after} after {start_after_file}, got {entries_after}"
     )
     # 6. Cleanup
     await async_operator.remove_all(test_dir)

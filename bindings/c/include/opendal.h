@@ -88,6 +88,112 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * \brief Represents the status of an asynchronous operation future.
+ */
+typedef enum opendal_future_poll_status {
+  /**
+   * The asynchronous operation is still in progress.
+   */
+  PENDING,
+  /**
+   * The asynchronous operation has completed.
+   */
+  READY,
+} opendal_future_poll_status;
+
+/**
+ * The `Operator` serves as the entry point for all public asynchronous APIs.
+ *
+ * For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
+ *
+ * All cloned `Operator` instances share the same internal state, such as
+ * `HttpClient` and `Runtime`. Some layers may modify the internal state of
+ * the `Operator` too like inject logging and metrics for `HttpClient`.
+ *
+ * ## Build
+ *
+ * Users can initialize an `Operator` through the following methods:
+ *
+ * - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::S3`].
+ * - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::S3Config`].
+ * - [`Operator::from_iter`]: Creates an operator from an iterator of configuration key-value pairs.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     // Build an `Operator` to start operating the storage.
+ *     let _: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     Ok(())
+ * }
+ * ```
+ *
+ * ## Layer
+ *
+ * After the operator is built, users can add the layers they need on top of it.
+ *
+ * OpenDAL offers various layers for users to choose from, such as `RetryLayer`, `LoggingLayer`, and more. Visit [`layers`] for further details.
+ *
+ * Please note that `Layer` can modify internal contexts such as `HttpClient`
+ * and `Runtime` for all clones of given operator. Therefore, it is recommended
+ * to add layers before interacting with the storage. Adding or duplicating
+ * layers after accessing the storage may result in unexpected behavior.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::layers::RetryLayer;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     let op: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     // OpenDAL will retry failed operations now.
+ *     let op = op.layer(RetryLayer::default());
+ *
+ *     Ok(())
+ * }
+ * ```
+ *
+ * ## Operate
+ *
+ * After the operator is built and the layers are added, users can start operating the storage.
+ *
+ * The operator is `Send`, `Sync`, and `Clone`. It has no internal state, and all APIs only take
+ * a `&self` reference, making it safe to share the operator across threads.
+ *
+ * Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
+ *
+ * - [`Operator::read`]: Basic operation that reads entire content into memory
+ * - [`Operator::read_with`]: Enhanced read operation with additional options (range, if_match, if_none_match)
+ * - [`Operator::reader`]: Creates a lazy reader for on-demand data streaming
+ * - [`Operator::reader_with`]: Creates a configurable reader with conditional options (if_match, if_none_match)
+ *
+ * The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
+ * into `futures::AsyncRead` for broader ecosystem compatibility.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::layers::RetryLayer;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     let op: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     // OpenDAL will retry failed operations now.
+ *     let op = op.layer(RetryLayer::default());
+ *
+ *     // Read all data into memory.
+ *     let data = op.read("path/to/file").await?;
+ *
+ *     Ok(())
+ * }
+ * ```
+ */
+typedef struct Operator Operator;
+
+/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -423,6 +529,36 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief Represents an asynchronous OpenDAL Operator.
+ *
+ * This operator interacts with storage services using non-blocking APIs.
+ * Use `opendal_async_operator_new` to construct and `opendal_async_operator_free` to release.
+ */
+typedef struct opendal_async_operator {
+  /**
+   * Internal pointer to the Rust async Operator.
+   */
+  struct Operator *inner;
+  /**
+   * Tokio runtime handle.
+   */
+  void *rt;
+} opendal_async_operator;
+
+/**
+ * \brief Opaque handle representing an ongoing asynchronous `stat` operation.
+ *
+ * Use `opendal_future_stat_poll` to check readiness and `opendal_future_stat_get`
+ * to retrieve the result. Must be freed with `opendal_future_stat_free`.
+ */
+typedef struct opendal_future_stat {
+  /**
+   * Pointer to the internal state `opendal_future_stat_inner`.
+   */
+  void *inner;
+} opendal_future_stat;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1319,6 +1455,88 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *dest);
 
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
+/**
+ * \brief Constructs a new asynchronous OpenDAL Operator.
+ *
+ * @param scheme The storage service scheme (e.g., "s3", "fs").
+ * @param options Configuration options for the service. Can be NULL.
+ * @return Result containing the new operator or an error.
+ *
+ * \see opendal_operator_options
+ * \see opendal_result_operator_new (reused for simplicity, but contains async op)
+ *
+ * # Safety
+ *
+ * `scheme` must be a valid, null-terminated C string.
+ * `options` must be a valid pointer or NULL.
+ */
+struct opendal_result_operator_new opendal_async_operator_new(const char *scheme,
+                                                              const struct opendal_operator_options *options);
+
+/**
+ * \brief Frees an asynchronous OpenDAL Operator.
+ *
+ * # Safety
+ *
+ * `op` must be a valid pointer previously returned by `opendal_async_operator_new`.
+ * Calling with NULL does nothing.
+ */
+void opendal_async_operator_free(struct opendal_async_operator *op);
+
+/**
+ * \brief Asynchronously gets metadata of a path.
+ *
+ * @param op A valid pointer to `opendal_async_operator`.
+ * @param path The path to the object or directory.
+ * @return A pointer to `opendal_future_stat` representing the ongoing operation.
+ *         The caller is responsible for polling and freeing this future.
+ *         Returns NULL if path is invalid.
+ *
+ * # Safety
+ * `op` must be a valid `opendal_async_operator`.
+ * `path` must be a valid, null-terminated C string.
+ */
+struct opendal_future_stat *opendal_async_operator_stat(const struct opendal_async_operator *op,
+                                                        const char *path);
+
+/**
+ * \brief Polls the status of an asynchronous stat operation.
+ *
+ * This function checks if the result of the `stat` operation is available without blocking.
+ *
+ * @param future A valid pointer to `opendal_future_stat`.
+ * @return `READY` if the operation is complete, `PENDING` otherwise.
+ *
+ * # Safety
+ * `future` must be a valid pointer returned by `opendal_async_operator_stat`.
+ */
+enum opendal_future_poll_status opendal_future_stat_poll(struct opendal_future_stat *future);
+
+/**
+ * \brief Gets the result of a completed asynchronous stat operation.
+ *
+ * This function should only be called after `opendal_future_stat_poll` returns `READY`.
+ * It retrieves the metadata or the error that occurred.
+ *
+ * @param future A valid pointer to `opendal_future_stat`.
+ * @return An `opendal_result_stat` containing the metadata or an error.
+ *         If called before the future is ready, the result is undefined (likely error).
+ *
+ * # Safety
+ * `future` must be a valid pointer returned by `opendal_async_operator_stat`,
+ * and `opendal_future_stat_poll` must have returned `READY`.
+ */
+struct opendal_result_stat opendal_future_stat_get(struct opendal_future_stat *future);
+
+/**
+ * \brief Frees the resources associated with an asynchronous stat future.
+ *
+ * # Safety
+ * `future` must be a valid pointer returned by `opendal_async_operator_stat`
+ * or NULL. If non-NULL, it must not be used after calling this function.
+ */
+void opendal_future_stat_free(struct opendal_future_stat *future);
 
 /**
  * \brief Get information of underlying accessor.

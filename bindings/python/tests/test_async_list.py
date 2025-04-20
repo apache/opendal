@@ -35,11 +35,11 @@ async def test_async_list_with_start_after(service_name, operator, async_operato
     )
 
     # 2. Test basic list
-    entries = [test_dir]
+    entries = []
     async for entry in await async_operator.list(test_dir):
         entries.append(entry.path)
     entries.sort()  # Ensure order for comparison
-    expected_files = sorted(files_to_create)
+    expected_files = sorted([test_dir, *files_to_create])
     assert entries == expected_files, (
         f"Basic list failed. Expected {expected_files}, got {entries}"
     )

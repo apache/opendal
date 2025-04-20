@@ -224,14 +224,14 @@ impl Operator {
     }
 
     /// List dir in flat way.
-    #[pyo3(signature = (path, *, start_after=None))]
-    pub fn scan(&self, path: PathBuf, start_after: Option<String>) -> PyResult<BlockingLister> {
+    pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
-        let mut builder = self.core.lister_with(&path).recursive(true);
-        if let Some(start_after) = start_after {
-            builder = builder.start_after(&start_after);
-        }
-        let l = builder.call().map_err(format_pyerr)?;
+        let l = self
+            .core
+            .lister_with(&path)
+            .recursive(true)
+            .call()
+            .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 

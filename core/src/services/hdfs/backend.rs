@@ -259,7 +259,9 @@ impl Access for HdfsBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let meta = self.core.get_metadata(path).map_err(new_std_io_error)?;
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.core.get_metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
             EntryMode::DIR

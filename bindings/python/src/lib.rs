@@ -60,6 +60,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     layers_module.add_class::<Layer>()?;
     layers_module.add_class::<RetryLayer>()?;
     layers_module.add_class::<ConcurrentLimitLayer>()?;
+    layers_module.add_class::<MimeGuessLayer>()?;
     m.add_submodule(&layers_module)?;
     py.import("sys")?
         .getattr("modules")?

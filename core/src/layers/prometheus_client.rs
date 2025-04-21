@@ -107,7 +107,7 @@ pub struct PrometheusClientLayerBuilder {
     entries_rate_buckets: Vec<f64>,
     duration_seconds_buckets: Vec<f64>,
     ttfb_buckets: Vec<f64>,
-    enable_high_cardinality_labels: bool,
+    enable_label_root: bool,
 }
 
 impl Default for PrometheusClientLayerBuilder {
@@ -119,7 +119,7 @@ impl Default for PrometheusClientLayerBuilder {
             entries_rate_buckets: observe::DEFAULT_ENTRIES_RATE_BUCKETS.to_vec(),
             duration_seconds_buckets: observe::DEFAULT_DURATION_SECONDS_BUCKETS.to_vec(),
             ttfb_buckets: observe::DEFAULT_TTFB_BUCKETS.to_vec(),
-            enable_high_cardinality_labels: true,
+            enable_label_root: true,
         }
     }
 }
@@ -175,7 +175,7 @@ impl PrometheusClientLayerBuilder {
 
     /// Set enable high cardinality labels. The high cardinality labels might have risks of cardinality explosion, so we can disable it by default.
     pub fn enable_high_cardinality_labels(mut self, enable: bool) -> Self {
-        self.enable_high_cardinality_labels = enable;
+        self.enable_label_root = enable;
         self
     }
 
@@ -368,7 +368,7 @@ impl PrometheusClientLayerBuilder {
                 http_connection_errors_total,
                 http_status_errors_total,
 
-                enable_high_cardinality_labels: self.enable_high_cardinality_labels,
+                enable_label_root: self.enable_label_root,
             },
         }
     }
@@ -406,14 +406,14 @@ pub struct PrometheusClientInterceptor {
     http_connection_errors_total: Family<OperationLabels, Counter>,
     http_status_errors_total: Family<OperationLabels, Counter>,
 
-    enable_high_cardinality_labels: bool,
+    enable_label_root: bool,
 }
 
 impl observe::MetricsIntercept for PrometheusClientInterceptor {
     fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {
         let labels = OperationLabels {
             labels,
-            enable_high_cardinality_labels: self.enable_high_cardinality_labels,
+            enable_label_root: self.enable_label_root,
         };
         match value {
             observe::MetricValue::OperationBytes(v) => self
@@ -490,7 +490,7 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct OperationLabels {
     labels: observe::MetricLabels,
-    enable_high_cardinality_labels: bool,
+    enable_label_root: bool,
 }
 
 impl EncodeLabelSet for OperationLabels {
@@ -498,7 +498,7 @@ impl EncodeLabelSet for OperationLabels {
         (observe::LABEL_SCHEME, self.labels.scheme.into_static()).encode(encoder.encode_label())?;
         (observe::LABEL_NAMESPACE, self.labels.namespace.as_ref())
             .encode(encoder.encode_label())?;
-        if self.enable_high_cardinality_labels {
+        if self.enable_label_root {
             (observe::LABEL_ROOT, self.labels.root.as_ref()).encode(encoder.encode_label())?;
         }
         (observe::LABEL_OPERATION, self.labels.operation).encode(encoder.encode_label())?;

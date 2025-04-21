@@ -163,6 +163,7 @@ futures = "0.3.28"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",
+  "layers-mime-guess"
 ] }
 pyo3 = { version = "0.24.1", features = ["generate-import-lib", "chrono"] }
 pyo3-async-runtimes = { version = "0.24.0", features = ["tokio-runtime"] }
@@ -171,6 +172,7 @@ tokio = "1"
 [target.'cfg(unix)'.dependencies.opendal]
 features = [
   "layers-blocking",
+  "layers-mime-guess",
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]

@@ -250,6 +250,11 @@ public class AsyncOperator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<byte[]> read(String path, ReadOptions options) {
+        final long requestId = read_with_options(nativeHandle, executorHandle, options, path);
+        return AsyncRegistry.take(requestId);
+    }
+
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
         final long requestId = presignRead(nativeHandle, executorHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
@@ -310,6 +315,8 @@ public class AsyncOperator extends NativeObject {
     private static native long read(long nativeHandle, long executorHandle, String path);
 
     private static native long read_with_offset(long nativeHandle, long executorHandle, long offset, long len, String path);
+
+    private static native long read_with_options(long nativeHandle, long executorHandle, ReadOptions options, String path);
 
     private static native long write(
         long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);

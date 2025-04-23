@@ -114,26 +114,56 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_options
     mut env: JNIEnv,
         _: JClass,
         op: *mut BlockingOperator,
-        offset: jlong,
-        len: jlong,
+        read_options: JObject,
         path: JString,
 ) -> jbyteArray {
-    crate::operator::intern_read_with_options(&mut env, &mut *op, offset, len, path).unwrap_or_else(|e| {
+    crate::operator::intern_read_with_options(&mut env, &mut *op, read_options, path).unwrap_or_else(|e| {
         e.throw(&mut env);
         JByteArray::default().into_raw()
     })
 }
 
-fn intern_read_with_options(env: &mut JNIEnv, op: &mut BlockingOperator, offset: jlong, len: jlong, path: JString) -> Result<jbyteArray> {
+fn intern_read_with_options(env: &mut JNIEnv, op: &mut BlockingOperator, read_options: JObject, path: JString) -> Result<jbyteArray> {
+    let offset = env.get_field(read_options, "offset", "J")?.j()?;
+    let length = {
+        let jlong = env.get_field(read_options, "length", "J")?.j()?;
+        if jlong == -1 {
+            None
+        } else {
+            Some(jlong as u64)
+        }
+    };
+    let buffer_size = env.get_field(read_options, "bufferSize", "I")?.i()? as usize;
+    let charset_name = env.get_field(read_options, "charset", "Ljava/lang/String;")?;
+    let charset = if !charset_name.is_null() {
+        let charset_str = env.get_string(charset_name.into())?;
+        Encoding::for_label(charset_str.to_bytes()).unwrap_or(UTF_8)
+    } else {
+        UTF_8
+    };
+    let skip_new_line = env.get_field(read_options, "skipNewLine", "Z")?.z()?;
+
+    let options = ReadOptions::builder()
+        .offset(offset)
+        .length(length)
+        .buffer_size(buffer_size)
+        .charset(charset)
+        .skip_new_line(skip_new_line)
+        .build()
+        .map_err(|e| {
+            Error::new(
+                ErrorKind::Other,
+                format!("Failed to build ReadOptions: {}", e),
+            )
+        })?;
     let path = jstring_to_string(env, &path)?;
 
-    let offset = offset as u64;
-    let len = len as u64;
-    let content = op.read_with(&path).range(offset..(offset + len)).call()?;
-    let buffer = content.to_bytes();
-    let result = env.byte_array_from_slice(&buffer)?;
+    let content = op.read_with(&path, &options).map_err(|e| Error::new(ErrorKind::Other, format!("Failed to read with options: {}", e)))?;
 
-    Ok(result.into_raw())
+    let array = env.new_byte_array(content.len() as i32)?;
+    env.set_byte_array_region(array, 0, &content)?;
+
+    Ok(array)
 }
 
 /// # Safety

@@ -337,6 +337,40 @@ fn intern_read_with_offset(
     Ok(id)
 }
 
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_options(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    executor: *const Executor,
+    read_options: JObject,
+    path: JString,
+) -> jlong {
+    intern_read_with_options(&mut env, op, executor, read_options, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_read_with_options(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    executor: *const Executor,
+    read_options: JObject,
+    path: JString,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+    let path = jstring_to_string(env, &path)?;
+
+    executor_or_default(env, executor)?.spawn(async move {
+        let result = do_read_with_options(op, read_options, path).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
 async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let content = op.read(&path).await?.to_bytes();
 
@@ -370,6 +404,53 @@ async fn do_read_with_offset<'local>(op: &mut Operator, offset: jlong, len: jlon
     let env = unsafe { get_current_env() };
     let result = env.byte_array_from_slice(&buffer)?;
     Ok(result.into())
+}
+
+async fn do_read_with_options<'local>(op: &mut Operator, read_options: JObject, path: String) -> Result<JObject<'local>> {
+    let offset = env.get_field(read_options, "offset", "J")?.j()?;
+    let length = {
+        let jlong = env.get_field(read_options, "length", "J")?.j()?;
+        if jlong == -1 {
+            None
+        } else {
+            Some(jlong as u64)
+        }
+    };
+    let buffer_size = env.get_field(read_options, "bufferSize", "I")?.i()? as usize;
+    let charset_name = env.get_field(read_options, "charset", "Ljava/lang/String;")?;
+    let charset = if !charset_name.is_null() {
+        let charset_str = env.get_string(charset_name.into())?;
+        Encoding::for_label(charset_str.to_bytes()).unwrap_or(UTF_8)
+    } else {
+        UTF_8
+    };
+    let skip_new_line = env.get_field(read_options, "skipNewLine", "Z")?.z()?;
+
+    let options = ReadOptions::builder()
+        .offset(offset)
+        .length(length)
+        .buffer_size(buffer_size)
+        .charset(charset)
+        .skip_new_line(skip_new_line)
+        .build()
+        .map_err(|e| {
+            Error::new(
+                ErrorKind::Other,
+                format!("Failed to build ReadOptions: {}", e),
+            )
+        })?;
+
+    let content = op.read_with(&path, &options).map_err(|e| {
+        Error::new(
+            ErrorKind::Other,
+            format!("Failed to read with options: {}", e),
+        )
+    })?;
+
+    let array = env.new_byte_array(content.len() as i32)?;
+    env.set_byte_array_region(array, 0, &content)?;
+
+    Ok(array)
 }
 
 fn intern_delete(

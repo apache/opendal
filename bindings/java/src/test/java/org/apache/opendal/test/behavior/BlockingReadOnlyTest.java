@@ -30,6 +30,7 @@ import java.util.UUID;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
+import org.apache.opendal.ReadOptions;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -99,6 +100,16 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
     @Test
     public void testBlockingReadonlyReadOffset() throws NoSuchAlgorithmException {
         final byte[] content = op().read(NORMAL_FILE_NAME, 0, FILE_LENGTH);
+        assertEquals(FILE_LENGTH, content.length);
+        assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
+    }
+
+    @Test
+    public void testBlockingReadonlyReadOtions() throws NoSuchAlgorithmException {
+        ReadOptions options= new ReadOptions()
+            .setOffset(0)
+            .setLength(FILE_LENGTH);
+        final byte[] content = op().read(NORMAL_FILE_NAME, options);
         assertEquals(FILE_LENGTH, content.length);
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));
     }

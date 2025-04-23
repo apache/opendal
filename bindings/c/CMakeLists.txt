@@ -86,6 +86,9 @@ target_link_libraries(basic opendal_c_shared)
 add_executable(error_handle examples/error_handle.c)
 target_link_libraries(error_handle opendal_c_shared)
 
+add_executable(async_stat examples/async_stat.c)
+target_link_libraries(async_stat opendal_c_shared pthread)
+
 # test targets
 set(GTEST_SRCS
     tests/bdd.cpp

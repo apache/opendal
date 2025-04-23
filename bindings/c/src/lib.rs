@@ -46,7 +46,6 @@ pub use operator::opendal_operator;
 // Add new async modules and types
 mod async_operator;
 pub use async_operator::opendal_async_operator;
-mod async_types;
 
 mod operator_info;
 

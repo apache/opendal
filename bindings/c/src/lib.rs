@@ -47,8 +47,6 @@ pub use operator::opendal_operator;
 mod async_operator;
 pub use async_operator::opendal_async_operator;
 mod async_types;
-pub use async_types::opendal_future_poll_status;
-pub use async_types::opendal_future_stat;
 
 mod operator_info;
 

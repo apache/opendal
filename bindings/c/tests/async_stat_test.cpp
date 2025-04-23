@@ -17,65 +17,91 @@
  * under the License.
  */
 
+#include "gtest/gtest.h"
 #include <assert.h>
+#include <atomic> // For std::atomic_bool
+#include <condition_variable> // For synchronization
+#include <mutex> // For synchronization
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // For usleep
-#include "gtest/gtest.h"
 // Include the generated OpenDAL C header
 extern "C" {
 #include "opendal.h"
 }
-    
-class OpendalAsyncStatTest : public ::testing::Test {
-    protected:
-        const opendal_async_operator* op;
-    
-        void SetUp() override
-        {
-            opendal_result_operator_new result_op = opendal_async_operator_new("memory", NULL);
-            EXPECT_TRUE(result_op.error == nullptr);
-            EXPECT_TRUE(result_op.op != nullptr);
 
-            this->op = (opendal_async_operator *)result_op.op;
-            EXPECT_TRUE(this->op);
-        }
-    
-        void TearDown() override {
-            opendal_async_operator_free(this->op); // Use the async free function
-        }
-    };
+// Structure to hold callback results and synchronization primitives
+typedef struct {
+    std::atomic_bool completed;
+    std::mutex mtx;
+    std::condition_variable cv;
+    opendal_result_stat result; // Store the result here
+} callback_args_t;
 
-TEST_F(OpendalAsyncStatTest, AsyncStatTest) {
-    // Call async stat for a non-existent file
-    const char *path = "non_existent_file.txt";
-    opendal_future_stat *future_stat = opendal_async_operator_stat(this->op, path);
-    EXPECT_TRUE(future_stat != nullptr);
+// C-style callback function
+extern "C" void test_stat_callback(opendal_result_stat result, void* user_data)
+{
+    callback_args_t* args = static_cast<callback_args_t*>(user_data);
 
-    // Poll the future until it's ready
-    opendal_future_poll_status status;
-    int poll_count = 0;
-    while ((status = opendal_future_stat_poll(future_stat)) == PENDING) {
-        poll_count++;
-        // Add a small delay to avoid busy-waiting (e.g., 10 milliseconds)
-        // In a real application, you might integrate this with an event loop.
-        usleep(10000);
+    // Store the result
+    args->result = result; // Shallow copy is okay here
+
+    // Notify the waiting thread
+    {
+        std::lock_guard<std::mutex> lock(args->mtx);
+        args->completed.store(true);
     }
-    assert(status == READY);
+    args->cv.notify_one();
+}
 
-    // Get the result
-    opendal_result_stat result_stat = opendal_future_stat_get(future_stat);
+class OpendalAsyncStatTest : public ::testing::Test {
+protected:
+    const opendal_async_operator* op;
 
-    // Verify the result (should be NotFound error)
-    EXPECT_TRUE(result_stat.meta == nullptr); // Meta should be NULL for error
-    EXPECT_TRUE(result_stat.error != nullptr); // Error should be non-NULL
+    void SetUp() override
+    {
+        opendal_result_operator_new result_op = opendal_async_operator_new("memory", NULL);
+        EXPECT_TRUE(result_op.error == nullptr);
+        EXPECT_TRUE(result_op.op != nullptr);
 
-    opendal_code error_code = result_stat.error->code;
-    const char *error_message = (const char*)result_stat.error->message.data;
+        // Cast is necessary because opendal_async_operator_new reuses opendal_result_operator_new
+        this->op = reinterpret_cast<const opendal_async_operator*>(result_op.op);
+        EXPECT_TRUE(this->op);
+    }
 
-    EXPECT_TRUE(error_code == OPENDAL_NOT_FOUND);
-    // Free resources
-    opendal_error_free(result_stat.error);
-    opendal_future_stat_free(future_stat);
+    void TearDown() override
+    {
+        opendal_async_operator_free(this->op); // Use the async free function
+    }
+};
+
+TEST_F(OpendalAsyncStatTest, AsyncStatCallbackTest)
+{
+    // Initialize callback arguments and synchronization primitives
+    callback_args_t cb_args;
+    cb_args.completed.store(false);
+    cb_args.result.meta = nullptr; // Initialize result fields
+    cb_args.result.error = nullptr;
+
+    // Call async stat for a non-existent file with the callback
+    const char* path = "non_existent_file.txt";
+    opendal_async_operator_stat_with_callback(this->op, path, test_stat_callback, &cb_args);
+
+    // Wait for the callback to complete
+    {
+        std::unique_lock<std::mutex> lock(cb_args.mtx);
+        cb_args.cv.wait(lock, [&cb_args] { return cb_args.completed.load(); });
+    }
+
+    // Verify the result received by the callback
+    EXPECT_TRUE(cb_args.result.meta == nullptr); // Meta should be NULL for error
+    EXPECT_TRUE(cb_args.result.error != nullptr); // Error should be non-NULL
+
+    if (cb_args.result.error) {
+        EXPECT_EQ(cb_args.result.error->code, OPENDAL_NOT_FOUND);
+        // Free the error received by the callback
+        opendal_error_free(cb_args.result.error);
+    }
+    // No metadata to free in case of error
 }

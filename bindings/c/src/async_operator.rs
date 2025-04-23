@@ -19,15 +19,32 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
-use std::sync::Arc;
-use std::sync::Mutex;
 use tokio::runtime::Handle;
-use tokio::sync::oneshot;
 
 use ::opendal as core;
 
 use super::*;
-use crate::async_types::*; // We will create this file next
+use crate::error::opendal_error;
+use crate::metadata::opendal_metadata; // Keep this
+use crate::result::opendal_result_stat; // Keep this
+use crate::types::opendal_operator_options; // Keep this
+
+/// Callback function type for asynchronous stat operations.
+/// The user data pointer is passed through directly.
+///
+/// # Safety
+/// The callback pointer must be valid for the duration of the async operation.
+/// The callback must handle potential NULL pointers in `opendal_result_stat` fields
+/// and free them appropriately using `opendal_metadata_free` and `opendal_error_free`.
+pub type opendal_stat_callback =
+    unsafe extern "C" fn(result: opendal_result_stat, user_data: *mut c_void);
+
+// Wrapper for the user_data pointer to mark it as Send + Sync.
+// # Safety
+// The caller (C code) is responsible for ensuring the validity and thread-safety
+// of the data pointed to by `user_data` for the duration of the async operation
+// and the callback execution.
+
 
 /// \brief Represents an asynchronous OpenDAL Operator.
 ///
@@ -165,54 +182,99 @@ pub unsafe extern "C" fn opendal_async_operator_free(op: *const opendal_async_op
 
 // --- Async Stat Operation ---
 
-/// \brief Asynchronously gets metadata of a path.
+/// \brief Asynchronously gets metadata of a path using a callback.
 ///
 /// @param op A valid pointer to `opendal_async_operator`.
 /// @param path The path to the object or directory.
-/// @return A pointer to `opendal_future_stat` representing the ongoing operation.
-///         The caller is responsible for polling and freeing this future.
-///         Returns NULL if path is invalid.
+/// @param callback The function to call when the operation completes.
+/// @param user_data An opaque pointer passed directly to the callback function.
 ///
 /// # Safety
 /// `op` must be a valid `opendal_async_operator`.
 /// `path` must be a valid, null-terminated C string.
+/// `callback` must be a valid function pointer.
+/// The `user_data` pointer's validity is the caller's responsibility.
+/// The callback function will be invoked exactly once, either upon successful
+/// completion, error, or if the operation setup fails.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_async_operator_stat(
+pub unsafe extern "C" fn opendal_async_operator_stat_with_callback(
     op: *const opendal_async_operator,
     path: *const c_char,
-) -> *mut opendal_future_stat {
-    if op.is_null() || path.is_null() {
-        return std::ptr::null_mut();
+    callback: opendal_stat_callback,
+    user_data: *mut c_void,
+) {
+    if op.is_null() {
+        let result = opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_async_operator is null",
+            )),
+        };
+        // Directly call callback for immediate errors
+        callback(result, user_data);
+        return;
     }
+    if path.is_null() {
+        let result = opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "path is null",
+            )),
+        };
+        callback(result, user_data);
+        return;
+    }
+
 
     let operator = (*op).as_ref();
     let runtime_handle = (*op).runtime_handle();
     let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
-        Ok(s) => s.to_string(),                // Clone path string to own it
-        Err(_) => return std::ptr::null_mut(), // Invalid UTF-8 path
+        Ok(s) => s.to_string(), // Clone path string to own it
+        Err(e) => {
+            let result = opendal_result_stat {
+                meta: std::ptr::null_mut(),
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "invalid path string")
+                        .set_source(e),
+                ),
+            };
+            callback(result, user_data);
+            return;
+        }
     };
-
-    // Channel to send the result back from the async task
-    let (tx, rx) = oneshot::channel::<core::Result<core::Metadata>>();
 
     // Clone operator for the async task
     let operator_clone = operator.clone();
 
+    // Capture user_data as usize and callback function pointer
+    // Both usize and function pointers are Send + Sync
+    let user_data_addr = user_data as usize;
+    let callback_fn = callback;
+
     // Spawn the async operation onto the Tokio runtime
     runtime_handle.spawn(async move {
         let result = operator_clone.stat(&path_str).await;
-        // Ignore error if receiver is dropped (future was freed)
-        let _ = tx.send(result);
-    });
 
-    // Create the future state
-    let future_state = Box::new(opendal_future_stat_inner {
-        result_receiver: Arc::new(Mutex::new(Some(rx))),
-        cached_result: Arc::new(Mutex::new(None)),
-    });
+        // Construct the C result struct
+        let c_result = match result {
+            Ok(m) => opendal_result_stat {
+                meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+                error: std::ptr::null_mut(),
+            },
+            Err(e) => opendal_result_stat {
+                meta: std::ptr::null_mut(),
+                error: opendal_error::new(e),
+            },
+        };
 
-    // Return the opaque future pointer to C
-    Box::into_raw(Box::new(opendal_future_stat {
-        inner: Box::into_raw(future_state) as *mut c_void,
-    }))
+        // Reconstitute the user_data pointer from the address
+        let user_data_ptr = user_data_addr as *mut c_void;
+
+        // Call the C callback function
+        // Safety: Assumes the callback pointer provided by C is valid.
+        // The user_data pointer's validity is guaranteed by the C caller.
+        (callback_fn)(c_result, user_data_ptr);
+    });
 }

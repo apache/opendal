@@ -88,20 +88,6 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
- * \brief Represents the status of an asynchronous operation future.
- */
-typedef enum opendal_future_poll_status {
-  /**
-   * The asynchronous operation is still in progress.
-   */
-  PENDING,
-  /**
-   * The asynchronous operation has completed.
-   */
-  READY,
-} opendal_future_poll_status;
-
-/**
  * The `Operator` serves as the entry point for all public asynchronous APIs.
  *
  * For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
@@ -548,17 +534,15 @@ typedef struct opendal_async_operator {
 } opendal_async_operator;
 
 /**
- * \brief Opaque handle representing an ongoing asynchronous `stat` operation.
+ * Callback function type for asynchronous stat operations.
+ * The user data pointer is passed through directly.
  *
- * Use `opendal_future_stat_poll` to check readiness and `opendal_future_stat_get`
- * to retrieve the result. Must be freed with `opendal_future_stat_free`.
+ * # Safety
+ * The callback pointer must be valid for the duration of the async operation.
+ * The callback must handle potential NULL pointers in `opendal_result_stat` fields
+ * and free them appropriately using `opendal_metadata_free` and `opendal_error_free`.
  */
-typedef struct opendal_future_stat {
-  /**
-   * Pointer to the internal state `opendal_future_stat_inner`.
-   */
-  void *inner;
-} opendal_future_stat;
+typedef void (*opendal_stat_callback)(struct opendal_result_stat result, void *user_data);
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1485,58 +1469,25 @@ struct opendal_result_operator_new opendal_async_operator_new(const char *scheme
 void opendal_async_operator_free(const struct opendal_async_operator *op);
 
 /**
- * \brief Asynchronously gets metadata of a path.
+ * \brief Asynchronously gets metadata of a path using a callback.
  *
  * @param op A valid pointer to `opendal_async_operator`.
  * @param path The path to the object or directory.
- * @return A pointer to `opendal_future_stat` representing the ongoing operation.
- *         The caller is responsible for polling and freeing this future.
- *         Returns NULL if path is invalid.
+ * @param callback The function to call when the operation completes.
+ * @param user_data An opaque pointer passed directly to the callback function.
  *
  * # Safety
  * `op` must be a valid `opendal_async_operator`.
  * `path` must be a valid, null-terminated C string.
+ * `callback` must be a valid function pointer.
+ * The `user_data` pointer's validity is the caller's responsibility.
+ * The callback function will be invoked exactly once, either upon successful
+ * completion, error, or if the operation setup fails.
  */
-struct opendal_future_stat *opendal_async_operator_stat(const struct opendal_async_operator *op,
-                                                        const char *path);
-
-/**
- * \brief Polls the status of an asynchronous stat operation.
- *
- * This function checks if the result of the `stat` operation is available without blocking.
- *
- * @param future A valid pointer to `opendal_future_stat`.
- * @return `READY` if the operation is complete, `PENDING` otherwise.
- *
- * # Safety
- * `future` must be a valid pointer returned by `opendal_async_operator_stat`.
- */
-enum opendal_future_poll_status opendal_future_stat_poll(struct opendal_future_stat *future);
-
-/**
- * \brief Gets the result of a completed asynchronous stat operation.
- *
- * This function should only be called after `opendal_future_stat_poll` returns `READY`.
- * It retrieves the metadata or the error that occurred.
- *
- * @param future A valid pointer to `opendal_future_stat`.
- * @return An `opendal_result_stat` containing the metadata or an error.
- *         If called before the future is ready, the result is undefined (likely error).
- *
- * # Safety
- * `future` must be a valid pointer returned by `opendal_async_operator_stat`,
- * and `opendal_future_stat_poll` must have returned `READY`.
- */
-struct opendal_result_stat opendal_future_stat_get(struct opendal_future_stat *future);
-
-/**
- * \brief Frees the resources associated with an asynchronous stat future.
- *
- * # Safety
- * `future` must be a valid pointer returned by `opendal_async_operator_stat`
- * or NULL. If non-NULL, it must not be used after calling this function.
- */
-void opendal_future_stat_free(struct opendal_future_stat *future);
+void opendal_async_operator_stat_with_callback(const struct opendal_async_operator *op,
+                                               const char *path,
+                                               opendal_stat_callback callback,
+                                               void *user_data);
 
 /**
  * \brief Get information of underlying accessor.

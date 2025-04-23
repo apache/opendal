@@ -45,7 +45,6 @@ pub type opendal_stat_callback =
 // of the data pointed to by `user_data` for the duration of the async operation
 // and the callback execution.
 
-
 /// \brief Represents an asynchronous OpenDAL Operator.
 ///
 /// This operator interacts with storage services using non-blocking APIs.
@@ -226,7 +225,6 @@ pub unsafe extern "C" fn opendal_async_operator_stat_with_callback(
         callback(result, user_data);
         return;
     }
-
 
     let operator = (*op).as_ref();
     let runtime_handle = (*op).runtime_handle();

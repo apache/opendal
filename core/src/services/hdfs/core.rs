@@ -23,11 +23,24 @@ use crate::raw::AccessorInfo;
 
 #[derive(Clone, Debug)]
 pub struct HdfsCore {
-    pub info: Arc<AccessorInfo>,
-    pub client: Arc<hdrs::Client>,
+    info: Arc<AccessorInfo>,
+    client: Arc<hdrs::Client>,
 }
 
 impl HdfsCore {
+    /// Creates a new HdfsCore instance with the given AccessorInfo and client.
+    pub fn new(info: Arc<AccessorInfo>, client: Arc<hdrs::Client>) -> Self {
+        Self { info, client }
+    }
+
+    pub fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    pub fn client(&self) -> Arc<hdrs::Client> {
+        self.client.clone()
+    }
+
     pub fn get_metadata(&self, path: &str) -> Result<Metadata> {
         let metadata = self.client.metadata(path)?;
 

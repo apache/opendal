@@ -84,11 +84,11 @@ fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_offset(
     mut env: JNIEnv,
-        _: JClass,
-        op: *mut BlockingOperator,
-        offset: jlong,
-        len: jlong,
-        path: JString,
+    _: JClass,
+    op: *mut BlockingOperator,
+    offset: jlong,
+    len: jlong,
+    path: JString,
 ) -> jbyteArray {
     intern_read_with_offset(&mut env, &mut *op, offset, len, path).unwrap_or_else(|e| {
         e.throw(&mut env);
@@ -96,7 +96,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_offset(
     })
 }
 
-fn intern_read_with_offset(env: &mut JNIEnv, op: &mut BlockingOperator, offset: jlong, len: jlong, path: JString) -> Result<jbyteArray> {
+fn intern_read_with_offset(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    offset: jlong,
+    len: jlong,
+    path: JString,
+) -> Result<jbyteArray> {
     let path = jstring_to_string(env, &path)?;
 
     let offset = offset as u64;
@@ -112,18 +118,24 @@ fn intern_read_with_offset(env: &mut JNIEnv, op: &mut BlockingOperator, offset: 
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_options(
     mut env: JNIEnv,
-        _: JClass,
-        op: *mut BlockingOperator,
-        read_options: JObject,
-        path: JString,
+    _: JClass,
+    op: *mut BlockingOperator,
+    read_options: JObject,
+    path: JString,
 ) -> jbyteArray {
-    crate::operator::intern_read_with_options(&mut env, &mut *op, read_options, path).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JByteArray::default().into_raw()
-    })
+    crate::operator::intern_read_with_options(&mut env, &mut *op, read_options, path)
+        .unwrap_or_else(|e| {
+            e.throw(&mut env);
+            JByteArray::default().into_raw()
+        })
 }
 
-fn intern_read_with_options(env: &mut JNIEnv, op: &mut BlockingOperator, read_options: JObject, path: JString) -> Result<jbyteArray> {
+fn intern_read_with_options(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    read_options: JObject,
+    path: JString,
+) -> Result<jbyteArray> {
     let offset = env.get_field(read_options, "offset", "J")?.j()?;
     let length = {
         let jlong = env.get_field(read_options, "length", "J")?.j()?;
@@ -158,7 +170,12 @@ fn intern_read_with_options(env: &mut JNIEnv, op: &mut BlockingOperator, read_op
         })?;
     let path = jstring_to_string(env, &path)?;
 
-    let content = op.read_with(&path, &options).map_err(|e| Error::new(ErrorKind::Other, format!("Failed to read with options: {}", e)))?;
+    let content = op.read_with(&path, &options).map_err(|e| {
+        Error::new(
+            ErrorKind::Other,
+            format!("Failed to read with options: {}", e),
+        )
+    })?;
 
     let array = env.new_byte_array(content.len() as i32)?;
     env.set_byte_array_region(array, 0, &content)?;

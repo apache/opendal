@@ -396,17 +396,30 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete(
     })
 }
 
-async fn do_read_with_offset<'local>(op: &mut Operator, offset: jlong, len: jlong, path: String) -> Result<JObject<'local>> {
+async fn do_read_with_offset<'local>(
+    op: &mut Operator,
+    offset: jlong,
+    len: jlong,
+    path: String,
+) -> Result<JObject<'local>> {
     let offset = offset as u64;
     let len = len as u64;
 
-    let buffer = op.read_with(&path).range(offset..(offset + len)).await?.to_bytes();
+    let buffer = op
+        .read_with(&path)
+        .range(offset..(offset + len))
+        .await?
+        .to_bytes();
     let env = unsafe { get_current_env() };
     let result = env.byte_array_from_slice(&buffer)?;
     Ok(result.into())
 }
 
-async fn do_read_with_options<'local>(op: &mut Operator, read_options: JObject, path: String) -> Result<JObject<'local>> {
+async fn do_read_with_options<'local>(
+    op: &mut Operator,
+    read_options: JObject,
+    path: String,
+) -> Result<JObject<'local>> {
     let offset = env.get_field(read_options, "offset", "J")?.j()?;
     let length = {
         let jlong = env.get_field(read_options, "length", "J")?.j()?;

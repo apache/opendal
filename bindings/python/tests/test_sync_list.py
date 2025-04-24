@@ -44,9 +44,7 @@ def test_sync_list_with_start_after(service_name, operator, async_operator):
     start_after_file = files_to_create[2]  # e.g., test_dir/file_2
     entries_after = []
     # Note: start_after expects the *full path* relative to the operator root
-    for entry in operator.list(
-        test_dir, start_after=start_after_file
-    ):
+    for entry in operator.list(test_dir, start_after=start_after_file):
         entries_after.append(entry.path)
     entries_after.sort()  # Ensure order
 

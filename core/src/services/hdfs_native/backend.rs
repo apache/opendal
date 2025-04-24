@@ -26,10 +26,10 @@ use crate::*;
 use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use std::collections::HashMap;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
@@ -91,9 +91,9 @@ impl HdfsNativeBuilder {
         self
     }
     /// Set other configs of this backend.
-    /// 
+    ///
     /// This is a map of key-value pairs.
-    pub fn configs(mut self, configs: Option<HashMap<String,String>>) -> Self {
+    pub fn configs(mut self, configs: Option<HashMap<String, String>>) -> Self {
         self.config.configs = configs;
         self
     }
@@ -119,9 +119,12 @@ impl Builder for HdfsNativeBuilder {
 
         let client = {
             match self.config.configs {
-               None => hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)? ,
-               Some(ref configs) => hdfs_native::Client::new_with_config(name_node,configs.clone()).map_err(parse_hdfs_error)? 
-            } 
+                None => hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?,
+                Some(ref configs) => {
+                    hdfs_native::Client::new_with_config(name_node, configs.clone())
+                        .map_err(parse_hdfs_error)?
+                }
+            }
         };
         // need to check if root dir exists, create if not
         Ok(HdfsNativeBackend {

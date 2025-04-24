@@ -128,7 +128,7 @@ impl Operator {
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriterOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         let kwargs = kwargs.unwrap_or_default();
         self.core
@@ -323,27 +323,39 @@ impl AsyncOperator {
     }
 
     /// Open a file-like reader for the given path.
+    #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         mode: String,
+        kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReaderOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriterOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
             if mode == "rb" {
-                let r = this
-                    .reader(&path)
-                    .await
-                    .map_err(format_pyerr)?
-                    .into_futures_async_read(..)
+                let reader = reader_opts.create_reader(&this, path).await?;
+                let range = reader_opts.make_range();
+
+                let r = reader
+                    .into_futures_async_read(range)
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
-                let w = this.writer(&path).await.map_err(format_pyerr)?;
+                let w = writer_opts.create_writer(&this, path).await?;
                 Ok(AsyncFile::new_writer(w))
             } else {
                 Err(Unsupported::new_err(format!(
@@ -370,7 +382,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: PathBuf,
         bs: &Bound<PyBytes>,
-        kwargs: Option<WriteOptions>,
+        kwargs: Option<WriterOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let mut kwargs = kwargs.unwrap_or_default();
         let this = self.core.clone();

@@ -197,12 +197,15 @@ class AsyncOperator(_Base):
     """
     def __init__(self, scheme: str, **options: Any) -> None: ...
     def layer(self, layer: Layer) -> "AsyncOperator": ...
-    async def open(self, path: PathBuf, mode: str) -> AsyncFile:
+    async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
         """Open a file at the given path for reading or writing.
 
         Args:
             path (str|Path): The path to the file.
             mode (str): The mode to open the file. Can be "rb" or "wb".
+            **options (any): Reader options if mode == "rb" and
+            writer options if mode == "wb".
+                See the documentation `reader_with` and `writer_with` for more details.
 
         Returns:
             A file-like object that can be used to read or write the file.

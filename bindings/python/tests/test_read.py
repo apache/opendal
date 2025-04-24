@@ -158,6 +158,20 @@ async def test_async_reader(service_name, operator, async_operator):
         assert read_content is not None
         assert read_content == content
 
+    range_start = randint(0, len(content) - 1)
+    range_end = randint(range_start, len(content) - 1)
+
+    async with await async_operator.open(
+        filename, "rb", range_start=range_start, range_end=range_end
+    ) as reader:
+        assert await reader.readable()
+        assert not await reader.writable()
+        assert not await reader.closed
+
+        read_content = await reader.read()
+        assert read_content is not None
+        assert read_content == content[range_start:range_end]
+
     await async_operator.delete(filename)
 
 

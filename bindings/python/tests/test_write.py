@@ -22,7 +22,7 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import NotFound, ConditionNotMatch
+from opendal.exceptions import ConditionNotMatch, NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")

@@ -29,6 +29,7 @@ use log::debug;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
@@ -89,6 +90,13 @@ impl HdfsNativeBuilder {
         self.config.enable_append = enable_append;
         self
     }
+    /// Set other configs of this backend.
+    /// 
+    /// This is a map of key-value pairs.
+    pub fn configs(mut self, configs: Option<HashMap<String,String>>) -> Self {
+        self.config.configs = configs;
+        self
+    }
 }
 
 impl Builder for HdfsNativeBuilder {
@@ -109,8 +117,12 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?;
-
+        let client = {
+            match self.config.configs {
+               None => hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)? ,
+               Some(ref configs) => hdfs_native::Client::new_with_config(name_node,configs.clone()).map_err(parse_hdfs_error)? 
+            } 
+        };
         // need to check if root dir exists, create if not
         Ok(HdfsNativeBackend {
             root,

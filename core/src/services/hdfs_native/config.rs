@@ -35,6 +35,7 @@ pub struct HdfsNativeConfig {
     /// enable the append capacity
     pub enable_append: bool,
     /// other configs
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub configs: Option<HashMap<String, String>>,
 }
 

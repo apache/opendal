@@ -171,13 +171,24 @@ async def test_async_writer(service_name, operator, async_operator):
     written_bytes = await f.write(content)
     assert written_bytes == size
     await f.close()
-
-    with pytest.raises(ConditionNotMatch):
-        await async_operator.open(filename, "wb", if_not_exists=True)
-
     await async_operator.delete(filename)
     with pytest.raises(NotFound):
         await async_operator.stat(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+async def test_async_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = await async_operator.open(filename, "wb")
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    with pytest.raises(ConditionNotMatch):
+        await async_operator.open(filename, "wb", if_not_exists=True)
 
 
 @pytest.mark.need_capability("write", "delete")

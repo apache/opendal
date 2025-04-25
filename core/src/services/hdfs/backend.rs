@@ -201,7 +201,10 @@ impl Builder for HdfsBuilder {
 
                 ..Default::default()
             });
-        let core = HdfsCore::new(Arc::new(info), Arc::new(client));
+        let core = HdfsCore {
+            info: Arc::new(info),
+            client: Arc::new(client),
+        };
         Ok(HdfsBackend {
             root,
             atomic_write_dir,
@@ -248,8 +251,7 @@ impl Access for HdfsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        client.create_dir(&p).map_err(new_std_io_error)?;
+        self.core.client.create_dir(&p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -257,7 +259,7 @@ impl Access for HdfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self.core.get_metadata(&p).map_err(new_std_io_error)?;
+        let meta = self.core.client.metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -276,8 +278,9 @@ impl Access for HdfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        let mut f = client
+        let mut f = self
+            .core
+            .client
             .open_file()
             .read(true)
             .async_open(&p)
@@ -301,7 +304,7 @@ impl Access for HdfsBackend {
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let target_path = build_rooted_abs_path(&self.root, path);
         let mut initial_size = 0;
-        let target_exists = match self.core.get_metadata(&target_path) {
+        let target_exists = match self.core.client.metadata(&target_path) {
             Ok(meta) => {
                 initial_size = meta.len();
                 true
@@ -324,16 +327,18 @@ impl Access for HdfsBackend {
             }
         });
 
-        let client = self.core.client();
         if !target_exists {
             let parent = get_parent(&target_path);
-            client.create_dir(parent).map_err(new_std_io_error)?;
+            self.core
+                .client
+                .create_dir(parent)
+                .map_err(new_std_io_error)?;
         }
         if !should_append {
             initial_size = 0;
         }
 
-        let mut open_options = client.open_file();
+        let mut open_options = self.core.client.open_file();
         open_options.create(true);
         if should_append {
             open_options.append(true);
@@ -352,7 +357,7 @@ impl Access for HdfsBackend {
                 target_path,
                 tmp_path,
                 f,
-                Arc::clone(&client),
+                Arc::clone(&self.core.client),
                 target_exists,
                 initial_size,
             ),
@@ -369,8 +374,7 @@ impl Access for HdfsBackend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        let f = match client.read_dir(&p) {
+        let f = match self.core.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
@@ -389,12 +393,12 @@ impl Access for HdfsBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.core
-            .get_metadata(&from_path)
+            .client
+            .metadata(&from_path)
             .map_err(new_std_io_error)?;
 
         let to_path = build_rooted_abs_path(&self.root, to);
-        let result = self.core.get_metadata(&to_path);
-        let client = self.core.client();
+        let result = self.core.client.metadata(&to_path);
         match result {
             Err(err) => {
                 // Early return if other error happened.
@@ -413,13 +417,17 @@ impl Access for HdfsBackend {
                     })?
                     .to_path_buf();
 
-                client
+                self.core
+                    .client
                     .create_dir(&parent.to_string_lossy())
                     .map_err(new_std_io_error)?;
             }
             Ok(metadata) => {
                 if metadata.is_file() {
-                    client.remove_file(&to_path).map_err(new_std_io_error)?;
+                    self.core
+                        .client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
                 } else {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
                         .with_context("input", &to_path));
@@ -427,7 +435,8 @@ impl Access for HdfsBackend {
             }
         }
 
-        client
+        self.core
+            .client
             .rename_file(&from_path, &to_path)
             .map_err(new_std_io_error)?;
 
@@ -437,8 +446,7 @@ impl Access for HdfsBackend {
     fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        client.create_dir(&p).map_err(new_std_io_error)?;
+        self.core.client.create_dir(&p).map_err(new_std_io_error)?;
 
         Ok(RpCreateDir::default())
     }
@@ -446,7 +454,7 @@ impl Access for HdfsBackend {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self.core.get_metadata(&p).map_err(new_std_io_error)?;
+        let meta = self.core.client.metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -465,8 +473,9 @@ impl Access for HdfsBackend {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        let mut f = client
+        let mut f = self
+            .core
+            .client
             .open_file()
             .read(true)
             .open(&p)
@@ -488,7 +497,7 @@ impl Access for HdfsBackend {
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let target_path = build_rooted_abs_path(&self.root, path);
         let mut initial_size = 0;
-        let target_exists = match self.core.get_metadata(&target_path) {
+        let target_exists = match self.core.client.metadata(&target_path) {
             Ok(meta) => {
                 initial_size = meta.len();
                 true
@@ -511,16 +520,18 @@ impl Access for HdfsBackend {
             }
         });
 
-        let client = self.core.client();
         if !target_exists {
             let parent = get_parent(&target_path);
-            client.create_dir(parent).map_err(new_std_io_error)?;
+            self.core
+                .client
+                .create_dir(parent)
+                .map_err(new_std_io_error)?;
         }
         if !should_append {
             initial_size = 0;
         }
 
-        let mut open_options = client.open_file();
+        let mut open_options = self.core.client.open_file();
         open_options.create(true);
         if should_append {
             open_options.append(true);
@@ -538,7 +549,7 @@ impl Access for HdfsBackend {
                 target_path,
                 tmp_path,
                 f,
-                Arc::clone(&client),
+                Arc::clone(&self.core.client),
                 target_exists,
                 initial_size,
             ),
@@ -555,8 +566,7 @@ impl Access for HdfsBackend {
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let client = self.core.client();
-        let f = match client.read_dir(&p) {
+        let f = match self.core.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
@@ -575,12 +585,12 @@ impl Access for HdfsBackend {
     fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.core
-            .get_metadata(&from_path)
+            .client
+            .metadata(&from_path)
             .map_err(new_std_io_error)?;
 
         let to_path = build_rooted_abs_path(&self.root, to);
-        let client = self.core.client();
-        let result = self.core.get_metadata(&to_path);
+        let result = self.core.client.metadata(&to_path);
         match result {
             Err(err) => {
                 // Early return if other error happened.
@@ -599,13 +609,17 @@ impl Access for HdfsBackend {
                     })?
                     .to_path_buf();
 
-                client
+                self.core
+                    .client
                     .create_dir(&parent.to_string_lossy())
                     .map_err(new_std_io_error)?;
             }
             Ok(metadata) => {
                 if metadata.is_file() {
-                    client.remove_file(&to_path).map_err(new_std_io_error)?;
+                    self.core
+                        .client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
                 } else {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
                         .with_context("input", &to_path));
@@ -613,7 +627,8 @@ impl Access for HdfsBackend {
             }
         }
 
-        client
+        self.core
+            .client
             .rename_file(&from_path, &to_path)
             .map_err(new_std_io_error)?;
 

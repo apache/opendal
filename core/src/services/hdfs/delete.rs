@@ -35,9 +35,8 @@ impl HdfsDeleter {
 impl oio::OneShotDelete for HdfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, &path);
-        let client = self.core.client();
 
-        let meta = self.core.get_metadata(&p);
+        let meta = self.core.client.metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == io::ErrorKind::NotFound {
@@ -51,9 +50,9 @@ impl oio::OneShotDelete for HdfsDeleter {
         let meta = meta.ok().unwrap();
 
         let result = if meta.is_dir() {
-            client.remove_dir(&p)
+            self.core.client.remove_dir(&p)
         } else {
-            client.remove_file(&p)
+            self.core.client.remove_file(&p)
         };
 
         result.map_err(new_std_io_error)?;
@@ -65,9 +64,8 @@ impl oio::OneShotDelete for HdfsDeleter {
 impl oio::BlockingOneShotDelete for HdfsDeleter {
     fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, &path);
-        let client = self.core.client();
 
-        let meta = client.metadata(&p);
+        let meta = self.core.client.metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == io::ErrorKind::NotFound {
@@ -81,9 +79,9 @@ impl oio::BlockingOneShotDelete for HdfsDeleter {
         let meta = meta.ok().unwrap();
 
         let result = if meta.is_dir() {
-            client.remove_dir(&p)
+            self.core.client.remove_dir(&p)
         } else {
-            client.remove_file(&p)
+            self.core.client.remove_file(&p)
         };
 
         result.map_err(new_std_io_error)?;

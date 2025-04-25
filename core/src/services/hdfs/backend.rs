@@ -244,8 +244,7 @@ impl Access for HdfsBackend {
     type BlockingDeleter = oio::OneShotDeleter<HdfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let info = self.core.info();
-        return info;
+        Arc::clone(&self.core.info)
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

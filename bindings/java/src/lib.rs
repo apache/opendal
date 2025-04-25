@@ -38,6 +38,7 @@ mod layer;
 mod operator;
 mod operator_input_stream;
 mod operator_output_stream;
+mod options;
 mod utility;
 
 pub(crate) type Result<T> = std::result::Result<T, error::Error>;

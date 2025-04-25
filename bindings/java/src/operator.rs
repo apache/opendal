@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use anyhow::anyhow;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -30,6 +31,7 @@ use opendal::BlockingOperator;
 use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
 use crate::make_entry;
 use crate::make_metadata;
+use crate::options::ReadOptions;
 use crate::Result;
 
 /// # Safety
@@ -83,33 +85,33 @@ fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 // Rust FFI function for OpenDAL's sync `read_with_offset`
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_offset(
-    mut env: JNIEnv,
+    mut jni_env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
     offset: jlong,
     len: jlong,
     path: JString,
 ) -> jbyteArray {
-    intern_read_with_offset(&mut env, &mut *op, offset, len, path).unwrap_or_else(|e| {
-        e.throw(&mut env);
+    intern_read_with_offset(&mut jni_env, &mut *op, offset, len, path).unwrap_or_else(|e| {
+        e.throw(&mut jni_env);
         JByteArray::default().into_raw()
     })
 }
 
 fn intern_read_with_offset(
-    env: &mut JNIEnv,
+    jni_env: &mut JNIEnv,
     op: &mut BlockingOperator,
     offset: jlong,
     len: jlong,
     path: JString,
 ) -> Result<jbyteArray> {
-    let path = jstring_to_string(env, &path)?;
+    let path = jstring_to_string(jni_env, &path)?;
 
     let offset = offset as u64;
     let len = len as u64;
     let content = op.read_with(&path).range(offset..(offset + len)).call()?;
     let buffer = content.to_bytes();
-    let result = env.byte_array_from_slice(&buffer)?;
+    let result = jni_env.byte_array_from_slice(&buffer)?;
 
     Ok(result.into_raw())
 }
@@ -117,70 +119,50 @@ fn intern_read_with_offset(
 // Rust FFI function for OpenDAL's sync `read_with_offset`
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read_with_options(
-    mut env: JNIEnv,
+    mut jni_env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
     read_options: JObject,
     path: JString,
 ) -> jbyteArray {
-    crate::operator::intern_read_with_options(&mut env, &mut *op, read_options, path)
+    crate::operator::intern_read_with_options(&mut jni_env, &mut *op, read_options, path)
         .unwrap_or_else(|e| {
-            e.throw(&mut env);
+            e.throw(&mut jni_env);
             JByteArray::default().into_raw()
         })
 }
 
 fn intern_read_with_options(
-    env: &mut JNIEnv,
+    jni_env: &mut JNIEnv,
     op: &mut BlockingOperator,
     read_options: JObject,
     path: JString,
 ) -> Result<jbyteArray> {
-    let offset = env.get_field(read_options, "offset", "J")?.j()?;
+    let cloned_options = read_options.clone();
+    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()?;
     let length = {
-        let jlong = env.get_field(read_options, "length", "J")?.j()?;
+        let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
         if jlong == -1 {
             None
         } else {
             Some(jlong as u64)
         }
     };
-    let buffer_size = env.get_field(read_options, "bufferSize", "I")?.i()? as usize;
-    let charset_name = env.get_field(read_options, "charset", "Ljava/lang/String;")?;
-    let charset = if !charset_name.is_null() {
-        let charset_str = env.get_string(charset_name.into())?;
-        Encoding::for_label(charset_str.to_bytes()).unwrap_or(UTF_8)
+    let buffer_size = jni_env.get_field(cloned_options, "bufferSize", "I")?.i()? as usize;
+
+    let path = jstring_to_string(jni_env, &path)?;
+
+    let mut content = op.read_with(&path).chunk(buffer_size);
+    if let Some(len) = length {
+        content = content.range(offset..(offset + len));
     } else {
-        UTF_8
-    };
-    let skip_new_line = env.get_field(read_options, "skipNewLine", "Z")?.z()?;
+        content = content.range(offset..);
+    }
 
-    let options = ReadOptions::builder()
-        .offset(offset)
-        .length(length)
-        .buffer_size(buffer_size)
-        .charset(charset)
-        .skip_new_line(skip_new_line)
-        .build()
-        .map_err(|e| {
-            Error::new(
-                ErrorKind::Other,
-                format!("Failed to build ReadOptions: {}", e),
-            )
-        })?;
-    let path = jstring_to_string(env, &path)?;
+    let array = jni_env.new_byte_array(content.len() as i32)?;
+    jni_env.set_byte_array_region(array, 0, &content)?;
 
-    let content = op.read_with(&path, &options).map_err(|e| {
-        Error::new(
-            ErrorKind::Other,
-            format!("Failed to read with options: {}", e),
-        )
-    })?;
-
-    let array = env.new_byte_array(content.len() as i32)?;
-    env.set_byte_array_region(array, 0, &content)?;
-
-    Ok(array)
+    Ok(array.clone().into_raw())
 }
 
 /// # Safety

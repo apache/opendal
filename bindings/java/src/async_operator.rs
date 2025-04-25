@@ -43,6 +43,7 @@ use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
+use crate::options::ReadOptions;
 use crate::Result;
 
 #[no_mangle]
@@ -317,7 +318,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_of
 }
 
 fn intern_read_with_offset(
-    env: &mut JNIEnv,
+    jni_env: &mut JNIEnv,
     op: *mut Operator,
     executor: *const Executor,
     offset: jlong,
@@ -325,11 +326,11 @@ fn intern_read_with_offset(
     path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let id = request_id(jni_env)?;
 
-    let path = jstring_to_string(env, &path)?;
+    let path = jstring_to_string(jni_env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    executor_or_default(jni_env, executor)?.spawn(async move {
         let result = do_read_with_offset(op, offset, len, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -339,32 +340,32 @@ fn intern_read_with_offset(
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_options(
-    mut env: JNIEnv,
+    mut jni_env: JNIEnv,
     _: JClass,
     op: *mut Operator,
     executor: *const Executor,
     read_options: JObject,
     path: JString,
 ) -> jlong {
-    intern_read_with_options(&mut env, op, executor, read_options, path).unwrap_or_else(|e| {
-        e.throw(&mut env);
+    intern_read_with_options(&mut jni_env, op, executor, read_options, path).unwrap_or_else(|e| {
+        e.throw(&mut jni_env);
         0
     })
 }
 
 fn intern_read_with_options(
-    env: &mut JNIEnv,
+    jni_env: &mut JNIEnv,
     op: *mut Operator,
     executor: *const Executor,
     read_options: JObject,
     path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    let id = request_id(env)?;
-    let path = jstring_to_string(env, &path)?;
+    let id = request_id(jni_env)?;
+    let path = jstring_to_string(jni_env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
-        let result = do_read_with_options(op, read_options, path).await;
+    executor_or_default(jni_env, executor)?.spawn(async move {
+        let result = do_read_with_options(jni_env, op, read_options, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
@@ -416,54 +417,34 @@ async fn do_read_with_offset<'local>(
 }
 
 async fn do_read_with_options<'local>(
+    jni_env: &mut JNIEnv,
     op: &mut Operator,
-    read_options: JObject,
+    read_options: JObject<'local>,
     path: String,
 ) -> Result<JObject<'local>> {
-    let offset = env.get_field(read_options, "offset", "J")?.j()?;
+    let cloned_options = read_options.clone();
+    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()?;
     let length = {
-        let jlong = env.get_field(read_options, "length", "J")?.j()?;
+        let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
         if jlong == -1 {
             None
         } else {
             Some(jlong as u64)
         }
     };
-    let buffer_size = env.get_field(read_options, "bufferSize", "I")?.i()? as usize;
-    let charset_name = env.get_field(read_options, "charset", "Ljava/lang/String;")?;
-    let charset = if !charset_name.is_null() {
-        let charset_str = env.get_string(charset_name.into())?;
-        Encoding::for_label(charset_str.to_bytes()).unwrap_or(UTF_8)
+    let buffer_size = jni_env.get_field(cloned_options, "bufferSize", "I")?.i()? as usize;
+
+    let mut content = op.read_with(&path).chunk(buffer_size);
+    if let Some(len) = length {
+        content = content.range(offset..(offset + len));
     } else {
-        UTF_8
-    };
-    let skip_new_line = env.get_field(read_options, "skipNewLine", "Z")?.z()?;
+        content = content.range(offset..);
+    }
 
-    let options = ReadOptions::builder()
-        .offset(offset)
-        .length(length)
-        .buffer_size(buffer_size)
-        .charset(charset)
-        .skip_new_line(skip_new_line)
-        .build()
-        .map_err(|e| {
-            Error::new(
-                ErrorKind::Other,
-                format!("Failed to build ReadOptions: {}", e),
-            )
-        })?;
+    let array = jni_env.new_byte_array(content.len() as i32)?;
+    jni_env.set_byte_array_region(array, 0, &content)?;
 
-    let content = op.read_with(&path, &options).map_err(|e| {
-        Error::new(
-            ErrorKind::Other,
-            format!("Failed to read with options: {}", e),
-        )
-    })?;
-
-    let array = env.new_byte_array(content.len() as i32)?;
-    env.set_byte_array_region(array, 0, &content)?;
-
-    Ok(array)
+    Ok(array.clone().into_raw())
 }
 
 fn intern_delete(

@@ -366,6 +366,7 @@ impl Access for AliyunDriveBackend {
         let res = self.core.get_by_path(path).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+
         let download_url = self.core.get_download_url(&file.file_id).await?;
         let resp = self.core.download(&download_url, args.range()).await?;
 

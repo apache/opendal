@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -30,7 +29,6 @@ use super::core::constants;
 use super::core::parse_file_info;
 use super::core::B2Core;
 use super::core::B2Signer;
-use super::core::ListFileNamesResponse;
 use super::delete::B2Deleter;
 use super::error::parse_error;
 use super::lister::B2Lister;

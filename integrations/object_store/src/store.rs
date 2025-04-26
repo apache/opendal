@@ -302,7 +302,7 @@ impl ObjectStore for OpendalStore {
         };
 
         let stream = reader
-            .into_bytes_stream(read_range.start as u64..read_range.end as u64)
+            .into_bytes_stream(read_range.start..read_range.end)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?

@@ -20,8 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -229,7 +227,6 @@ impl Access for YandexDiskBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        // TODO: move this out of reader.
         let download_url = self.core.get_download_url(path).await?;
         let resp = self.core.download(&download_url, args.range()).await?;
 

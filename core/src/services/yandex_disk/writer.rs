@@ -43,15 +43,9 @@ impl oio::OneShotWrite for YandexDiskWriter {
         self.core.ensure_dir_exists(&self.path).await?;
 
         let upload_url = self.core.get_upload_url(&self.path).await?;
-
-        let req = Request::put(upload_url)
-            .body(bs)
-            .map_err(new_request_build_error)?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self.core.upload(&upload_url, bs).await?;
 
         let status = resp.status();
-
         match status {
             StatusCode::CREATED => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),

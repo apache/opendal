@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use http::Request;
 use http::StatusCode;
 
 use super::core::YandexDiskCore;

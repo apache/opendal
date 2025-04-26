@@ -25,8 +25,6 @@ use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
-use http::header;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -256,13 +254,7 @@ impl Access for GhacBackend {
     ///
     /// In this way, we can support both self-hosted GHES and `github.com`.
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let location = self.core.ghac_get_download_url(path).await?;
-
-        let req = Request::get(location)
-            .header(header::RANGE, "bytes=0-0")
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        let resp = self.core.info.http_client().send(req).await?;
+        let resp = self.core.ghac_stat(path).await?;
 
         let status = resp.status();
         match status {
@@ -283,16 +275,7 @@ impl Access for GhacBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let location = self.core.ghac_get_download_url(path).await?;
-
-        let mut req = Request::get(location);
-
-        if !args.range().is_full() {
-            req = req.header(header::RANGE, args.range().to_header());
-        }
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        let resp = self.core.info.http_client().fetch(req).await?;
+        let resp = self.core.ghac_read(path, args.range()).await?;
 
         let status = resp.status();
         match status {

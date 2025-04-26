@@ -32,6 +32,7 @@ This service can be used to:
 - `disable_config_load`: Disable aws config load from env.
 - `enable_virtual_host_style`: Enable virtual host style.
 - `disable_write_with_if_match`: Disable write with if match.
+- `enable_request_payer`: Enable the request payer for backend.
 
 Refer to [`S3Builder`]'s public API docs for more information.
 

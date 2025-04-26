@@ -117,6 +117,8 @@ impl GithubCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::Stat);
+
         let req = self.sign(req)?;
 
         let req = req
@@ -138,6 +140,8 @@ impl GithubCore {
         );
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Read);
 
         let req = self.sign(req)?;
 
@@ -163,6 +167,8 @@ impl GithubCore {
         );
 
         let req = Request::put(url);
+
+        let req = req.extension(Operation::Write);
 
         let req = self.sign(req)?;
 
@@ -210,6 +216,8 @@ impl GithubCore {
 
         let req = Request::delete(url);
 
+        let req = req.extension(Operation::Delete);
+
         let req = self.sign(req)?;
 
         let req_body = DeleteContentsRequest {
@@ -245,6 +253,8 @@ impl GithubCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::List);
+
         let req = self.sign(req)?;
 
         let req = req
@@ -272,6 +282,8 @@ impl GithubCore {
         let url = format!("{}?recursive=true", git_url);
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::List);
 
         let req = self.sign(req)?;
 

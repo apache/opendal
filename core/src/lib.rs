@@ -154,6 +154,7 @@ mod tests {
     ///
     /// We assert our public structs here to make sure we don't introduce
     /// unexpected struct/enum size change.
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn assert_size() {
         assert_eq!(16, size_of::<Operator>());

@@ -22,8 +22,8 @@ use bytes::Buf;
 use chrono::Utc;
 use http::header::HeaderValue;
 use http::header::{self};
-use http::Method;
 use http::Request;
+use http::{Method, Response};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -399,12 +399,16 @@ impl AliyunDriveCore {
         self.send(req, token.as_deref()).await
     }
 
-    pub async fn download(&self, download_url: &str, range: BytesRange) -> Result<Buffer> {
+    pub async fn download(
+        &self,
+        download_url: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.send(req, None).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Buffer> {

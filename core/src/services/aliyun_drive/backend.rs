@@ -21,11 +21,14 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use chrono::Utc;
+use http::Response;
+use http::StatusCode;
 use log::debug;
 use tokio::sync::Mutex;
 
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
+use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
@@ -231,7 +234,7 @@ pub struct AliyunDriveBackend {
 }
 
 impl Access for AliyunDriveBackend {
-    type Reader = Buffer;
+    type Reader = HttpBody;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
@@ -364,9 +367,19 @@ impl Access for AliyunDriveBackend {
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
         let download_url = self.core.get_download_url(&file.file_id).await?;
-        let buf = self.core.download(&download_url, args.range()).await?;
+        let resp = self.core.download(&download_url, args.range()).await?;
 
-        Ok((RpRead::default(), buf))
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

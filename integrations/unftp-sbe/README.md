@@ -12,7 +12,7 @@
 
 `unftp-sbe-opendal` is an [unftp](https://crates.io/crates/unftp) `StorageBackend` implementation using opendal.
 
-This crate can help you to access ANY storage services with the same ftp API.
+This crate can help you to access ANY storage services with the same FTP API.
 
 ## Useful Links
 

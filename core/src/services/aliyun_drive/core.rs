@@ -399,6 +399,14 @@ impl AliyunDriveCore {
         self.send(req, token.as_deref()).await
     }
 
+    pub async fn download(&self, download_url: &str, range: BytesRange) -> Result<Buffer> {
+        let req = Request::get(download_url)
+            .header(header::RANGE, range.to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.send(req, None).await
+    }
+
     pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Buffer> {
         let req = Request::put(upload_url)
             // Inject operation to the request.

@@ -144,7 +144,10 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -180,7 +183,10 @@ impl ObsCore {
             }
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -211,7 +217,10 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -223,7 +232,10 @@ impl ObsCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -262,7 +274,11 @@ impl ObsCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
         Ok(req)
     }
 
@@ -274,6 +290,7 @@ impl ObsCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
+            .extension(Operation::Copy)
             .header("x-obs-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -307,6 +324,7 @@ impl ObsCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -327,7 +345,11 @@ impl ObsCore {
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
         }
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        let mut req = req
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -357,8 +379,11 @@ impl ObsCore {
             req = req.header(CONTENT_LENGTH, size);
         }
 
-        // Set body
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Write)
+            // Set body
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -391,6 +416,7 @@ impl ObsCore {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
+            .extension(Operation::Write)
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -414,6 +440,7 @@ impl ObsCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

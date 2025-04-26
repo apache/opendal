@@ -65,6 +65,7 @@ def async_operator(service_name, setup_config):
         opendal.AsyncOperator(service_name, **setup_config)
         .layer(opendal.layers.RetryLayer())
         .layer(opendal.layers.ConcurrentLimitLayer(1024))
+        .layer(opendal.layers.MimeGuessLayer())
     )
 
 

@@ -128,6 +128,19 @@ impl YandexDiskCore {
         }
     }
 
+    pub async fn download(
+        &self,
+        download_url: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let req = Request::get(download_url)
+            .header(header::RANGE, range.to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().fetch(req).await
+    }
+
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 

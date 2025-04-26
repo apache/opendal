@@ -96,6 +96,13 @@ impl YandexDiskCore {
         }
     }
 
+    pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Response<Buffer>> {
+        let req = Request::put(upload_url)
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.send(req).await
+    }
+
     pub async fn get_download_url(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 

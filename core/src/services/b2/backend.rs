@@ -289,27 +289,10 @@ impl Access for B2Backend {
         }
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
-        let resp = self
-            .core
-            .list_file_names(Some(path), delimiter, None, None)
-            .await?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-                let meta = parse_file_info(&resp.files[0]);
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let file_info = self.core.get_file_info(path, delimiter).await?;
+        let meta = parse_file_info(&file_info);
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -361,28 +344,9 @@ impl Access for B2Backend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self
-            .core
-            .list_file_names(Some(from), None, None, None)
-            .await?;
+        let file_info = self.core.get_file_info(from, None).await?;
 
-        let status = resp.status();
-
-        let source_file_id = match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-
-                let file_id = resp.files[0].clone().file_id;
-                Ok(file_id)
-            }
-            _ => Err(parse_error(resp)),
-        }?;
+        let source_file_id = file_info.file_id;
 
         let Some(source_file_id) = source_file_id else {
             return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));

@@ -100,6 +100,7 @@ impl YandexDiskCore {
         let req = Request::put(upload_url)
             .body(body)
             .map_err(new_request_build_error)?;
+
         self.send(req).await
     }
 

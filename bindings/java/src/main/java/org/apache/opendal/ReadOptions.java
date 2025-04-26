@@ -1,6 +1,9 @@
 package org.apache.opendal;
 
 import lombok.Builder;
+import lombok.Data;
+import lombok.Getter;
+
 import java.nio.charset.Charset;
 
 /**
@@ -8,6 +11,7 @@ import java.nio.charset.Charset;
  * when reading a file.
  */
 @Builder
+@Getter
 public class ReadOptions {
     /**
      * The starting offset for reading. Defaults to 0, which means reading from the beginning of the file.
@@ -23,14 +27,4 @@ public class ReadOptions {
      * The buffer size used for reading. Defaults to 8192 bytes (8KB).
      */
     private final int bufferSize = 8192;
-
-    /**
-     * The charset used for decoding text files. Defaults to UTF-8.
-     */
-    private final Charset charset = Charset.defaultCharset();
-
-    /**
-     * Whether to skip new line characters when reading text files. Defaults to false.
-     */
-    private final boolean skipNewLine;
 }

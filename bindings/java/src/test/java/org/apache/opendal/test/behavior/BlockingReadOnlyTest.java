@@ -105,10 +105,8 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
     }
 
     @Test
-    public void testBlockingReadonlyReadOtions() throws NoSuchAlgorithmException {
-        ReadOptions options= new ReadOptions()
-            .setOffset(0)
-            .setLength(FILE_LENGTH);
+    public void testBlockingReadonlyReadOptions() throws NoSuchAlgorithmException {
+        ReadOptions options= new ReadOptions();
         final byte[] content = op().read(NORMAL_FILE_NAME, options);
         assertEquals(FILE_LENGTH, content.length);
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));

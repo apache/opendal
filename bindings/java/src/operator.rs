@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::anyhow;
+use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -25,13 +25,11 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
-use jni::JNIEnv;
 use opendal::BlockingOperator;
 
 use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
 use crate::make_entry;
 use crate::make_metadata;
-use crate::options::ReadOptions;
 use crate::Result;
 
 /// # Safety
@@ -139,7 +137,7 @@ fn intern_read_with_options(
     path: JString,
 ) -> Result<jbyteArray> {
     let cloned_options = read_options.clone();
-    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()?;
+    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()? as u64;
     let length = {
         let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
         if jlong == -1 {
@@ -162,7 +160,7 @@ fn intern_read_with_options(
     let array = jni_env.new_byte_array(content.len() as i32)?;
     jni_env.set_byte_array_region(array, 0, &content)?;
 
-    Ok(array.clone().into_raw())
+    Ok(array.clone().into())
 }
 
 /// # Safety

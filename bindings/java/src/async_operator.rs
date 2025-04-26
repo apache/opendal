@@ -18,6 +18,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -27,23 +28,21 @@ use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
-use jni::JNIEnv;
-use opendal::layers::BlockingLayer;
-use opendal::raw::PresignedRequest;
 use opendal::Entry;
+use opendal::layers::BlockingLayer;
 use opendal::Operator;
+use opendal::raw::PresignedRequest;
 use opendal::Scheme;
 
 use crate::convert::{jmap_to_hashmap, read_map_field, read_string_field};
 use crate::convert::{jstring_to_string, read_bool_field};
+use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
-use crate::executor::Executor;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
-use crate::options::ReadOptions;
 use crate::Result;
 
 #[no_mangle]
@@ -417,13 +416,14 @@ async fn do_read_with_offset<'local>(
 }
 
 async fn do_read_with_options<'local>(
-    jni_env: &mut JNIEnv,
+    jni_env: &'local mut JNIEnv<'_>,
     op: &mut Operator,
     read_options: JObject<'local>,
     path: String,
 ) -> Result<JObject<'local>> {
-    let cloned_options = read_options.clone();
-    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()?;
+        let cloned_options_ptr = read_options.into_inner(jni_env);
+        let cloned_options = unsafe { JObject::from_raw(cloned_options_ptr)}.clone();
+    let offset = jni_env.get_field(cloned_options, "offset", "J")?;
     let length = {
         let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
         if jlong == -1 {
@@ -444,7 +444,7 @@ async fn do_read_with_options<'local>(
     let array = jni_env.new_byte_array(content.len() as i32)?;
     jni_env.set_byte_array_region(array, 0, &content)?;
 
-    Ok(array.clone().into_raw())
+    Ok(array.clone().into())
 }
 
 fn intern_delete(
@@ -469,6 +469,7 @@ fn intern_delete(
 
     Ok(id)
 }
+
 
 /// # Safety
 ///

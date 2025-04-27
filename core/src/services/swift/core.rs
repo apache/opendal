@@ -60,7 +60,10 @@ impl SwiftCore {
 
         let body = Buffer::new();
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -92,7 +95,10 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -124,7 +130,10 @@ impl SwiftCore {
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, length);
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -154,7 +163,10 @@ impl SwiftCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
     }
@@ -191,7 +203,10 @@ impl SwiftCore {
 
         let body = Buffer::new();
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -210,7 +225,10 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }

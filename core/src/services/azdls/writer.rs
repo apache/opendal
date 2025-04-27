@@ -41,13 +41,10 @@ impl AzdlsWriter {
 
 impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let mut req =
-            self.core
-                .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .azdls_create(&self.path, "file", &self.op, Buffer::new())
+            .await?;
 
         let status = resp.status();
         match status {
@@ -57,13 +54,10 @@ impl oio::OneShotWrite for AzdlsWriter {
             }
         }
 
-        let mut req = self
+        let resp = self
             .core
-            .azdls_update_request(&self.path, Some(bs.len() as u64), 0, bs)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+            .azdls_update(&self.path, Some(bs.len() as u64), 0, bs)
+            .await?;
 
         let status = resp.status();
         match status {
@@ -89,13 +83,10 @@ impl oio::AppendWrite for AzdlsWriter {
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         if offset == 0 {
-            let mut req =
-                self.core
-                    .azdls_create_request(&self.path, "file", &self.op, Buffer::new())?;
-
-            self.core.sign(&mut req).await?;
-
-            let resp = self.core.send(req).await?;
+            let resp = self
+                .core
+                .azdls_create(&self.path, "file", &self.op, Buffer::new())
+                .await?;
 
             let status = resp.status();
             match status {
@@ -106,13 +97,10 @@ impl oio::AppendWrite for AzdlsWriter {
             }
         }
 
-        let mut req = self
+        let resp = self
             .core
-            .azdls_update_request(&self.path, Some(size), offset, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+            .azdls_update(&self.path, Some(size), offset, body)
+            .await?;
 
         let status = resp.status();
         match status {

@@ -460,7 +460,7 @@ impl AliyunDriveCore {
             return Err(Error::new(ErrorKind::Unexpected, "cannot find upload_url"));
         };
 
-        return Ok(upload_url);
+        Ok(upload_url)
     }
     pub async fn upload(
         &self,

@@ -48,7 +48,7 @@ impl oio::OneShotWrite for SeafileWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let upload_url = self.core.get_upload_url().await?;
 
-        let req = Request::post(upload_url);
+        let req = Request::post(upload_url).extension(Operation::Write);
 
         let (filename, relative_path) = if self.path.ends_with('/') {
             ("", build_abs_path(&self.core.root, &self.path))

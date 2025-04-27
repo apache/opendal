@@ -61,6 +61,7 @@ impl oio::PageList for SeafileLister {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

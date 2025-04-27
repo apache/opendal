@@ -167,6 +167,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -198,6 +199,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -224,6 +226,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::RANGE, range.to_header())
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -244,6 +247,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -275,6 +279,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -315,6 +320,7 @@ impl SeafileCore {
 
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

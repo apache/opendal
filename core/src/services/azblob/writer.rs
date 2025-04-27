@@ -86,13 +86,10 @@ impl oio::AppendWrite for AzblobWriter {
                 Ok(parse_content_length(headers)?.unwrap_or_default())
             }
             StatusCode::NOT_FOUND => {
-                let mut req = self
+                let resp = self
                     .core
-                    .azblob_init_appendable_blob_request(&self.path, &self.op)?;
-
-                self.core.sign(&mut req).await?;
-
-                let resp = self.core.info.http_client().send(req).await?;
+                    .azblob_init_appendable_blob(&self.path, &self.op)
+                    .await?;
 
                 let status = resp.status();
                 match status {
@@ -110,13 +107,10 @@ impl oio::AppendWrite for AzblobWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
+        let resp = self
             .core
-            .azblob_append_blob_request(&self.path, offset, size, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+            .azblob_append_blob(&self.path, offset, size, body)
+            .await?;
 
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         let status = resp.status();
@@ -129,12 +123,10 @@ impl oio::AppendWrite for AzblobWriter {
 
 impl oio::BlockWrite for AzblobWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req: http::Request<Buffer> =
-            self.core
-                .azblob_put_blob_request(&self.path, Some(size), &self.op, body)?;
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .azblob_put_blob(&self.path, Some(size), &self.op, body)
+            .await?;
 
         let status = resp.status();
 

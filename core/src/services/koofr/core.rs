@@ -78,10 +78,7 @@ impl KoofrCore {
 
                 let req = self.sign(req).await?;
 
-                let req = req
-                    .extension(Operation::Info)
-                    .body(Buffer::new())
-                    .map_err(new_request_build_error)?;
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
                 let resp = self.send(req).await?;
 

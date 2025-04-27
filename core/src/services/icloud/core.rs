@@ -513,6 +513,7 @@ impl PathQuery for IcloudPathQuery {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
+            .extension(Operation::Stat)
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -554,6 +555,7 @@ impl PathQuery for IcloudPathQuery {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
+            .extension(Operation::CreateDir)
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 

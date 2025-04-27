@@ -271,19 +271,12 @@ impl Access for AzdlsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.azdls_create_request(
-            path,
-            "directory",
-            &OpWrite::default(),
-            Buffer::new(),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .azdls_create(path, "directory", &OpWrite::default(), Buffer::new())
+            .await?;
 
         let status = resp.status();
-
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp)),

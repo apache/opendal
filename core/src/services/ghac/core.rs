@@ -105,7 +105,10 @@ impl GhacCore {
                 req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
                 req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
-                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+                let req = req
+                    .extension(Operation::Read)
+                    .body(Buffer::new())
+                    .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let slc = resp.into_body();
@@ -137,6 +140,7 @@ impl GhacCore {
                     .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
+                    .extension(Operation::Read)
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;
@@ -176,6 +180,7 @@ impl GhacCore {
 
         let req = Request::get(location)
             .header(header::RANGE, "bytes=0-0")
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -190,7 +195,10 @@ impl GhacCore {
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
     }
@@ -215,6 +223,7 @@ impl GhacCore {
                 req = req.header(CONTENT_LENGTH, bs.len());
 
                 let req = req
+                    .extension(Operation::Write)
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;
@@ -247,6 +256,7 @@ impl GhacCore {
                     .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
+                    .extension(Operation::Write)
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;
@@ -288,7 +298,10 @@ impl GhacCore {
                 .with_range(offset, offset + size - 1)
                 .to_header(),
         );
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -306,6 +319,7 @@ impl GhacCore {
                     .header(ACCEPT, CACHE_HEADER_ACCEPT)
                     .header(CONTENT_TYPE, CONTENT_TYPE_JSON)
                     .header(CONTENT_LENGTH, bs.len())
+                    .extension(Operation::Write)
                     .body(Buffer::from(bs))
                     .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;
@@ -334,6 +348,7 @@ impl GhacCore {
                     .header(AUTHORIZATION, format!("Bearer {}", self.catch_token))
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
+                    .extension(Operation::Write)
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = self.info.http_client().send(req).await?;

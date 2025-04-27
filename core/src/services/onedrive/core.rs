@@ -95,6 +95,7 @@ impl OneDriveCore {
         let request = Request::get(&url);
 
         let mut request = request
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -172,6 +173,7 @@ impl OneDriveCore {
         }
 
         let mut request = request
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -235,6 +237,7 @@ impl OneDriveCore {
         );
 
         let mut request = Request::get(url)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -249,6 +252,7 @@ impl OneDriveCore {
 
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
         let mut request = Request::get(url)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -280,6 +284,7 @@ impl OneDriveCore {
         }
 
         let mut request = request
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -329,7 +334,10 @@ impl OneDriveCore {
             request = request.header(header::IF_MATCH, if_match);
         }
 
-        let mut request = request.body(body).map_err(new_request_build_error)?;
+        let mut request = request
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
 
@@ -357,7 +365,10 @@ impl OneDriveCore {
             request = request.header(header::CONTENT_TYPE, mime)
         }
 
-        let request = request.body(body).map_err(new_request_build_error)?;
+        let request = request
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
         // OneDrive documentation requires not sending the `Authorization` header
 
         self.info.http_client().send(request).await
@@ -388,7 +399,10 @@ impl OneDriveCore {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        let mut request = request.body(body).map_err(new_request_build_error)?;
+        let mut request = request
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
 
@@ -418,6 +432,7 @@ impl OneDriveCore {
 
         let mut request = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::CreateDir)
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -433,6 +448,7 @@ impl OneDriveCore {
         let url = self.onedrive_item_url(path, true);
 
         let mut request = Request::delete(&url)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -492,6 +508,7 @@ impl OneDriveCore {
         let buffer = Buffer::from(Bytes::from(body_bytes));
         let mut request = Request::post(&url)
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Copy)
             .body(buffer)
             .map_err(new_request_build_error)?;
 
@@ -515,6 +532,7 @@ impl OneDriveCore {
         for _attempt in 0..MAX_MONITOR_ATTEMPT {
             let mut request = Request::get(monitor_url.to_string())
                 .header(header::CONTENT_TYPE, "application/json")
+                .extension(Operation::Info)
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
@@ -567,6 +585,7 @@ impl OneDriveCore {
         );
         let mut request = Request::patch(&url)
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Rename)
             .body(buffer)
             .map_err(new_request_build_error)?;
 

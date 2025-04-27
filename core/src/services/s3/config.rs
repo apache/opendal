@@ -193,6 +193,9 @@ pub struct S3Config {
     /// However, some legacy services do not yet support V2.
     /// This option allows users to switch back to the older List Objects V1.
     pub disable_list_objects_v2: bool,
+
+    /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
+    pub enable_request_payer: bool,
 }
 
 impl Debug for S3Config {

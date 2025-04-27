@@ -262,6 +262,49 @@ impl GdriveCore {
         let mut signer = self.signer.lock().await;
         signer.sign(req).await
     }
+
+    pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+        let from = build_abs_path(&self.root, from);
+
+        let from_file_id = self.path_cache.get(&from).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            "the file to copy does not exist",
+        ))?;
+
+        let to_name = get_basename(to);
+        let to_path = build_abs_path(&self.root, to);
+        let to_parent_id = self.path_cache.ensure_dir(get_parent(&to_path)).await?;
+
+        // copy will overwrite `to`, delete it if exist
+        if let Some(id) = self.path_cache.get(&to_path).await? {
+            let resp = self.gdrive_trash(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            self.path_cache.remove(&to_path).await;
+        }
+
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{}/copy",
+            from_file_id
+        );
+
+        let request_body = &json!({
+            "name": to_name,
+            "parents": [to_parent_id],
+        });
+        let body = Buffer::from(Bytes::from(request_body.to_string()));
+
+        let mut req = Request::post(&url)
+            .extension(Operation::Copy)
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+
+        self.info.http_client().send(req).await
+    }
 }
 
 #[derive(Clone)]

@@ -107,6 +107,7 @@ pub struct PrometheusClientLayerBuilder {
     entries_rate_buckets: Vec<f64>,
     duration_seconds_buckets: Vec<f64>,
     ttfb_buckets: Vec<f64>,
+    disable_label_root: bool,
 }
 
 impl Default for PrometheusClientLayerBuilder {
@@ -118,6 +119,7 @@ impl Default for PrometheusClientLayerBuilder {
             entries_rate_buckets: observe::DEFAULT_ENTRIES_RATE_BUCKETS.to_vec(),
             duration_seconds_buckets: observe::DEFAULT_DURATION_SECONDS_BUCKETS.to_vec(),
             ttfb_buckets: observe::DEFAULT_TTFB_BUCKETS.to_vec(),
+            disable_label_root: false,
         }
     }
 }
@@ -168,6 +170,13 @@ impl PrometheusClientLayerBuilder {
         if !buckets.is_empty() {
             self.ttfb_buckets = buckets;
         }
+        self
+    }
+
+    /// The 'root' label might have risks of being high cardinality, users can choose to disable it
+    /// when they found it's not useful for their metrics.
+    pub fn disable_label_root(mut self, disable: bool) -> Self {
+        self.disable_label_root = disable;
         self
     }
 
@@ -359,6 +368,8 @@ impl PrometheusClientLayerBuilder {
                 http_response_duration_seconds,
                 http_connection_errors_total,
                 http_status_errors_total,
+
+                disable_label_root: self.disable_label_root,
             },
         }
     }
@@ -395,11 +406,16 @@ pub struct PrometheusClientInterceptor {
     http_response_duration_seconds: Family<OperationLabels, Histogram, HistogramConstructor>,
     http_connection_errors_total: Family<OperationLabels, Counter>,
     http_status_errors_total: Family<OperationLabels, Counter>,
+
+    disable_label_root: bool,
 }
 
 impl observe::MetricsIntercept for PrometheusClientInterceptor {
     fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {
-        let labels = OperationLabels(labels);
+        let labels = OperationLabels {
+            labels,
+            disable_label_root: self.disable_label_root,
+        };
         match value {
             observe::MetricValue::OperationBytes(v) => self
                 .operation_bytes
@@ -473,19 +489,25 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct OperationLabels(observe::MetricLabels);
+struct OperationLabels {
+    labels: observe::MetricLabels,
+    disable_label_root: bool,
+}
 
 impl EncodeLabelSet for OperationLabels {
     fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), fmt::Error> {
-        (observe::LABEL_SCHEME, self.0.scheme.into_static()).encode(encoder.encode_label())?;
-        (observe::LABEL_NAMESPACE, self.0.namespace.as_ref()).encode(encoder.encode_label())?;
-        (observe::LABEL_ROOT, self.0.root.as_ref()).encode(encoder.encode_label())?;
-        (observe::LABEL_OPERATION, self.0.operation).encode(encoder.encode_label())?;
+        (observe::LABEL_SCHEME, self.labels.scheme.into_static()).encode(encoder.encode_label())?;
+        (observe::LABEL_NAMESPACE, self.labels.namespace.as_ref())
+            .encode(encoder.encode_label())?;
+        if !self.disable_label_root {
+            (observe::LABEL_ROOT, self.labels.root.as_ref()).encode(encoder.encode_label())?;
+        }
+        (observe::LABEL_OPERATION, self.labels.operation).encode(encoder.encode_label())?;
 
-        if let Some(error) = &self.0.error {
+        if let Some(error) = &self.labels.error {
             (observe::LABEL_ERROR, error.into_static()).encode(encoder.encode_label())?;
         }
-        if let Some(code) = &self.0.status_code {
+        if let Some(code) = &self.labels.status_code {
             (observe::LABEL_STATUS_CODE, code.as_str()).encode(encoder.encode_label())?;
         }
         Ok(())

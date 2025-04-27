@@ -103,3 +103,25 @@ impl ConcurrentLimitLayer {
         Ok(class)
     }
 }
+
+#[pyclass(module = "opendal.layers", extends=Layer)]
+#[derive(Clone)]
+pub struct MimeGuessLayer(ocore::layers::MimeGuessLayer);
+
+impl PythonLayer for MimeGuessLayer {
+    fn layer(&self, op: Operator) -> Operator {
+        op.layer(self.0.clone())
+    }
+}
+
+#[pymethods]
+impl MimeGuessLayer {
+    #[new]
+    #[pyo3(signature = ())]
+    fn new() -> PyResult<PyClassInitializer<Self>> {
+        let mime_guess_layer = Self(ocore::layers::MimeGuessLayer::default());
+        let class = PyClassInitializer::from(Layer(Box::new(mime_guess_layer.clone())))
+            .add_subclass(mime_guess_layer);
+        Ok(class)
+    }
+}

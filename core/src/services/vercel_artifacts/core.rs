@@ -59,6 +59,8 @@ impl VercelArtifactsCore {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
+        req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
@@ -82,6 +84,8 @@ impl VercelArtifactsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, size);
 
+        req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -98,6 +102,8 @@ impl VercelArtifactsCore {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, 0);
+
+        req = req.extension(Operation::Stat);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

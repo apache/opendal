@@ -121,13 +121,13 @@ impl AzdlsCore {
     /// resource should be one of `file` or `directory`
     ///
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
-    pub fn azdls_create_request(
+    pub async fn azdls_create(
         &self,
         path: &str,
         resource: &str,
         args: &OpWrite,
         body: Buffer,
-    ) -> Result<Request<Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -161,9 +161,11 @@ impl AzdlsCore {
         }
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
-        Ok(req)
+        self.sign(&mut req).await?;
+
+        self.send(req).await
     }
 
     pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -191,13 +193,13 @@ impl AzdlsCore {
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    pub fn azdls_update_request(
+    pub async fn azdls_update(
         &self,
         path: &str,
         size: Option<u64>,
         position: u64,
         body: Buffer,
-    ) -> Result<Request<Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         // - close: Make this is the final action to this file.
@@ -217,9 +219,11 @@ impl AzdlsCore {
         }
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
-        Ok(req)
+        self.sign(&mut req).await?;
+
+        self.send(req).await
     }
 
     pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<Buffer>> {
@@ -307,16 +311,16 @@ impl AzdlsCore {
 
         if !parts.is_empty() {
             let parent_path = parts.join("/");
-            let mut req = self.azdls_create_request(
-                &parent_path,
-                "directory",
-                &OpWrite::default(),
-                Buffer::new(),
-            )?;
+            let resp = self
+                .azdls_create(
+                    &parent_path,
+                    "directory",
+                    &OpWrite::default(),
+                    Buffer::new(),
+                )
+                .await?;
 
-            self.sign(&mut req).await?;
-
-            Ok(Some(self.send(req).await?))
+            Ok(Some(resp))
         } else {
             Ok(None)
         }

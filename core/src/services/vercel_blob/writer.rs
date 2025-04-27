@@ -44,11 +44,7 @@ impl VercelBlobWriter {
 
 impl oio::MultipartWrite for VercelBlobWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let req = self
-            .core
-            .get_put_request(&self.path, Some(size), &self.op, body)?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self.core.upload(&self.path, size, &self.op, body).await?;
 
         let status = resp.status();
 

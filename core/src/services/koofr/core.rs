@@ -199,6 +199,7 @@ impl KoofrCore {
 
                 let req = req
                     .header(header::CONTENT_TYPE, "application/json")
+                    .extension(Operation::CreateDir)
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
@@ -232,7 +233,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -253,7 +257,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
     }
@@ -289,6 +296,8 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
+        let req = req.extension(Operation::Write);
+
         let req = multipart.apply(req)?;
 
         self.send(req).await
@@ -310,7 +319,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -341,6 +353,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Copy)
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -373,6 +386,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Rename)
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -395,7 +409,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }

@@ -21,8 +21,6 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use chrono::Utc;
-use http::header;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -368,16 +366,8 @@ impl Access for AliyunDriveBackend {
         let res = self.core.get_by_path(path).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+        let resp = self.core.download(&file.file_id, args.range()).await?;
 
-        let download_url = self.core.get_download_url(&file.file_id).await?;
-        // TODO: this request should be done in core.rs and not here
-        let req = Request::get(&download_url)
-            .extension(Operation::Read)
-            .header(header::RANGE, args.range().to_header())
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        let resp = self.core.info.http_client().fetch(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {

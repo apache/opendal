@@ -41,8 +41,7 @@ impl oio::OneShotWrite for YandexDiskWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         self.core.ensure_dir_exists(&self.path).await?;
 
-        let upload_url = self.core.get_upload_url(&self.path).await?;
-        let resp = self.core.upload(&upload_url, bs).await?;
+        let resp = self.core.upload(&self.path, bs).await?;
 
         let status = resp.status();
         match status {

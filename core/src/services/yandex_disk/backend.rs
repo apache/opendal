@@ -227,8 +227,7 @@ impl Access for YandexDiskBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let download_url = self.core.get_download_url(path).await?;
-        let resp = self.core.download(&download_url, args.range()).await?;
+        let resp = self.core.download(path, args.range()).await?;
 
         let status = resp.status();
         match status {

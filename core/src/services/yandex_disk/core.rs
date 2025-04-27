@@ -96,7 +96,8 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn upload(&self, upload_url: &str, body: Buffer) -> Result<Response<Buffer>> {
+    pub async fn upload(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url(path).await?;
         let req = Request::put(upload_url)
             .body(body)
             .map_err(new_request_build_error)?;
@@ -104,7 +105,7 @@ impl YandexDiskCore {
         self.send(req).await
     }
 
-    pub async fn get_download_url(&self, path: &str) -> Result<String> {
+    async fn get_download_url(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -136,11 +137,8 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn download(
-        &self,
-        download_url: &str,
-        range: BytesRange,
-    ) -> Result<Response<HttpBody>> {
+    pub async fn download(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(path).await?;
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())

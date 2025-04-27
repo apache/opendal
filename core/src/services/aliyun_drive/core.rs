@@ -420,7 +420,7 @@ impl AliyunDriveCore {
         self.send(req, token.as_deref()).await
     }
 
-    pub async fn get_upload_url(
+    async fn get_upload_url(
         &self,
         file_id: &str,
         upload_id: &str,

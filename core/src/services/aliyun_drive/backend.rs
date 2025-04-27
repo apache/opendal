@@ -370,7 +370,9 @@ impl Access for AliyunDriveBackend {
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
         let download_url = self.core.get_download_url(&file.file_id).await?;
+        // TODO: this request should be done in core.rs and not here
         let req = Request::get(&download_url)
+            .extension(Operation::Read)
             .header(header::RANGE, args.range().to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

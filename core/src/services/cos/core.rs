@@ -160,6 +160,8 @@ impl CosCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -210,6 +212,8 @@ impl CosCore {
             }
         }
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -250,6 +254,8 @@ impl CosCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -273,6 +279,8 @@ impl CosCore {
         }
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -313,6 +321,8 @@ impl CosCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
@@ -325,6 +335,7 @@ impl CosCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
+            .extension(Operation::Copy)
             .header("x-cos-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -359,6 +370,7 @@ impl CosCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -397,6 +409,8 @@ impl CosCore {
             }
         }
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -424,6 +438,9 @@ impl CosCore {
 
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
+
+        let req = req.extension(Operation::Write);
+
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -456,6 +473,8 @@ impl CosCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
@@ -481,6 +500,7 @@ impl CosCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -517,6 +537,7 @@ impl CosCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

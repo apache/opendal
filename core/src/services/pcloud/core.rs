@@ -76,7 +76,10 @@ impl PcloudCore {
         let req = Request::get(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -113,6 +116,7 @@ impl PcloudCore {
         // set body
         let req = req
             .header(header::RANGE, range.to_header())
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -165,7 +169,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::CreateDir)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -186,7 +193,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -206,7 +216,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -225,7 +238,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -244,7 +260,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -265,7 +284,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -286,7 +308,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -307,7 +332,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -329,7 +357,10 @@ impl PcloudCore {
         let req = Request::put(url);
 
         // set body
-        let req = req.body(bs).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(bs)
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -352,7 +383,10 @@ impl PcloudCore {
         let req = Request::get(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }

@@ -354,6 +354,7 @@ impl IcloudCore {
         .map_err(new_json_serialize_error)?;
 
         let req = Request::post(uri)
+            .extension(Operation::Stat)
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -385,6 +386,7 @@ impl IcloudCore {
         );
 
         let req = Request::get(uri)
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -412,7 +414,10 @@ impl IcloudCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.info.http_client().fetch(req).await?;
 

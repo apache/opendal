@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use ::ghac::v1 as ghac_types;
 use bytes::{Buf, Bytes};
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use http::{Request, StatusCode, Uri};
+use http::header::{self, ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
+use http::{Request, Response, StatusCode, Uri};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -89,7 +89,7 @@ impl Debug for GhacCore {
 }
 
 impl GhacCore {
-    pub async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
+    async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         match self.service_version {
@@ -171,6 +171,30 @@ impl GhacCore {
         }
     }
 
+    pub async fn ghac_stat(&self, path: &str) -> Result<Response<Buffer>> {
+        let location = self.ghac_get_download_url(path).await?;
+
+        let req = Request::get(location)
+            .header(header::RANGE, "bytes=0-0")
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    pub async fn ghac_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+        let location = self.ghac_get_download_url(path).await?;
+
+        let mut req = Request::get(location);
+
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
+        }
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.info.http_client().fetch(req).await
+    }
+
     pub async fn ghac_get_upload_url(&self, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
@@ -244,6 +268,29 @@ impl GhacCore {
                 Ok(location)
             }
         }
+    }
+
+    pub async fn ghac_v1_write(
+        &self,
+        upload_url: &str,
+        size: u64,
+        offset: u64,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let mut req = Request::patch(upload_url);
+        req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+        req = req.header(CONTENT_LENGTH, size);
+        req = req.header(CONTENT_TYPE, "application/octet-stream");
+        req = req.header(
+            CONTENT_RANGE,
+            BytesContentRange::default()
+                .with_range(offset, offset + size - 1)
+                .to_header(),
+        );
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
     }
 
     pub async fn ghac_finalize_upload(&self, path: &str, url: &str, size: u64) -> Result<()> {

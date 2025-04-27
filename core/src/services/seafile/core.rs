@@ -190,9 +190,9 @@ impl SeafileCore {
         let req = Request::post(upload_url);
 
         let (filename, relative_path) = if path.ends_with('/') {
-            ("", build_abs_path(&self.root, &path))
+            ("", build_abs_path(&self.root, path))
         } else {
-            let (filename, relative_path) = (get_basename(&path), get_parent(&path));
+            let (filename, relative_path) = (get_basename(path), get_parent(path));
             (filename, build_abs_path(&self.root, relative_path))
         };
 
@@ -369,7 +369,7 @@ impl SeafileCore {
             "{}/api2/repos/{}/dir/?p={}",
             self.endpoint,
             auth_info.repo_id,
-            percent_encode_path(&path)
+            percent_encode_path(&rooted_abs_path)
         );
 
         let req = Request::get(url);

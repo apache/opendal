@@ -21,8 +21,6 @@ use crate::raw::*;
 use crate::services::core::AzblobCore;
 use crate::services::writer::AzblobWriter;
 use crate::*;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
-use http::Request;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -163,20 +161,7 @@ impl oio::Write for GhacWriterV1 {
         let size = bs.len() as u64;
         let offset = self.size;
 
-        let mut req = Request::patch(&self.url);
-        req = req.header(AUTHORIZATION, format!("Bearer {}", self.core.catch_token));
-        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
-        req = req.header(CONTENT_LENGTH, size);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
-        req = req.header(
-            CONTENT_RANGE,
-            BytesContentRange::default()
-                .with_range(offset, offset + size - 1)
-                .to_header(),
-        );
-        let req = req.body(bs).map_err(new_request_build_error)?;
-
-        let resp = self.core.info.http_client().send(req).await?;
+        let resp = self.core.ghac_v1_write(&self.url, size, offset, bs).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }

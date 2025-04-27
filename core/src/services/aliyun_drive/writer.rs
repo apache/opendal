@@ -23,7 +23,6 @@ use super::core::AliyunDriveCore;
 use super::core::CheckNameMode;
 use super::core::CreateResponse;
 use super::core::CreateType;
-use super::core::UploadUrlResponse;
 use crate::raw::*;
 use crate::*;
 
@@ -81,23 +80,11 @@ impl oio::Write for AliyunDriveWriter {
             }
         };
 
-        let res = self
+        if let Err(err) = self
             .core
-            .get_upload_url(file_id, upload_id, Some(self.part_number))
-            .await?;
-        let output: UploadUrlResponse =
-            serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
-
-        let Some(upload_url) = output
-            .part_info_list
-            .as_ref()
-            .and_then(|list| list.first())
-            .map(|part_info| &part_info.upload_url)
-        else {
-            return Err(Error::new(ErrorKind::Unexpected, "cannot find upload_url"));
-        };
-
-        if let Err(err) = self.core.upload(upload_url, bs).await {
+            .upload(file_id, upload_id, self.part_number, bs)
+            .await
+        {
             if err.kind() != ErrorKind::AlreadyExists {
                 return Err(err);
             }

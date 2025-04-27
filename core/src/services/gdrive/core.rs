@@ -69,6 +69,7 @@ impl GdriveCore {
             "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
             file_id
         ))
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -89,6 +90,7 @@ impl GdriveCore {
         );
 
         let mut req = Request::get(&url)
+            .extension(Operation::Read)
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -113,6 +115,7 @@ impl GdriveCore {
         };
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -151,6 +154,7 @@ impl GdriveCore {
             source_file_id
         );
         let mut req = Request::patch(url)
+            .extension(Operation::Rename)
             .body(Buffer::from(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
 
@@ -168,6 +172,7 @@ impl GdriveCore {
         .map_err(new_json_serialize_error)?;
 
         let mut req = Request::patch(&url)
+            .extension(Operation::Delete)
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -195,7 +200,9 @@ impl GdriveCore {
         }))
         .map_err(new_json_serialize_error)?;
 
-        let req = Request::post(url).header("X-Upload-Content-Length", size);
+        let req = Request::post(url)
+            .header("X-Upload-Content-Length", size)
+            .extension(Operation::Write);
 
         let multipart = Multipart::new()
             .part(
@@ -242,6 +249,7 @@ impl GdriveCore {
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
+            .extension(Operation::Write)
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -290,6 +298,7 @@ impl GdriveCore {
         let body = Buffer::from(Bytes::from(request_body.to_string()));
 
         let mut req = Request::post(&url)
+            .extension(Operation::Copy)
             .body(body)
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -413,6 +422,7 @@ impl PathQuery for GdrivePathQuery {
         );
 
         let mut req = Request::get(&url)
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -449,6 +459,7 @@ impl PathQuery for GdrivePathQuery {
         .map_err(new_json_serialize_error)?;
 
         let mut req = Request::post(url)
+            .extension(Operation::CreateDir)
             .header(header::CONTENT_TYPE, "application/json")
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;

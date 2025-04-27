@@ -157,7 +157,7 @@ impl SeafileCore {
 
 impl SeafileCore {
     /// get upload url
-    pub async fn get_upload_url(&self) -> Result<String> {
+    async fn get_upload_url(&self) -> Result<String> {
         let auth_info = self.get_auth_info().await?;
 
         let req = Request::get(format!(
@@ -184,8 +184,40 @@ impl SeafileCore {
         }
     }
 
+    pub async fn upload_file(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url().await?;
+
+        let req = Request::post(upload_url);
+
+        let (filename, relative_path) = if path.ends_with('/') {
+            ("", build_abs_path(&self.root, path))
+        } else {
+            let (filename, relative_path) = (get_basename(path), get_parent(path));
+            (filename, build_abs_path(&self.root, relative_path))
+        };
+
+        let file_part = FormDataPart::new("file")
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!("form-data; name=\"file\"; filename=\"{filename}\"")
+                    .parse()
+                    .unwrap(),
+            )
+            .content(body);
+
+        let multipart = Multipart::new()
+            .part(FormDataPart::new("parent_dir").content("/"))
+            .part(FormDataPart::new("relative_path").content(relative_path.clone()))
+            .part(FormDataPart::new("replace").content("1"))
+            .part(file_part);
+
+        let req = multipart.apply(req)?;
+
+        self.send(req).await
+    }
+
     /// get download
-    pub async fn get_download_url(&self, path: &str) -> Result<String> {
+    async fn get_download_url(&self, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
         let path = percent_encode_path(&path);
 
@@ -327,6 +359,46 @@ impl SeafileCore {
             _ => Err(parse_error(resp)),
         }
     }
+
+    pub async fn list(&self, path: &str) -> Result<ListResponse> {
+        let rooted_abs_path = build_rooted_abs_path(&self.root, path);
+
+        let auth_info = self.get_auth_info().await?;
+
+        let url = format!(
+            "{}/api2/repos/{}/dir/?p={}",
+            self.endpoint,
+            auth_info.repo_id,
+            percent_encode_path(&rooted_abs_path)
+        );
+
+        let req = Request::get(url);
+
+        let req = req
+            .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let resp_body = resp.into_body();
+                let infos: Vec<Info> = serde_json::from_reader(resp_body.reader())
+                    .map_err(new_json_deserialize_error)?;
+                Ok(ListResponse {
+                    infos: Some(infos),
+                    rooted_abs_path,
+                })
+            }
+            // return nothing when not exist
+            StatusCode::NOT_FOUND => Ok(ListResponse {
+                infos: None,
+                rooted_abs_path,
+            }),
+            _ => Err(parse_error(resp)),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -379,4 +451,18 @@ pub struct AuthInfo {
 pub struct ListLibraryResponse {
     pub name: String,
     pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Info {
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub mtime: i64,
+    pub size: Option<u64>,
+    pub name: String,
+}
+
+pub struct ListResponse {
+    pub infos: Option<Vec<Info>>,
+    pub rooted_abs_path: String,
 }

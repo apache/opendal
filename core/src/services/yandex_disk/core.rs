@@ -64,7 +64,7 @@ impl YandexDiskCore {
 
 impl YandexDiskCore {
     /// Get upload url.
-    pub async fn get_upload_url(&self, path: &str) -> Result<String> {
+    async fn get_upload_url(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(

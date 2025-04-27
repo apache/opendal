@@ -532,7 +532,7 @@ impl OneDriveCore {
         for _attempt in 0..MAX_MONITOR_ATTEMPT {
             let mut request = Request::get(monitor_url.to_string())
                 .header(header::CONTENT_TYPE, "application/json")
-                .extension(Operation::Info)
+                .extension(Operation::Copy)
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 

@@ -71,7 +71,9 @@ impl WebhdfsCore {
 
         let req = Request::put(&url);
 
-        req.body(Buffer::new()).map_err(new_request_build_error)
+        req.extension(Operation::CreateDir)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
     }
 
     /// create object
@@ -98,7 +100,10 @@ impl WebhdfsCore {
 
         let req = Request::put(&url);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.info.http_client().send(req).await?;
 
@@ -122,7 +127,10 @@ impl WebhdfsCore {
         if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         };
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -142,6 +150,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::post(url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -179,6 +188,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::put(&url)
+            .extension(Operation::Rename)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -203,7 +213,9 @@ impl WebhdfsCore {
 
         req = req.header(CONTENT_LENGTH, size.to_string());
 
-        req.body(body).map_err(new_request_build_error)
+        req.extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)
     }
 
     /// CONCAT will concat sources to the path
@@ -235,7 +247,9 @@ impl WebhdfsCore {
 
         let req = Request::post(url);
 
-        req.body(Buffer::new()).map_err(new_request_build_error)
+        req.extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
     }
 
     fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
@@ -260,6 +274,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::get(&url)
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -281,6 +296,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::get(&url)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.info.http_client().send(req).await
@@ -309,6 +325,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::get(&url)
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.info.http_client().send(req).await
@@ -338,6 +355,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::get(&url)
+            .extension(Operation::Stat)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -359,6 +377,7 @@ impl WebhdfsCore {
         }
 
         let req = Request::delete(&url)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

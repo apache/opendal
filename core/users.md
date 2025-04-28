@@ -11,3 +11,4 @@
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - [rustic](https://github.com/rustic-rs/rustic): Fast, encrypted, and deduplicated backups powered by Rust
+- [Dify](https://github.com/langgenius/dify): An open-source LLM app development platform, agentic AI workflow, RAG pipeline, agent capabilities, model management, observability features, and more.

@@ -38,6 +38,8 @@ use super::error::parse_error;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
+pub const DIRECTORY: &str = "directory";
+pub const FILE: &str = "file";
 
 pub struct AzdlsCore {
     pub info: Arc<AccessorInfo>,
@@ -132,7 +134,6 @@ impl AzdlsCore {
         path: &str,
         resource: &str,
         args: &OpWrite,
-        body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -166,7 +167,7 @@ impl AzdlsCore {
             req = req.header(IF_NONE_MATCH, v)
         }
 
-        let operation = if resource == "directory" {
+        let operation = if resource == DIRECTORY {
             Operation::CreateDir
         } else {
             Operation::Write
@@ -174,7 +175,7 @@ impl AzdlsCore {
 
         let mut req = req
             .extension(operation)
-            .body(body)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -290,8 +291,8 @@ impl AzdlsCore {
             })?;
 
         match resource {
-            "file" => Ok(meta.with_mode(EntryMode::FILE)),
-            "directory" => Ok(meta.with_mode(EntryMode::DIR)),
+            FILE => Ok(meta.with_mode(EntryMode::FILE)),
+            DIRECTORY => Ok(meta.with_mode(EntryMode::DIR)),
             v => Err(Error::new(
                 ErrorKind::Unexpected,
                 "azdls returns an unknown x-ms-resource-type",
@@ -368,12 +369,7 @@ impl AzdlsCore {
         if !parts.is_empty() {
             let parent_path = parts.join("/");
             let resp = self
-                .azdls_create(
-                    &parent_path,
-                    "directory",
-                    &OpWrite::default(),
-                    Buffer::new(),
-                )
+                .azdls_create(&parent_path, DIRECTORY, &OpWrite::default())
                 .await?;
 
             Ok(Some(resp))

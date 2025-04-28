@@ -27,6 +27,7 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzdlsCore;
+use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
@@ -273,7 +274,7 @@ impl Access for AzdlsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
-            .azdls_create(path, "directory", &OpWrite::default(), Buffer::new())
+            .azdls_create(path, DIRECTORY, &OpWrite::default())
             .await?;
 
         let status = resp.status();

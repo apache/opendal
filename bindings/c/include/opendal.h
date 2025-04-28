@@ -25,6 +25,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define OPENDAL_SEEK_SET 0
+
+#define OPENDAL_SEEK_CUR 1
+
+#define OPENDAL_SEEK_END 2
+
 /**
  * \brief The error code for all opendal APIs in C binding.
  * \todo The error handling is not complete, the error with error message will be
@@ -1433,6 +1439,13 @@ void opendal_entry_free(struct opendal_entry *ptr);
 struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
                                                       uint8_t *buf,
                                                       uintptr_t len);
+
+/**
+ * \brief Seek to an offset, in bytes, in a stream.
+ */
+struct opendal_error *opendal_reader_seek(struct opendal_reader *self,
+                                          int64_t offset,
+                                          int32_t whence);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.

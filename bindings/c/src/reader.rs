@@ -76,7 +76,7 @@ impl opendal_reader {
         }
     }
 
-     /// \brief Seek to an offset, in bytes, in a stream.
+    /// \brief Seek to an offset, in bytes, in a stream.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_seek(
         &mut self,
@@ -102,7 +102,6 @@ impl opendal_reader {
             }
         }
     }
-
 
     /// \brief Frees the heap memory used by the opendal_reader.
     #[no_mangle]

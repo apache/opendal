@@ -225,7 +225,10 @@ impl AzblobCore {
             );
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -288,8 +291,10 @@ impl AzblobCore {
             }
         }
 
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -350,7 +355,10 @@ impl AzblobCore {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -386,16 +394,17 @@ impl AzblobCore {
     ) -> Result<Request<Buffer>> {
         let url = format!("{}?comp=appendblock", &self.build_path_url(path));
 
-        let mut req = Request::put(&url);
+        let mut req = Request::put(&url)
+            .header(CONTENT_LENGTH, size)
+            .header(constants::X_MS_BLOB_CONDITION_APPENDPOS, position);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        req = req.header(CONTENT_LENGTH, size);
-
-        req = req.header(constants::X_MS_BLOB_CONDITION_APPENDPOS, position);
-
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -445,8 +454,11 @@ impl AzblobCore {
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -495,6 +507,7 @@ impl AzblobCore {
         req = req.header(CONTENT_LENGTH, content.len());
 
         let req = req
+            .extension(Operation::Write)
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -528,7 +541,10 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -545,9 +561,9 @@ impl AzblobCore {
     }
 
     fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
-        let req = Request::delete(self.build_path_url(path));
-
-        req.header(CONTENT_LENGTH, 0)
+        Request::delete(self.build_path_url(path))
+            .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)
     }
@@ -566,6 +582,7 @@ impl AzblobCore {
         let mut req = Request::put(&target)
             .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Copy)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -599,6 +616,7 @@ impl AzblobCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

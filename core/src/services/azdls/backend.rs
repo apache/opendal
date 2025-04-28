@@ -285,48 +285,13 @@ impl Access for AzdlsBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
+        // TODO: include metadata for the root (#4746)
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.azdls_get_properties(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let mut meta = parse_into_metadata(path, resp.headers())?;
-        let resource = resp
-            .headers()
-            .get("x-ms-resource-type")
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's missing",
-                )
-            })?
-            .to_str()
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's not a valid string",
-                )
-                .set_source(err)
-            })?;
-
-        meta = match resource {
-            "file" => meta.with_mode(EntryMode::FILE),
-            "directory" => meta.with_mode(EntryMode::DIR),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls returns not supported x-ms-resource-type",
-                )
-                .with_context("resource", v))
-            }
-        };
-
-        Ok(RpStat::new(meta))
+        let metadata = self.core.azdls_stat_metadata(path).await?;
+        Ok(RpStat::new(metadata))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

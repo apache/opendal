@@ -22,6 +22,7 @@ use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -32,6 +33,8 @@ use std::sync::Arc;
 
 use crate::raw::*;
 use crate::*;
+
+use super::error::parse_error;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
@@ -112,7 +115,10 @@ impl AzdlsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.info.http_client().fetch(req).await
@@ -160,11 +166,18 @@ impl AzdlsCore {
             req = req.header(IF_NONE_MATCH, v)
         }
 
-        // Set body
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let operation = if resource == "directory" {
+            Operation::CreateDir
+        } else {
+            Operation::Write
+        };
+
+        let mut req = req
+            .extension(operation)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 
@@ -179,12 +192,12 @@ impl AzdlsCore {
             percent_encode_path(&target)
         );
 
+        let source_path = format!("/{}/{}", self.filesystem, percent_encode_path(&source));
+
         let mut req = Request::put(&url)
-            .header(
-                X_MS_RENAME_SOURCE,
-                format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
-            )
+            .header(X_MS_RENAME_SOURCE, source_path)
             .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Rename)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -218,11 +231,12 @@ impl AzdlsCore {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        // Set body
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 
@@ -240,10 +254,50 @@ impl AzdlsCore {
 
         let req = Request::head(&url);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
-        self.info.http_client().send(req).await
+        self.send(req).await
+    }
+
+    pub async fn azdls_stat_metadata(&self, path: &str) -> Result<Metadata> {
+        let resp = self.azdls_get_properties(path).await?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let meta = parse_into_metadata(path, resp.headers())?;
+        let resource = resp
+            .headers()
+            .get("x-ms-resource-type")
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's missing",
+                )
+            })?
+            .to_str()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azdls should return x-ms-resource-type header, but it's not a valid string",
+                )
+                .set_source(err)
+            })?;
+
+        match resource {
+            "file" => Ok(meta.with_mode(EntryMode::FILE)),
+            "directory" => Ok(meta.with_mode(EntryMode::DIR)),
+            v => Err(Error::new(
+                ErrorKind::Unexpected,
+                "azdls returns an unknown x-ms-resource-type",
+            )
+            .with_context("resource", v)),
+        }
     }
 
     pub async fn azdls_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -258,9 +312,10 @@ impl AzdlsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::delete(&url);
-
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = Request::delete(&url)
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -290,6 +345,7 @@ impl AzdlsCore {
         }
 
         let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

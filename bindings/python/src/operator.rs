@@ -356,7 +356,7 @@ impl AsyncOperator {
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
                 let w = writer_opts.create_writer(&this, path).await?;
-                Ok(AsyncFile::new_writer(w))
+                Ok(AsyncFile::new_writer(w.into_futures_async_write()))
             } else {
                 Err(Unsupported::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"

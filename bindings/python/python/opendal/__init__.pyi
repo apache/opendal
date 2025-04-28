@@ -472,6 +472,20 @@ class AsyncFile:
         Args:
             bs (bytes): The content to write.
         """
+    async def write_from(self, other: AsyncFile) -> None:
+        """Write the content of another AsyncFile to this file.
+
+        This method efficiently transfers data from `other` to this file
+        without loading the entire content into memory.  It's suitable for
+        large files where memory usage is a concern.
+
+        Args:
+            other (AsyncFile): The AsyncFile to read data from.
+            It must be opened in binary read mode ('rb').
+
+        Raises:
+            IOError: If this file is not opened in a writable binary mode ('wb').
+        """
     async def seek(self, pos: int, whence: int = 0) -> int:
         """Set the file's current position.
 

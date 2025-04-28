@@ -72,7 +72,7 @@ TEST_F(OpendalReaderTest, SeekTest)
     EXPECT_EQ(read_result.size, 7);
     EXPECT_EQ(std::string(buf1), "Gabcdef");
 
-    // Test seek cur, now we step on ''
+    // Test seek cur, now we step on '3'
     err = opendal_reader_seek(r.reader, 3, OPENDAL_SEEK_CUR);
     EXPECT_EQ(err, nullptr);
 

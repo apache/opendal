@@ -58,7 +58,7 @@ pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
-        size: meta.content_length() as usize,
+        size: meta.content_length(),
         e_tag: meta.etag().map(|x| x.to_string()),
         version: meta.version().map(|x| x.to_string()),
     }

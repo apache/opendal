@@ -106,6 +106,7 @@ impl WebdavCore {
         req = req.header(HEADER_DEPTH, "0");
 
         let req = req
+            .extension(Operation::Stat)
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
@@ -147,7 +148,10 @@ impl WebdavCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().fetch(req).await
     }
@@ -180,7 +184,10 @@ impl WebdavCore {
             req = req.header(header::CONTENT_DISPOSITION, v)
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -195,7 +202,10 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -221,7 +231,10 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -247,7 +260,10 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
     }
@@ -271,6 +287,7 @@ impl WebdavCore {
         }
 
         let req = req
+            .extension(Operation::List)
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
@@ -328,7 +345,10 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::CreateDir)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.info.http_client().send(req).await?;
         let status = resp.status();

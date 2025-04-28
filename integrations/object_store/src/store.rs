@@ -245,7 +245,7 @@ impl ObjectStore for OpendalStore {
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
-            size: meta.content_length() as usize,
+            size: meta.content_length(),
             e_tag: meta.etag().map(|x| x.to_string()),
             version: meta.version().map(|x| x.to_string()),
         };
@@ -302,7 +302,7 @@ impl ObjectStore for OpendalStore {
         };
 
         let stream = reader
-            .into_bytes_stream(read_range.start as u64..read_range.end as u64)
+            .into_bytes_stream(read_range.start..read_range.end)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?
@@ -330,16 +330,14 @@ impl ObjectStore for OpendalStore {
         Ok(())
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         // object_store `Path` always removes trailing slash
         // need to add it back
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
 
+        let lister_fut = self.inner.lister_with(&path).recursive(true);
         let fut = async move {
-            let stream = self
-                .inner
-                .lister_with(&path)
-                .recursive(true)
+            let stream = lister_fut
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
 
@@ -359,13 +357,17 @@ impl ObjectStore for OpendalStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let offset = offset.clone();
 
+        // clone self for 'static lifetime
+        // clone self is cheap
+        let this = self.clone();
+
         let fut = async move {
-            let list_with_start_after = self.inner.info().full_capability().list_with_start_after;
-            let mut fut = self.inner.lister_with(&path).recursive(true);
+            let list_with_start_after = this.inner.info().full_capability().list_with_start_after;
+            let mut fut = this.inner.lister_with(&path).recursive(true);
 
             // Use native start_after support if possible.
             if list_with_start_after {
@@ -377,7 +379,7 @@ impl ObjectStore for OpendalStore {
                 .map_err(|err| format_object_store_error(err, &path))?
                 .then(move |entry| {
                     let path = path.clone();
-
+                    let this = this.clone();
                     async move {
                         let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
                         let (path, metadata) = entry.into_parts();
@@ -388,7 +390,7 @@ impl ObjectStore for OpendalStore {
                             return Ok(object_meta);
                         }
 
-                        let metadata = self
+                        let metadata = this
                             .inner
                             .stat(&path)
                             .await
@@ -652,7 +654,7 @@ mod tests {
 
         let meta = object_store.head(&path).await.unwrap();
 
-        assert_eq!(meta.size, all_bytes.len());
+        assert_eq!(meta.size, all_bytes.len() as u64);
 
         assert_eq!(
             object_store

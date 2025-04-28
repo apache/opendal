@@ -71,7 +71,7 @@ pub async fn test_basic_get(store: OpendalStore) -> Result<()> {
 
     let ret = store.get(&location).await?;
 
-    assert_eq!(0..value.len(), ret.range);
+    assert_eq!(0..value.len() as u64, ret.range);
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
@@ -94,7 +94,7 @@ pub async fn test_head(store: OpendalStore) -> Result<()> {
 
     let meta = store.head(&location).await?;
 
-    assert_eq!(meta.size, value.len());
+    assert_eq!(meta.size, value.len() as u64);
     assert_eq!(meta.location, location);
 
     store.delete(&location).await?;
@@ -160,7 +160,7 @@ pub async fn test_get_opts_with_invalid_range(store: OpendalStore) -> Result<()>
         ..Default::default()
     };
     let ret = store.get_opts(&location, opts).await?;
-    assert_eq!(ret.range, 0..value.len());
+    assert_eq!(ret.range, 0..value.len() as u64);
     assert_eq!(ret.bytes().await?, value);
 
     // the offset of the range is greater than the size of the object
@@ -177,7 +177,7 @@ pub async fn test_get_opts_with_invalid_range(store: OpendalStore) -> Result<()>
         ..Default::default()
     };
     let ret = store.get_opts(&location, opts).await?;
-    assert_eq!(ret.range, 0..value.len());
+    assert_eq!(ret.range, 0..value.len() as u64);
     assert_eq!(ret.bytes().await?, value);
 
     store.delete(&location).await?;

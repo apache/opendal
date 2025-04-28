@@ -294,6 +294,19 @@ impl AzblobCore {
         Ok(req)
     }
 
+    pub async fn azblob_put_blob(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        args: &OpWrite,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let mut req = self.azblob_put_blob_request(path, size, args, body)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     /// For appendable object, it could be created by `put` an empty blob
     /// with `x-ms-blob-type` header set to `AppendBlob`.
     /// And it's just initialized with empty content.
@@ -311,7 +324,7 @@ impl AzblobCore {
     /// # Reference
     ///
     /// https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob
-    pub fn azblob_init_appendable_blob_request(
+    fn azblob_init_appendable_blob_request(
         &self,
         path: &str,
         args: &OpWrite,
@@ -342,6 +355,17 @@ impl AzblobCore {
         Ok(req)
     }
 
+    pub async fn azblob_init_appendable_blob(
+        &self,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let mut req = self.azblob_init_appendable_blob_request(path, args)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     /// Append content to an appendable blob.
     /// The content will be appended to the end of the blob.
     ///
@@ -353,7 +377,7 @@ impl AzblobCore {
     /// # Reference
     ///
     /// https://learn.microsoft.com/en-us/rest/api/storageservices/append-block
-    pub fn azblob_append_blob_request(
+    fn azblob_append_blob_request(
         &self,
         path: &str,
         position: u64,
@@ -374,6 +398,19 @@ impl AzblobCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
+    }
+
+    pub async fn azblob_append_blob(
+        &self,
+        path: &str,
+        position: u64,
+        size: u64,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let mut req = self.azblob_append_blob_request(path, position, size, body)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
     }
 
     pub fn azblob_put_block_request(
@@ -428,7 +465,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub fn azblob_complete_put_block_list_request(
+    fn azblob_complete_put_block_list_request(
         &self,
         path: &str,
         block_ids: Vec<Uuid>,
@@ -507,7 +544,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
+    fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
         let req = Request::delete(self.build_path_url(path));
 
         req.header(CONTENT_LENGTH, 0)

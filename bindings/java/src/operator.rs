@@ -136,31 +136,15 @@ fn intern_read_with_options(
     read_options: JObject,
     path: JString,
 ) -> Result<jbyteArray> {
-    let cloned_options = read_options.clone();
-    let offset = jni_env.get_field(cloned_options, "offset", "J")?.j()? as u64;
-    let length = {
-        let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
-        if jlong == -1 {
-            None
-        } else {
-            Some(jlong as u64)
-        }
-    };
-    let buffer_size = jni_env.get_field(cloned_options, "bufferSize", "I")?.i()? as usize;
-
+    let offset = jni_env.get_field(&read_options, "offset", "J")?.j()? as u64;
+    let length = jni_env.get_field(&read_options, "length", "J")?.j()? as u64;
     let path = jstring_to_string(jni_env, &path)?;
 
-    let mut content = op.read_with(&path).chunk(buffer_size);
-    if let Some(len) = length {
-        content = content.range(offset..(offset + len));
-    } else {
-        content = content.range(offset..);
-    }
+    let content = op.read_with(&path).range(offset..(offset + length)).call()?;
+    let buffer = content.to_bytes();
+    let result = jni_env.byte_array_from_slice(&buffer)?;
 
-    let array = jni_env.new_byte_array(content.len() as i32)?;
-    jni_env.set_byte_array_region(array, 0, &content)?;
-
-    Ok(array.clone().into())
+    Ok(result.into_raw())
 }
 
 /// # Safety

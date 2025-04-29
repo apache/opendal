@@ -17,7 +17,6 @@
 
 use std::str::FromStr;
 use std::time::Duration;
-
 use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
@@ -338,34 +337,46 @@ fn intern_read_with_offset(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_options(
-    mut jni_env: JNIEnv,
+pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_options<'a>(
+    mut jni_env: JNIEnv<'a>,
     _: JClass,
     op: *mut Operator,
     executor: *const Executor,
-    read_options: JObject,
-    path: JString,
+    read_options: JObject<'a>,
+    path: JString<'a>,
 ) -> jlong {
-    intern_read_with_options(&mut jni_env, op, executor, read_options, path).unwrap_or_else(|e| {
+    intern_read_with_options(&mut jni_env, op, executor, read_options, path).unwrap_or_else(move |e| {
         e.throw(&mut jni_env);
         0
     })
 }
 
-fn intern_read_with_options(
-    jni_env: &mut JNIEnv,
+
+fn intern_read_with_options<'local>(
+    jni_env: &mut JNIEnv<'local>,
     op: *mut Operator,
     executor: *const Executor,
-    read_options: JObject,
-    path: JString,
+    read_options: JObject<'local>,
+    path: JString<'local>,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(jni_env)?;
+
+    // Convert JNI values to Rust types synchronously
     let path = jstring_to_string(jni_env, &path)?;
+    let offset = jni_env.get_field(&read_options, "offset", "J")?.j()? as u64;
+    let length = jni_env.get_field(&read_options, "length", "J")?.j()? as u64;
 
     executor_or_default(jni_env, executor)?.spawn(async move {
-        let result = do_read_with_options(jni_env, op, read_options, path).await;
-        complete_future(id, result.map(JValueOwned::Object))
+        // Perform the async read operation
+        let result = op
+            .read_with(&path)
+            .range(offset..(offset + length))
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+
+        complete_future(id, result);
     });
 
     Ok(id)
@@ -415,37 +426,6 @@ async fn do_read_with_offset<'local>(
     Ok(result.into())
 }
 
-async fn do_read_with_options<'local>(
-    jni_env: &'local mut JNIEnv<'_>,
-    op: &mut Operator,
-    read_options: JObject<'local>,
-    path: String,
-) -> Result<JObject<'local>> {
-        let cloned_options_ptr = read_options.into_inner(jni_env);
-        let cloned_options = unsafe { JObject::from_raw(cloned_options_ptr)}.clone();
-    let offset = jni_env.get_field(cloned_options, "offset", "J")?;
-    let length = {
-        let jlong = jni_env.get_field(cloned_options, "length", "J")?.j()?;
-        if jlong == -1 {
-            None
-        } else {
-            Some(jlong as u64)
-        }
-    };
-    let buffer_size = jni_env.get_field(cloned_options, "bufferSize", "I")?.i()? as usize;
-
-    let mut content = op.read_with(&path).chunk(buffer_size);
-    if let Some(len) = length {
-        content = content.range(offset..(offset + len));
-    } else {
-        content = content.range(offset..);
-    }
-
-    let array = jni_env.new_byte_array(content.len() as i32)?;
-    jni_env.set_byte_array_region(array, 0, &content)?;
-
-    Ok(array.clone().into())
-}
 
 fn intern_delete(
     env: &mut JNIEnv,

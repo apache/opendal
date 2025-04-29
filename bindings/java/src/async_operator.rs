@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
-use std::time::Duration;
-use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -27,17 +24,20 @@ use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
-use opendal::Entry;
+use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
-use opendal::Operator;
 use opendal::raw::PresignedRequest;
+use opendal::Entry;
+use opendal::Operator;
 use opendal::Scheme;
+use std::str::FromStr;
+use std::time::Duration;
 
 use crate::convert::{jmap_to_hashmap, read_map_field, read_string_field};
 use crate::convert::{jstring_to_string, read_bool_field};
-use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
+use crate::executor::Executor;
 use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
@@ -345,12 +345,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read_with_op
     read_options: JObject<'a>,
     path: JString<'a>,
 ) -> jlong {
-    intern_read_with_options(&mut jni_env, op, executor, read_options, path).unwrap_or_else(move |e| {
-        e.throw(&mut jni_env);
-        0
-    })
+    intern_read_with_options(&mut jni_env, op, executor, read_options, path).unwrap_or_else(
+        move |e| {
+            e.throw(&mut jni_env);
+            0
+        },
+    )
 }
-
 
 fn intern_read_with_options<'local>(
     jni_env: &mut JNIEnv<'local>,
@@ -426,7 +427,6 @@ async fn do_read_with_offset<'local>(
     Ok(result.into())
 }
 
-
 fn intern_delete(
     env: &mut JNIEnv,
     op: *mut Operator,
@@ -449,7 +449,6 @@ fn intern_delete(
 
     Ok(id)
 }
-
 
 /// # Safety
 ///

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -25,6 +24,7 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
+use jni::JNIEnv;
 use opendal::BlockingOperator;
 
 use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
@@ -140,7 +140,10 @@ fn intern_read_with_options(
     let length = jni_env.get_field(&read_options, "length", "J")?.j()? as u64;
     let path = jstring_to_string(jni_env, &path)?;
 
-    let content = op.read_with(&path).range(offset..(offset + length)).call()?;
+    let content = op
+        .read_with(&path)
+        .range(offset..(offset + length))
+        .call()?;
     let buffer = content.to_bytes();
     let result = jni_env.byte_array_from_slice(&buffer)?;
 

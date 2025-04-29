@@ -132,9 +132,10 @@ public class AsyncReadOnlyTest extends BehaviorTestBase {
 
     @Test
     public void testReadOnlyReadOptions() throws NoSuchAlgorithmException {
-        ReadOptions options = new ReadOptions()
-            .setOffset(0)
-            .setLength(FILE_LENGTH);
+        ReadOptions options = new ReadOptions();
+        long offset = 5;
+        options.setOffset(offset);
+        options.setLength(FILE_LENGTH);
         final byte[] content = asyncOp().read(NORMAL_FILE_NAME, options).join();
         assertEquals(FILE_LENGTH, content.length);
 

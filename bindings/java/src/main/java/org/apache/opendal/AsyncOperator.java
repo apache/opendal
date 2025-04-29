@@ -208,9 +208,9 @@ public class AsyncOperator extends NativeObject {
 
     public CompletableFuture<Void> write(String path, String content) {
         return write(
-            path,
-            content.getBytes(StandardCharsets.UTF_8),
-            WriteOptions.builder().build());
+                path,
+                content.getBytes(StandardCharsets.UTF_8),
+                WriteOptions.builder().build());
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
@@ -314,12 +314,14 @@ public class AsyncOperator extends NativeObject {
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 
-    private static native long read_with_offset(long nativeHandle, long executorHandle, long offset, long len, String path);
+    private static native long read_with_offset(
+            long nativeHandle, long executorHandle, long offset, long len, String path);
 
-    private static native long read_with_options(long nativeHandle, long executorHandle, ReadOptions options, String path);
+    private static native long read_with_options(
+            long nativeHandle, long executorHandle, ReadOptions options, String path);
 
     private static native long write(
-        long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
+            long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 

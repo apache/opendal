@@ -23,10 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
-
 import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
@@ -106,7 +104,7 @@ public class BlockingReadOnlyTest extends BehaviorTestBase {
 
     @Test
     public void testBlockingReadonlyReadOptions() throws NoSuchAlgorithmException {
-        ReadOptions options= new ReadOptions();
+        ReadOptions options = new ReadOptions();
         final byte[] content = op().read(NORMAL_FILE_NAME, options);
         assertEquals(FILE_LENGTH, content.length);
         assertEquals(FILE_SHA256_DIGEST, sha256Digest(content));

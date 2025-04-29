@@ -55,8 +55,8 @@
         <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
         <project.build.outputTimestamp>10</project.build.outputTimestamp>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
 
         <!-- customized properties -->
         <cargo-build.profile>dev</cargo-build.profile>

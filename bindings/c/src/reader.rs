@@ -97,9 +97,10 @@ impl opendal_reader {
 
         match self.deref_mut().seek(pos) {
             Ok(_) => std::ptr::null_mut(),
-            Err(e) => {
-                opendal_error::new(core::Error::new(core::ErrorKind::Unexpected, e.to_string()))
-            }
+            Err(e) => opendal_error::new(
+                core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
+                    .set_source(e),
+            ),
         }
     }
 

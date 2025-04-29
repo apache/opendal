@@ -45,6 +45,9 @@ impl OneDriveWriter {
     }
 }
 
+// OneDrive requires multipart writes to specify the total size of the file.
+// While OpenDAL supports multiple writes, due to OneDrive's limitation, we opt to
+// use `OneShotWrite` instead of `MultipartWrite`.
 impl oio::OneShotWrite for OneDriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let size = bs.len();

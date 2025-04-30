@@ -165,7 +165,7 @@ impl HttpFetch for reqwest::Client {
             .request(
                 parts.method,
                 reqwest::Url::from_str(&uri.to_string())
-                      .expect(&format!("input request url must be valid {}", uri)),
+                    .expect(&format!("input request url must be valid {}", uri)),
             )
             .headers(parts.headers);
 

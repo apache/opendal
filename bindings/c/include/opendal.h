@@ -1459,8 +1459,12 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
                                                         const struct opendal_bytes *bytes);
 
 /**
+ * \brief Close the writer and make sure all data have beed stored.
+ */
+struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
+
+/**
  * \brief Frees the heap memory used by the opendal_writer.
- * \note This function make sure all data have been stored.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
 

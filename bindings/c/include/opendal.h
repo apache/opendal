@@ -1459,7 +1459,7 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
                                                         const struct opendal_bytes *bytes);
 
 /**
- * \brief Close the writer and make sure all data have beed stored.
+ * \brief Close the writer and make sure all data have been stored.
  */
 struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
 

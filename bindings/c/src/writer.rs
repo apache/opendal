@@ -67,7 +67,7 @@ impl opendal_writer {
         }
     }
 
-    /// \brief Close the writer and make sure all data have beed stored.
+    /// \brief Close the writer and make sure all data have been stored.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_close(ptr: *mut opendal_writer) -> *mut opendal_error {
         if !ptr.is_null() {
@@ -78,7 +78,7 @@ impl opendal_writer {
                 );
             }
         }
-        return std::ptr::null_mut();
+        std::ptr::null_mut()
     }
 
     /// \brief Frees the heap memory used by the opendal_writer.

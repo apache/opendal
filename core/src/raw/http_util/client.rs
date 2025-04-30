@@ -161,11 +161,13 @@ impl HttpFetch for reqwest::Client {
 
         let (parts, body) = req.into_parts();
 
+        let url = reqwest::Url::from_str(&uri.to_string())
+            .expect(&format!("input request url must be valid {}", uri)); 
+
         let mut req_builder = self
             .request(
                 parts.method,
-                reqwest::Url::from_str(&uri.to_string())
-                    .expect(&format!("input request url must be valid {}", uri)),
+                url,
             )
             .headers(parts.headers);
 

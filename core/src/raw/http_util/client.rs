@@ -164,8 +164,7 @@ impl HttpFetch for reqwest::Client {
         let url = reqwest::Url::from_str(&uri.to_string())
             .expect(&format!("input request url must be valid {}", uri));
 
-        let mut req_builder = self.request(parts.method, url,)
-            .headers(parts.headers);
+        let mut req_builder = self.request(parts.method, url).headers(parts.headers);
 
         // Client under wasm doesn't support set version.
         #[cfg(not(target_arch = "wasm32"))]

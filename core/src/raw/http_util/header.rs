@@ -206,8 +206,7 @@ pub fn parse_prefixed_headers(headers: &HeaderMap, prefix: &str) -> HashMap<Stri
         .iter()
         .filter_map(|(name, value)| {
             name.as_str().strip_prefix(prefix).and_then(|stripped_key| {
-                value
-                    .to_str()
+                String::from_utf8(value.as_bytes().to_vec())
                     .ok()
                     .map(|parsed_value| (stripped_key.to_string(), parsed_value.to_string()))
             })

@@ -49,3 +49,6 @@ jobs:
       - name: Cargo clippy
         working-directory: bin/oli
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Cargo test
+        working-directory: bin/oli
+        run: cargo test --all-targets --all-features

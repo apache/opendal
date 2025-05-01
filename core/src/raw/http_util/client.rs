@@ -161,9 +161,11 @@ impl HttpFetch for reqwest::Client {
 
         let (parts, body) = req.into_parts();
         
-        let url = reqwest::Url::from_str(&uri.to_string())
-            .map_err(|err| Error::new(ErrorKind::InvalidInput, "request url is invalid")
-                     .context("uri", uri).source(err))?;
+        let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
+            Error::new(ErrorKind::InvalidInput, "request url is invalid")
+                .context("uri", uri)
+                .source(err)
+        })?;
 
         let mut req_builder = self.request(parts.method, url).headers(parts.headers);
 

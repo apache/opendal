@@ -27,5 +27,5 @@ version = "0.0.0"
 [dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
 opendal = { path = "../..", features = ["tests"] }
-rand = "0.8"
+rand = "0.9"
 uuid = { version = "1", features = ["v4"] }

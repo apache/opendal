@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check_clippy:
+  check_clippy_and_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,9 +46,21 @@ jobs:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/cache@v4
+        working-directory: bin/oli
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Cargo clippy
         working-directory: bin/oli
         run: cargo clippy --all-targets --all-features -- -D warnings
+
       - name: Cargo test
         working-directory: bin/oli
         run: cargo test --all-targets --all-features

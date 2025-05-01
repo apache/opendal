@@ -163,7 +163,7 @@ impl HttpFetch for reqwest::Client {
 
         let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
-                .with_operation("http_util::Client::Url::from_str")
+                .with_operation("http_util::Client::fetch")
                 .with_context("url", uri.to_string())
                 .set_source(err)
         })?;

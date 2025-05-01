@@ -66,3 +66,40 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     ");
     Ok(())
 }
+
+#[tokio::test]
+async fn test_cp_file_to_existing_dir() -> Result<()> {
+    let temp_dir = tempdir()?;
+    let source_dir = temp_dir.path().join("source");
+    let dest_dir = temp_dir.path().join("dest");
+    fs::create_dir_all(&source_dir)?;
+    fs::create_dir_all(&dest_dir)?;
+
+    let source_file_name = "test_file.txt";
+    let source_file_path = source_dir.join(source_file_name);
+    let source_content = "hello";
+    fs::write(&source_file_path, source_content)?;
+
+    // Use paths directly as arguments for local fs operations
+    let source_arg = source_file_path.to_str().unwrap();
+    let dest_arg = dest_dir.to_str().unwrap();
+
+    let mut cmd = Command::cargo_bin("oli")?;
+    cmd.arg("cp").arg(source_arg).arg(dest_arg);
+
+    cmd.assert().success();
+
+    // Verify the file was copied into the destination directory
+    let expected_dest_file_path = dest_dir.join(source_file_name);
+    assert!(
+        expected_dest_file_path.exists(),
+        "Destination file should exist at: {:?}",
+        expected_dest_file_path
+    );
+
+    // Verify content
+    let dest_content = fs::read_to_string(&expected_dest_file_path)?;
+    assert_eq!(source_content, dest_content);
+
+    Ok(())
+}

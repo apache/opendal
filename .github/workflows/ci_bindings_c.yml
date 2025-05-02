@@ -47,10 +47,7 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Clippy Check
-        working-directory: "bindings/c"
-        run: |
-          cargo clippy -- -D warnings
+
 
       - uses: actions/cache@v4
         with:
@@ -61,6 +58,12 @@ jobs:
             ~/.cargo/git/db/
             bindings/c/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Clippy Check
+        working-directory: "bindings/c"
+        run: |
+          cargo clippy -- -D warnings
+
 
       - name: Build C binding
         working-directory: "bindings/c"

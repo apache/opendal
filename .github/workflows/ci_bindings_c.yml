@@ -67,7 +67,7 @@ jobs:
         run: |
           mkdir build && cd build
           cmake .. -DTEST_ENABLE_ASAN=ON
-          CARGO_FEATURE_SERVICES_MEMORY=1 make -j$(nproc)
+          make -j$(nproc) 
 
       - name: Check diff
         run: git diff --exit-code

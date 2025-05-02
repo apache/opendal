@@ -59,7 +59,7 @@ message(NOTICE "-- OpenDAL C shared lib: ${OPENDAL_SHARED_LIB}")
 
 # custom target for cargo build
 add_custom_target(cargo_build
-    COMMAND sh -c "cargo build ${CARGO_BUILD_TYPE}"
+    COMMAND sh -c "cargo build ${CARGO_BUILD_TYPE} --features=services-memory"
     BYPRODUCTS  ${OPENDAL_STATIC_LIB} ${OPENDAL_SHARED_LIB}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )

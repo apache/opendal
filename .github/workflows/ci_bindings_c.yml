@@ -66,7 +66,7 @@ jobs:
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON
+          cmake .. -DTEST_ENABLE_ASAN=ON -DSERVICES_MEMORY=ON
           make -j$(nproc) 
 
       - name: Check diff

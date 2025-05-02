@@ -76,19 +76,17 @@ impl CopyCmd {
             Ok(dst_meta) if dst_meta.mode().is_dir() => {
                 if self.recursive {
                     dst_path.clone()
+                } else if let Some(filename) = Path::new(&src_path).file_name() {
+                    Path::new(&dst_path)
+                        .join(filename)
+                        .to_string_lossy()
+                        .to_string()
                 } else {
-                    if let Some(filename) = Path::new(&src_path).file_name() {
-                        Path::new(&dst_path)
-                            .join(filename)
-                            .to_string_lossy()
-                            .to_string()
-                    } else {
-                        bail!(
-                            "Cannot copy source '{}' into directory '{}': Source has no filename.",
-                            src_path,
-                            dst_path
-                        );
-                    }
+                    bail!(
+                        "Cannot copy source '{}' into directory '{}': Source has no filename.",
+                        src_path,
+                        dst_path
+                    );
                 }
             }
             Ok(_) => {

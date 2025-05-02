@@ -72,23 +72,17 @@ impl CopyCmd {
         let (src_op, src_path) = cfg.parse_location(&self.source)?;
         let (dst_op, dst_path) = cfg.parse_location(&self.destination)?;
 
-        // Determine the final destination path
         let final_dst_path = match dst_op.stat(&dst_path).await {
             Ok(dst_meta) if dst_meta.mode().is_dir() => {
-                // Destination is an existing directory.
                 if self.recursive {
-                    // For recursive copy, the target directory itself is the destination root.
                     dst_path.clone()
                 } else {
-                    // For single file copy, construct path inside the directory.
                     if let Some(filename) = Path::new(&src_path).file_name() {
-                        // Append source filename to destination directory path.
                         Path::new(&dst_path)
                             .join(filename)
                             .to_string_lossy()
                             .to_string()
                     } else {
-                        // Source path doesn't have a filename component (e.g., root "/").
                         bail!(
                             "Cannot copy source '{}' into directory '{}': Source has no filename.",
                             src_path,
@@ -108,12 +102,8 @@ impl CopyCmd {
                 }
                 dst_path.clone()
             }
-            Err(e) if e.kind() == ErrorKind::NotFound => {
-                // Destination does not exist. Treat it as the target file/dir path.
-                dst_path.clone()
-            }
+            Err(e) if e.kind() == ErrorKind::NotFound => dst_path.clone(),
             Err(e) => {
-                // An unexpected error occurred trying to stat the destination.
                 return Err(e.into());
             }
         };
@@ -121,7 +111,7 @@ impl CopyCmd {
         if !self.recursive {
             // Non-recursive copy: Use the final_dst_path directly.
             let mut dst_w = dst_op
-                .writer(&final_dst_path) // Use determined final path
+                .writer(&final_dst_path)
                 .await?
                 .into_futures_async_write();
             let src_meta = src_op.stat(&src_path).await?;
@@ -143,14 +133,12 @@ impl CopyCmd {
                 // Base destination directory exists.
             }
             Ok(_) => {
-                // This case should have been caught earlier if dst_path was a file.
                 bail!(
                     "Recursive copy destination '{}' exists but is not a directory.",
                     final_dst_path
                 );
             }
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                // Base destination directory does not exist, create it.
                 dst_op.create_dir(&final_dst_path).await?;
             }
             Err(e) => {
@@ -176,21 +164,17 @@ impl CopyCmd {
                     depath
                 )
             })?;
-            let relative_path = relative_path.strip_prefix('/').unwrap_or(relative_path); // Ensure no leading slash
+            let relative_path = relative_path.strip_prefix('/').unwrap_or(relative_path);
 
-            // Construct full destination path for the entry
             let current_dst_path = dst_root.join(relative_path).to_string_lossy().to_string();
 
             if meta.mode().is_dir() {
-                // Create directories recursively in the destination
                 dst_op.create_dir(&current_dst_path).await?;
                 continue;
             }
 
-            // Ensure parent directory exists in the destination before writing file
             if let Some(parent) = Path::new(&current_dst_path).parent() {
                 if parent != dst_root {
-                    // Avoid trying to create the root again
                     dst_op.create_dir(&parent.to_string_lossy()).await?;
                 }
             }

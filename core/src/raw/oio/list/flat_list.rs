@@ -98,7 +98,7 @@ where
                     .start_after
                     .as_ref()
                     .map(|s| OpList::new().with_start_after(s))
-                    .unwrap_or_else(|| OpList::new());
+                    .unwrap_or_else(OpList::new);
                 let (_, mut l) = self.acc.list(de.path(), args).await?;
                 if let Some(v) = l.next().await? {
                     self.active_lister.push((Some(de.clone()), l));
@@ -155,7 +155,7 @@ where
                     .start_after
                     .as_ref()
                     .map(|s| OpList::new().with_start_after(s))
-                    .unwrap_or_else(|| OpList::new());
+                    .unwrap_or_else(OpList::new);
                 let (_, mut l) = self.acc.blocking_list(de.path(), args)?;
                 if let Some(v) = l.next()? {
                     self.active_lister.push((Some(de.clone()), l));

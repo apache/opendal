@@ -17,7 +17,6 @@
 
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::vec::IntoIter;
 
 use crate::raw::*;
@@ -74,6 +73,13 @@ impl<A: Access> Layer<A> for ImmutableIndexLayer {
     type LayeredAccess = ImmutableIndexAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_full_capability(|mut cap| {
+            cap.list = true;
+            cap.list_with_recursive = true;
+            cap
+        });
+
         ImmutableIndexAccessor {
             vec: self.vec.clone(),
             inner,
@@ -138,29 +144,24 @@ impl<A: Access> ImmutableIndexAccessor<A> {
 impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = ImmutableDir;
+    type Deleter = A::Deleter;
+    type BlockingReader = A::BlockingReader;
+    type BlockingWriter = A::BlockingWriter;
     type BlockingLister = ImmutableDir;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
-    /// Add list capabilities for underlying storage services.
-    fn metadata(&self) -> Arc<AccessorInfo> {
-        let mut meta = (*self.inner.info()).clone();
-
-        let cap = meta.full_capability_mut();
-        cap.list = true;
-        cap.list_with_recursive = true;
-
-        meta.into()
-    }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner.read(path, args).await
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -178,12 +179,12 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
         Ok((RpList::default(), ImmutableDir::new(idx)))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -203,6 +204,10 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
         };
 
         Ok((RpList::default(), ImmutableDir::new(idx)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 

@@ -27,6 +27,8 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzdlsCore;
+use super::core::DIRECTORY;
+use super::delete::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
@@ -47,6 +49,8 @@ const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzdlsBuilder {
             config: self,
@@ -60,6 +64,8 @@ impl Configurator for AzdlsConfig {
 #[derive(Default, Clone)]
 pub struct AzdlsBuilder {
     config: AzdlsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -148,6 +154,8 @@ impl AzdlsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -181,15 +189,6 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdls)
-            })?
-        };
-
         let config_loader = AzureStorageConfig {
             account_name: self
                 .config
@@ -205,10 +204,55 @@ impl Builder for AzdlsBuilder {
         let signer = AzureStorageSigner::new();
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Azdls)
+                        .set_root(&root)
+                        .set_name(filesystem)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_append: true,
+                            write_with_if_none_match: true,
+                            write_with_if_not_exists: true,
+
+                            create_dir: true,
+                            delete: true,
+                            rename: true,
+
+                            list: true,
+                            list_has_etag: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 filesystem: self.config.filesystem.clone(),
                 root,
                 endpoint,
-                client,
                 loader: cred_loader,
                 signer,
             }),
@@ -228,54 +272,23 @@ impl Access for AzdlsBackend {
     type Reader = HttpBody;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
+    type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azdls)
-            .set_root(&self.core.root)
-            .set_name(&self.core.filesystem)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                write_can_append: true,
-                create_dir: true,
-                delete: true,
-                rename: true,
-
-                list: true,
-                list_with_start_after: true,
-
-                presign: self.has_sas_token,
-                presign_stat: self.has_sas_token,
-                presign_read: self.has_sas_token,
-                presign_write: self.has_sas_token,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self.core.azdls_create_request(
-            path,
-            "directory",
-            &OpWrite::default(),
-            Buffer::new(),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .azdls_create(path, DIRECTORY, &OpWrite::default())
+            .await?;
 
         let status = resp.status();
-
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(resp)),
@@ -284,48 +297,13 @@ impl Access for AzdlsBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
+        // TODO: include metadata for the root (#4746)
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.azdls_get_properties(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let mut meta = parse_into_metadata(path, resp.headers())?;
-        let resource = resp
-            .headers()
-            .get("x-ms-resource-type")
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's missing",
-                )
-            })?
-            .to_str()
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls should return x-ms-resource-type header, but it's not a valid string",
-                )
-                .set_source(err)
-            })?;
-
-        meta = match resource {
-            "file" => meta.with_mode(EntryMode::FILE),
-            "directory" => meta.with_mode(EntryMode::DIR),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls returns not supported x-ms-resource-type",
-                )
-                .with_context("resource", v))
-            }
-        };
-
-        Ok(RpStat::new(meta))
+        let metadata = self.core.azdls_stat_metadata(path).await?;
+        Ok(RpStat::new(metadata))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -352,15 +330,11 @@ impl Access for AzdlsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.azdls_delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AzdlsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

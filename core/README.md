@@ -1,4 +1,4 @@
-# Apache OpenDAL™: *Access Data Freely*
+# Apache OpenDAL™ Rust Core: One Layer, All Storage.
 
 [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
@@ -10,7 +10,7 @@
 [chat]: https://img.shields.io/discord/1081052318650339399
 [discord]: https://opendal.apache.org/discord
 
-OpenDAL offers a unified data access layer, empowering users to seamlessly and efficiently retrieve data from diverse storage services.
+Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 
 <img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" width="61.8%" />
 
@@ -30,7 +30,7 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 |--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                                        |
 | Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
 | Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
@@ -54,7 +54,6 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 [alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
 [azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
 [azfile]: https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api
-[chainsafe]: https://storage.chainsafe.io/
 [compfs]: https://github.com/compio-rs/compio/
 [dbfs]: https://docs.databricks.com/en/dbfs/index.html
 [gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/
@@ -105,25 +104,26 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 
 OpenDAL supports the following storage [layers](https://docs.rs/opendal/latest/opendal/layers/index.html) to extend the behavior:
 
-| Name                      | Depends                | Description                                                                           |
-|---------------------------|------------------------|---------------------------------------------------------------------------------------|
-| [`AsyncBacktraceLayer`]   | [async-backtrace]      | Add Efficient, logical 'stack' traces of async functions for the underlying services. |
-| [`AwaitTreeLayer`]        | [await-tree]           | Add a Instrument await-tree for actor-based applications to the underlying services.  |
-| [`BlockingLayer`]         | [tokio]                | Add blocking API support for non-blocking services.                                   |
-| [`ChaosLayer`]            | [rand]                 | Inject chaos into underlying services for robustness test.                            |
-| [`ConcurrentLimitLayer`]  | [tokio]                | Add concurrent request limit.                                                         |
-| [`DtraceLayer`]           | [probe]                | Support User Statically-Defined Tracing(aka USDT) on Linux                            |
-| [`LoggingLayer`]          | [log]                  | Add log for every operations.                                                         |
-| [`MetricsLayer`]          | [metrics]              | Add metrics for every operations.                                                     |
-| [`MimeGuessLayer`]        | [mime_guess]           | Add `Content-Type` automatically based on the file extension in the operation path.   |
-| [`FastraceLayer`]         | [fastrace]             | Add fastrace for every operations.                                                    |
-| [`OtelTraceLayer`]        | [opentelemetry::trace] | Add opentelemetry::trace for every operations.                                        |
-| [`PrometheusClientLayer`] | [prometheus_client]    | Add prometheus metrics for every operations.                                          |
-| [`PrometheusLayer`]       | [prometheus]           | Add prometheus metrics for every operations.                                          | 
-| [`RetryLayer`]            | [backon]               | Add retry for temporary failed operations.                                            |
-| [`ThrottleLayer`]         | [governor]             | Add a bandwidth rate limiter to the underlying services.                              |
-| [`TimeoutLayer`]          | [tokio]                | Add timeout for every operations to avoid slow or unexpected hang operations.         |
-| [`TracingLayer`]          | [tracing]              | Add tracing for every operations.                                                     |
+| Name                      | Depends                  | Description                                                                           |
+|---------------------------|--------------------------|---------------------------------------------------------------------------------------|
+| [`AsyncBacktraceLayer`]   | [async-backtrace]        | Add Efficient, logical 'stack' traces of async functions for the underlying services. |
+| [`AwaitTreeLayer`]        | [await-tree]             | Add a Instrument await-tree for actor-based applications to the underlying services.  |
+| [`BlockingLayer`]         | [tokio]                  | Add blocking API support for non-blocking services.                                   |
+| [`ChaosLayer`]            | [rand]                   | Inject chaos into underlying services for robustness test.                            |
+| [`ConcurrentLimitLayer`]  | [tokio]                  | Add concurrent request limit.                                                         |
+| [`DtraceLayer`]           | [probe]                  | Support User Statically-Defined Tracing(aka USDT) on Linux                            |
+| [`LoggingLayer`]          | [log]                    | Add log for every operations.                                                         |
+| [`MetricsLayer`]          | [metrics]                | Add metrics for every operations.                                                     |
+| [`MimeGuessLayer`]        | [mime_guess]             | Add `Content-Type` automatically based on the file extension in the operation path.   |
+| [`FastraceLayer`]         | [fastrace]               | Add fastrace for every operations.                                                    |
+| [`OtelMetricsLayer`]      | [opentelemetry::metrics] | Add opentelemetry::metrics for every operations.                                      |
+| [`OtelTraceLayer`]        | [opentelemetry::trace]   | Add opentelemetry::trace for every operations.                                        |
+| [`PrometheusClientLayer`] | [prometheus_client]      | Add prometheus metrics for every operations.                                          |
+| [`PrometheusLayer`]       | [prometheus]             | Add prometheus metrics for every operations.                                          | 
+| [`RetryLayer`]            | [backon]                 | Add retry for temporary failed operations.                                            |
+| [`ThrottleLayer`]         | [governor]               | Add a bandwidth rate limiter to the underlying services.                              |
+| [`TimeoutLayer`]          | [tokio]                  | Add timeout for every operations to avoid slow or unexpected hang operations.         |
+| [`TracingLayer`]          | [tracing]                | Add tracing for every operations.                                                     |
 
 [`AsyncBacktraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.AsyncBacktraceLayer.html
 [async-backtrace]: https://github.com/tokio-rs/async-backtrace
@@ -144,6 +144,7 @@ OpenDAL supports the following storage [layers](https://docs.rs/opendal/latest/o
 [mime_guess]: https://github.com/abonander/mime_guess
 [`FastraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.FastraceLayer.html
 [fastrace]: https://github.com/fastracelabs/fastrace
+[`OtelMetricsLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.OtelMetricsLayer.html
 [`OtelTraceLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.OtelTraceLayer.html
 [opentelemetry::trace]: https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html
 [`PrometheusClientLayer`]: https://docs.rs/opendal/latest/opendal/layers/struct.PrometheusClientLayer.html
@@ -210,7 +211,11 @@ async fn main() -> Result<()> {
 
 ## Contributing
 
-Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
+Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
+
+## Used by
+
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
 
 ## Branding
 

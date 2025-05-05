@@ -52,6 +52,10 @@ jobs:
           cabal update
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      - name: Clippy Check
+        working-directory: "bindings/haskell"
+        run: |
+          cargo clippy -- -D warnings
       - name: Restore haskell cache
         uses: actions/cache/restore@v4
         with:
@@ -101,7 +105,7 @@ jobs:
           tar xf opendal-*.crate --strip-components=1
           cabal sdist
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bindings-haskell-sdist
           path: bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz
@@ -114,7 +118,7 @@ jobs:
 #    if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
 #    needs: [package]
 #    steps:
-#      - uses: actions/download-artifact@v3
+#      - uses: actions/download-artifact@v4
 #        with:
 #          name: bindings-haskell-sdist
 #      - name: Load secret

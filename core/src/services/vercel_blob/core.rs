@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Buf;
 use bytes::Bytes;
 use http::header;
@@ -28,6 +25,9 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use self::constants::*;
 use super::error::parse_error;
@@ -56,12 +56,11 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct VercelBlobCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Vercel Blob token.
     pub token: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for VercelBlobCore {
@@ -75,7 +74,7 @@ impl Debug for VercelBlobCore {
 impl VercelBlobCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> request::Builder {
@@ -109,18 +108,21 @@ impl VercelBlobCore {
         }
 
         // Set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
-    pub fn get_put_request(
+    pub async fn upload(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: u64,
         args: &OpWrite,
         body: Buffer,
-    ) -> Result<Request<Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -132,9 +134,7 @@ impl VercelBlobCore {
 
         req = req.header(X_VERCEL_BLOB_ADD_RANDOM_SUFFIX, "0");
 
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size.to_string())
-        }
+        req = req.header(header::CONTENT_LENGTH, size.to_string());
 
         if let Some(mime) = args.content_type() {
             req = req.header(X_VERCEL_BLOB_CONTENT_TYPE, mime)
@@ -143,43 +143,12 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn delete(&self, path: &str) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.list(&p, Some(1)).await?;
-
-        let url = resolve_blob(resp.blobs, p);
-
-        if url.is_empty() {
-            return Ok(());
-        }
-
-        let req = Request::post("https://blob.vercel-storage.com/delete");
-
-        let req = self.sign(req);
-
-        let req_body = &json!({
-            "urls": vec![url]
-        });
-
         let req = req
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(Bytes::from(req_body.to_string())))
+            .extension(Operation::Write)
+            .body(body)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
+        self.send(req).await
     }
 
     pub async fn head(&self, path: &str) -> Result<Response<Buffer>> {
@@ -201,7 +170,10 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -230,7 +202,10 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -252,7 +227,10 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -294,7 +272,10 @@ impl VercelBlobCore {
         };
 
         // Set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -325,7 +306,10 @@ impl VercelBlobCore {
         let req = self.sign(req);
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -355,6 +339,7 @@ impl VercelBlobCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Write)
             .body(Buffer::from(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 

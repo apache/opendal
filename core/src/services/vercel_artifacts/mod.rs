@@ -18,6 +18,8 @@
 #[cfg(feature = "services-vercel-artifacts")]
 mod backend;
 #[cfg(feature = "services-vercel-artifacts")]
+mod core;
+#[cfg(feature = "services-vercel-artifacts")]
 mod error;
 #[cfg(feature = "services-vercel-artifacts")]
 mod writer;

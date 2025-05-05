@@ -69,6 +69,40 @@ pub(crate) fn string_to_jstring<'a>(
     )
 }
 
+pub(crate) fn read_bool_field(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> crate::Result<bool> {
+    Ok(env.get_field(obj, field, "Z")?.z()?)
+}
+
+pub(crate) fn read_string_field(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> crate::Result<Option<String>> {
+    let result = env.get_field(obj, field, "Ljava/lang/String;")?.l()?;
+    if result.is_null() {
+        Ok(None)
+    } else {
+        Ok(Some(jstring_to_string(env, &JString::from(result))?))
+    }
+}
+
+pub(crate) fn read_map_field(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> crate::Result<Option<HashMap<String, String>>> {
+    let result = env.get_field(obj, field, "Ljava/util/Map;")?.l()?;
+    if result.is_null() {
+        Ok(None)
+    } else {
+        Ok(Some(jmap_to_hashmap(env, &result)?))
+    }
+}
+
 /// # Safety
 ///
 /// The caller must guarantee that the Object passed in is an instance

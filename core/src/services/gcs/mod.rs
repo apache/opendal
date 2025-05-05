@@ -18,6 +18,8 @@
 #[cfg(feature = "services-gcs")]
 mod core;
 #[cfg(feature = "services-gcs")]
+mod delete;
+#[cfg(feature = "services-gcs")]
 mod error;
 #[cfg(feature = "services-gcs")]
 mod lister;

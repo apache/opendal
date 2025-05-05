@@ -107,17 +107,23 @@ public class AsyncOperator extends NativeObject {
     private final long executorHandle;
 
     /**
-     * Construct an OpenDAL operator:
+     * Construct an OpenDAL operator.
      *
-     * <p>
-     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
-     * and see what config options each service supports.
-     *
-     * @param schema the name of the underneath service to access data from.
-     * @param map    a map of properties to construct the underneath operator.
+     * @param config the config of the underneath service to access data from.
      */
-    public static AsyncOperator of(String schema, Map<String, String> map) {
-        return of(schema, map, null);
+    public static AsyncOperator of(ServiceConfig config) {
+        return of(config, null);
+    }
+
+    /**
+     * Construct an OpenDAL operator.
+     *
+     * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
+     */
+    public static AsyncOperator of(ServiceConfig config, AsyncExecutor executor) {
+        final String scheme = config.scheme();
+        final Map<String, String> map = config.configMap();
+        return of(scheme, map, executor);
     }
 
     /**
@@ -127,13 +133,27 @@ public class AsyncOperator extends NativeObject {
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
      * and see what config options each service supports.
      *
-     * @param schema   the name of the underneath service to access data from.
+     * @param scheme the name of the underneath service to access data from.
+     * @param map    a map of properties to construct the underneath operator.
+     */
+    public static AsyncOperator of(String scheme, Map<String, String> map) {
+        return of(scheme, map, null);
+    }
+
+    /**
+     * Construct an OpenDAL operator:
+     *
+     * <p>
+     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * and see what config options each service supports.
+     *
+     * @param scheme   the name of the underneath service to access data from.
      * @param map      a map of properties to construct the underneath operator.
      * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
      */
-    public static AsyncOperator of(String schema, Map<String, String> map, AsyncExecutor executor) {
+    public static AsyncOperator of(String scheme, Map<String, String> map, AsyncExecutor executor) {
         final long executorHandle = executor != null ? executor.nativeHandle : 0;
-        final long nativeHandle = constructor(executorHandle, schema, map);
+        final long nativeHandle = constructor(executorHandle, scheme, map);
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
         return new AsyncOperator(nativeHandle, executorHandle, info);
     }
@@ -158,11 +178,29 @@ public class AsyncOperator extends NativeObject {
         return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
     }
 
+    /**
+     * Create a new operator that is layered with the given layer.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @param layer the layer to be applied.
+     *
+     * @return the layered new operator.
+     */
     public AsyncOperator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
         return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
+    /**
+     * Create a new operator that performs every operation blocking.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @return the blocking new operator.
+     */
     public Operator blocking() {
         final long nativeHandle = makeBlockingOp(this.nativeHandle);
         final OperatorInfo info = this.info;
@@ -170,11 +208,22 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, String content) {
-        return write(path, content.getBytes(StandardCharsets.UTF_8));
+        return write(
+                path,
+                content.getBytes(StandardCharsets.UTF_8),
+                WriteOptions.builder().build());
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
-        final long requestId = write(nativeHandle, executorHandle, path, content);
+        return write(path, content, WriteOptions.builder().build());
+    }
+
+    public CompletableFuture<Void> write(String path, String content, WriteOptions options) {
+        return write(path, content.getBytes(StandardCharsets.UTF_8), options);
+    }
+
+    public CompletableFuture<Void> write(String path, byte[] content, WriteOptions options) {
+        final long requestId = write(nativeHandle, executorHandle, path, content, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -238,7 +287,11 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        final long requestId = list(nativeHandle, executorHandle, path);
+        return list(path, ListOptions.builder().build());
+    }
+
+    public CompletableFuture<List<Entry>> list(String path, ListOptions options) {
+        final long requestId = list(nativeHandle, executorHandle, path, options);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
@@ -248,11 +301,12 @@ public class AsyncOperator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(long executorHandle, String schema, Map<String, String> map);
+    private static native long constructor(long executorHandle, String scheme, Map<String, String> map);
 
     private static native long read(long nativeHandle, long executorHandle, String path);
 
-    private static native long write(long nativeHandle, long executorHandle, String path, byte[] content);
+    private static native long write(
+            long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 
@@ -278,5 +332,5 @@ public class AsyncOperator extends NativeObject {
 
     private static native long removeAll(long nativeHandle, long executorHandle, String path);
 
-    private static native long list(long nativeHandle, long executorHandle, String path);
+    private static native long list(long nativeHandle, long executorHandle, String path, ListOptions options);
 }

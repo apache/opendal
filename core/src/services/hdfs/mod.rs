@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-hdfs")]
+mod delete;
+#[cfg(feature = "services-hdfs")]
 mod lister;
 #[cfg(feature = "services-hdfs")]
 mod reader;

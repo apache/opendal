@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::vec;
 
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -271,14 +272,17 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Etcd,
             &self.endpoints.join(","),
             Capability {
                 read: true,
                 write: true,
                 list: true,
+                shared: true,
 
                 ..Default::default()
             },
@@ -310,7 +314,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let mut client = self.conn().await?;
         let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
         let resp = client
@@ -323,10 +327,10 @@ impl kv::Adapter for Adapter {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            res.push(v);
+            res.push(Ok(v));
         }
 
-        Ok(res)
+        Ok(kv::ScanStdIter::new(res.into_iter()))
     }
 }
 

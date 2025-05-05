@@ -153,40 +153,6 @@ impl RpRead {
     }
 }
 
-/// Reply for `batch` operation.
-pub struct RpBatch {
-    results: Vec<(String, Result<BatchedReply>)>,
-}
-
-impl RpBatch {
-    /// Create a new RpBatch.
-    pub fn new(results: Vec<(String, Result<BatchedReply>)>) -> Self {
-        Self { results }
-    }
-
-    /// Get the results from RpBatch.
-    pub fn results(&self) -> &[(String, Result<BatchedReply>)] {
-        &self.results
-    }
-
-    /// Consume RpBatch to get the batched results.
-    pub fn into_results(self) -> Vec<(String, Result<BatchedReply>)> {
-        self.results
-    }
-}
-
-/// Batch results of `batch` operations.
-pub enum BatchedReply {
-    /// results of `delete batch` operation
-    Delete(RpDelete),
-}
-
-impl From<RpDelete> for BatchedReply {
-    fn from(rp: RpDelete) -> Self {
-        Self::Delete(rp)
-    }
-}
-
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {

@@ -12,14 +12,14 @@
 
 ## How to use `oli`
 
-`oli` provide basic sub-commands like `oli ls`, `oli cat`, `oli stat`, `oli cp` and `oli rm`, just like what you use on your local filesystem.
+`oli` provide basic sub-commands like `oli ls`, `oli cat`, `oli stat`, `oli cp`, `oli rm`, and `oli bench` just like what you use on your local filesystem.
 
 ### Install `oli`
 
 `oli` could be installed by `cargo`:
 
 ```bash
-cargo install oli --all-features
+cargo install oli
 ```
 
 > `cargo` is the Rust package manager. `cargo` could be installed by following the [Installation](https://www.rust-lang.org/tools/install) from Rust official website.
@@ -32,7 +32,7 @@ cargo install oli --all-features
 - `~/Library/Application Support/oli/config.toml` on macOS
 - `C:\Users\<UserName>\AppData\Roaming\oli\config.toml` on Windows
 
-The content of `config.toml` should be follow these pattern:
+The content of `config.toml` should follow these pattern:
 
 ```toml
 [profiles.<profile_name>]
@@ -67,23 +67,58 @@ access_key_id = "<access_key_id>"
 secret_access_key = "<secret_access_key>"
 ```
 
-For different services, you could find the configuration keys in the corresponding [service document](https://opendal.apache.org/docs/services/).
+For different services, you could find the configuration keys in the corresponding [service document](https://docs.rs/opendal/0.50.2/opendal/services/index.html).
 
 ### Example: use `oli` to upload file to AWS S3
 
-```text
-$ oli cp ./update-ecs-loadbalancer.json s3://update-ecs-loadbalancer.json
-$ oli ls s3://                                                           
-fleet.png
-update-ecs-loadbalancer.json
+```shell
+oli cp ./update-ecs-loadbalancer.json s3:/update-ecs-loadbalancer.json
+oli ls s3:/
+# fleet.png
+# update-ecs-loadbalancer.json
 ```
 
 ### Example: use `oli` copy file from S3 to R2
 
-```text
-$ oli cp s3://fleet.png r2://fleet.png
-$ oli ls r2://
-fleet.png
+```shell
+oli cp s3:/fleet.png r2:/fleet.png
+oli ls r2:/
+# fleet.png
+```
+
+### Example: use `oli` bench command
+
+use the oli config file or create a new config file for bench command
+
+Here is an example of `config.toml` using bench command:
+
+```toml
+[profiles.demo]
+type = "s3"
+access_key_id = "minioadmin"
+secret_access_key = "minioadmin"
+bucket = "test-bucket"
+endpoint = "http://127.0.0.1:9000"
+region = "us-east-1"
+root = "/benchmarks"
+enable_virtual_host_style = "false"
+```
+
+create a bench suite config file
+
+Here is an example of `suite.toml`:
+
+```toml
+file_size = "64MiB"
+parallelism = 4
+timeout = "60s"
+workload = "upload"
+```
+
+then can use bench command use config file and suite file
+
+```shell
+oli bench --config config.toml demo suite.toml
 ```
 
 ## Contribute to `oli`

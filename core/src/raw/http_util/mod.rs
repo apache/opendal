@@ -25,6 +25,7 @@
 mod client;
 pub use client::HttpClient;
 pub use client::HttpFetch;
+pub use client::HttpFetcher;
 
 /// temporary client used by several features
 #[allow(unused_imports)]
@@ -49,10 +50,14 @@ pub use header::parse_header_to_str;
 pub use header::parse_into_metadata;
 pub use header::parse_last_modified;
 pub use header::parse_location;
+pub use header::parse_multipart_boundary;
+pub use header::parse_prefixed_headers;
 
 mod uri;
+pub use uri::new_http_uri_invalid_error;
 pub use uri::percent_decode_path;
 pub use uri::percent_encode_path;
+pub use uri::QueryPairsWriter;
 
 mod error;
 pub use error::new_request_build_error;
@@ -71,3 +76,4 @@ pub use multipart::FormDataPart;
 pub use multipart::MixedPart;
 pub use multipart::Multipart;
 pub use multipart::Part;
+pub use multipart::RelatedPart;

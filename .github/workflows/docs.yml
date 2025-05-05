@@ -38,8 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This same toolchain for rust 1.79.0 but nightly so we can use new features.
-  RUST_DOC_TOOLCHAIN: nightly-2024-06-13
+  # This same toolchain for rust 1.85.1 but nightly so we can use new features.
+  RUST_DOC_TOOLCHAIN: nightly-2025-03-18
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 
@@ -73,7 +73,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rust-docs
           path: ./core/target/doc
@@ -94,7 +94,7 @@ jobs:
         run: mvn javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -116,7 +116,7 @@ jobs:
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         working-directory: bindings/nodejs
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs
@@ -131,7 +131,7 @@ jobs:
         run: pnpm run docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -148,20 +148,54 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          python -m pip install -e .[docs]
+          uv sync --group docs
 
       - name: Build Docs
         working-directory: bindings/python
-        run: pdoc -t ./template --output-dir ./docs opendal
+        run: uv run mkdocs build
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-docs
-          path: ./bindings/python/docs
+          path: ./bindings/python/site
+
+  build-ruby-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: bindings/ruby
+          bundler-cache: true
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        # yard-rustdoc depends on a particular rust doc JSON format
+        run: |
+          rustup toolchain install nightly-2024-08-19
+
+      - name: Build Docs
+        working-directory: bindings/ruby
+        run: bundle exec rake doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./bindings/ruby/doc
 
   build-c-doc:
     runs-on: ubuntu-latest
@@ -182,7 +216,7 @@ jobs:
         run: make doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
@@ -201,7 +235,7 @@ jobs:
         run: ldoc ./src
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lua-docs
           path: ./bindings/lua/doc/
@@ -220,7 +254,7 @@ jobs:
           cabal update
 
       - name: Setup cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: cache-cabal
         with:
@@ -241,7 +275,7 @@ jobs:
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: haskell-docs
           path: ./bindings/haskell/doc/
@@ -270,7 +304,7 @@ jobs:
           ninja docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
@@ -282,7 +316,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Cache OPAM dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.opam
           key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
@@ -291,7 +325,7 @@ jobs:
             ${{ runner.os }}-opam-
 
       - name: Cache Dune build artifacts
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: bindings/ocaml/_build
           key: ${{ runner.os }}-dune-doc-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}
@@ -315,7 +349,7 @@ jobs:
           dune build @doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html
@@ -338,7 +372,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: object-store-opendal-docs
           path: ./integrations/object_store/target/doc
@@ -362,7 +396,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dav-server-opendalfs-docs
           path: ./integrations/dav-server/target/doc
@@ -385,7 +419,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fuse3-opendal-docs
           path: ./integrations/fuse3/target/doc
@@ -408,7 +442,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: unftp-sbe-opendal-docs
           path: ./integrations/unftp-sbe/target/doc
@@ -431,7 +465,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: virtiofs-opendal-docs
           path: ./integrations/virtiofs/target/doc
@@ -454,33 +488,10 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: object-parquet-docs
           path: ./integrations/parquet/target/doc
-
-  build-opendal-compat-doc:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Rust Nightly
-        run: |
-          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
-
-      - name: Build opendal_compat doc
-        working-directory: "integrations/compat"
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
-
-      - name: Upload docs
-        uses: actions/upload-artifact@v3
-        with:
-          name: opendal-compat-docs
-          path: ./integrations/compat/target/doc
 
   build-website:
     runs-on: ubuntu-latest
@@ -491,6 +502,7 @@ jobs:
       - build-java-doc
       - build-nodejs-doc
       - build-python-doc
+      - build-ruby-doc
       - build-c-doc
       - build-lua-doc
       - build-haskell-doc
@@ -502,7 +514,6 @@ jobs:
       - build-unftp-sbe-opendal-doc
       - build-virtiofs-opendal-doc
       - build-parquet-opendal-doc
-      - build-opendal-compat-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -521,94 +532,94 @@ jobs:
 
       - name: Corepack
         working-directory: website
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-docs
           path: ./website/static/docs/python
 
+      - name: Download ruby docs
+        uses: actions/download-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./website/static/docs/ruby
+
       - name: Download java docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml
 
       - name: Download object-store-opendal docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
 
-      - name: Download opendal_compat docs
-        uses: actions/download-artifact@v3
-        with:
-          name: opendal-compat-docs
-          path: ./website/static/docs/opendal_compat
-
       - name: Download dav-server-opendalfs docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
       - name: Download fuse3-opendal docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: fuse3-opendal-docs
           path: ./website/static/docs/fuse3-opendal
 
       - name: Download unftp-sbe-opendal docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal
 
       - name: Download virtiofs-opendal docs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: virtiofs-opendal-docs
           path: ./website/static/docs/virtiofs-opendal
@@ -631,6 +642,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
+          # This allows us to make our publish branch with only the latest commit.
+          force_orphan: true
 
       - name: Clear build
         run: rm -rf ./website/build

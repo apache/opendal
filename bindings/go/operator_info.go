@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Info returns metadata about the Operator.
@@ -176,11 +175,6 @@ func (c *Capability) WriteMultiMaxSize() uint {
 func (c *Capability) WriteMultiMinSize() uint {
 	return c.inner.writeMultiMinSize
 }
-
-func (c *Capability) WriteMultiAlignSize() uint {
-	return c.inner.writeMultiAlignSize
-}
-
 func (c *Capability) WriteTotalMaxSize() uint {
 	return c.inner.writeTotalMaxSize
 }
@@ -233,16 +227,8 @@ func (c *Capability) PresignWrite() bool {
 	return c.inner.presignWrite == 1
 }
 
-func (c *Capability) Batch() bool {
-	return c.inner.batch == 1
-}
-
-func (c *Capability) BatchDelete() bool {
-	return c.inner.batchDelete == 1
-}
-
-func (c *Capability) BatchMaxOperations() uint {
-	return c.inner.batchMaxOperations
+func (c *Capability) Shared() bool {
+	return c.inner.shared == 1
 }
 
 func (c *Capability) Blocking() bool {
@@ -338,7 +324,7 @@ var withOperatorInfoGetScheme = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })
 
@@ -357,7 +343,7 @@ var withOperatorInfoGetRoot = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })
 
@@ -376,6 +362,6 @@ var withOperatorInfoGetName = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&info),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })

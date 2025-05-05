@@ -25,6 +25,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define OPENDAL_SEEK_SET 0
+
+#define OPENDAL_SEEK_CUR 1
+
+#define OPENDAL_SEEK_END 2
+
 /**
  * \brief The error code for all opendal APIs in C binding.
  * \todo The error handling is not complete, the error with error message will be
@@ -516,14 +522,6 @@ typedef struct opendal_capability {
    */
   uintptr_t write_multi_min_size;
   /**
-   * write_multi_align_size is the align size that services required in write_multi.
-   *
-   * For example, Google GCS requires align size to 256KiB in write_multi.
-   *
-   * If it is not set, this will be zero
-   */
-  uintptr_t write_multi_align_size;
-  /**
    * write_total_max_size is the max size that services support in write_total.
    *
    * For example, Cloudflare D1 supports 1MB as max in write_total.
@@ -580,19 +578,9 @@ typedef struct opendal_capability {
    */
   bool presign_write;
   /**
-   * If operator supports batch.
+   * If operator supports shared.
    */
-  bool batch;
-  /**
-   * If operator supports batch delete.
-   */
-  bool batch_delete;
-  /**
-   * The max operations that operator supports in batch.
-   *
-   * If it is not set, this will be zero
-   */
-  uintptr_t batch_max_operations;
+  bool shared;
   /**
    * If operator supports blocking.
    */
@@ -753,7 +741,7 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
  * each service, especially for the **Configuration Part**.
  *
- * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+ * @param scheme the service scheme you want to specify, e.g. "fs", "s3"
  * @param options the pointer to the options for this operator, it could be NULL, which means no
  * option is set
  * @see opendal_operator_options
@@ -1318,6 +1306,8 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *src,
                                             const char *dest);
 
+struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
 /**
  * \brief Get information of underlying accessor.
  *
@@ -1449,6 +1439,13 @@ void opendal_entry_free(struct opendal_entry *ptr);
 struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
                                                       uint8_t *buf,
                                                       uintptr_t len);
+
+/**
+ * \brief Seek to an offset, in bytes, in a stream.
+ */
+struct opendal_error *opendal_reader_seek(struct opendal_reader *self,
+                                          int64_t offset,
+                                          int32_t whence);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.

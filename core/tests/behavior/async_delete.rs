@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::*;
 use anyhow::Result;
-use futures::StreamExt;
 use futures::TryStreamExt;
 use log::warn;
-
-use crate::*;
+use opendal::raw::{Access, OpDelete};
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -35,7 +34,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_stream,
             test_remove_one_file,
             test_delete_with_version,
-            test_delete_with_not_existing_version
+            test_delete_with_not_existing_version,
+            test_batch_delete,
+            test_batch_delete_with_version
         ));
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -77,11 +78,6 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
 /// Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for supabase until https://github.com/apache/opendal/issues/2194 addressed.
-    if op.info().scheme() == opendal::Scheme::Supabase {
-        warn!("ignore test for supabase until https://github.com/apache/opendal/issues/2194 is resolved");
-        return Ok(());
-    }
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
         warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
@@ -118,7 +114,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    op.remove(vec![path.clone()]).await?;
+    op.delete_iter(vec![path.clone()]).await?;
 
     // Stat it again to check.
     assert!(!op.exists(&path).await?);
@@ -127,7 +123,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    op.remove(vec![path.clone()]).await?;
+    op.delete_iter(vec![path.clone()]).await?;
 
     // Stat it again to check.
     assert!(!op.exists(&path).await?);
@@ -156,9 +152,11 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
         op.write(&format!("{dir}/{path}"), "delete_stream").await?;
     }
 
-    op.with_limit(30)
-        .remove_via(futures::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
+    let mut deleter = op.deleter().await?;
+    deleter
+        .delete_iter(expected.iter().map(|v| format!("{dir}/{v}")))
         .await?;
+    deleter.close().await?;
 
     // Stat it again to check.
     for path in expected.iter() {
@@ -278,6 +276,77 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
         .version(version.as_str())
         .await;
     assert!(ret.is_ok());
+
+    Ok(())
+}
+
+pub async fn test_batch_delete(op: Operator) -> Result<()> {
+    let mut cap = op.info().full_capability();
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    op.inner().info().update_full_capability(|_| cap);
+
+    let mut files = Vec::new();
+    for _ in 0..5 {
+        let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+        op.write(path.as_str(), content)
+            .await
+            .expect("write must succeed");
+        files.push(path);
+    }
+
+    op.delete_iter(files.clone())
+        .await
+        .expect("batch delete must succeed");
+
+    for path in files {
+        let stat = op.stat(path.as_str()).await;
+        assert!(stat.is_err());
+        assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
+    }
+
+    Ok(())
+}
+
+pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
+    let mut cap = op.info().full_capability();
+    if !cap.delete_with_version {
+        return Ok(());
+    }
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    op.inner().info().update_full_capability(|_| cap);
+
+    let mut files = Vec::new();
+    for _ in 0..5 {
+        let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+        op.write(path.as_str(), content)
+            .await
+            .expect("write must succeed");
+        let meta = op.stat(path.as_str()).await.expect("stat must succeed");
+        let version = meta.version().expect("must have version");
+        let op_args = OpDelete::new().with_version(version);
+        files.push((path, op_args));
+    }
+
+    op.delete_iter(files.clone())
+        .await
+        .expect("batch delete must succeed");
+
+    for (path, args) in files {
+        let stat = op
+            .stat_with(path.as_str())
+            .version(args.version().unwrap())
+            .await;
+        assert!(stat.is_err());
+        assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
+    }
 
     Ok(())
 }

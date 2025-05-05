@@ -24,8 +24,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
-version = "0.45.0"
+rust-version = "1.80"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -36,7 +35,6 @@ cbindgen = "0.26.0"
 
 [dependencies]
 bytes = "1.4.0"
-once_cell = "1.17.1"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "layers-blocking",

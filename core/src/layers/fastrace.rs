@@ -20,7 +20,6 @@ use std::future::Future;
 use std::sync::Arc;
 
 use fastrace::prelude::*;
-use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -127,49 +126,47 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     type BlockingWriter = FastraceWrapper<A::BlockingWriter>;
     type Lister = FastraceWrapper<A::Lister>;
     type BlockingLister = FastraceWrapper<A::BlockingLister>;
+    type Deleter = FastraceWrapper<A::Deleter>;
+    type BlockingDeleter = FastraceWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     #[trace]
-    fn metadata(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.inner.info()
     }
 
-    #[trace(name = "create", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await
     }
 
     #[trace(enter_on_poll = true)]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Read.into_static()),
+                    r,
+                ),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner
-            .write(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
-                    )
-                })
-            })
-            .await
+        self.inner.write(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Write.into_static()),
+                    r,
+                ),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
@@ -188,33 +185,34 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     }
 
     #[trace(enter_on_poll = true)]
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await.map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Delete.into_static()),
+                    r,
+                ),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner
-            .list(path, args)
-            .map(|v| {
-                v.map(|(rp, s)| {
-                    (
-                        rp,
-                        FastraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
-                    )
-                })
-            })
-            .await
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::List.into_static()),
+                    s,
+                ),
+            )
+        })
     }
 
     #[trace(enter_on_poll = true)]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
-    }
-
-    #[trace(enter_on_poll = true)]
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
     }
 
     #[trace]
@@ -227,7 +225,10 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                FastraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Read.into_static()),
+                    r,
+                ),
             )
         })
     }
@@ -237,7 +238,10 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
         self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
                 rp,
-                FastraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Write.into_static()),
+                    r,
+                ),
             )
         })
     }
@@ -258,8 +262,16 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     }
 
     #[trace]
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.blocking_delete(path, args)
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete().map(|(rp, r)| {
+            (
+                rp,
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::Delete.into_static()),
+                    r,
+                ),
+            )
+        })
     }
 
     #[trace]
@@ -267,7 +279,10 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
         self.inner.blocking_list(path, args).map(|(rp, it)| {
             (
                 rp,
-                FastraceWrapper::new(Span::enter_with_local_parent("PageOperation"), it),
+                FastraceWrapper::new(
+                    Span::enter_with_local_parent(Operation::List.into_static()),
+                    it,
+                ),
             )
         })
     }
@@ -294,7 +309,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
 impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
     fn read(&mut self) -> Result<Buffer> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingReaderRead.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
         self.inner.read()
     }
 }
@@ -302,19 +317,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for FastraceWrapper<R> {
 impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::WriterWrite.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.write(bs)
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::WriterAbort.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.abort()
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::WriterClose.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.close()
     }
 }
@@ -322,15 +337,13 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
 impl<R: oio::BlockingWrite> oio::BlockingWrite for FastraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingWriterWrite.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.write(bs)
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         let _g = self.span.set_local_parent();
-        let _span =
-            LocalSpan::enter_with_local_parent(Operation::BlockingWriterClose.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.close()
     }
 }
@@ -345,7 +358,34 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::BlockingListerNext.into_static());
+        let _span = LocalSpan::enter_with_local_parent(Operation::List.into_static());
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
+        self.inner.delete(path, args)
+    }
+
+    #[trace(enter_on_poll = true)]
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner.flush().await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for FastraceWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
+        self.inner.flush()
     }
 }

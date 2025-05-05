@@ -28,11 +28,9 @@ use serde::Serialize;
 pub struct SqliteConfig {
     /// Set the connection_string of the sqlite service.
     ///
-    /// This connection string is used to connect to the sqlite service. There are url based formats:
+    /// This connection string is used to connect to the sqlite service.
     ///
-    /// ## Url
-    ///
-    /// This format resembles the url format of the sqlite client:
+    /// The format of connect string resembles the url format of the sqlite client:
     ///
     /// - `sqlite::memory:`
     /// - `sqlite:data.db`

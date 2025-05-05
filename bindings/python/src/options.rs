@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pyo3::{pyclass, FromPyObject};
+use dict_derive::FromPyObject;
+use pyo3::pyclass;
+use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
 pub struct WriteOptions {
-    pub append: bool,
+    pub append: Option<bool>,
     pub chunk: Option<usize>,
     pub content_type: Option<String>,
     pub content_disposition: Option<String>,
     pub cache_control: Option<String>,
+    pub user_metadata: Option<HashMap<String, String>>,
 }

@@ -64,7 +64,7 @@ pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
 
     op.write(&path, content).expect("write must succeed");
 
-    op.remove(vec![path.clone()])?;
+    op.delete_iter(vec![path.clone()])?;
 
     // Stat it again to check.
     assert!(!op.exists(&path)?);

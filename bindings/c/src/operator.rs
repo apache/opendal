@@ -19,13 +19,13 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as core;
-use once_cell::sync::Lazy;
 
 use super::*;
 
-static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -87,10 +87,7 @@ fn build_operator(
     schema: core::Scheme,
     map: HashMap<String, String>,
 ) -> core::Result<core::Operator> {
-    let mut op = match core::Operator::via_iter(schema, map) {
-        Ok(o) => o,
-        Err(e) => return Err(e),
-    };
+    let mut op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
     if !op.info().full_capability().blocking {
         let runtime =
             tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
@@ -108,7 +105,7 @@ fn build_operator(
 /// reference the [documentation](https://opendal.apache.org/docs/category/services/) for
 /// each service, especially for the **Configuration Part**.
 ///
-/// @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+/// @param scheme the service scheme you want to specify, e.g. "fs", "s3"
 /// @param options the pointer to the options for this operator, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options
@@ -891,6 +888,15 @@ pub unsafe extern "C" fn opendal_operator_copy(
         .to_str()
         .expect("malformed dest");
     if let Err(err) = op.deref().copy(src, dest) {
+        opendal_error::new(err)
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut opendal_error {
+    if let Err(err) = op.deref().check() {
         opendal_error::new(err)
     } else {
         std::ptr::null_mut()

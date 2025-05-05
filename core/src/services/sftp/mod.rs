@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-sftp")]
+mod delete;
+#[cfg(feature = "services-sftp")]
 mod error;
 #[cfg(feature = "services-sftp")]
 mod lister;
@@ -30,6 +32,8 @@ mod writer;
 mod backend;
 #[cfg(feature = "services-sftp")]
 pub use backend::SftpBuilder as Sftp;
+#[cfg(feature = "services-sftp")]
+mod core;
 
 mod config;
 pub use config::SftpConfig;

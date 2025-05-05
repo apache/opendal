@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use futures::FutureExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -67,6 +65,8 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type BlockingWriter = AsyncBacktraceWrapper<A::BlockingWriter>;
     type Lister = AsyncBacktraceWrapper<A::Lister>;
     type BlockingLister = AsyncBacktraceWrapper<A::BlockingLister>;
+    type Deleter = AsyncBacktraceWrapper<A::Deleter>;
+    type BlockingDeleter = AsyncBacktraceWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -76,16 +76,16 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
@@ -104,21 +104,19 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 
     #[async_backtrace::framed]
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r))))
             .await
-    }
-
-    #[async_backtrace::framed]
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 
     #[async_backtrace::framed]
@@ -141,6 +139,12 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner
             .blocking_list(path, args)
+            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner
+            .blocking_delete()
             .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
     }
 }
@@ -175,13 +179,13 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     }
 
     #[async_backtrace::framed]
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
     }
 
     #[async_backtrace::framed]
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 
@@ -190,7 +194,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for AsyncBacktraceWrapper<R> {
         self.inner.write(bs)
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         self.inner.close()
     }
 }
@@ -205,5 +209,26 @@ impl<R: oio::List> oio::List for AsyncBacktraceWrapper<R> {
 impl<R: oio::BlockingList> oio::BlockingList for AsyncBacktraceWrapper<R> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next()
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for AsyncBacktraceWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    #[async_backtrace::framed]
+    async fn flush(&mut self) -> Result<usize> {
+        self.inner.flush().await
+    }
+}
+
+impl<R: oio::BlockingDelete> oio::BlockingDelete for AsyncBacktraceWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.inner.flush()
     }
 }

@@ -85,8 +85,10 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Cacache,
             &self.datadir,
             Capability {
@@ -94,6 +96,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )

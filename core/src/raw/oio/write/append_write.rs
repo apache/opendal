@@ -48,7 +48,7 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
         offset: u64,
         size: u64,
         body: Buffer,
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 }
 
 /// AppendWriter will implements [`oio::Write`] based on append object.
@@ -60,18 +60,20 @@ pub struct AppendWriter<W: AppendWrite> {
     inner: W,
 
     offset: Option<u64>,
+
+    meta: Metadata,
 }
 
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-
 impl<W: AppendWrite> AppendWriter<W> {
     /// Create a new AppendWriter.
     pub fn new(inner: W) -> Self {
         Self {
             inner,
             offset: None,
+            meta: Metadata::default(),
         }
     }
 }
@@ -91,14 +93,16 @@ where
         };
 
         let size = bs.len();
-        self.inner.append(offset, size as u64, bs).await?;
+        self.meta = self.inner.append(offset, size as u64, bs).await?;
         // Update offset after succeed.
         self.offset = Some(offset + size as u64);
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
+    async fn close(&mut self) -> Result<Metadata> {
+        self.meta
+            .set_content_length(self.offset.unwrap_or_default());
+        Ok(self.meta.clone())
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -18,6 +18,8 @@
 #[cfg(feature = "services-s3")]
 mod core;
 #[cfg(feature = "services-s3")]
+mod delete;
+#[cfg(feature = "services-s3")]
 mod error;
 #[cfg(feature = "services-s3")]
 mod lister;

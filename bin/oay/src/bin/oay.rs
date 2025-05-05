@@ -26,9 +26,6 @@ use oay::Config;
 use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Scheme;
-use tracing_subscriber::fmt;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,10 +34,7 @@ async fn main() -> Result<()> {
 }
 
 async fn s3() -> Result<()> {
-    tracing_subscriber::registry()
-        .with(fmt::layer().pretty())
-        .with(EnvFilter::from_default_env())
-        .init();
+    logforth::stderr().apply();
 
     let cfg: Config =
         toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;

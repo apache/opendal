@@ -26,7 +26,6 @@ pub use entry::Entry;
 
 mod metadata;
 pub use metadata::Metadata;
-pub use metadata::Metakey;
 
 mod read;
 pub use read::*;
@@ -43,6 +42,9 @@ pub use blocking_write::*;
 mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
+
+mod delete;
+pub use delete::*;
 
 mod execute;
 pub use execute::*;

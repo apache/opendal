@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
@@ -30,11 +28,12 @@ use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
 use super::core::*;
+use super::delete::OssDeleter;
 use super::error::parse_error;
-use super::lister::OssLister;
+use super::lister::{OssLister, OssListers, OssObjectVersionsLister};
 use super::writer::OssWriter;
+use super::writer::OssWriters;
 use crate::raw::*;
-use crate::services::oss::writer::OssWriters;
 use crate::services::OssConfig;
 use crate::*;
 
@@ -42,9 +41,12 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for OssConfig {
     type Builder = OssBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         OssBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -55,6 +57,8 @@ impl Configurator for OssConfig {
 #[derive(Default)]
 pub struct OssBuilder {
     config: OssConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -94,6 +98,13 @@ impl OssBuilder {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
+
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
 
         self
     }
@@ -145,6 +156,8 @@ impl OssBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -229,8 +242,19 @@ impl OssBuilder {
     }
 
     /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
+    pub fn batch_max_operations(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -372,26 +396,106 @@ impl Builder for OssBuilder {
             cfg.sts_endpoint = Some(v);
         }
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Oss)
-            })?
-        };
-
         let loader = AliyunLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
 
         let signer = AliyunOssSigner::new(bucket);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(OssBackend {
             core: Arc::new(OssCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Oss)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_with_version: self.config.enable_versioning,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+                            stat_has_version: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_version: self.config.enable_versioning,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_disposition: true,
+                            // TODO: set this to false while version has been enabled.
+                            write_with_if_not_exists: !self.config.enable_versioning,
+
+                            // The min multipart size of OSS is 100 KiB.
+                            //
+                            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                            write_multi_min_size: Some(100 * 1024),
+                            // The max multipart size of OSS is 5 GiB.
+                            //
+                            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            delete_with_version: self.config.enable_versioning,
+                            delete_max_size: Some(delete_max_size),
+
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 bucket: bucket.to_owned(),
                 endpoint,
@@ -400,10 +504,8 @@ impl Builder for OssBuilder {
                 allow_anonymous: self.config.allow_anonymous,
                 signer,
                 loader,
-                client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                batch_max_operations,
             }),
         })
     }
@@ -418,67 +520,15 @@ pub struct OssBackend {
 impl Access for OssBackend {
     type Reader = HttpBody;
     type Writer = OssWriters;
-    type Lister = oio::PageLister<OssLister>;
+    type Lister = OssListers;
+    type Deleter = oio::BatchDeleter<OssDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Oss)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                write_with_cache_control: true,
-                write_with_content_type: true,
-                write_with_content_disposition: true,
-                // The min multipart size of OSS is 100 KiB.
-                //
-                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-                write_multi_min_size: Some(100 * 1024),
-                // The max multipart size of OSS is 5 GiB.
-                //
-                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                write_with_user_metadata: true,
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -489,11 +539,9 @@ impl Access for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta =
-                    self.core
-                        .parse_metadata(path, constants::X_OSS_META_PREFIX, resp.headers())?;
+                let mut meta = self.core.parse_metadata(path, resp.headers())?;
 
-                if let Some(v) = parse_header_to_str(headers, "x-oss-version-id")? {
+                if let Some(v) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
                     meta.set_version(v);
                 }
 
@@ -527,8 +575,8 @@ impl Access for OssBackend {
             OssWriters::Two(oio::AppendWriter::new(writer))
         } else {
             OssWriters::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };
@@ -536,24 +584,31 @@ impl Access for OssBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.oss_delete_object(path, &args).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(OssDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = OssLister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        let l = if args.versions() || args.deleted() {
+            TwoWays::Two(oio::PageLister::new(OssObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(oio::PageLister::new(OssLister::new(
+                self.core.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
+        };
+
+        Ok((RpList::default(), l))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -568,14 +623,19 @@ impl Access for OssBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v)?,
-            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
+            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v),
             PresignOperation::Write(v) => {
                 self.core
-                    .oss_put_object_request(path, None, v, Buffer::new(), true)?
+                    .oss_put_object_request(path, None, v, Buffer::new(), true)
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+        let mut req = req?;
 
         self.core.sign_query(&mut req, args.expire()).await?;
 
@@ -587,61 +647,5 @@ impl Access for OssBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        // Sadly, OSS will not return failed keys, so we will build
-        // a set to calculate the failed keys.
-        let mut keys = HashSet::new();
-
-        let ops_len = ops.len();
-        if ops_len > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "oss services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops_len.to_string()));
-        }
-
-        let paths = ops
-            .into_iter()
-            .map(|(p, _)| {
-                keys.insert(p.clone());
-                p
-            })
-            .collect();
-
-        let resp = self.core.oss_delete_objects(paths).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(ops_len);
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                keys.remove(&path);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            // TODO: we should handle those errors with code.
-            for i in keys {
-                batched_result.push((
-                    i,
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "oss delete this key failed for reason we don't know",
-                    )),
-                ));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            Err(parse_error(resp))
-        }
     }
 }

@@ -5,7 +5,433 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-<!-- Release notes generated using configuration in .github/release.yml at main -->
+<!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
+
+## [v0.53.1] - 2025-04-14
+
+### Added
+* feat(services/gcs): implement write returns metadata by @meteorgan in https://github.com/apache/opendal/pull/5933
+* feat(bindings/ruby): support layers by @erickguan in https://github.com/apache/opendal/pull/5874
+* feat(gridfs): implement GridfsCore for GridFS service by @uruemu in https://github.com/apache/opendal/pull/5966
+* feat(bindings/nodejs): add check in js by @asukaminato0721 in https://github.com/apache/opendal/pull/5996
+* feat(core): Use Buffer as http_body::Body directly by @Xuanwo in https://github.com/apache/opendal/pull/6026
+### Changed
+* refactor: Remove dead code ConcurrentFutures by @Xuanwo in https://github.com/apache/opendal/pull/5939
+* refactor(layers/tracing): Ensure the entire async function been traced by @Xuanwo in https://github.com/apache/opendal/pull/6000
+### Fixed
+* fix(core): Fix head-of-line blocking in concurrent tasks by @Xuanwo in https://github.com/apache/opendal/pull/5941
+* fix(services/ipmfs): fix Ipmfs behavior tests by @miroim in https://github.com/apache/opendal/pull/5969
+* chore(core): Fix clippy for services azfile by @asukaminato0721 in https://github.com/apache/opendal/pull/5994
+### Docs
+* docs(bindings/nodejs): fix broken links by @miroim in https://github.com/apache/opendal/pull/6017
+* doc(chore): update copyright date in NOTICE by @caicancai in https://github.com/apache/opendal/pull/6023
+### CI
+* ci: add test for cpp example by @silver-ymz in https://github.com/apache/opendal/pull/5952
+* ci(bindings/go): include go binding into behavior tests by @yuchanns in https://github.com/apache/opendal/pull/6018
+### Chore
+* chore: rm in favor of dosubot by @asukaminato0721 in https://github.com/apache/opendal/pull/5946
+* chore: Fix clippy for rust 1.86 by @Xuanwo in https://github.com/apache/opendal/pull/5951
+* chore: sync cpp example by @silver-ymz in https://github.com/apache/opendal/pull/5944
+* chore: update typos version by @yihong0618 in https://github.com/apache/opendal/pull/5954
+* chore(core): fix typos for the QueryPairsWriter by @kemingy in https://github.com/apache/opendal/pull/5978
+* chore(service/azdls): use QueryPairsWriter for url write by @kemingy in https://github.com/apache/opendal/pull/5988
+* chore(services/obs): Use QueryPairsWriter for url write by @asukaminato0721 in https://github.com/apache/opendal/pull/5985
+
+## [v0.53.0] - 2025-04-01
+
+### Added
+* feat(bindings/python) detailed error message by @asukaminato0721 in https://github.com/apache/opendal/pull/5646
+* feat(bindings/python): Add user metadata support for write by @Xuanwo in https://github.com/apache/opendal/pull/5654
+* feat(services/s3): add append support by @Frank-III in https://github.com/apache/opendal/pull/5428
+* feat(core): Add presign delete support by @asukaminato0721 in https://github.com/apache/opendal/pull/5647
+* feat(bindings/python): add python presign_delete by @asukaminato0721 in https://github.com/apache/opendal/pull/5661
+* feat(core): Sharing context between layers and service by @Xuanwo in https://github.com/apache/opendal/pull/5662
+* feat(!): Bump arrow version of parquet_opendal to 54.x by @erickguan in https://github.com/apache/opendal/pull/5665
+* feat: Polish context related APIs by @Xuanwo in https://github.com/apache/opendal/pull/5673
+* feat(services/onedrive): List dir shows metadata by @erickguan in https://github.com/apache/opendal/pull/5632
+* feat(java): add WriteOptions for write methods by @geruh in https://github.com/apache/opendal/pull/5664
+* feat(bindings/ruby): add operator info by @erickguan in https://github.com/apache/opendal/pull/5584
+* feat(services/oss): Implement `Write Returns Metadata` for oss by @meteorgan in https://github.com/apache/opendal/pull/5688
+* feat(core): Expose Reader::into_stream and Writer::into_sink by @Xuanwo in https://github.com/apache/opendal/pull/5698
+* feat: adopt uv for python binding by @kemingy in https://github.com/apache/opendal/pull/5711
+* feat(services/gcs): Implement multipart/related and use it with Gcs by @wlinna in https://github.com/apache/opendal/pull/5691
+* feat(bindings/dart): Add dart binding by @asukaminato0721 in https://github.com/apache/opendal/pull/5591
+* fix(binding/dart): pin version to avoid generator/runtime version mismatch by @asukaminato0721 in https://github.com/apache/opendal/pull/5734
+* feat(binding/dart): add examples, tests by @asukaminato0721 in https://github.com/apache/opendal/pull/5740
+* feat(services/onedrive): add signer to utilize the refresh token by @erickguan in https://github.com/apache/opendal/pull/5733
+* feat(binding/dart): hide init && change to init by @asukaminato0721 in https://github.com/apache/opendal/pull/5742
+* feat(core): Implement write returns metadata for b2 by @hoslo in https://github.com/apache/opendal/pull/5750
+* feat(services/hdfs_native): implement write/read/list methods by @zhaohaidao in https://github.com/apache/opendal/pull/5617
+* feat(website): Adding a WIP to the list of bingdings by @shaonianche in https://github.com/apache/opendal/pull/5769
+* feat(services/onedrive): implement read_with_if_none_match by @erickguan in https://github.com/apache/opendal/pull/5763
+* feat(binding/dart): add pubspec info by @asukaminato0721 in https://github.com/apache/opendal/pull/5751
+* feat(services/s3): Add operation in http context by @Xuanwo in https://github.com/apache/opendal/pull/5791
+* feat(bindings/python): Add repr for metadata by @yihong0618 in https://github.com/apache/opendal/pull/5783
+* feat: Add origin private file system scaffold by @Eason0729 in https://github.com/apache/opendal/pull/5758
+* feat(core): Implement http related metrics support for prom client by @Xuanwo in https://github.com/apache/opendal/pull/5798
+* feat(core): Implement http related metrics support for otel by @leiysky in https://github.com/apache/opendal/pull/5800
+* feat(services/lakefs): Add operation in http context by @liugddx in https://github.com/apache/opendal/pull/5809
+* feat(github): Auto generate weekly summary by @Xuanwo in https://github.com/apache/opendal/pull/5818
+* feat(binding/java): Add list with recursive support  by @cuichenli in https://github.com/apache/opendal/pull/5718
+* feat(services/huggingface): Add operation in http context by @liugddx in https://github.com/apache/opendal/pull/5810
+* feat(core/layers): implement http related metrics support for prometheus by @koushiro in https://github.com/apache/opendal/pull/5847
+* feat(core/layers): implement http related metrics support for metrics by @koushiro in https://github.com/apache/opendal/pull/5848
+* feat(services/onedrive): implement additional OneDrive features by @erickguan in https://github.com/apache/opendal/pull/5784
+* feat(bindings/c): add opendal_operator_check by @asukaminato0721 in https://github.com/apache/opendal/pull/5851
+* feat(services/aliyun_drive): Add operation in http context by @sunheyi6 in https://github.com/apache/opendal/pull/5880
+### Changed
+* refactor(!): Supabase is now an S3-compatible servcices by @Xuanwo in https://github.com/apache/opendal/pull/5663
+* refactor: Migrate s3 services to context based http client by @Xuanwo in https://github.com/apache/opendal/pull/5676
+* refactor: Migrate oss services to context based http client by @Ziy1-Tan in https://github.com/apache/opendal/pull/5681
+* refactor: Migrate obs services to context based http client by @Ziy1-Tan in https://github.com/apache/opendal/pull/5682
+* refactor: Migrate cos services to context based http client by @Ziy1-Tan in https://github.com/apache/opendal/pull/5683
+* refactor(bindings/node)!: Change `is_exist` to `exists` to align with nodejs API style by @yihong0618 in https://github.com/apache/opendal/pull/5731
+* refactor(services/redis): Implement ConnectionLike for RedisConnection by @Xuanwo in https://github.com/apache/opendal/pull/5748
+* refactor!: Remove opendal-compat which is not maintained by @Xuanwo in https://github.com/apache/opendal/pull/5754
+* refactor: Migrate github services to context based http client by @miroim in https://github.com/apache/opendal/pull/5764
+* refactor(gcs): Migrate to context based http client by @leiysky in https://github.com/apache/opendal/pull/5778
+* refactor(core/raw)!: Merge blocking and async operations by @Xuanwo in https://github.com/apache/opendal/pull/5789
+* refactor(core/raw)!: Use AccessorInfo instead of seperate fields by @Xuanwo in https://github.com/apache/opendal/pull/5796
+* refactor: Migrate aliyun_drive services to context based http client by @miroim in https://github.com/apache/opendal/pull/5815
+* refactor: Migrate azfile services to context based http client by @miroim in https://github.com/apache/opendal/pull/5816
+* refactor: Migrate dropbox services to context based http client by @miroim in https://github.com/apache/opendal/pull/5827
+* refactor: Migrate upyun services to context based http client by @miroim in https://github.com/apache/opendal/pull/5829
+* refactor(core): Migrate BlockWriter to use executor from context by @Xuanwo in https://github.com/apache/opendal/pull/5834
+* refactor(core): Migrate MultipartWrite Executor to context based by @Xuanwo in https://github.com/apache/opendal/pull/5835
+* refactor(core): Migrate PositionWrite Executor to context based by @Xuanwo in https://github.com/apache/opendal/pull/5836
+* refactor(core)!: Migrate to context based executor by @Xuanwo in https://github.com/apache/opendal/pull/5838
+* refactor: tidy binding java code by @tisonkun in https://github.com/apache/opendal/pull/5840
+* refactor: Migrate yandex_disk services to context based http client by @miroim in https://github.com/apache/opendal/pull/5841
+* refactor: Migrate alluxio services to context based http client by @miroim in https://github.com/apache/opendal/pull/5842
+* refactor: Migrate b2 service to context based http client by @miroim in https://github.com/apache/opendal/pull/5843
+* refactor: migrate azblob services to context based http client by @Ziy1-Tan in https://github.com/apache/opendal/pull/5845
+* refactor: Migrate gdrive service to context based http client by @miroim in https://github.com/apache/opendal/pull/5861
+* refactor: Migrate pcloud service to context based http client by @miroim in https://github.com/apache/opendal/pull/5866
+* refactor!: Bump OpenDAL MSRV to 1.80 by @Xuanwo in https://github.com/apache/opendal/pull/5868
+* refactor: Introduce VercelArtifactsCore for improved service structure by @miroim in https://github.com/apache/opendal/pull/5873
+* refactor: Migrate vercel_artifacts service to context based http client by @miroim in https://github.com/apache/opendal/pull/5877
+* refactor: Migrate http service to context based http client by @miroim in https://github.com/apache/opendal/pull/5879
+* refactor: Migrate services to context based http client by @miroim in https://github.com/apache/opendal/pull/5882
+* refactor: Polishing IO metrics by adding more useful metrics by @Xuanwo in https://github.com/apache/opendal/pull/5883
+* refactor(core): Add good default histogram buckets for metrics by @Xuanwo in https://github.com/apache/opendal/pull/5886
+* refactor: Migrate icloud service to context based http client by @miroim in https://github.com/apache/opendal/pull/5891
+* refactor(bindings/dart)!: support macos and use exists api by @yihong0618 in https://github.com/apache/opendal/pull/5884
+* refactor: Migrate PrometheusClientLayer to support IO metrics by @Xuanwo in https://github.com/apache/opendal/pull/5887
+* refactor(core)!: Merge operations to build more clean metrics by @Xuanwo in https://github.com/apache/opendal/pull/5892
+* refactor: Migrate WebHDFS service to context based http client by @miroim in https://github.com/apache/opendal/pull/5893
+* refactor(layer/metrics): Migrate MetricsLayer to support IO metrics by @koushiro in https://github.com/apache/opendal/pull/5900
+* refactor(layer/prometheus): Migrate PrometheusLayer to support IO metrics by @koushiro in https://github.com/apache/opendal/pull/5899
+* refactor(layer/otelmetrics): Migrate OtelMetricsLayer to support IO metrics by @koushiro in https://github.com/apache/opendal/pull/5901
+* refactor: Introduce SftpCore for improved service structure by @miroim in https://github.com/apache/opendal/pull/5902
+* refactor(observe): remove duplicated observation by @koushiro in https://github.com/apache/opendal/pull/5894
+* refactor: refine RetryLayer type signature by @tisonkun in https://github.com/apache/opendal/pull/5905
+* refactor(core): Remove all `write_has_xxx`  capabilities by @Ziy1-Tan in https://github.com/apache/opendal/pull/5908
+* refactor(services/obs): Implement Write Returns Metadata for obs by @Ziy1-Tan in https://github.com/apache/opendal/pull/5912
+### Fixed
+* fix(integrations/dav-server): handle encoded path correctly. by @rick-200 in https://github.com/apache/opendal/pull/5650
+* fix(services/onedrive): fix OneDrive behavior tests by @erickguan in https://github.com/apache/opendal/pull/5652
+* fix(services/gcs): Advertise `write_with_cache_control` in Gcs by @wlinna in https://github.com/apache/opendal/pull/5658
+* fix(services/gcs): Fix cache control not present in object meta by @Xuanwo in https://github.com/apache/opendal/pull/5660
+* fix(services/s3): fix batch delete with version by @meteorgan in https://github.com/apache/opendal/pull/5684
+* fix(services/oss): fix batch delete with version for oss by @meteorgan in https://github.com/apache/opendal/pull/5687
+* fix(services/onedrive): remove @odata.type field by @erickguan in https://github.com/apache/opendal/pull/5696
+* fix: drop useless clone for py binding and make clippy happy by @yihong0618 in https://github.com/apache/opendal/pull/5708
+* fix: drop useless file by @yihong0618 in https://github.com/apache/opendal/pull/5714
+* fix: make build_abs_path to build_rooted_abs_path for chainsafe by @yihong0618 in https://github.com/apache/opendal/pull/5715
+* fix: mac can not build lua binding by @yihong0618 in https://github.com/apache/opendal/pull/5719
+* fix(website): Handling svg image correctly by @Xuanwo in https://github.com/apache/opendal/pull/5725
+* fix(website): Handling badges click behavior correctly by @miroim in https://github.com/apache/opendal/pull/5741
+* fix(core)!: chainsafe services has been sunset by @yihong0618 in https://github.com/apache/opendal/pull/5744
+* fix: sqlite may dead lock in ci by @yihong0618 in https://github.com/apache/opendal/pull/5738
+* fix: drop useless import and clippy happy for java binding by @yihong0618 in https://github.com/apache/opendal/pull/5746
+* fix(bindings/java): bring back false delete code by @yihong0618 in https://github.com/apache/opendal/pull/5752
+* fix(core): fix list with recursive when the object doesn't exist by @meteorgan in https://github.com/apache/opendal/pull/5732
+* fix(website): docusaurus build on windows by @shaonianche in https://github.com/apache/opendal/pull/5770
+* fix: make php binding happy again by @yihong0618 in https://github.com/apache/opendal/pull/5761
+* fix(services/onedrive): add scope for the refresh token by @erickguan in https://github.com/apache/opendal/pull/5776
+* fix: py binding benchmark can not run by @yihong0618 in https://github.com/apache/opendal/pull/5786
+* fix: add missing last_modified for python binding by @yihong0618 in https://github.com/apache/opendal/pull/5767
+* doc: fix README root wrong for example close issue #5871 by correct README by @yihong0618 in https://github.com/apache/opendal/pull/5782
+* fix(services/compfs): behavior async write by @Berrysoft in https://github.com/apache/opendal/pull/5803
+* fix(services/onedrive): chunk PUT upload remove auth header by @emliunix in https://github.com/apache/opendal/pull/5812
+* fix(services/compfs): read, delete, copy, rename by @Berrysoft in https://github.com/apache/opendal/pull/5807
+* fix(github): Fix discussion create by @Xuanwo in https://github.com/apache/opendal/pull/5821
+* fix(bindings/python): open python3.13t release for windows since upstream had fixed by @yihong0618 in https://github.com/apache/opendal/pull/5826
+* fix: better ocaml binding and happy clippy by @yihong0618 in https://github.com/apache/opendal/pull/5839
+* fix(bindings/python): sort imports, fix template, fix bench by @kemingy in https://github.com/apache/opendal/pull/5844
+* fix: make haskell binding happier by @yihong0618 in https://github.com/apache/opendal/pull/5849
+* doc: fix all fs env tmp file dir in doc by @yihong0618 in https://github.com/apache/opendal/pull/5855
+* fix: drop fixme in py binding since upstream fixed by @yihong0618 in https://github.com/apache/opendal/pull/5862
+* fix: drop fixme in etcd tls since upstream fixed by @yihong0618 in https://github.com/apache/opendal/pull/5863
+* fix: todo list since MSRV is 1.80 by @yihong0618 in https://github.com/apache/opendal/pull/5870
+* fix: close issue #5910 by @yihong0618 in https://github.com/apache/opendal/pull/5911
+### Docs
+* doc: add the most famous Python binding by @yihong0618 in https://github.com/apache/opendal/pull/5707
+* doc: py binding version is wrong for now by @yihong0618 in https://github.com/apache/opendal/pull/5709
+* docs: Better ways to users showcase by @Xuanwo in https://github.com/apache/opendal/pull/5720
+* docs: Add useful links by @Xuanwo in https://github.com/apache/opendal/pull/5735
+* docs: QuestDB is not using opendal java by @Xuanwo in https://github.com/apache/opendal/pull/5736
+* doc: more users for python binding by @yihong0618 in https://github.com/apache/opendal/pull/5756
+* docs: Update nominate-committer.md by @tisonkun in https://github.com/apache/opendal/pull/5765
+* docs: Fix rustic users entry by @QazCetelic in https://github.com/apache/opendal/pull/5790
+* docs(services/onedrive): add how to get tokens by @emliunix in https://github.com/apache/opendal/pull/5792
+* doc: fix typo in RFC md by @yihong0618 in https://github.com/apache/opendal/pull/5813
+* doc: dotnet binding wip doc by @yihong0618 in https://github.com/apache/opendal/pull/5850
+* doc: add oli bench command doc by @yihong0618 in https://github.com/apache/opendal/pull/5854
+* doc: docker installation guide for behaviour test by @zhaohaidao in https://github.com/apache/opendal/pull/5876
+* docs: Add docs on how to upgrade to opendal rust core 0.53 by @Xuanwo in https://github.com/apache/opendal/pull/5918
+### CI
+* ci(bindings/zig): update to zig version 0.14.0 by @kassane in https://github.com/apache/opendal/pull/5700
+* ci: add clippy to some of the binding check ci by @yihong0618 in https://github.com/apache/opendal/pull/5717
+* build: bump opentelemetry dependency to 0.29.0 by @tisonkun in https://github.com/apache/opendal/pull/5856
+* build(deps): bump actions/setup-python from 4 to 5 by @dependabot in https://github.com/apache/opendal/pull/5926
+* build(deps): update datafusion requirement from 45.0.0 to 46.0.1 in /integrations/object_store by @dependabot in https://github.com/apache/opendal/pull/5928
+* build(deps): bump governor from 0.6.3 to 0.10.0 in /core by @dependabot in https://github.com/apache/opendal/pull/5923
+* build(deps): bump log from 0.4.25 to 0.4.27 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5927
+* build(deps): bump humantime from 2.1.0 to 2.2.0 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5925
+* build(deps): bump test-context from 0.3.0 to 0.4.1 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/5924
+* build(deps): update pyo3 requirement from 0.23.3 to 0.24.1 in /bindings/python by @dependabot in https://github.com/apache/opendal/pull/5922
+### Chore
+* chore: Fix clippy for rust edition 2024 by @Xuanwo in https://github.com/apache/opendal/pull/5648
+* chore: update mongodb version drop the fixme comments by @yihong0618 in https://github.com/apache/opendal/pull/5706
+* chore: revert "services/cos: Implement Write Returns Metadata for cos" by @Xuanwo in https://github.com/apache/opendal/pull/5713
+* chore(core): Fix BufferStream not exported by @Xuanwo in https://github.com/apache/opendal/pull/5730
+* chore: update flate2 version by @yihong0618 in https://github.com/apache/opendal/pull/5759
+* chore(services/hdfs_native): enable create_dir capability by @meteorgan in https://github.com/apache/opendal/pull/5817
+* chore(github): Fix uv not installed in weekly-update by @Xuanwo in https://github.com/apache/opendal/pull/5819
+* chore(github): Fix dateutil not installed by @Xuanwo in https://github.com/apache/opendal/pull/5820
+* chore(github): Avoid ping all contributors by @Xuanwo in https://github.com/apache/opendal/pull/5823
+* chore: make ruby clippy happy by @yihong0618 in https://github.com/apache/opendal/pull/5830
+* chore: update py binding api just by @yihong0618 in https://github.com/apache/opendal/pull/5898
+* chore: Polish IO metric buckets by @Xuanwo in https://github.com/apache/opendal/pull/5903
+* chore(layer/observe): cleanup useless metric metadata by @koushiro in https://github.com/apache/opendal/pull/5904
+* chore: update cpp example by @yihong0618 in https://github.com/apache/opendal/pull/5907
+* chore: chore some version like logforth by @yihong0618 in https://github.com/apache/opendal/pull/5921
+
+## [v0.52.0] - 2025-02-19
+
+### Added
+* feat(services/s3): Added crc64nvme for s3 by @geetanshjuneja in https://github.com/apache/opendal/pull/5580
+* feat(services-fs): Support write-if-not-exists in fs backend by @SergeiPatiakin in https://github.com/apache/opendal/pull/5605
+* feat(services/gcs): Impl content-encoding support for GCS stat, write and presign by @wlinna in https://github.com/apache/opendal/pull/5610
+* feat(bindings/ruby): add lister by @erickguan in https://github.com/apache/opendal/pull/5600
+* feat(services/swift): Added user metadata support for swift service by @zhaohaidao in https://github.com/apache/opendal/pull/5601
+* feat: Implement github actions cache service v2 support by @Xuanwo in https://github.com/apache/opendal/pull/5633
+* feat(core)!: implement write returns metadata by @meteorgan in https://github.com/apache/opendal/pull/5562
+* feat(bindings/python): let path can be PathLike by @asukaminato0721 in https://github.com/apache/opendal/pull/5636
+* feat(bindings/python): add exists by @asukaminato0721 in https://github.com/apache/opendal/pull/5637
+### Changed
+* refactor: Remove dead services libsql by @Xuanwo in https://github.com/apache/opendal/pull/5616
+### Fixed
+* fix(services/gcs): Fix content encoding can't be used alone by @Xuanwo in https://github.com/apache/opendal/pull/5614
+* fix: ghac doesn't support delete anymore by @Xuanwo in https://github.com/apache/opendal/pull/5628
+* fix(services/gdrive): skip the trailing slash when creating and querying the directory by @meteorgan in https://github.com/apache/opendal/pull/5631
+### Docs
+* docs(bindings/ruby): add documentation for Ruby binding by @erickguan in https://github.com/apache/opendal/pull/5629
+* docs: Add upgrade docs for upcoming 0.52 by @Xuanwo in https://github.com/apache/opendal/pull/5634
+### CI
+* ci: Fix bad corepack cannot find matching keyid by @Xuanwo in https://github.com/apache/opendal/pull/5603
+* ci(website): avoid including rc when calculate the latest version by @tisonkun in https://github.com/apache/opendal/pull/5608
+* build: upgrade opentelemetry dependencies to 0.28.0 by @tisonkun in https://github.com/apache/opendal/pull/5625
+### Chore
+* chore(deps): bump uuid from 1.11.0 to 1.12.1 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5589
+* chore(deps): bump uuid from 1.11.0 to 1.12.1 in /core by @dependabot in https://github.com/apache/opendal/pull/5588
+* chore(deps): bump log from 0.4.22 to 0.4.25 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5590
+* chore(deps): bump tempfile from 3.15.0 to 3.16.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/5586
+* chore(deps): update libtest-mimic requirement from 0.7.3 to 0.8.1 in /integrations/object_store by @dependabot in https://github.com/apache/opendal/pull/5587
+* chore(layers/prometheus-client): upgrade prometheus-client dependency to v0.23.1 by @koushiro in https://github.com/apache/opendal/pull/5576
+* chore(ci): remove benchmark report by @dqhl76 in https://github.com/apache/opendal/pull/5626
+
+## [v0.51.2] - 2025-02-02
+### Added
+* feat(core): implement if_modified_since and if_unmodified_since for stat_with by @meteorgan in https://github.com/apache/opendal/pull/5528
+* feat(layer/otelmetrics): add OtelMetricsLayer by @andylokandy in https://github.com/apache/opendal/pull/5524
+* feat(integrations/object_store): implement put_opts and get_opts by @meteorgan in https://github.com/apache/opendal/pull/5513
+* feat: Conditional reader for azblob, gcs, oss by @geetanshjuneja in https://github.com/apache/opendal/pull/5531
+* feat(core): Add correctness check for read with if_xxx headers by @Xuanwo in https://github.com/apache/opendal/pull/5538
+* feat(services/cos): Added user metadata support for cos service by @geetanshjuneja in https://github.com/apache/opendal/pull/5510
+* feat(core): Implement list with deleted and versions for oss by @hoslo in https://github.com/apache/opendal/pull/5527
+* feat(layer/otelmetrics): take meter when register by @andylokandy in https://github.com/apache/opendal/pull/5547
+* feat(gcs): Convert TOO_MANY_REQUESTS to retryable Ratelimited by @Xuanwo in https://github.com/apache/opendal/pull/5551
+* feat(services/webdfs): Add user.name support for webhdfs by @Xuanwo in https://github.com/apache/opendal/pull/5567
+* feat: disable backtrace for NotFound error by @xxchan in https://github.com/apache/opendal/pull/5577
+### Changed
+* refactor: refactor some unnecessary clone and use next_back to make clippy happy by @yihong0618 in https://github.com/apache/opendal/pull/5554
+* refactor: refactor all body.copy_to_bytes(body.remaining()) by @yihong0618 in https://github.com/apache/opendal/pull/5561
+### Fixed
+* fix(integrations/object_store) `object_store_opendal` now compiles on wasm32-unknown-unknown by @XiangpengHao in https://github.com/apache/opendal/pull/5530
+* fix(serivces/gcs): Gcs doesn't support read with if_(un)modified_since by @Xuanwo in https://github.com/apache/opendal/pull/5537
+* fix(logging): remove additional space by @xxchan in https://github.com/apache/opendal/pull/5568
+### Docs
+* docs: Fix opendal rust core's README not align with new vision by @Xuanwo in https://github.com/apache/opendal/pull/5541
+* docs(integration/object_store): add example for datafusion by @meteorgan in https://github.com/apache/opendal/pull/5543
+* docs: Add docs on how to pronounce opendal by @Xuanwo in https://github.com/apache/opendal/pull/5552
+* docs(bindings/java): better javadoc  by @tisonkun in https://github.com/apache/opendal/pull/5572
+### CI
+* ci(integration/object_store): add integration tests for object_store_opendal by @meteorgan in https://github.com/apache/opendal/pull/5536
+* ci: Pin the nightly version to rust 1.84 for fuzz by @Xuanwo in https://github.com/apache/opendal/pull/5546
+* ci: skip running behavior tests when adding or modifying documentation by @meteorgan in https://github.com/apache/opendal/pull/5558
+* build: fix Cargo.lock and pass --locked in CI by @xxchan in https://github.com/apache/opendal/pull/5565
+* build: implement release process in odev by @tisonkun in https://github.com/apache/opendal/pull/5592
+### Chore
+* chore: Update CODEOWNERS by @Xuanwo in https://github.com/apache/opendal/pull/5542
+* chore(layer/otelmetrics): take meter by reference by @andylokandy in https://github.com/apache/opendal/pull/5553
+* chore(core): Avoid using mongodb 3.2.0 by @Xuanwo in https://github.com/apache/opendal/pull/5560
+* chore: add oli/oay/ofs to rust-analyzer.linkedProjects by @xxchan in https://github.com/apache/opendal/pull/5564
+* chore: try use logforth  by @tisonkun in https://github.com/apache/opendal/pull/5573
+* chore: bump version 0.51.2  by @tisonkun in https://github.com/apache/opendal/pull/5595
+
+## [v0.51.1] - 2025-01-08
+
+### Added
+* feat(bin/oli): implement oli bench by @tisonkun in https://github.com/apache/opendal/pull/5443
+* feat(dev): Add config parse and generate support by @Xuanwo in https://github.com/apache/opendal/pull/5454
+* feat(bindings/python): generate python operator constructor types by @trim21 in https://github.com/apache/opendal/pull/5457
+* feat(dev): Parse comments from config by @Xuanwo in https://github.com/apache/opendal/pull/5467
+* feat(services/core): Implement stat_has_* and list_has_* correctly for services by @geetanshjuneja in https://github.com/apache/opendal/pull/5472
+* feat: Add if-match & if-none-match support for reader by @XmchxUp in https://github.com/apache/opendal/pull/5492
+* feat(core): Add is_current to metadata by @Wenbin1002 in https://github.com/apache/opendal/pull/5493
+* feat(core): Implement list with deleted for s3 service by @Xuanwo in https://github.com/apache/opendal/pull/5498
+* feat: generate java configs by @tisonkun in https://github.com/apache/opendal/pull/5503
+* feat: Return hinted error for S3 wildcard if-none-match by @gruuya in https://github.com/apache/opendal/pull/5506
+* feat(core): implement if_modified_since and if_unmodified_since for read_with and reader_with by @meteorgan in https://github.com/apache/opendal/pull/5500
+* feat(core): Implement list with deleted and versions for cos by @hoslo in https://github.com/apache/opendal/pull/5514
+### Changed
+* refactor: tidy up oli build by @tisonkun in https://github.com/apache/opendal/pull/5438
+* refactor(core): Deprecate OpList::version and add versions instead by @geetanshjuneja in https://github.com/apache/opendal/pull/5481
+* refactor(dev): use minijinja by @tisonkun in https://github.com/apache/opendal/pull/5494
+### Fixed
+* fix: exception name in python by @trim21 in https://github.com/apache/opendal/pull/5453
+* fix rust warning in python binding by @trim21 in https://github.com/apache/opendal/pull/5459
+* fix: python binding kwargs parsing by @trim21 in https://github.com/apache/opendal/pull/5458
+* fix(bindings/python): add py.typed marker file by @trim21 in https://github.com/apache/opendal/pull/5464
+* fix(services/ghac): Fix stat_with_if_none_match been set in wrong by @Xuanwo in https://github.com/apache/opendal/pull/5477
+* fix(ci): Correctly upgrade upload-artifact to v4 by @Xuanwo in https://github.com/apache/opendal/pull/5484
+* fix(integration/object_store): object_store requires metadata in list by @Xuanwo in https://github.com/apache/opendal/pull/5501
+* fix(services/s3): List with deleted should contain latest by @Xuanwo in https://github.com/apache/opendal/pull/5518
+### Docs
+* docs: Fix links to vision by @Xuanwo in https://github.com/apache/opendal/pull/5466
+* docs(golang): remove unused pkg by @fyqtian in https://github.com/apache/opendal/pull/5473
+* docs(core): Polish API docs for `Metadata` by @Xuanwo in https://github.com/apache/opendal/pull/5497
+* docs: Polish docs for Operator, Reader and Writer by @Xuanwo in https://github.com/apache/opendal/pull/5516
+* docs: Reorganize docs for xxx_with for better reading by @Xuanwo in https://github.com/apache/opendal/pull/5517
+### CI
+* ci: disable windows free-thread build by @trim21 in https://github.com/apache/opendal/pull/5449
+* ci: Upgrade and fix typos by @Xuanwo in https://github.com/apache/opendal/pull/5468
+### Chore
+* chore(dev): Try just instead of xtasks methods by @Xuanwo in https://github.com/apache/opendal/pull/5461
+* chore: pretty gen javadoc by @tisonkun in https://github.com/apache/opendal/pull/5508
+* chore(ci): upgrade to manylinux_2_28 for aarch64 Python wheels by @messense in https://github.com/apache/opendal/pull/5522
+
+## [v0.51.0] - 2024-12-14
+
+### Added
+* feat(adapter/kv): support async iterating on scan results by @PragmaTwice in https://github.com/apache/opendal/pull/5208
+* feat(bindings/ruby): Add simple operators to Ruby binding by @erickguan in https://github.com/apache/opendal/pull/5246
+* feat(core/services-gcs): support user defined metadata by @jorgehermo9 in https://github.com/apache/opendal/pull/5276
+* feat(core): add `if_not_exist` in `OpWrite` by @kemingy in https://github.com/apache/opendal/pull/5305
+* feat: Add {stat,list}_has_* to carry the metadata that backend returns by @Xuanwo in https://github.com/apache/opendal/pull/5318
+* feat(core): Implement write if not exists for azblob,azdls,gcs,oss,cos by @Xuanwo in https://github.com/apache/opendal/pull/5321
+* feat(core): add new cap shared by @TennyZhuang in https://github.com/apache/opendal/pull/5328
+* feat(bindings/python): support pickle [de]serialization for Operator by @TennyZhuang in https://github.com/apache/opendal/pull/5324
+* feat(bindings/cpp): init the async support of C++ binding by @PragmaTwice in https://github.com/apache/opendal/pull/5195
+* feat(bindings/go): support darwin by @yuchanns in https://github.com/apache/opendal/pull/5334
+* feat(services/gdrive): List shows modified timestamp gdrive by @erickguan in https://github.com/apache/opendal/pull/5226
+* feat(service/s3): support delete with version by @Frank-III in https://github.com/apache/opendal/pull/5349
+* feat: upgrade pyo3 to 0.23 by @XmchxUp in https://github.com/apache/opendal/pull/5368
+* feat:  publish python3.13t free-threaded wheel by @XmchxUp in https://github.com/apache/opendal/pull/5387
+* feat: add progress bar for oli cp command by @waynexia in https://github.com/apache/opendal/pull/5369
+* feat(types/buffer): skip copying in `to_bytes` when `NonContiguous` contains a single `Bytes` by @ever0de in https://github.com/apache/opendal/pull/5388
+* feat(bin/oli): support command mv by @meteorgan in https://github.com/apache/opendal/pull/5370
+* feat(core): add if-match to `OpWrite` by @Frank-III in https://github.com/apache/opendal/pull/5360
+* feat(core/layers): add correctness_check and capability_check layer to verify whether the operation and arguments is supported by @meteorgan in https://github.com/apache/opendal/pull/5352
+* feat(bindings/ruby): Add I/O class for Ruby by @erickguan in https://github.com/apache/opendal/pull/5354
+* feat(core): Add `content_encoding` to `MetaData` by @Frank-III in https://github.com/apache/opendal/pull/5400
+* feat:(core): add `content encoding` to `Opwrite` by @Frank-III in https://github.com/apache/opendal/pull/5390
+* feat(services/obs): support user defined metadata by @Frank-III in https://github.com/apache/opendal/pull/5405
+* feat: impl configurable OperatorOutputStream maxBytes by @tisonkun in https://github.com/apache/opendal/pull/5422
+### Changed
+* refactor (bindings/zig): Improvements by @kassane in https://github.com/apache/opendal/pull/5247
+* refactor: Remove metakey concept by @Xuanwo in https://github.com/apache/opendal/pull/5319
+* refactor(core)!: Remove not used cap write_multi_align_size by @Xuanwo in https://github.com/apache/opendal/pull/5322
+* refactor(core)!: Remove the range writer that has never been used by @Xuanwo in https://github.com/apache/opendal/pull/5323
+* refactor(core): MaybeSend does not need to be unsafe by @drmingdrmer in https://github.com/apache/opendal/pull/5338
+* refactor: Implement RFC-3911 Deleter API  by @Xuanwo in https://github.com/apache/opendal/pull/5392
+* refactor: Remove batch concept from opendal by @Xuanwo in https://github.com/apache/opendal/pull/5393
+### Fixed
+* fix(services/webdav): Fix lister failing when root contains spaces by @skrimix in https://github.com/apache/opendal/pull/5298
+* fix(bindings/c): Bump min CMake version to support CMP0135 by @palash25 in https://github.com/apache/opendal/pull/5308
+* fix(services/webhdfs): rename auth value by @notauserx in https://github.com/apache/opendal/pull/5342
+* fix(bindings/cpp): remove the warning of CMP0135 by @PragmaTwice in https://github.com/apache/opendal/pull/5346
+* build(python): fix pyproject meta file by @trim21 in https://github.com/apache/opendal/pull/5348
+* fix(services/unftp): add `/` when not presented by @Frank-III in https://github.com/apache/opendal/pull/5382
+* fix: update document against target format check and add hints by @waynexia in https://github.com/apache/opendal/pull/5361
+* fix: oli clippy and CI file by @waynexia in https://github.com/apache/opendal/pull/5389
+* fix(services/obs): support huawei.com by @FayeSpica in https://github.com/apache/opendal/pull/5399
+* fix(integrations/cloud_filter): use explicit `stat` instead of `Entry::metadata` in `fetch_placeholders` by @ho-229 in https://github.com/apache/opendal/pull/5416
+* fix(core): S3 multipart uploads does not set file metadata by @catcatmu in https://github.com/apache/opendal/pull/5430
+* fix: always contains path label if configured by @waynexia in https://github.com/apache/opendal/pull/5433
+### Docs
+* docs: Enable force_orphan to reduce clone size by @Xuanwo in https://github.com/apache/opendal/pull/5289
+* docs: Establish VISION for "One Layer, All Storage" by @Xuanwo in https://github.com/apache/opendal/pull/5309
+* docs: Polish docs for write with if not exists by @Xuanwo in https://github.com/apache/opendal/pull/5320
+* docs(core): add the description of version parameter for operator by @meteorgan in https://github.com/apache/opendal/pull/5144
+* docs(core): Add upgrade to v0.51 by @Xuanwo in https://github.com/apache/opendal/pull/5406
+* docs: Update release.md by @tisonkun in https://github.com/apache/opendal/pull/5431
+### CI
+* ci: Remove the token of codspeed by @Xuanwo in https://github.com/apache/opendal/pull/5283
+* ci: Allow force push for `gh-pages` by @Xuanwo in https://github.com/apache/opendal/pull/5290
+* build(bindings/java): fix lombok process by @tisonkun in https://github.com/apache/opendal/pull/5297
+* build(bindings/python): add python 3.10 back and remove pypy by @trim21 in https://github.com/apache/opendal/pull/5347
+### Chore
+* chore(core/layers): align `info` method of `trait Access` and `trait LayeredAccess` by @koushiro in https://github.com/apache/opendal/pull/5258
+* chore(core/raw): align `info` method of `kv::Adapter` and `typed_kv::Adapter` by @koushiro in https://github.com/apache/opendal/pull/5259
+* chore(layers/oteltrace): adjust tracer span name of info method by @koushiro in https://github.com/apache/opendal/pull/5285
+* chore(services/s3): remove versioning check for s3 by @meteorgan in https://github.com/apache/opendal/pull/5300
+* chore: Polish the debug output of capability by @Xuanwo in https://github.com/apache/opendal/pull/5315
+* chore: Update maturity.md by @tisonkun in https://github.com/apache/opendal/pull/5340
+* chore: remove flagset in cargo.lock by @meteorgan in https://github.com/apache/opendal/pull/5355
+* chore: add setup action for hadoop to avoid build failures by @meteorgan in https://github.com/apache/opendal/pull/5353
+* chore: fix cargo clippy by @meteorgan in https://github.com/apache/opendal/pull/5379
+* chore: fix cargo clippy by @meteorgan in https://github.com/apache/opendal/pull/5384
+* chore: fix Bindings OCaml CI  by @meteorgan in https://github.com/apache/opendal/pull/5386
+* chore: Add default vscode config for more friendly developer experience by @Zheaoli in https://github.com/apache/opendal/pull/5331
+* chore(website): remove outdated description by @meteorgan in https://github.com/apache/opendal/pull/5411
+* chore(deps): bump clap from 4.5.20 to 4.5.21 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/5372
+* chore(deps): bump anyhow from 1.0.90 to 1.0.93 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/5375
+* chore(deps): bump serde from 1.0.210 to 1.0.215 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/5376
+* chore(deps): bump openssh-sftp-client from 0.15.1 to 0.15.2 in /core by @dependabot in https://github.com/apache/opendal/pull/5377
+* chore(ci): fix invalid Behavior Test Integration Cloud Filter trigger by @Zheaoli in https://github.com/apache/opendal/pull/5414
+
+## [v0.50.2] - 2024-11-04
+
+### Added
+* feat(services/ftp): List dir shows last modified timestamp by @erickguan in https://github.com/apache/opendal/pull/5213
+* feat(bindings/d): add D bindings support by @kassane in https://github.com/apache/opendal/pull/5181
+* feat(bindings/python): add sync `File.readline` by @TennyZhuang in https://github.com/apache/opendal/pull/5271
+* feat(core/services-azblob): support user defined metadata by @jorgehermo9 in https://github.com/apache/opendal/pull/5274
+* feat(core/services-s3): try load endpoint from config by @TennyZhuang in https://github.com/apache/opendal/pull/5279
+### Changed
+* refactor(bin/oli): use `clap_derive` to reduce boilerplate code by @koushiro in https://github.com/apache/opendal/pull/5233
+### Fixed
+* fix: add all-features flag for opendal_compat doc build by @XmchxUp in https://github.com/apache/opendal/pull/5234
+* fix(integrations/compat): Capability has different fields by @Xuanwo in https://github.com/apache/opendal/pull/5236
+* fix(integration/compat): Fix opendal 0.50 OpList has new field by @Xuanwo in https://github.com/apache/opendal/pull/5238
+* fix(integrations/compat): Fix dead loop happened during list by @Xuanwo in https://github.com/apache/opendal/pull/5240
+### Docs
+* docs: Move our release process to github discussions by @Xuanwo in https://github.com/apache/opendal/pull/5217
+* docs: change "Github" to "GitHub" by @MohammadLotfiA in https://github.com/apache/opendal/pull/5250
+### CI
+* ci(asf): Don't add `[DISCUSS]` prefix for discussion by @Xuanwo in https://github.com/apache/opendal/pull/5210
+* build: enable services-mysql for Java and Python bindings by @tisonkun in https://github.com/apache/opendal/pull/5222
+* build(binding/python): Support Python 3.13 by @Zheaoli in https://github.com/apache/opendal/pull/5248
+### Chore
+* chore(bin/*): remove useless deps by @koushiro in https://github.com/apache/opendal/pull/5212
+* chore: tidy up c binding build and docs by @tisonkun in https://github.com/apache/opendal/pull/5243
+* chore(core/layers): adjust await point to simplify combinator code by @koushiro in https://github.com/apache/opendal/pull/5255
+* chore(core/blocking_operator): deduplicate deprecated `is_exist` logic by @simonsan in https://github.com/apache/opendal/pull/5261
+* chore(deps): bump actions/cache from 3 to 4 by @dependabot in https://github.com/apache/opendal/pull/5262
+* chore: run object_store tests in CI by @jorgehermo9 in https://github.com/apache/opendal/pull/5268
 
 ## [v0.50.1] - 2024-10-20
 
@@ -4064,6 +4490,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.53.1]: https://github.com/apache/opendal/compare/v0.53.0...v0.53.1
+[v0.53.0]: https://github.com/apache/opendal/compare/v0.52.0...v0.53.0
+[v0.52.0]: https://github.com/apache/opendal/compare/v0.51.2...v0.52.0
+[v0.51.2]: https://github.com/apache/opendal/compare/v0.51.1...v0.51.2
+[v0.51.1]: https://github.com/apache/opendal/compare/v0.51.0...v0.51.1
+[v0.51.0]: https://github.com/apache/opendal/compare/v0.50.2...v0.51.0
+[v0.50.2]: https://github.com/apache/opendal/compare/v0.50.1...v0.50.2
 [v0.50.1]: https://github.com/apache/opendal/compare/v0.50.0...v0.50.1
 [v0.50.0]: https://github.com/apache/opendal/compare/v0.49.2...v0.50.0
 [v0.49.2]: https://github.com/apache/opendal/compare/v0.49.1...v0.49.2

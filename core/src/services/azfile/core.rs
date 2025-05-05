@@ -15,11 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -32,9 +27,13 @@ use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::azfile::error::parse_error;
 use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
@@ -45,10 +44,10 @@ const X_MS_TYPE: &str = "x-ms-type";
 const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 
 pub struct AzfileCore {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
-    pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
 }
@@ -94,7 +93,7 @@ impl AzfileCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn azfile_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -113,9 +112,11 @@ impl AzfileCore {
             req = req.header(RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn azfile_create_file(
@@ -153,6 +154,8 @@ impl AzfileCore {
             req = req.header(CONTENT_DISPOSITION, pos);
         }
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -187,6 +190,8 @@ impl AzfileCore {
             BytesRange::from(position..position + size).to_header(),
         );
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -202,6 +207,8 @@ impl AzfileCore {
         );
 
         let req = Request::head(&url);
+
+        let req = req.extension(Operation::Stat);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -219,6 +226,8 @@ impl AzfileCore {
         );
 
         let req = Request::head(&url);
+
+        let req = req.extension(Operation::Stat);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -270,6 +279,8 @@ impl AzfileCore {
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
+        let req = req.extension(Operation::Rename);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -291,6 +302,8 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
+        let req = req.extension(Operation::CreateDir);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -309,6 +322,8 @@ impl AzfileCore {
         );
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -329,6 +344,8 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
+        let req = req.extension(Operation::Delete);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -338,28 +355,35 @@ impl AzfileCore {
         &self,
         path: &str,
         limit: &Option<usize>,
-        continuation: &String,
+        continuation: &str,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
-        let mut url = format!(
-            "{}/{}/{}?restype=directory&comp=list&include=Timestamps,ETag",
+        let url = format!(
+            "{}/{}/{}",
             self.endpoint,
             self.share_name,
             percent_encode_path(&p),
         );
 
+        let mut url = QueryPairsWriter::new(&url)
+            .push("restype", "directory")
+            .push("comp", "list")
+            .push("include", "Timestamps,ETag");
+
         if !continuation.is_empty() {
-            write!(url, "&marker={}", &continuation).expect("write into string must succeed");
+            url = url.push("marker", continuation);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&maxresults={}", limit).expect("write into string must succeed");
+            url = url.push("maxresults", &limit.to_string());
         }
 
-        let req = Request::get(&url);
+        let req = Request::get(url.finish());
+
+        let req = req.extension(Operation::List);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;

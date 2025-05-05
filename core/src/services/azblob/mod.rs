@@ -16,13 +16,15 @@
 // under the License.
 
 #[cfg(feature = "services-azblob")]
-mod core;
+pub(crate) mod core;
+#[cfg(feature = "services-azblob")]
+mod delete;
 #[cfg(feature = "services-azblob")]
 mod error;
 #[cfg(feature = "services-azblob")]
 mod lister;
 #[cfg(feature = "services-azblob")]
-mod writer;
+pub(crate) mod writer;
 
 #[cfg(feature = "services-azblob")]
 mod backend;

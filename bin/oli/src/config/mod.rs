@@ -37,7 +37,7 @@ pub struct Config {
     profiles: HashMap<String, HashMap<String, String>>,
 }
 
-/// resolve_relative_path turns a relative path to a absolute path.
+/// resolve_relative_path turns a relative path to an absolute path.
 ///
 /// The reason why we don't use `fs::canonicalize` here is `fs::canonicalize`
 /// will return an error if the path does not exist, which is unwanted.
@@ -147,22 +147,24 @@ impl Config {
 
         let location = Url::parse(s)?;
         if location.has_host() {
-            Err(anyhow!("Host part in a location is not supported."))?;
+            Err(anyhow!("Host part in a location is not supported. Hint: are you typing `://` instead of `:/`?"))?;
         }
 
-        let profile_name = location.scheme();
+        let op = self.operator(location.scheme())?;
         let path = location.path().to_string();
+        Ok((op, path))
+    }
+
+    pub fn operator(&self, profile_name: &str) -> Result<Operator> {
         let profile = self
             .profiles
             .get(profile_name)
             .ok_or_else(|| anyhow!("unknown profile: {}", profile_name))?;
-
         let svc = profile
             .get("type")
             .ok_or_else(|| anyhow!("missing 'type' in profile"))?;
         let scheme = Scheme::from_str(svc)?;
-        let op = Operator::via_iter(scheme, profile.clone())?;
-        Ok((op, path))
+        Ok(Operator::via_iter(scheme, profile.clone())?)
     }
 }
 
@@ -338,7 +340,7 @@ enable_virtual_host_style = "on"
         let uri = "mys3://foo/1.txt";
         let expected_msg = "Host part in a location is not supported.";
         match cfg.parse_location(uri) {
-            Err(e) if e.to_string() == expected_msg => Ok(()),
+            Err(e) if e.to_string().contains(expected_msg) => Ok(()),
             _ => Err(anyhow!(
                 "Getting an message \"{}\" is expected when parsing {}.",
                 expected_msg,

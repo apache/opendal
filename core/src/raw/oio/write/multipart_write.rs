@@ -61,7 +61,11 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     /// MultipartWriter will call this API when:
     ///
     /// - All the data has been written to the buffer and we can perform the upload at once.
-    fn write_once(&self, size: u64, body: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn write_once(
+        &self,
+        size: u64,
+        body: Buffer,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
@@ -69,7 +73,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
     ///
     /// - the total size of data is unknown.
     /// - the total size of data is known, but the size of current write
-    ///   is less then the total size.
+    ///   is less than the total size.
     fn initiate_part(&self) -> impl Future<Output = Result<String>> + MaybeSend;
 
     /// write_part will write a part of the data and returns the result
@@ -93,7 +97,7 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
         &self,
         upload_id: &str,
         parts: &[MultipartPart],
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_part will cancel the multipart upload and purge all data.
     fn abort_part(&self, upload_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -124,7 +128,7 @@ struct WriteInput<W: MultipartWrite> {
     bytes: Buffer,
 }
 
-/// MultipartWriter will implements [`oio::Write`] based on multipart
+/// MultipartWriter will implement [`oio::Write`] based on multipart
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
     w: Arc<W>,
@@ -141,12 +145,11 @@ pub struct MultipartWriter<W: MultipartWrite> {
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this state.
-
 impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
-    pub fn new(inner: W, executor: Option<Executor>, concurrent: usize) -> Self {
+    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
         let w = Arc::new(inner);
-        let executor = executor.unwrap_or_default();
+        let executor = info.executor();
         Self {
             w,
             executor: executor.clone(),
@@ -238,7 +241,7 @@ where
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
@@ -246,10 +249,12 @@ where
                     Some(cache) => (cache.len(), cache),
                     None => (0, Buffer::new()),
                 };
+
                 // Call write_once if there is no upload_id.
-                self.w.write_once(size as u64, body).await?;
+                let meta = self.w.write_once(size as u64, body).await?;
+                // make sure to clear the cache only after write_once succeeds; otherwise, retries may fail.
                 self.cache = None;
-                return Ok(());
+                return Ok(meta);
             }
         };
 
@@ -319,6 +324,7 @@ mod tests {
         upload_id: String,
         part_numbers: Vec<usize>,
         length: u64,
+        content: Option<Buffer>,
     }
 
     impl TestWrite {
@@ -327,6 +333,7 @@ mod tests {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
                 length: 0,
+                content: None,
             };
 
             Arc::new(Mutex::new(v))
@@ -334,9 +341,19 @@ mod tests {
     }
 
     impl MultipartWrite for Arc<Mutex<TestWrite>> {
-        async fn write_once(&self, size: u64, _: Buffer) -> Result<()> {
-            self.lock().await.length += size;
-            Ok(())
+        async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+            sleep(Duration::from_nanos(50)).await;
+
+            if thread_rng().gen_bool(1.0 / 10.0) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
+                );
+            }
+
+            let mut this = self.lock().await;
+            this.length = size;
+            this.content = Some(body);
+            Ok(Metadata::default().with_content_length(size))
         }
 
         async fn initiate_part(&self) -> Result<String> {
@@ -379,12 +396,16 @@ mod tests {
             })
         }
 
-        async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<()> {
+        async fn complete_part(
+            &self,
+            upload_id: &str,
+            parts: &[MultipartPart],
+        ) -> Result<Metadata> {
             let test = self.lock().await;
             assert_eq!(upload_id, test.upload_id);
             assert_eq!(parts.len(), test.part_numbers.len());
 
-            Ok(())
+            Ok(Metadata::default().with_content_length(test.length))
         }
 
         async fn abort_part(&self, upload_id: &str) -> Result<()> {
@@ -422,11 +443,10 @@ mod tests {
     async fn test_multipart_upload_writer_with_concurrent_errors() {
         let mut rng = thread_rng();
 
-        let mut w = MultipartWriter::new(
-            TestWrite::new(),
-            Some(Executor::with(TimeoutExecutor::new())),
-            200,
-        );
+        let info = Arc::new(AccessorInfo::default());
+        info.update_executor(|_| Executor::with(TimeoutExecutor::new()));
+
+        let mut w = MultipartWriter::new(info, TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -463,5 +483,36 @@ mod tests {
 
         let actual_size = w.w.lock().await.length;
         assert_eq!(actual_size, total_size);
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_with_retry_when_write_once_error() {
+        let mut rng = thread_rng();
+
+        for _ in 0..100 {
+            let mut w = MultipartWriter::new(Arc::default(), TestWrite::new(), 200);
+            let size = rng.gen_range(1..1024);
+            let mut bs = vec![0; size];
+            rng.fill_bytes(&mut bs);
+
+            loop {
+                match w.write(bs.clone().into()).await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            loop {
+                match w.close().await {
+                    Ok(_) => break,
+                    Err(_) => continue,
+                }
+            }
+
+            let inner = w.w.lock().await;
+            assert_eq!(inner.length, size as u64);
+            assert!(inner.content.is_some());
+            assert_eq!(inner.content.clone().unwrap().to_bytes(), bs);
+        }
     }
 }

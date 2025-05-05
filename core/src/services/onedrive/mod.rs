@@ -18,6 +18,10 @@
 #[cfg(feature = "services-onedrive")]
 mod backend;
 #[cfg(feature = "services-onedrive")]
+mod core;
+#[cfg(feature = "services-onedrive")]
+mod delete;
+#[cfg(feature = "services-onedrive")]
 mod error;
 #[cfg(feature = "services-onedrive")]
 mod graph_model;

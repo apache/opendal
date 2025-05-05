@@ -15,11 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import io
 import os
-from random import randint
+from pathlib import Path
+from random import choices, randint
 from uuid import uuid4
 
 import pytest
+
 from opendal.exceptions import NotFound
 
 
@@ -73,11 +76,53 @@ def test_sync_reader(service_name, operator, async_operator):
     operator.delete(filename)
 
 
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_readline(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    lines = randint(1, min(100, size))
+    filename = f"random_file_{str(uuid4())}"
+    content = bytearray(os.urandom(size))
+
+    for idx in choices(range(0, size), k=lines):
+        content[idx] = ord("\n")
+    operator.write(filename, content)
+
+    line_contents = io.BytesIO(content).readlines()
+    i = 0
+
+    with operator.open(filename, "rb") as reader:
+        assert reader.readable()
+        assert not reader.writable()
+        assert not reader.closed
+
+        while (read_content := reader.readline()) != b"":
+            assert read_content is not None
+            assert read_content == line_contents[i]
+            i += 1
+
+    operator.delete(filename)
+
+
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
 async def test_async_read(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
+    content = os.urandom(size)
+    await async_operator.write(filename, content)
+
+    read_content = await async_operator.read(filename)
+    assert read_content is not None
+    assert read_content == content
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_read_path(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = Path(f"random_file_{str(uuid4())}")
     content = os.urandom(size)
     await async_operator.write(filename, content)
 

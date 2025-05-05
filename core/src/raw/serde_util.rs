@@ -28,6 +28,11 @@ use serde::de::{self};
 
 use crate::*;
 
+/// Parse xml serialize error into opendal::Error.
+pub fn new_xml_serialize_error(e: quick_xml::SeError) -> Error {
+    Error::new(ErrorKind::Unexpected, "serialize xml").set_source(e)
+}
+
 /// Parse xml deserialize error into opendal::Error.
 pub fn new_xml_deserialize_error(e: quick_xml::DeError) -> Error {
     Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e)
@@ -95,7 +100,7 @@ impl Iterator for Pairs {
 /// Pair is used to hold both key and value of a config for better error output.
 struct Pair(String, String);
 
-impl<'de> IntoDeserializer<'de, de::value::Error> for Pair {
+impl IntoDeserializer<'_, de::value::Error> for Pair {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

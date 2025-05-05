@@ -122,6 +122,11 @@ impl Fixture {
         }
     }
 
+    /// Add a path.
+    pub fn add_path(&self, path: String) {
+        self.paths.lock().unwrap().push(path);
+    }
+
     /// Create a new dir path
     pub fn new_dir_path(&self) -> String {
         let path = format!("{}/", uuid::Uuid::new_v4());
@@ -186,13 +191,18 @@ impl Fixture {
     /// Perform cleanup
     pub async fn cleanup(&self, op: impl Into<Operator>) {
         let op = op.into();
-        let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
-        for path in paths.iter() {
-            // We try our best to clean up fixtures, but won't panic if failed.
-            let _ = op.delete(path).await.map_err(|err| {
-                log::error!("fixture cleanup path {path} failed: {:?}", err);
-            });
-            log::info!("fixture cleanup path {path} succeeded")
+        // Don't cleanup data if delete is not supported
+        if !op.info().full_capability().delete {
+            return;
         }
+
+        let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
+        // Don't call delete if paths is empty
+        if paths.is_empty() {
+            return;
+        }
+
+        // We try our best to clean up fixtures, but won't panic if failed.
+        let _ = op.delete_iter(paths).await;
     }
 }

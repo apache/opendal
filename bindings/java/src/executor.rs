@@ -20,6 +20,7 @@ use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::thread::available_parallelism;
 
 use jni::objects::JClass;
@@ -28,12 +29,11 @@ use jni::objects::JValue;
 use jni::sys::jlong;
 use jni::JNIEnv;
 use jni::JavaVM;
-use once_cell::sync::OnceCell;
 use tokio::task::JoinHandle;
 
 use crate::Result;
 
-static mut RUNTIME: OnceCell<Executor> = OnceCell::new();
+static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
 thread_local! {
     static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = const { RefCell::new(None) };
 }
@@ -41,9 +41,10 @@ thread_local! {
 /// # Safety
 ///
 /// This function could be only called by java vm when unload this lib.
+#[allow(static_mut_refs)]
 #[no_mangle]
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    let _ = RUNTIME.take();
+    RUNTIME.take();
 }
 
 /// # Safety
@@ -185,11 +186,18 @@ pub(crate) fn executor_or_default<'a>(
 /// # Safety
 ///
 /// This function could be only when the lib is loaded.
+#[allow(static_mut_refs)]
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
-    RUNTIME.get_or_try_init(|| {
-        make_tokio_executor(
-            env,
-            available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
-        )
-    })
+    // Return the executor if it's already initialized
+    if let Some(runtime) = RUNTIME.get() {
+        return Ok(runtime);
+    }
+
+    // Try to initialize the executor
+    let executor = make_tokio_executor(
+        env,
+        available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
+    )?;
+
+    Ok(RUNTIME.get_or_init(|| executor))
 }

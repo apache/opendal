@@ -18,6 +18,8 @@
 #[cfg(feature = "services-fs")]
 mod core;
 #[cfg(feature = "services-fs")]
+mod delete;
+#[cfg(feature = "services-fs")]
 mod lister;
 #[cfg(feature = "services-fs")]
 mod reader;

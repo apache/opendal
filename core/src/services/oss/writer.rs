@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
+use http::{HeaderMap, HeaderValue, StatusCode};
 
 use super::core::*;
 use super::error::parse_error;
@@ -41,10 +41,25 @@ impl OssWriter {
             op,
         }
     }
+
+    fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
+        let mut meta = Metadata::default();
+        if let Some(etag) = parse_etag(headers)? {
+            meta.set_etag(etag);
+        }
+        if let Some(md5) = parse_content_md5(headers)? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
+            meta.set_version(version);
+        }
+
+        Ok(meta)
+    }
 }
 
 impl oio::MultipartWrite for OssWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req =
             self.core
                 .oss_put_object_request(&self.path, Some(size), &self.op, body, false)?;
@@ -53,10 +68,11 @@ impl oio::MultipartWrite for OssWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -127,7 +143,11 @@ impl oio::MultipartWrite for OssWriter {
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| MultipartUploadPart {
@@ -141,10 +161,11 @@ impl oio::MultipartWrite for OssWriter {
             .oss_complete_multipart_upload_request(&self.path, upload_id, false, parts)
             .await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -185,7 +206,7 @@ impl oio::AppendWrite for OssWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .oss_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -194,10 +215,11 @@ impl oio::AppendWrite for OssWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

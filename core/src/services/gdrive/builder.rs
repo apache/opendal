@@ -25,19 +25,21 @@ use log::debug;
 use tokio::sync::Mutex;
 
 use super::backend::GdriveBackend;
-use crate::raw::normalize_root;
+use super::core::GdriveCore;
+use super::core::GdrivePathQuery;
+use super::core::GdriveSigner;
 use crate::raw::Access;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
-use crate::services::gdrive::core::GdriveCore;
-use crate::services::gdrive::core::GdrivePathQuery;
-use crate::services::gdrive::core::GdriveSigner;
+use crate::raw::{normalize_root, AccessorInfo};
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
 
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GdriveBuilder {
             config: self,
@@ -52,6 +54,7 @@ impl Configurator for GdriveConfig {
 pub struct GdriveBuilder {
     config: GdriveConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -122,6 +125,8 @@ impl GdriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
@@ -136,16 +141,42 @@ impl Builder for GdriveBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Gdrive)
-            })?
-        };
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Gdrive)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_last_modified: true,
 
-        let mut signer = GdriveSigner::new(client.clone());
+                read: true,
+
+                list: true,
+                list_has_content_type: true,
+                list_has_content_length: true,
+                list_has_etag: true,
+
+                write: true,
+
+                create_dir: true,
+                delete: true,
+                rename: true,
+                copy: true,
+
+                shared: true,
+
+                ..Default::default()
+            });
+
+        // allow deprecated api here for compatibility
+        #[allow(deprecated)]
+        if let Some(client) = self.http_client {
+            info.update_http_client(|_| client);
+        }
+
+        let accessor_info = Arc::new(info);
+        let mut signer = GdriveSigner::new(accessor_info.clone());
         match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
@@ -169,7 +200,6 @@ impl Builder for GdriveBuilder {
                 })?;
 
                 signer.refresh_token = refresh_token;
-                signer.client = client.clone();
                 signer.client_id = client_id;
                 signer.client_secret = client_secret;
             }
@@ -190,12 +220,14 @@ impl Builder for GdriveBuilder {
         };
 
         let signer = Arc::new(Mutex::new(signer));
+
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
+                info: accessor_info.clone(),
                 root,
                 signer: signer.clone(),
-                client: client.clone(),
-                path_cache: PathCacher::new(GdrivePathQuery::new(client, signer)).with_lock(),
+                path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
+                    .with_lock(),
             }),
         })
     }

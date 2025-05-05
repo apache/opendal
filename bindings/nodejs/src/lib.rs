@@ -123,6 +123,17 @@ impl Operator {
         self.0.check().await.map_err(format_napi_error)
     }
 
+    /// Check the op synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.checkSync();
+    /// ```
+    #[napi]
+    pub fn check_sync(&self) -> Result<()> {
+        self.0.blocking().check().map_err(format_napi_error)
+    }
+
     /// Check if this path exists or not.
     ///
     /// ### Example
@@ -130,8 +141,8 @@ impl Operator {
     /// await op.isExist("test");
     /// ```
     #[napi]
-    pub async fn is_exist(&self, path: String) -> Result<bool> {
-        self.0.is_exist(&path).await.map_err(format_napi_error)
+    pub async fn exists(&self, path: String) -> Result<bool> {
+        self.0.exists(&path).await.map_err(format_napi_error)
     }
 
     /// Check if this path exists or not synchronously.
@@ -141,8 +152,8 @@ impl Operator {
     /// op.isExistSync("test");
     /// ```
     #[napi]
-    pub fn is_exist_sync(&self, path: String) -> Result<bool> {
-        self.0.blocking().is_exist(&path).map_err(format_napi_error)
+    pub fn exists_sync(&self, path: String) -> Result<bool> {
+        self.0.blocking().exists(&path).map_err(format_napi_error)
     }
 
     /// Create dir with a given path.
@@ -269,7 +280,7 @@ impl Operator {
                 writer = writer.cache_control(cache_control);
             }
         }
-        writer.await.map_err(format_napi_error)
+        writer.await.map(|_| ()).map_err(format_napi_error)
     }
 
     //noinspection DuplicatedCode
@@ -371,7 +382,7 @@ impl Operator {
                 writer = writer.cache_control(cache_control);
             }
         }
-        writer.call().map_err(format_napi_error)
+        writer.call().map(|_| ()).map_err(format_napi_error)
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -464,7 +475,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.0.remove(paths).await.map_err(format_napi_error)
+        self.0.delete_iter(paths).await.map_err(format_napi_error)
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -809,7 +820,7 @@ impl BlockingWriter {
     /// ```
     #[napi]
     pub unsafe fn close(&mut self) -> Result<()> {
-        self.0.close().map_err(format_napi_error)
+        self.0.close().map(|_| ()).map_err(format_napi_error)
     }
 }
 
@@ -855,7 +866,7 @@ impl Writer {
     /// ```
     #[napi]
     pub async unsafe fn close(&mut self) -> Result<()> {
-        self.0.close().await.map_err(format_napi_error)
+        self.0.close().await.map(|_| ()).map_err(format_napi_error)
     }
 }
 

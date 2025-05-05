@@ -1,3 +1,167 @@
+# Upgrade to v0.53
+
+## Public API
+
+### Supabase service is now an S3-compatible servcice
+
+Supabase Storage is now an S3-compatible service instead: https://github.com/supabase/storage.
+
+We removed the supabase native service support in OpenDAL v0.53. Users who want to access Supabase Storage can use the S3 service instead.
+
+### All metrics related layers have been refactored
+
+All metrics layers have been refactored:
+
+- `PrometheusLayer`
+- `PrometheusClientLayer`
+- `MetricsLayer`
+
+They are now provides more metrics and more detailed information. All their public API have been redesigned.
+
+For more details, please refer to `opendal::layers::observe`'s module documentation.
+
+### `Operator::default_executor` has been replaced by `Operator::executor`
+
+In opendal v0.53, we introduced a new concept of `Context` which is used to store the context of the current operator. Thanks to this design, we can now get and set the `executor` and `http_client` for given Operator instead.
+
+All services `http_client` API has been deprecated and replaced by `Operator::update_http_client` API.
+
+### OpenDAL MSRV bumped to `1.80`
+
+Since v0.53, OpenDAL will require Rust 1.80.0 or later to build.
+
+## Raw API
+
+### Operation enum merge
+
+To reduce the complexity of the `Operation`, we have merged the duplicated `Operation`.
+
+For example:
+
+- `Operation::ReaderRead` has been merged into `Operation::Read`
+- `Operation::BlockingRead` has been merged into `Operation::Read`
+
+
+# Upgrade to v0.52
+
+## Public API
+
+### RFC-5556: Write Returns Metadata
+
+Since v0.52, all write APIs in OpenDAL have been updated to return `Metadata` instead of `()`. This metadata includes useful information provided by the service, such as `content-length`, `etag`, `version`, and `last-modified`.
+
+This feature is not fully ready yet, and many available metadata fields are still not returned. Please visit [Tracking Issues of RFC-5556: Write Returns Metadata](https://github.com/apache/opendal/issues/5557) for progress and contributions.
+
+Affected API:
+
+- `opendal::Operator::write`
+- `opendal::Operator::write_with`
+- `opendal::Operator::writer::close`
+- `opendal::raw::oio::Write::close`
+
+### Github Actions Cache (ghac) service v2
+
+As [requested](https://github.com/apache/opendal/issues/5620) by GitHub, we have upgraded our GHAC service to ensure compatibility with the latest GitHub Actions cache API.
+
+By upgrading to OpenDAL v0.52, your services will continue functioning after the deprecation of the legacy service (2025/03/01). GHES does not yet support GHAC v2, but OpenDAL has handled this properly to prevent any disruptions.
+
+ghac service doesn't support `delete` anymore, please use github's API to delete cache instead.
+
+This upgrade is mandatory and enabled by default using an environment variable in the GitHub CI environment. No changes are required at the code level.
+
+### Breaking Changes in Dependencies
+
+- `OtelTraceLayer` and `OtelMetricsLayer`'s dependence `opentelemetry` bumped to `0.28`
+- `PrometheusClientLayer`'s dependence `prometheus-client` bumped to `0.23.1`
+
+# Upgrade to v0.51
+
+## Public API
+
+### New VISION: One Layer, All Storage
+
+OpenDAL has refined its vision to **One Layer, All Storage**, driven by the following core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**.
+
+Explore the detailed vision at [OpenDAL Vision](https://opendal.apache.org/vision).
+
+### RFC-5313: Remove Metakey
+
+OpenDAL v0.51 implements [RFC-5313](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_5314_remove_metakey/index.html), which removes the concept of metakey.
+
+The following structs have been removed:
+
+- `Metakey`
+
+The following APIs have been removed:
+
+- `list_with(path).metakey()`
+
+Users no longer need to pass the metakey into the list. Instead, services will make their best effort to return as much metadata as possible. Users can check items like `Capability::list_has_etag` before making a call.
+
+### Remove not used capability: `write_multi_align_size`
+
+The capability `write_multi_align_size` is not utilized by any services, and we have no plans to support it in the future; therefore, we have removed it.
+
+### CapabilityCheckLayer and CorrectnessCheckLayer
+
+OpenDAL used to perform capability checks for all services, but since v0.51, it only conducts checks that impact data correctness like `write_with_if_not_exists` or `delete_with_version` by default in the `CorrectnessCheckLayer`. If users wish to verify other non-critical capabilities like `write_with_content_type` or `write_with_cache_control`, they should manually enable the `CapabilityCheckLayer`.
+
+### RFC-3911: Deleter API
+
+OpenDAL v0.51 implements [RFC-3911](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_3911_deleter_api/index.html), which adds `Deleter` in OpenDAL to replace `batch` operation.
+
+The following new APIs have been added:
+
+- [`Operator::delete_iter`]
+- [`Operator::delete_try_iter`]
+- [`Operator::delete_stream`]
+- [`Operator::delete_try_stream`]
+- [`Operator::deleter`]
+- [`Deleter::delete`]
+- [`Deleter::delete_iter`]
+- [`Deleter::delete_try_iter`]
+- [`Deleter::delete_stream`]
+- [`Deleter::delete_try_stream`]
+- [`Deleter::flush`]
+- [`Deleter::close`]
+- [`Deleter::into_sink`]
+- [`DeleteInput`]
+- [`IntoDeleteInput`]
+- [`FuturesDeleteSink`]
+
+The following APIs have been deprecated and will be removed in the future releases:
+
+- `Operator::remove` (replace with [`Operator::delete_iter`])
+- `Operator::remove_via` (replace with [`Operator::delete_stream`])
+
+As a result of this change, the `limit` and `with_limit` APIs on `Operator` have also been deprecated; they are currently no-ops.
+
+## Raw API
+
+### `adapter::kv` now returns `Scanner` instead of `Vec<String>`
+
+To support returning key-value entries in a streaming manner instead of loading them all into memory, OpenDAL updated its adapter API to return a `Scanner` instead of a `Vec<String>`.
+
+```diff
+- async fn scan(&self, path: &str) -> Result<Vec<String>>
++ async fn scan(&self, path: &str) -> Result<Self::Scanner>
+```
+
+All services intending to implement `kv::Adapter` should adhere to this API change.
+
+## Align `metadata` API to `info`
+
+OpenDAL changes it's old `metadata` API to `info` to align with the new `AccessorInfo` struct.
+
+```diff
+- fn metadata(&self) -> Arc<AccessorInfo>
++ fn info(&self) -> Arc<AccessorInfo>
+```
+
+### Remove not used struct: `RangeWriter`
+
+The struct `RangeWriter` is not utilized by any services, and we have no plans to support it in the future; therefore, we have removed it.
+
 # Upgrade to v0.50
 
 ## Public API
@@ -12,7 +176,7 @@ Previously, `list("a/b")` would not return `a/b` even if it does exist. Since v0
 
 ### Refactoring of the metrics-related layer
 
-In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implemenationts. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
+In OpenDAL v0.50.0, we did a refactor on all metrics-related layers. They are now sharing the same underlying implementations. `PrometheusLayer`, `PrometheusClientLayer` and `MetricsLayer` are now have similar public APIs and exactly the same metrics value.
 
 # Upgrade to v0.49
 

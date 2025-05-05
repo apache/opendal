@@ -1,6 +1,10 @@
 github.com/ebitengine/purego v0.7.1 h1:6/55d26lG3o9VCZX8lping+bZcmShseiqlh2bnUDiPA=
 github.com/ebitengine/purego v0.7.1/go.mod h1:ah1In8AOtksoNK6yk5z1HTJeUkC1Ez4Wk2idgGslMwQ=
+github.com/ebitengine/purego v0.8.2 h1:jPPGWs2sZ1UgOSgD2bClL0MJIqu58nOmIcBuXr62z1I=
+github.com/ebitengine/purego v0.8.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/jupiterrider/ffi v0.1.0 h1:OI6ZHZJW1Io1PcfqGeLk/CBLj+//8aNdOuo558ykQQo=
 github.com/jupiterrider/ffi v0.1.0/go.mod h1:tyr9EitV+PW99I6137IDwdO6ZzNyFp/noXNSfU3OYqk=
+github.com/jupiterrider/ffi v0.4.0 h1:7mhlrfiBZa0kHhh2DV7mGAdXN/D8zDeu8UlaBO+ZSko=
+github.com/jupiterrider/ffi v0.4.0/go.mod h1:1QCaf2VVPpGyIeU3RqQ2rHYrAPT8m9l0GhQupVYQB24=
 golang.org/x/sys v0.24.0 h1:Twjiwq9dn6R1fQcyiK+wQyHWfaz/BJB+YIpzU/Cv3Xg=
 golang.org/x/sys v0.24.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=

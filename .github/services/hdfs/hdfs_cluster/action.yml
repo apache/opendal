@@ -25,20 +25,10 @@ runs:
       shell: bash
       working-directory: fixtures/hdfs
       run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
-    - name: Setup java env
-      uses: actions/setup-java@v4
+    - name: Setup hadoop
+      uses: ./.github/actions/setup-hadoop
       with:
-        distribution: temurin
-        java-version: "11"
-    - name: Setup hadoop env
-      shell: bash
-      run: |
-        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
-        export HADOOP_HOME=/home/runner/hadoop-3.3.5
-        echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
-        echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV 
-        echo "LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${HADOOP_HOME}/lib/native" >> $GITHUB_ENV
-        cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
+        need-hadoop: true
     - name: Setup opendal env
       shell: bash
       run: |

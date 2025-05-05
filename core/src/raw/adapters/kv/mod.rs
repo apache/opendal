@@ -21,7 +21,17 @@
 
 mod api;
 pub use api::Adapter;
-pub use api::Metadata;
+pub use api::Info;
+pub use api::Scan;
+#[cfg(any(
+    feature = "services-cloudflare-kv",
+    feature = "services-etcd",
+    feature = "services-nebula-graph",
+    feature = "services-rocksdb",
+    feature = "services-sled"
+))]
+pub(crate) use api::ScanStdIter;
+pub use api::Scanner;
 
 mod backend;
 pub use backend::Backend;

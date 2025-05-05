@@ -34,10 +34,6 @@ mod one_shot_write;
 pub use one_shot_write::OneShotWrite;
 pub use one_shot_write::OneShotWriter;
 
-mod range_write;
-pub use range_write::RangeWrite;
-pub use range_write::RangeWriter;
-
 mod block_write;
 pub use block_write::BlockWrite;
 pub use block_write::BlockWriter;

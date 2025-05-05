@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -106,6 +105,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
     type BlockingLister = A::BlockingLister;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -114,8 +115,8 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio))))
             .await
+            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -138,6 +139,14 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 

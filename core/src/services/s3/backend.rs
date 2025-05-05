@@ -25,34 +25,35 @@ use std::sync::Arc;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use bytes::Buf;
+use constants::X_AMZ_META_PREFIX;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use once_cell::sync::Lazy;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
+use std::sync::LazyLock;
 
 use super::core::*;
+use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::error::parse_s3_error_code;
-use super::lister::{S3Lister, S3Listers, S3ObjectVersionsLister};
+use super::lister::{S3ListerV1, S3ListerV2, S3Listers, S3ObjectVersionsLister};
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
 use crate::*;
+use constants::X_AMZ_VERSION_ID;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
-static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     // AWS S3 Service.
     m.insert(
@@ -66,10 +67,13 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for S3Config {
     type Builder = S3Builder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
             customized_credential_load: None,
+
             http_client: None,
         }
     }
@@ -84,6 +88,8 @@ pub struct S3Builder {
     config: S3Config,
 
     customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -404,6 +410,24 @@ impl S3Builder {
         self
     }
 
+    /// Disable list objects v2 so that opendal will not use the older
+    /// List Objects V1 to list objects.
+    ///
+    /// By default, OpenDAL uses List Objects V2 to list objects. However,
+    /// some legacy services do not yet support V2.
+    pub fn disable_list_objects_v2(mut self) -> Self {
+        self.config.disable_list_objects_v2 = true;
+        self
+    }
+
+    /// Enable request payer so that OpenDAL will send requests with `x-amz-request-payer` header.
+    ///
+    /// With this option the client accepts to pay for the request and data transfer costs.
+    pub fn enable_request_payer(mut self) -> Self {
+        self.config.enable_request_payer = true;
+        self
+    }
+
     /// Disable load credential from ec2 metadata.
     ///
     /// This option is used to disable the default behavior of opendal
@@ -453,6 +477,8 @@ impl S3Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -530,8 +556,19 @@ impl S3Builder {
     }
 
     /// Set maximum batch operations of this backend.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+        self.config.delete_max_size = Some(batch_max_operations);
+
+        self
+    }
+
+    /// Set maximum delete operations of this backend.
+    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
+        self.config.delete_max_size = Some(delete_max_size);
 
         self
     }
@@ -544,6 +581,18 @@ impl S3Builder {
     pub fn checksum_algorithm(mut self, checksum_algorithm: &str) -> Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 
+        self
+    }
+
+    /// Disable write with if match so that opendal will not send write request with if match headers.
+    pub fn disable_write_with_if_match(mut self) -> Self {
+        self.config.disable_write_with_if_match = true;
+        self
+    }
+
+    /// Enable write with append so that opendal will send write request with append headers.
+    pub fn enable_write_with_append(mut self) -> Self {
+        self.config.enable_write_with_append = true;
         self
     }
 
@@ -667,7 +716,7 @@ impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(mut self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -734,10 +783,10 @@ impl Builder for S3Builder {
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
-            _ => {
+            v => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "{v} is not a supported checksum_algorithm.",
+                    format!("{:?} is not a supported checksum_algorithm.", v),
                 ))
             }
         };
@@ -752,9 +801,10 @@ impl Builder for S3Builder {
             }
         }
 
-        if let Some(v) = self.config.region.clone() {
-            cfg.region = Some(v);
+        if let Some(ref v) = self.config.region {
+            cfg.region = Some(v.to_string());
         }
+
         if cfg.region.is_none() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -766,6 +816,9 @@ impl Builder for S3Builder {
 
         let region = cfg.region.to_owned().unwrap();
         debug!("backend use region: {region}");
+
+        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
+        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
 
         // Building endpoint.
         let endpoint = self.build_endpoint(&region);
@@ -781,15 +834,6 @@ impl Builder for S3Builder {
         if let Some(v) = self.config.session_token {
             cfg.session_token = Some(v)
         }
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
-            })?
-        };
 
         let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
         // If customized_credential_load is set, we will use it.
@@ -848,13 +892,116 @@ impl Builder for S3Builder {
 
         let signer = AwsV4Signer::new("s3", &region);
 
-        let batch_max_operations = self
+        let delete_max_size = self
             .config
-            .batch_max_operations
+            .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::S3)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_encoding: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+                            stat_with_override_cache_control: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_override_content_disposition: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_override_content_type: !self
+                                .config
+                                .disable_stat_with_override,
+                            stat_with_version: self.config.enable_versioning,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+                            stat_has_version: true,
+
+                            read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+                            read_with_override_cache_control: true,
+                            read_with_override_content_disposition: true,
+                            read_with_override_content_type: true,
+                            read_with_version: self.config.enable_versioning,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_can_append: self.config.enable_write_with_append,
+
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_if_match: !self.config.disable_write_with_if_match,
+                            write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
+
+                            // The min multipart size of S3 is 5 MiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of S3 is 5 GiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            delete_max_size: Some(delete_max_size),
+                            delete_with_version: self.config.enable_versioning,
+
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 bucket: bucket.to_string(),
                 endpoint,
                 root,
@@ -865,13 +1012,11 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
-                disable_stat_with_override: self.config.disable_stat_with_override,
-                enable_versioning: self.config.enable_versioning,
+                disable_list_objects_v2: self.config.disable_list_objects_v2,
+                enable_request_payer: self.config.enable_request_payer,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),
-                client,
-                batch_max_operations,
                 checksum_algorithm,
             }),
         })
@@ -888,76 +1033,14 @@ impl Access for S3Backend {
     type Reader = HttpBody;
     type Writer = S3Writers;
     type Lister = S3Listers;
+    type Deleter = oio::BatchDeleter<S3Deleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::S3)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_with_override_cache_control: !self.core.disable_stat_with_override,
-                stat_with_override_content_disposition: !self.core.disable_stat_with_override,
-                stat_with_override_content_type: !self.core.disable_stat_with_override,
-                stat_with_version: self.core.enable_versioning,
-
-                read: true,
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_override_cache_control: true,
-                read_with_override_content_disposition: true,
-                read_with_override_content_type: true,
-                read_with_version: self.core.enable_versioning,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_cache_control: true,
-                write_with_content_type: true,
-                write_with_if_none_match: true,
-                write_with_user_metadata: true,
-
-                // The min multipart size of S3 is 5 MiB.
-                //
-                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of S3 is 5 GiB.
-                //
-                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                delete_with_version: self.core.enable_versioning,
-
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_with_version: self.core.enable_versioning,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                batch: true,
-                batch_max_operations: Some(self.core.batch_max_operations),
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -970,23 +1053,12 @@ impl Access for S3Backend {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
 
-                let user_meta: HashMap<String, String> = headers
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        name.as_str()
-                            .strip_prefix(constants::X_AMZ_META_PREFIX)
-                            .and_then(|stripped_key| {
-                                parse_header_to_str(headers, name)
-                                    .unwrap_or(None)
-                                    .map(|val| (stripped_key.to_string(), val.to_string()))
-                            })
-                    })
-                    .collect();
+                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
                 }
 
-                if let Some(v) = parse_header_to_str(headers, "x-amz-version-id")? {
+                if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
                     meta.set_version(v);
                 }
 
@@ -1013,58 +1085,46 @@ impl Access for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
-        let writer = S3Writer::new(self.core.clone(), path, args);
+        let writer = S3Writer::new(self.core.clone(), path, args.clone());
 
-        let w = oio::MultipartWriter::new(writer, executor, concurrent);
+        let w = if args.append() {
+            S3Writers::Two(oio::AppendWriter::new(writer))
+        } else {
+            S3Writers::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
+                writer,
+                args.concurrent(),
+            ))
+        };
 
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        // This would delete the bucket, do not perform
-        if self.core.root == "/" && path == "/" {
-            return Ok(RpDelete::default());
-        }
-
-        let resp = self.core.s3_delete_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
-            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(S3Deleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        if args.version() && !self.core.enable_versioning {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "the bucket doesn't enable versioning",
-            ));
-        }
-
-        let l = if args.version() {
-            TwoWays::Two(PageLister::new(S3ObjectVersionsLister::new(
+        let l = if args.versions() || args.deleted() {
+            ThreeWays::Three(PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
+                args,
+            )))
+        } else if self.core.disable_list_objects_v2 {
+            ThreeWays::One(PageLister::new(S3ListerV1::new(
+                self.core.clone(),
+                path,
+                args,
             )))
         } else {
-            TwoWays::One(PageLister::new(S3Lister::new(
+            ThreeWays::Two(PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
+                args,
             )))
         };
 
@@ -1084,19 +1144,23 @@ impl Access for S3Backend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
-
         // We will not send this request out, just for signing.
-        let mut req = match op {
-            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v)?,
+        let req = match op {
+            PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
             PresignOperation::Read(v) => {
                 self.core
-                    .s3_get_object_request(path, BytesRange::default(), &v)?
+                    .s3_get_object_request(path, BytesRange::default(), &v)
             }
             PresignOperation::Write(_) => {
                 self.core
-                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())?
+                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+        let mut req = req?;
 
         self.core.sign_query(&mut req, expire).await?;
 
@@ -1108,53 +1172,6 @@ impl Access for S3Backend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 1000 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths = ops.into_iter().map(|(p, _)| p).collect();
-
-        let resp = self.core.s3_delete_objects(paths).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let bs = resp.into_body();
-
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            for i in result.error {
-                let path = build_rel_path(&self.core.root, &i.key);
-
-                // set the error kind and mark temporary if retryable
-                let (kind, retryable) =
-                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err: Error = Error::new(kind, format!("{i:?}"));
-                if retryable {
-                    err = err.set_temporary();
-                }
-
-                batched_result.push((path, Err(err)));
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            Err(parse_error(resp))
-        }
     }
 }
 

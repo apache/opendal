@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -27,14 +26,14 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
-use serde::Deserialize;
-use serde_json;
 
 use super::core::*;
+use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
 use crate::*;
@@ -44,6 +43,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 
 impl Configurator for GcsConfig {
     type Builder = GcsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
@@ -59,6 +60,7 @@ impl Configurator for GcsConfig {
 pub struct GcsBuilder {
     config: GcsConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
     customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
@@ -160,6 +162,8 @@ impl GcsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -251,15 +255,6 @@ impl Builder for GcsBuilder {
 
         // TODO: server side encryption
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs)
-            })?
-        };
-
         let endpoint = self
             .config
             .endpoint
@@ -311,10 +306,86 @@ impl Builder for GcsBuilder {
 
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Gcs)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_last_modified: true,
+                            stat_has_user_metadata: true,
+                            stat_has_cache_control: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_user_metadata: true,
+                            write_with_if_not_exists: true,
+
+                            // The min multipart size of Gcs is 5 MiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of Gcs is 5 GiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            delete_max_size: Some(100),
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
-                client,
                 signer,
                 token_loader,
                 token: self.config.token,
@@ -340,60 +411,14 @@ impl Access for GcsBackend {
     type Reader = HttpBody;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
+    type Deleter = oio::BatchDeleter<GcsDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Gcs)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                // The min multipart size of Gcs is 5 MiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of Gcs is 5 GiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-
-                batch: true,
-                batch_max_operations: Some(100),
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -404,25 +429,7 @@ impl Access for GcsBackend {
         }
 
         let slc = resp.into_body();
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-
-        let mut m = Metadata::new(EntryMode::FILE);
-
-        m.set_etag(&meta.etag);
-        m.set_content_md5(&meta.md5_hash);
-
-        let size = meta
-            .size
-            .parse::<u64>()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        m.set_content_length(size);
-        if !meta.content_type.is_empty() {
-            m.set_content_type(&meta.content_type);
-        }
-
-        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+        let m = GcsCore::build_metadata_from_object_response(path, slc)?;
 
         Ok(RpStat::new(m))
     }
@@ -446,22 +453,17 @@ impl Access for GcsBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::MultipartWriter::new(w, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), w, concurrent);
 
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gcs_delete_object(path).await?;
-
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            Err(parse_error(resp))
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -488,15 +490,19 @@ impl Access for GcsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v),
             PresignOperation::Write(v) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, v, Buffer::new())?
+                    .gcs_insert_object_xml_request(path, v, Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
-
+        let mut req = req?;
         self.core.sign_query(&mut req, args.expire())?;
 
         // We don't need this request anymore, consume it directly.
@@ -507,127 +513,5 @@ impl Access for GcsBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let ops = args.into_operation();
-        if ops.len() > 100 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "gcs services only allow delete less than 100 keys at once",
-            )
-            .with_context("length", ops.len().to_string()));
-        }
-
-        let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
-        let resp = self.core.gcs_delete_objects(paths.clone()).await?;
-
-        let status = resp.status();
-
-        if let StatusCode::OK = status {
-            let content_type = parse_content_type(resp.headers())?.ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "gcs batch delete response content type is empty",
-                )
-            })?;
-            let boundary = content_type
-                .strip_prefix("multipart/mixed; boundary=")
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "gcs batch delete response content type is not multipart/mixed",
-                    )
-                })?
-                .trim_matches('"');
-            let multipart: Multipart<MixedPart> = Multipart::new()
-                .with_boundary(boundary)
-                .parse(resp.into_body().to_bytes())?;
-            let parts = multipart.into_parts();
-
-            let mut batched_result = Vec::with_capacity(parts.len());
-
-            for (i, part) in parts.into_iter().enumerate() {
-                let resp = part.into_response();
-                // TODO: maybe we can take it directly?
-                let path = paths[i].clone();
-
-                // deleting not existing objects is ok
-                if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                    batched_result.push((path, Ok(RpDelete::default().into())));
-                } else {
-                    batched_result.push((path, Err(parse_error(resp))));
-                }
-            }
-
-            Ok(RpBatch::new(batched_result))
-        } else {
-            // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
-            // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-            Err(parse_error(resp))
-        }
-    }
-}
-
-/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct GetObjectJsonResponse {
-    /// GCS will return size in string.
-    ///
-    /// For example: `"size": "56535"`
-    size: String,
-    /// etag is not quoted.
-    ///
-    /// For example: `"etag": "CKWasoTgyPkCEAE="`
-    etag: String,
-    /// RFC3339 styled datetime string.
-    ///
-    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
-    updated: String,
-    /// Content md5 hash
-    ///
-    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
-    md5_hash: String,
-    /// Content type of this object.
-    ///
-    /// For example: `"contentType": "image/png",`
-    content_type: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_deserialize_get_object_json_response() {
-        let content = r#"{
-  "kind": "storage#object",
-  "id": "example/1.png/1660563214863653",
-  "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
-  "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
-  "name": "1.png",
-  "bucket": "example",
-  "generation": "1660563214863653",
-  "metageneration": "1",
-  "contentType": "image/png",
-  "storageClass": "STANDARD",
-  "size": "56535",
-  "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
-  "crc32c": "j/un9g==",
-  "etag": "CKWasoTgyPkCEAE=",
-  "timeCreated": "2022-08-15T11:33:34.866Z",
-  "updated": "2022-08-15T11:33:34.866Z",
-  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
-}"#;
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_str(content).expect("json Deserialize must succeed");
-
-        assert_eq!(meta.size, "56535");
-        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
-        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
-        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
-        assert_eq!(meta.content_type, "image/png");
     }
 }

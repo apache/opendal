@@ -22,8 +22,8 @@ use bytes::Buf;
 use super::core::parse_file_info;
 use super::core::B2Core;
 use super::core::ListFileNamesResponse;
+use super::error::parse_error;
 use crate::raw::*;
-use crate::services::b2::error::parse_error;
 use crate::*;
 
 pub struct B2Lister {

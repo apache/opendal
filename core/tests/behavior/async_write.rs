@@ -44,8 +44,12 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_cache_control,
             test_write_with_content_type,
             test_write_with_content_disposition,
+            test_write_with_content_encoding,
             test_write_with_if_none_match,
+            test_write_with_if_not_exists,
+            test_write_with_if_match,
             test_write_with_user_metadata,
+            test_write_returns_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
             test_writer_write_with_concurrent,
@@ -54,7 +58,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_abort,
             test_writer_abort_with_concurrent,
             test_writer_futures_copy,
-            test_writer_futures_copy_with_concurrent
+            test_writer_futures_copy_with_concurrent,
+            test_writer_return_metadata
         ))
     }
 
@@ -62,6 +67,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(
             op,
             test_write_with_append,
+            test_write_with_append_returns_metadata,
             test_writer_with_append
         ))
     }
@@ -108,11 +114,6 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for supabase until https://github.com/apache/opendal/issues/2194 addressed.
-    if op.info().scheme() == opendal::Scheme::Supabase {
-        warn!("ignore test for supabase until https://github.com/apache/opendal/issues/2194 is resolved");
-        return Ok(());
-    }
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
         warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
@@ -209,6 +210,28 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write a single file with content encoding should succeed.
+pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_content_encoding {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let target_content_encoding = "gzip";
+    op.write_with(&path, content)
+        .content_encoding(target_content_encoding)
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(
+        meta.content_encoding()
+            .expect("content encoding must exist"),
+        target_content_encoding
+    );
+    Ok(())
+}
+
 /// write a single file with user defined metadata should succeed.
 pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     if !op.info().full_capability().write_with_user_metadata {
@@ -228,6 +251,17 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
         *resp_meta,
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let meta = op.write(&path, content).await?;
+    let stat_meta = op.stat(&path).await?;
+
+    assert_metadata(stat_meta, meta);
 
     Ok(())
 }
@@ -526,6 +560,29 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
     Ok(())
 }
 
+pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let content_a = gen_fixed_bytes(size);
+    let content_b = gen_fixed_bytes(size);
+
+    let mut w = op.writer(&path).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_b.clone()).await?;
+    let meta = w.close().await?;
+
+    let stat_meta = op.stat(&path).await.expect("stat must succeed");
+
+    assert_metadata(stat_meta, meta);
+
+    Ok(())
+}
+
 /// Test append to a file must success.
 pub async fn test_write_with_append(op: Operator) -> Result<()> {
     let path = TEST_FIXTURE.new_file_path();
@@ -556,6 +613,55 @@ pub async fn test_write_with_append(op: Operator) -> Result<()> {
     assert_eq!(bs[size_one..], content_two);
 
     Ok(())
+}
+
+pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (content_one, _) = gen_bytes(cap);
+    let (content_two, _) = gen_bytes(cap);
+
+    op.write_with(&path, content_one.clone())
+        .append(true)
+        .await
+        .expect("append file first time must success");
+
+    let meta = op
+        .write_with(&path, content_two.clone())
+        .append(true)
+        .await
+        .expect("append to an existing file must success");
+
+    let stat_meta = op.stat(&path).await.expect("stat must succeed");
+    assert_metadata(stat_meta, meta);
+
+    Ok(())
+}
+
+fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag());
+    }
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if meta.version().is_some() {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
+    if meta.content_md5().is_some() {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
+    if meta.content_type().is_some() {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
+    }
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
 }
 
 /// Copy data from reader to writer
@@ -637,9 +743,74 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
     let res = op
         .write_with(&path, content.clone())
-        .if_none_match("*")
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an file with if_not_exists will get a ConditionNotMatch error if file exists.
+pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_if_not_exists {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    let res = op
+        .write_with(&path, content.clone())
+        .if_not_exists(true)
+        .await;
+    assert!(res.is_ok());
+
+    let res = op
+        .write_with(&path, content.clone())
+        .if_not_exists(true)
+        .await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an file with if_match will get a ConditionNotMatch error if file's etag does not match.
+pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_if_match {
+        return Ok(());
+    }
+
+    // Create two different files with different content
+    let (path_a, content_a, _) = TEST_FIXTURE.new_file(op.clone());
+    let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
+
+    // Write initial content to both files
+    op.write(&path_a, content_a.clone()).await?;
+    op.write(&path_b, content_b.clone()).await?;
+
+    // Get etags for both files
+    let meta_a = op.stat(&path_a).await?;
+    let etag_a = meta_a.etag().expect("etag must exist");
+    let meta_b = op.stat(&path_b).await?;
+    let etag_b = meta_b.etag().expect("etag must exist");
+
+    // Should succeed: Writing to path_a with its own etag
+    let res = op
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_a)
+        .await;
+    assert!(res.is_ok());
+
+    // Should fail: Writing to path_a with path_b's etag
+    let res = op
+        .write_with(&path_a, content_a.clone())
+        .if_match(etag_b)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

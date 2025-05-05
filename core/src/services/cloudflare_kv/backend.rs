@@ -181,14 +181,17 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = kv::Scanner;
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::CloudflareKv,
             &self.namespace_id,
             Capability {
                 read: true,
                 write: true,
                 list: true,
+                shared: true,
 
                 ..Default::default()
             },
@@ -240,7 +243,7 @@ impl kv::Adapter for Adapter {
         }
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let mut url = format!("{}/keys", self.url_prefix);
         if !path.is_empty() {
             url = format!("{}?prefix={}", url, path);
@@ -261,7 +264,9 @@ impl kv::Adapter for Adapter {
                             format!("failed to parse error response: {}", e),
                         )
                     })?;
-                Ok(response.result.into_iter().map(|r| r.name).collect())
+                Ok(Box::new(kv::ScanStdIter::new(
+                    response.result.into_iter().map(|r| Ok(r.name)),
+                )))
             }
             _ => Err(parse_error(resp)),
         }

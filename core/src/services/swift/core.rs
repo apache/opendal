@@ -15,22 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::raw::*;
 use crate::*;
 
 pub struct SwiftCore {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
     pub endpoint: String,
     pub container: String,
     pub token: String,
-    pub client: HttpClient,
 }
 
 impl Debug for SwiftCore {
@@ -60,9 +60,12 @@ impl SwiftCore {
 
         let body = Buffer::new();
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn swift_list(
@@ -76,34 +79,35 @@ impl SwiftCore {
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
-        let mut url = format!(
-            "{}/{}/?prefix={}&delimiter={}&format=json",
-            &self.endpoint,
-            &self.container,
-            percent_encode_path(&p),
-            delimiter
-        );
+        let mut url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container,))
+            .push("prefix", &percent_encode_path(&p))
+            .push("delimiter", delimiter)
+            .push("format", "json");
 
         if let Some(limit) = limit {
-            url += &format!("&limit={}", limit);
+            url = url.push("limit", &limit.to_string());
         }
         if !marker.is_empty() {
-            url += &format!("&marker={}", marker);
+            url = url.push("marker", marker);
         }
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(url.finish());
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn swift_create_object(
         &self,
         path: &str,
         length: u64,
+        args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
@@ -116,12 +120,22 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (k, v) in user_metadata {
+                req = req.header(format!("X-Object-Meta-{}", k), v);
+            }
+        }
+
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, length);
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn swift_read(
@@ -149,9 +163,12 @@ impl SwiftCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<Buffer>> {
@@ -186,9 +203,12 @@ impl SwiftCore {
 
         let body = Buffer::new();
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
@@ -205,9 +225,12 @@ impl SwiftCore {
 
         req = req.header("X-Auth-Token", &self.token);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 

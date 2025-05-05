@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::Buf;
 use http::header;
 use http::Request;
 use http::StatusCode;
@@ -258,8 +257,10 @@ impl Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = ();
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::D1,
             &self.table,
             Capability {
@@ -268,6 +269,7 @@ impl kv::Adapter for Adapter {
                 // Cloudflare D1 supports 1MB as max in write_total.
                 // refer to https://developers.cloudflare.com/d1/platform/limits/
                 write_total_max_size: Some(1000 * 1000),
+                shared: true,
                 ..Default::default()
             },
         )
@@ -284,8 +286,8 @@ impl kv::Adapter for Adapter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let mut body = resp.into_body();
-                let bs = body.copy_to_bytes(body.remaining());
+                let body = resp.into_body();
+                let bs = body.to_bytes();
                 let d1_response = D1Response::parse(&bs)?;
                 Ok(d1_response.get_result(&self.value_field))
             }

@@ -114,11 +114,13 @@ pub struct ThrottleAccessor<A: Access> {
 impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Inner = A;
     type Reader = ThrottleWrapper<A::Reader>;
-    type BlockingReader = ThrottleWrapper<A::BlockingReader>;
     type Writer = ThrottleWrapper<A::Writer>;
-    type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
     type Lister = A::Lister;
+    type Deleter = A::Deleter;
+    type BlockingReader = ThrottleWrapper<A::BlockingReader>;
+    type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
     type BlockingLister = A::BlockingLister;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -142,6 +144,10 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
     }
 
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
@@ -160,6 +166,10 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -223,7 +233,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         self.inner.abort().await
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
     }
 }
@@ -251,7 +261,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
         }
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         self.inner.close()
     }
 }

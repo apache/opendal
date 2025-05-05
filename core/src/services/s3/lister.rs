@@ -17,8 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::S3Core;
-use super::core::{ListObjectVersionsOutput, ListObjectsOutput};
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::PageContext;
 use crate::raw::*;
@@ -29,51 +28,176 @@ use crate::Result;
 use bytes::Buf;
 use quick_xml::de;
 
-pub type S3Listers = TwoWays<oio::PageLister<S3Lister>, oio::PageLister<S3ObjectVersionsLister>>;
+pub type S3Listers = ThreeWays<
+    oio::PageLister<S3ListerV1>,
+    oio::PageLister<S3ListerV2>,
+    oio::PageLister<S3ObjectVersionsLister>,
+>;
 
-pub struct S3Lister {
+/// S3ListerV1 implements ListObjectV1 for s3 backend.
+pub struct S3ListerV1 {
     core: Arc<S3Core>,
 
     path: String,
-    delimiter: &'static str,
-    limit: Option<usize>,
+    args: OpList,
 
-    /// Amazon S3 starts listing **after** this specified key
-    start_after: Option<String>,
+    delimiter: &'static str,
+    /// marker can also be used as `start-after` for list objects v1.
+    /// We will use it as `start-after` for the first page and then ignore
+    /// it in the following pages.
+    first_marker: String,
 }
 
-impl S3Lister {
-    pub fn new(
-        core: Arc<S3Core>,
-        path: &str,
-        recursive: bool,
-        limit: Option<usize>,
-        start_after: Option<&str>,
-    ) -> Self {
-        let delimiter = if recursive { "" } else { "/" };
+impl S3ListerV1 {
+    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let first_marker = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after))
+            .unwrap_or_default();
+
         Self {
             core,
 
             path: path.to_string(),
+            args,
             delimiter,
-            limit,
-            start_after: start_after.map(String::from),
+            first_marker,
         }
     }
 }
 
-impl oio::PageList for S3Lister {
+impl oio::PageList for S3ListerV1 {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .s3_list_objects(
+            .s3_list_objects_v1(
+                &self.path,
+                // `marker` is used as `start-after` for the first page.
+                if !ctx.token.is_empty() {
+                    &ctx.token
+                } else {
+                    &self.first_marker
+                },
+                self.delimiter,
+                self.args.limit(),
+            )
+            .await?;
+
+        if resp.status() != http::StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+        let bs = resp.into_body();
+
+        let output: ListObjectsOutputV1 = de::from_reader(bs.reader())
+            .map_err(new_xml_deserialize_error)
+            // Allow S3 list to retry on XML deserialization errors.
+            //
+            // This is because the S3 list API may return incomplete XML data under high load.
+            // We are confident that our XML decoding logic is correct. When this error occurs,
+            // we allow retries to obtain the correct data.
+            .map_err(Error::set_temporary)?;
+
+        // Try our best to check whether this list is done.
+        //
+        // - Check `is_truncated`
+        // - Check the length of `common_prefixes` and `contents` (very rare case)
+        ctx.done = if let Some(is_truncated) = output.is_truncated {
+            !is_truncated
+        } else {
+            output.common_prefixes.is_empty() && output.contents.is_empty()
+        };
+        // Try out best to find the next marker.
+        //
+        // - Check `next-marker`
+        // - Check the last object key
+        // - Check the last common prefix
+        ctx.token = if let Some(next_marker) = &output.next_marker {
+            next_marker.clone()
+        } else if let Some(content) = output.contents.last() {
+            content.key.clone()
+        } else if let Some(prefix) = output.common_prefixes.last() {
+            prefix.prefix.clone()
+        } else {
+            "".to_string()
+        };
+
+        for prefix in output.common_prefixes {
+            let de = oio::Entry::new(
+                &build_rel_path(&self.core.root, &prefix.prefix),
+                Metadata::new(EntryMode::DIR),
+            );
+
+            ctx.entries.push_back(de);
+        }
+
+        for object in output.contents {
+            let mut path = build_rel_path(&self.core.root, &object.key);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            meta.set_is_current(true);
+            if let Some(etag) = &object.etag {
+                meta.set_etag(etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
+            meta.set_content_length(object.size);
+
+            // object.last_modified provides more precise time that contains
+            // nanosecond, let's trim them.
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
+
+            let de = oio::Entry::with(path, meta);
+            ctx.entries.push_back(de);
+        }
+
+        Ok(())
+    }
+}
+
+/// S3ListerV2 implements ListObjectV2 for s3 backend.
+pub struct S3ListerV2 {
+    core: Arc<S3Core>,
+
+    path: String,
+    args: OpList,
+
+    delimiter: &'static str,
+    abs_start_after: Option<String>,
+}
+
+impl S3ListerV2 {
+    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let abs_start_after = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after));
+
+        Self {
+            core,
+
+            path: path.to_string(),
+            args,
+            delimiter,
+            abs_start_after,
+        }
+    }
+}
+
+impl oio::PageList for S3ListerV2 {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        let resp = self
+            .core
+            .s3_list_objects_v2(
                 &self.path,
                 &ctx.token,
                 self.delimiter,
-                self.limit,
+                self.args.limit(),
                 // start after should only be set for the first page.
                 if ctx.token.is_empty() {
-                    self.start_after.clone()
+                    self.abs_start_after.clone()
                 } else {
                     None
                 },
@@ -85,7 +209,7 @@ impl oio::PageList for S3Lister {
         }
         let bs = resp.into_body();
 
-        let output: ListObjectsOutput = de::from_reader(bs.reader())
+        let output: ListObjectsOutputV2 = de::from_reader(bs.reader())
             .map_err(new_xml_deserialize_error)
             // Allow S3 list to retry on XML deserialization errors.
             //
@@ -124,7 +248,7 @@ impl oio::PageList for S3Lister {
             }
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
-
+            meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
                 meta.set_content_md5(etag.trim_matches('"'));
@@ -143,35 +267,29 @@ impl oio::PageList for S3Lister {
     }
 }
 
-// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
+/// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
 pub struct S3ObjectVersionsLister {
     core: Arc<S3Core>,
 
     prefix: String,
+    args: OpList,
+
     delimiter: &'static str,
-    limit: Option<usize>,
-    start_after: String,
-    abs_start_after: String,
+    abs_start_after: Option<String>,
 }
 
 impl S3ObjectVersionsLister {
-    pub fn new(
-        core: Arc<S3Core>,
-        path: &str,
-        recursive: bool,
-        limit: Option<usize>,
-        start_after: Option<&str>,
-    ) -> Self {
-        let delimiter = if recursive { "" } else { "/" };
-        let start_after = start_after.unwrap_or_default().to_owned();
-        let abs_start_after = build_abs_path(core.root.as_str(), start_after.as_str());
+    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let abs_start_after = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after));
 
         Self {
             core,
             prefix: path.to_string(),
+            args,
             delimiter,
-            limit,
-            start_after,
             abs_start_after,
         }
     }
@@ -182,8 +300,8 @@ impl oio::PageList for S3ObjectVersionsLister {
         let markers = ctx.token.rsplit_once(" ");
         let (key_marker, version_id_marker) = if let Some(data) = markers {
             data
-        } else if !self.start_after.is_empty() {
-            (self.abs_start_after.as_str(), "")
+        } else if let Some(start_after) = &self.abs_start_after {
+            (start_after.as_str(), "")
         } else {
             ("", "")
         };
@@ -193,7 +311,7 @@ impl oio::PageList for S3ObjectVersionsLister {
             .s3_list_object_versions(
                 &self.prefix,
                 self.delimiter,
-                self.limit,
+                self.args.limit(),
                 key_marker,
                 version_id_marker,
             )
@@ -232,6 +350,14 @@ impl oio::PageList for S3ObjectVersionsLister {
         }
 
         for version_object in output.version {
+            // `list` must be additive, so we need to include the latest version object
+            // even if `versions` is not enabled.
+            //
+            // Here we skip all non-latest version objects if `versions` is not enabled.
+            if !(self.args.versions() || version_object.is_latest) {
+                continue;
+            }
+
             let mut path = build_rel_path(&self.core.root, &version_object.key);
             if path.is_empty() {
                 path = "/".to_owned();
@@ -239,6 +365,7 @@ impl oio::PageList for S3ObjectVersionsLister {
 
             let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_version(&version_object.version_id);
+            meta.set_is_current(version_object.is_latest);
             meta.set_content_length(version_object.size);
             meta.set_last_modified(parse_datetime_from_rfc3339(
                 version_object.last_modified.as_str(),
@@ -250,6 +377,26 @@ impl oio::PageList for S3ObjectVersionsLister {
 
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
+        }
+
+        if self.args.deleted() {
+            for delete_marker in output.delete_marker {
+                let mut path = build_rel_path(&self.core.root, &delete_marker.key);
+                if path.is_empty() {
+                    path = "/".to_owned();
+                }
+
+                let mut meta = Metadata::new(EntryMode::FILE);
+                meta.set_version(&delete_marker.version_id);
+                meta.set_is_deleted(true);
+                meta.set_is_current(delete_marker.is_latest);
+                meta.set_last_modified(parse_datetime_from_rfc3339(
+                    delete_marker.last_modified.as_str(),
+                )?);
+
+                let entry = oio::Entry::new(&path, meta);
+                ctx.entries.push_back(entry);
+            }
         }
 
         Ok(())

@@ -18,20 +18,19 @@
 [package]
 name = "opendal-php"
 publish = false
-version = "0.1.10"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
+rust-version = "1.80"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-ext-php-rs = "0.11.2"
+ext-php-rs = "0.13.1"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   # These are default features before v0.46. TODO: change to optional features

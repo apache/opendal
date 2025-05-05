@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-webhdfs")]
+mod delete;
+#[cfg(feature = "services-webhdfs")]
 mod error;
 #[cfg(feature = "services-webhdfs")]
 mod lister;
@@ -28,6 +30,9 @@ mod writer;
 mod backend;
 #[cfg(feature = "services-webhdfs")]
 pub use backend::WebhdfsBuilder as Webhdfs;
+
+#[cfg(feature = "services-webhdfs")]
+mod core;
 
 mod config;
 pub use config::WebhdfsConfig;

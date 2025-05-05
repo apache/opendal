@@ -84,7 +84,7 @@ fn operator_is_exist<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -
     }
 
     let path = path.as_str();
-    let res = op.is_exist(path);
+    let res = op.exists(path);
     match res {
         Ok(exist) => Ok(exist),
         Err(e) => Err(LuaError::external(e)),
@@ -165,7 +165,7 @@ fn operator_read<'a>(
     let path = path.as_str();
     let data = op.read(path);
     match data {
-        Ok(data) => Ok(lua.create_string(&data.to_vec())?),
+        Ok(data) => Ok(lua.create_string(data.to_vec())?),
         Err(e) => Err(LuaError::external(e)),
     }
 }

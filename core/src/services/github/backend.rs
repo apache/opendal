@@ -26,6 +26,7 @@ use log::debug;
 
 use super::core::Entry;
 use super::core::GithubCore;
+use super::delete::GithubDeleter;
 use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
@@ -36,6 +37,8 @@ use crate::*;
 
 impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GithubBuilder {
             config: self,
@@ -49,6 +52,8 @@ impl Configurator for GithubConfig {
 #[derive(Default)]
 pub struct GithubBuilder {
     config: GithubConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -105,6 +110,8 @@ impl GithubBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -140,22 +147,48 @@ impl Builder for GithubBuilder {
 
         debug!("backend use repo {}", &self.config.repo);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Github)
-            })?
-        };
-
         Ok(GithubBackend {
             core: Arc::new(GithubCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Github)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_etag: true,
+
+                            read: true,
+
+                            create_dir: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_etag: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 token: self.config.token.clone(),
                 owner: self.config.owner.clone(),
                 repo: self.config.repo.clone(),
-                client,
             }),
         })
     }
@@ -169,40 +202,16 @@ pub struct GithubBackend {
 
 impl Access for GithubBackend {
     type Reader = HttpBody;
-
     type Writer = GithubWriters;
-
     type Lister = oio::PageLister<GithubLister>;
-
+    type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type BlockingReader = ();
-
     type BlockingWriter = ();
-
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Github)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                create_dir: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-
-                list: true,
-                list_with_recursive: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -271,11 +280,11 @@ impl Access for GithubBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        match self.core.delete(path).await {
-            Ok(_) => Ok(RpDelete::default()),
-            Err(err) => Err(err),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GithubDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

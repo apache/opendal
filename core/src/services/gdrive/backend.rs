@@ -19,15 +19,13 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use bytes::Bytes;
 use chrono::Utc;
-use http::Request;
 use http::Response;
 use http::StatusCode;
-use serde_json::json;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::delete::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
@@ -43,31 +41,14 @@ impl Access for GdriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = oio::PageLister<GdriveLister>;
+    type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Gdrive)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                list: true,
-
-                write: true,
-
-                create_dir: true,
-                delete: true,
-                rename: true,
-                copy: true,
-                ..Default::default()
-            });
-
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -88,11 +69,12 @@ impl Access for GdriveBackend {
         let gdrive_file: GdriveFile =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        let file_type = if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
         };
-
-        let mut meta = Metadata::new(EntryMode::FILE);
+        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
         if let Some(v) = gdrive_file.size {
             meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
@@ -133,24 +115,11 @@ impl Access for GdriveBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let path = build_abs_path(&self.core.root, path);
-        let file_id = self.core.path_cache.get(&path).await?;
-        let file_id = if let Some(id) = file_id {
-            id
-        } else {
-            return Ok(RpDelete::default());
-        };
-
-        let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
-        if status != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        self.core.path_cache.remove(&path).await;
-
-        Ok(RpDelete::default())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -160,49 +129,7 @@ impl Access for GdriveBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = build_abs_path(&self.core.root, from);
-
-        let from_file_id = self.core.path_cache.get(&from).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            "the file to copy does not exist",
-        ))?;
-
-        let to_name = get_basename(to);
-        let to_path = build_abs_path(&self.core.root, to);
-        let to_parent_id = self
-            .core
-            .path_cache
-            .ensure_dir(get_parent(&to_path))
-            .await?;
-
-        // copy will overwrite `to`, delete it if exist
-        if let Some(id) = self.core.path_cache.get(&to_path).await? {
-            let resp = self.core.gdrive_trash(&id).await?;
-            let status = resp.status();
-            if status != StatusCode::OK {
-                return Err(parse_error(resp));
-            }
-
-            self.core.path_cache.remove(&to_path).await;
-        }
-
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files/{}/copy",
-            from_file_id
-        );
-
-        let request_body = &json!({
-            "name": to_name,
-            "parents": [to_parent_id],
-        });
-        let body = Buffer::from(Bytes::from(request_body.to_string()));
-
-        let mut req = Request::post(&url)
-            .body(body)
-            .map_err(new_request_build_error)?;
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.client.send(req).await?;
+        let resp = self.core.gdrive_copy(from, to).await?;
 
         match resp.status() {
             StatusCode::OK => Ok(RpCopy::default()),

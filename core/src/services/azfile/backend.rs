@@ -27,11 +27,12 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::core::AzfileCore;
+use super::delete::AzfileDeleter;
 use super::error::parse_error;
+use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
-use crate::services::azfile::lister::AzfileLister;
 use crate::services::AzfileConfig;
 use crate::*;
 
@@ -40,6 +41,8 @@ const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzfileBuilder {
             config: self,
@@ -53,6 +56,8 @@ impl Configurator for AzfileConfig {
 #[derive(Default, Clone)]
 pub struct AzfileBuilder {
     config: AzfileConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -132,6 +137,8 @@ impl AzfileBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -155,15 +162,6 @@ impl Builder for AzfileBuilder {
                 .with_context("service", Scheme::Azfile)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Azfile)
-            })?
-        };
 
         let account_name_option = self
             .config
@@ -191,10 +189,50 @@ impl Builder for AzfileBuilder {
         let signer = AzureStorageSigner::new();
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Azfile)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            write: true,
+                            create_dir: true,
+                            delete: true,
+                            rename: true,
+
+                            list: true,
+                            list_has_etag: true,
+                            list_has_last_modified: true,
+                            list_has_content_length: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 endpoint,
                 loader: cred_loader,
-                client,
                 signer,
                 share_name: self.config.share_name.clone(),
             }),
@@ -233,30 +271,14 @@ impl Access for AzfileBackend {
     type Reader = HttpBody;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
+    type Deleter = oio::OneShotDeleter<AzfileDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azfile)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                create_dir: true,
-                delete: true,
-                rename: true,
-
-                list: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -329,18 +351,11 @@ impl Access for AzfileBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
-            self.core.azfile_delete_dir(path).await?
-        } else {
-            self.core.azfile_delete_file(path).await?
-        };
-
-        let status = resp.status();
-        match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(AzfileDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

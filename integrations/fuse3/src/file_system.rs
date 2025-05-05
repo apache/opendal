@@ -33,7 +33,6 @@ use opendal::raw::normalize_path;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
-use opendal::Metakey;
 use opendal::Operator;
 use sharded_slab::Slab;
 use tokio::sync::Mutex;
@@ -558,7 +557,7 @@ impl PathFilesystem for Filesystem {
         if let Some(inner_writer) = file.inner_writer {
             let mut lock = inner_writer.lock().await;
             let res = lock.writer.close().await.map_err(opendal_error2errno);
-            return res;
+            return res.map(|_| ());
         }
 
         if matches!(path, Some(ref p) if p != &file.path) {
@@ -717,7 +716,6 @@ impl PathFilesystem for Filesystem {
         let children = self
             .op
             .lister_with(&path)
-            .metakey(Metakey::ContentLength | Metakey::LastModified | Metakey::Mode)
             .await
             .map_err(opendal_error2errno)?
             .filter_map(move |entry| {

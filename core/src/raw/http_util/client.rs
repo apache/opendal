@@ -15,20 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
+use bytes::Bytes;
 use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
+use http_body::Frame;
+use http_body::SizeHint;
 use raw::oio::Read;
+use std::sync::LazyLock;
 
 use super::parse_content_encoding;
 use super::parse_content_length;
@@ -40,12 +47,17 @@ use crate::*;
 /// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
 /// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
 #[allow(dead_code)]
-pub(crate) static GLOBAL_REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
+pub(crate) static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> =
+    LazyLock::new(reqwest::Client::new);
 
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
-/// HttpClient that used across opendal.
+/// A HTTP client instance for OpenDAL's services.
+///
+/// # Notes
+///
+/// * A http client must support redirections that follows 3xx response.
 #[derive(Clone)]
 pub struct HttpClient {
     fetcher: HttpFetcher,
@@ -58,17 +70,29 @@ impl Debug for HttpClient {
     }
 }
 
+impl Default for HttpClient {
+    fn default() -> Self {
+        Self {
+            fetcher: Arc::new(GLOBAL_REQWEST_CLIENT.clone()),
+        }
+    }
+}
+
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let fetcher = Arc::new(reqwest::Client::new());
-        Ok(Self { fetcher })
+        Ok(Self::default())
     }
 
     /// Construct `Self` with given [`reqwest::Client`]
     pub fn with(client: impl HttpFetch) -> Self {
         let fetcher = Arc::new(client);
         Self { fetcher }
+    }
+
+    /// Get the inner http client.
+    pub(crate) fn into_inner(self) -> HttpFetcher {
+        self.fetcher
     }
 
     /// Build a new http client in async context.
@@ -81,14 +105,16 @@ impl HttpClient {
         Ok(Self { fetcher })
     }
 
-    /// Send a request in async way.
+    /// Send a request and consume response.
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         let (parts, mut body) = self.fetch(req).await?.into_parts();
         let buffer = body.read_all().await?;
         Ok(Response::from_parts(parts, buffer))
     }
 
-    /// Fetch a request in async way.
+    /// Fetch a request and return a streamable [`HttpBody`].
+    ///
+    /// Services can use [`HttpBody`] as [`Access::Read`].
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         self.fetcher.fetch(req).await
     }
@@ -135,12 +161,14 @@ impl HttpFetch for reqwest::Client {
 
         let (parts, body) = req.into_parts();
 
-        let mut req_builder = self
-            .request(
-                parts.method,
-                reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
-            )
-            .headers(parts.headers);
+        let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "request url is invalid")
+                .with_operation("http_util::Client::send::fetch")
+                .with_context("url", uri.to_string())
+                .set_source(err)
+        })?;
+
+        let mut req_builder = self.request(parts.method, url).headers(parts.headers);
 
         // Client under wasm doesn't support set version.
         #[cfg(not(target_arch = "wasm32"))]
@@ -152,7 +180,7 @@ impl HttpFetch for reqwest::Client {
         if !body.is_empty() {
             #[cfg(not(target_arch = "wasm32"))]
             {
-                req_builder = req_builder.body(reqwest::Body::wrap_stream(body))
+                req_builder = req_builder.body(reqwest::Body::wrap(HttpBufferBody(body)))
             }
             #[cfg(target_arch = "wasm32")]
             {
@@ -220,4 +248,29 @@ fn is_temporary_error(err: &reqwest::Error) -> bool {
     err.is_body() ||
     // error decoding response body, for example, connection reset.
     err.is_decode()
+}
+
+struct HttpBufferBody(Buffer);
+
+impl http_body::Body for HttpBufferBody {
+    type Data = Bytes;
+    type Error = Infallible;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        match self.0.next() {
+            Some(bs) => Poll::Ready(Some(Ok(Frame::data(bs)))),
+            None => Poll::Ready(None),
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        SizeHint::with_exact(self.0.len() as u64)
+    }
 }

@@ -87,7 +87,7 @@ fn intern_read_next_bytes(
     match reader
         .next()
         .transpose()
-        .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, &err.to_string()))?
+        .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()))?
     {
         None => Ok(JObject::null().into_raw()),
         Some(content) => {

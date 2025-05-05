@@ -18,15 +18,11 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use futures::AsyncReadExt;
-use futures::AsyncWriteExt;
 use mongodb::bson::doc;
-use mongodb::gridfs::GridFsBucket;
-use mongodb::options::ClientOptions;
-use mongodb::options::GridFsBucketOptions;
 use tokio::sync::OnceCell;
 
 use super::config::GridfsConfig;
+use super::core::GridFsCore;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
@@ -157,7 +153,7 @@ impl Builder for GridfsBuilder {
                 .as_str(),
         );
 
-        Ok(GridFsBackend::new(Adapter {
+        Ok(GridFsBackend::new(GridFsCore {
             connection_string: conn,
             database,
             bucket,
@@ -168,119 +164,4 @@ impl Builder for GridfsBuilder {
     }
 }
 
-pub type GridFsBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    connection_string: String,
-    database: String,
-    bucket: String,
-    chunk_size: u32,
-    bucket_instance: OnceCell<GridFsBucket>,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("database", &self.database)
-            .field("bucket", &self.bucket)
-            .field("chunk_size", &self.chunk_size)
-            .finish()
-    }
-}
-
-impl Adapter {
-    async fn get_bucket(&self) -> Result<&GridFsBucket> {
-        self.bucket_instance
-            .get_or_try_init(|| async {
-                let client_options = ClientOptions::parse(&self.connection_string)
-                    .await
-                    .map_err(parse_mongodb_error)?;
-                let client =
-                    mongodb::Client::with_options(client_options).map_err(parse_mongodb_error)?;
-                let bucket_options = GridFsBucketOptions::builder()
-                    .bucket_name(Some(self.bucket.clone()))
-                    .chunk_size_bytes(Some(self.chunk_size))
-                    .build();
-                let bucket = client
-                    .database(&self.database)
-                    .gridfs_bucket(bucket_options);
-                Ok(bucket)
-            })
-            .await
-    }
-}
-
-impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
-            Scheme::Gridfs,
-            &format!("{}/{}", self.database, self.bucket),
-            Capability {
-                read: true,
-                write: true,
-                ..Default::default()
-            },
-        )
-    }
-
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let bucket = self.get_bucket().await?;
-        let filter = doc! { "filename": path };
-        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
-            return Ok(None);
-        };
-
-        let mut destination = Vec::new();
-        let file_id = doc.id;
-        let mut stream = bucket
-            .open_download_stream(file_id)
-            .await
-            .map_err(parse_mongodb_error)?;
-        stream
-            .read_to_end(&mut destination)
-            .await
-            .map_err(new_std_io_error)?;
-        Ok(Some(Buffer::from(destination)))
-    }
-
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let bucket = self.get_bucket().await?;
-
-        // delete old file if exists
-        let filter = doc! { "filename": path };
-        if let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? {
-            let file_id = doc.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        };
-
-        // set new file
-        let mut upload_stream = bucket
-            .open_upload_stream(path)
-            .await
-            .map_err(parse_mongodb_error)?;
-        upload_stream
-            .write_all(&value.to_vec())
-            .await
-            .map_err(new_std_io_error)?;
-        upload_stream.close().await.map_err(new_std_io_error)?;
-
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        let bucket = self.get_bucket().await?;
-        let filter = doc! { "filename": path };
-        let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
-            return Ok(());
-        };
-
-        let file_id = doc.id;
-        bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        Ok(())
-    }
-}
-
-fn parse_mongodb_error(err: mongodb::error::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err)
-}
+pub type GridFsBackend = kv::Backend<GridFsCore>;

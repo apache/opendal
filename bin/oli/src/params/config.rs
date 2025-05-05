@@ -24,7 +24,7 @@ pub struct ConfigParams {
     #[arg(
         long,
         default_value = default_config_path(),
-        value_parser = clap::value_parser!(PathBuf)
+        value_parser = clap::value_parser!(PathBuf),
     )]
     pub config: PathBuf,
 }

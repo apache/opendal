@@ -61,13 +61,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
 
       - name: Corepack
         working-directory: bindings/nodejs
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs

@@ -15,26 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use super::backend::RepoType;
 use crate::raw::*;
 use crate::*;
 
 pub struct HuggingfaceCore {
+    pub info: Arc<AccessorInfo>,
+
     pub repo_type: RepoType,
     pub repo_id: String,
     pub revision: String,
     pub root: String,
     pub token: Option<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for HuggingfaceCore {
@@ -66,7 +66,8 @@ impl HuggingfaceCore {
         };
 
         let mut req = Request::post(&url);
-
+        // Inject operation to the request.
+        req = req.extension(Operation::Stat);
         if let Some(token) = &self.token {
             let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -80,7 +81,7 @@ impl HuggingfaceCore {
             .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
@@ -108,7 +109,8 @@ impl HuggingfaceCore {
         }
 
         let mut req = Request::get(&url);
-
+        // Inject operation to the request.
+        req = req.extension(Operation::List);
         if let Some(token) = &self.token {
             let auth_header_content = format_authorization_by_bearer(token)?;
             req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -116,7 +118,7 @@ impl HuggingfaceCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn hf_resolve(
@@ -154,10 +156,11 @@ impl HuggingfaceCore {
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
-
+        // Inject operation to the request.
+        let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 }
 

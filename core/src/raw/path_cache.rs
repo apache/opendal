@@ -47,7 +47,7 @@ pub trait PathQuery {
 ///
 /// OpenDAL is designed for path based storage systems, such as S3, HDFS, etc. But there are many
 /// services that are not path based, such as OneDrive, Google Drive, etc. For these services, we
-/// lookup files based on id. The lookup of id is very expensive, so we cache the path to id mapping
+/// look up files based on id. The lookup of id is very expensive, so we cache the path to id mapping
 /// in PathCacher.
 ///
 /// # Behavior

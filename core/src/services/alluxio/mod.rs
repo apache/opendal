@@ -18,6 +18,8 @@
 #[cfg(feature = "services-alluxio")]
 mod core;
 #[cfg(feature = "services-alluxio")]
+mod delete;
+#[cfg(feature = "services-alluxio")]
 mod error;
 #[cfg(feature = "services-alluxio")]
 mod lister;
@@ -30,4 +32,5 @@ mod backend;
 pub use backend::AlluxioBuilder as Alluxio;
 
 mod config;
+
 pub use config::AlluxioConfig;

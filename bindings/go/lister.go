@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Check verifies if the operator is functioning correctly.
@@ -312,7 +311,7 @@ var withOperatorList = withFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorList {
 	return func(op *opendalOperator, path string) (*opendalLister, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
 		}
@@ -400,7 +399,7 @@ var withEntryName = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&e),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })
 
@@ -419,6 +418,6 @@ var withEntryPath = withFFI(ffiOpts{
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&e),
 		)
-		return unix.BytePtrToString(bytePtr)
+		return BytePtrToString(bytePtr)
 	}
 })

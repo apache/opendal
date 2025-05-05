@@ -21,9 +21,9 @@ use bytes::Buf;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::core::DbfsCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::dbfs::core::DbfsCore;
 use crate::*;
 
 pub struct DbfsLister {

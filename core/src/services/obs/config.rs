@@ -36,6 +36,8 @@ pub struct ObsConfig {
     pub secret_access_key: Option<String>,
     /// Bucket for obs.
     pub bucket: Option<String>,
+    /// Is bucket versioning enabled for this bucket
+    pub enable_versioning: bool,
 }
 
 impl Debug for ObsConfig {

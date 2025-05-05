@@ -17,16 +17,20 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::backend::VercelArtifactsBackend;
-use crate::raw::Access;
+use super::core::VercelArtifactsCore;
 use crate::raw::HttpClient;
+use crate::raw::{Access, AccessorInfo};
 use crate::services::VercelArtifactsConfig;
 use crate::Scheme;
 use crate::*;
 
 impl Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         VercelArtifactsBuilder {
             config: self,
@@ -40,6 +44,8 @@ impl Configurator for VercelArtifactsConfig {
 #[derive(Default)]
 pub struct VercelArtifactsBuilder {
     config: VercelArtifactsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -66,6 +72,8 @@ impl VercelArtifactsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, http_client: HttpClient) -> Self {
         self.http_client = Some(http_client);
         self
@@ -77,19 +85,41 @@ impl Builder for VercelArtifactsBuilder {
     type Config = VercelArtifactsConfig;
 
     fn build(self) -> Result<impl Access> {
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::VercelArtifacts)
-            })?
-        };
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::VercelArtifacts)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_cache_control: true,
+                stat_has_content_length: true,
+                stat_has_content_type: true,
+                stat_has_content_encoding: true,
+                stat_has_content_range: true,
+                stat_has_etag: true,
+                stat_has_content_md5: true,
+                stat_has_last_modified: true,
+                stat_has_content_disposition: true,
+
+                read: true,
+
+                write: true,
+
+                shared: true,
+
+                ..Default::default()
+            });
+
+        // allow deprecated api here for compatibility
+        #[allow(deprecated)]
+        if let Some(client) = self.http_client {
+            info.update_http_client(|_| client);
+        }
 
         match self.config.access_token.clone() {
             Some(access_token) => Ok(VercelArtifactsBackend {
-                access_token,
-                client,
+                core: Arc::new(VercelArtifactsCore {
+                    info: Arc::new(info),
+                    access_token,
+                }),
             }),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }

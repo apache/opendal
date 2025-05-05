@@ -23,6 +23,7 @@ use http::StatusCode;
 use super::core::B2Core;
 use super::core::StartLargeFileResponse;
 use super::core::UploadPartResponse;
+use super::core::UploadResponse;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -44,10 +45,26 @@ impl B2Writer {
             op,
         }
     }
+
+    pub fn parse_body_into_meta(path: &str, resp: UploadResponse) -> Metadata {
+        let mut meta = Metadata::new(EntryMode::from_path(path));
+
+        if let Some(md5) = resp.content_md5 {
+            meta.set_content_md5(&md5);
+        }
+
+        if let Some(content_type) = resp.content_type {
+            meta.set_content_type(&content_type);
+        }
+
+        meta.set_content_length(resp.content_length);
+
+        meta
+    }
 }
 
 impl oio::MultipartWrite for B2Writer {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self
             .core
             .upload_file(&self.path, Some(size), &self.op, body)
@@ -56,7 +73,16 @@ impl oio::MultipartWrite for B2Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                let bs = resp.into_body();
+
+                let result: UploadResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+                let meta = Self::parse_body_into_meta(&self.path, result);
+
+                Ok(meta)
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -113,7 +139,11 @@ impl oio::MultipartWrite for B2Writer {
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
         let part_sha1_array = parts
             .iter()
             .map(|p| {
@@ -134,7 +164,16 @@ impl oio::MultipartWrite for B2Writer {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => {
+                let bs = resp.into_body();
+
+                let result: UploadResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+                let meta = Self::parse_body_into_meta(&self.path, result);
+
+                Ok(meta)
+            }
             _ => Err(parse_error(resp)),
         }
     }

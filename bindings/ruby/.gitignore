@@ -4,10 +4,9 @@
 /coverage/
 /doc/
 /pkg/
-/spec/reports/
 /tmp/
+/target/
 *.bundle
 *.so
-.rspec_status
 Gemfile.lock
 Cargo.lock

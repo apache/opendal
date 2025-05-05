@@ -106,25 +106,26 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
 impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
+    type Deleter = A::Deleter;
+    type BlockingReader = A::BlockingReader;
+    type BlockingWriter = A::BlockingWriter;
     type BlockingLister = A::BlockingLister;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.0
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.inner().read(path, args).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner()
             .write(path, opwrite_with_mime(path, args))
             .await
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner()
-            .blocking_write(path, opwrite_with_mime(path, args))
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -134,14 +135,8 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
             .map(|rp| rpstat_with_mime(path, rp))
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner()
-            .blocking_stat(path, args)
-            .map(|rp| rpstat_with_mime(path, rp))
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner().read(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner().delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -150,6 +145,21 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner().blocking_read(path, args)
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner()
+            .blocking_write(path, opwrite_with_mime(path, args))
+    }
+
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner()
+            .blocking_stat(path, args)
+            .map(|rp| rpstat_with_mime(path, rp))
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner().blocking_delete()
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -161,8 +171,9 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 mod tests {
     use super::*;
     use crate::services::Memory;
-    use crate::Metakey;
+    use crate::Metadata;
     use crate::Operator;
+    use futures::TryStreamExt;
 
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";
@@ -196,10 +207,20 @@ mod tests {
             Some(CUSTOM)
         );
 
-        let entries = op.list_with("").metakey(Metakey::Complete).await.unwrap();
-        assert_eq!(entries[0].metadata().content_type(), Some(HTML));
-        assert_eq!(entries[1].metadata().content_type(), None);
-        assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));
+        let entries: Vec<Metadata> = op
+            .lister_with("")
+            .await
+            .unwrap()
+            .and_then(|entry| {
+                let op = op.clone();
+                async move { op.stat(entry.path()).await }
+            })
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(entries[0].content_type(), Some(HTML));
+        assert_eq!(entries[1].content_type(), None);
+        assert_eq!(entries[2].content_type(), Some(CUSTOM));
     }
 
     #[test]
@@ -222,9 +243,17 @@ mod tests {
             .unwrap();
         assert_eq!(op.stat("test2.html").unwrap().content_type(), Some(CUSTOM));
 
-        let entries = op.list_with("").metakey(Metakey::Complete).call().unwrap();
-        assert_eq!(entries[0].metadata().content_type(), Some(HTML));
-        assert_eq!(entries[1].metadata().content_type(), None);
-        assert_eq!(entries[2].metadata().content_type(), Some(CUSTOM));
+        let entries: Vec<Metadata> = op
+            .lister_with("")
+            .call()
+            .unwrap()
+            .map(|entry| {
+                let op = op.clone();
+                op.stat(entry.unwrap().path()).unwrap()
+            })
+            .collect();
+        assert_eq!(entries[0].content_type(), Some(HTML));
+        assert_eq!(entries[1].content_type(), None);
+        assert_eq!(entries[2].content_type(), Some(CUSTOM));
     }
 }

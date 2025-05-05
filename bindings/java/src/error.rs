@@ -83,7 +83,7 @@ impl From<opendal::Error> for Error {
 
 impl From<jni::errors::Error> for Error {
     fn from(err: jni::errors::Error) -> Self {
-        opendal::Error::new(ErrorKind::Unexpected, &err.to_string()).into()
+        opendal::Error::new(ErrorKind::Unexpected, err.to_string()).into()
     }
 }
 

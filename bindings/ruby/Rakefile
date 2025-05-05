@@ -17,18 +17,57 @@
 
 # frozen_string_literal: true
 
+require "bundler/gem_tasks"
 require "rake/testtask"
 require "rake/extensiontask"
-require "rspec/core/rake_task"
-require "bundler/gem_tasks"
 require "standard/rake"
 
-RSpec::Core::RakeTask.new(:spec)
+GEMSPEC = Gem::Specification.load("opendal.gemspec")
+CRATE_PACKAGE_NAME = "opendal-ruby"
 
-Rake::ExtensionTask.new do |ext|
+Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
   ext.lib_dir = "lib/opendal_ruby"
 end
 
-task default: %i[clobber compile spec standard]
+Rake::Task[:test].prerequisites << :compile
+
+Rake::TestTask.new do |t|
+  t.libs << "lib"
+  t.libs << "test"
+  t.pattern = "test/**/*_test.rb"
+end
+
+namespace :doc do
+  task default: %i[rustdoc yard]
+
+  desc "Generate YARD documentation"
+  task :yard do
+    run("bundle exec yard doc --plugin rustdoc -- lib tmp/doc/opendal_ruby.json")
+  end
+
+  desc "Generate Rust documentation as JSON"
+  task :rustdoc do
+    target_dir = "tmp"
+    ext_dir = "opendal-ruby"
+    run(<<~CMD)
+      cargo +nightly-2024-08-19 rustdoc \
+        --target-dir #{target_dir} \
+        --package #{ext_dir} \
+        -Zunstable-options \
+        --output-format json \
+        --lib \
+        -- \
+        --document-private-items
+    CMD
+  end
+
+  def run(cmd)
+    system(cmd)
+    fail if $? != 0
+  end
+end
+
+task doc: "doc:default"
+task default: %i[clobber compile test standard]

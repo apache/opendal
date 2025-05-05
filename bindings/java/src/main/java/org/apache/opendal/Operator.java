@@ -31,17 +31,28 @@ public class Operator extends NativeObject {
     public final OperatorInfo info;
 
     /**
+     * Construct an OpenDAL blocking operator.
+     *
+     * @param config the config of the underneath service to access data from.
+     */
+    public static Operator of(ServiceConfig config) {
+        try (final AsyncOperator operator = AsyncOperator.of(config)) {
+            return operator.blocking();
+        }
+    }
+
+    /**
      * Construct an OpenDAL blocking operator:
      *
      * <p>
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
      * and see what config options each service supports.
      *
-     * @param schema the name of the underneath service to access data from.
+     * @param scheme the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public static Operator of(String schema, Map<String, String> map) {
-        try (final AsyncOperator operator = AsyncOperator.of(schema, map)) {
+    public static Operator of(String scheme, Map<String, String> map) {
+        try (final AsyncOperator operator = AsyncOperator.of(scheme, map)) {
             return operator.blocking();
         }
     }
@@ -65,11 +76,23 @@ public class Operator extends NativeObject {
     }
 
     public void write(String path, byte[] content) {
-        write(nativeHandle, path, content);
+        write(nativeHandle, path, content, WriteOptions.builder().build());
+    }
+
+    public void write(String path, String content, WriteOptions options) {
+        write(path, content.getBytes(StandardCharsets.UTF_8), options);
+    }
+
+    public void write(String path, byte[] content, WriteOptions options) {
+        write(nativeHandle, path, content, options);
     }
 
     public OperatorOutputStream createOutputStream(String path) {
         return new OperatorOutputStream(this, path);
+    }
+
+    public OperatorOutputStream createOutputStream(String path, int maxBytes) {
+        return new OperatorOutputStream(this, path, maxBytes);
     }
 
     public byte[] read(String path) {
@@ -105,7 +128,11 @@ public class Operator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return Arrays.asList(list(nativeHandle, path));
+        return list(path, ListOptions.builder().build());
+    }
+
+    public List<Entry> list(String path, ListOptions options) {
+        return Arrays.asList(list(nativeHandle, path, options));
     }
 
     @Override
@@ -113,7 +140,7 @@ public class Operator extends NativeObject {
 
     private static native long duplicate(long op);
 
-    private static native void write(long op, String path, byte[] content);
+    private static native void write(long op, String path, byte[] content, WriteOptions options);
 
     private static native byte[] read(long op, String path);
 
@@ -129,5 +156,5 @@ public class Operator extends NativeObject {
 
     private static native void removeAll(long op, String path);
 
-    private static native Entry[] list(long op, String path);
+    private static native Entry[] list(long op, String path, ListOptions options);
 }

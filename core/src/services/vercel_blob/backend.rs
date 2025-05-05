@@ -37,6 +37,8 @@ use crate::*;
 
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         VercelBlobBuilder {
             config: self,
@@ -51,6 +53,7 @@ impl Configurator for VercelBlobConfig {
 pub struct VercelBlobBuilder {
     config: VercelBlobConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -94,6 +97,8 @@ impl VercelBlobBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -118,20 +123,50 @@ impl Builder for VercelBlobBuilder {
                 .with_context("service", Scheme::VercelBlob));
         };
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::VercelBlob)
-            })?
-        };
-
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::VercelBlob)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_type: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_has_content_type: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+                            list_has_content_disposition: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 token,
-                client,
             }),
         })
     }
@@ -147,34 +182,14 @@ impl Access for VercelBlobBackend {
     type Reader = HttpBody;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
+    type Deleter = ();
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::VercelBlob)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_multi_min_size: Some(5 * 1024 * 1024),
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -214,16 +229,11 @@ impl Access for VercelBlobBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let writer = VercelBlobWriter::new(self.core.clone(), args, path.to_string());
 
-        let w = oio::MultipartWriter::new(writer, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        self.core.delete(path).await.map(|_| RpDelete::default())
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

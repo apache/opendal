@@ -24,6 +24,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
@@ -34,6 +35,8 @@ use crate::*;
 
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         UpyunBuilder {
             config: self,
@@ -48,6 +51,7 @@ impl Configurator for UpyunConfig {
 pub struct UpyunBuilder {
     config: UpyunConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -115,6 +119,8 @@ impl UpyunBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -155,15 +161,6 @@ impl Builder for UpyunBuilder {
                 .with_context("service", Scheme::Upyun)),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Upyun)
-            })?
-        };
-
         let signer = UpyunSigner {
             operator: operator.clone(),
             password: password.clone(),
@@ -171,11 +168,59 @@ impl Builder for UpyunBuilder {
 
         Ok(UpyunBackend {
             core: Arc::new(UpyunCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Upyun)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_md5: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_disposition: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+
+                            // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
+                            write_multi_min_size: Some(1024 * 1024),
+                            write_multi_max_size: Some(50 * 1024 * 1024),
+
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 operator,
                 bucket: self.config.bucket.clone(),
                 signer,
-                client,
             }),
         })
     }
@@ -191,42 +236,14 @@ impl Access for UpyunBackend {
     type Reader = HttpBody;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
+    type Deleter = oio::OneShotDeleter<UpyunDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Upyun)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_cache_control: true,
-                write_with_content_type: true,
-
-                // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
-                write_multi_min_size: Some(1024 * 1024),
-                write_multi_max_size: Some(50 * 1024 * 1024),
-
-                delete: true,
-                rename: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -270,25 +287,18 @@ impl Access for UpyunBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let writer = UpyunWriter::new(self.core.clone(), args, path.to_string());
 
-        let w = oio::MultipartWriter::new(writer, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.delete(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpDelete::default()),
-            // Allow 404 when deleting a non-existing object
-            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(UpyunDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

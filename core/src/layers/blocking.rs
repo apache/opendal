@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use tokio::runtime::Handle;
 
 use crate::raw::*;
@@ -59,7 +57,7 @@ use crate::*;
 /// ## In async context with blocking functions
 ///
 /// If `BlockingLayer` is called in blocking function, please fetch a [`tokio::runtime::EnterGuard`]
-/// first. You can use [`Handle::try_current`] first to get the handle and than call [`Handle::enter`].
+/// first. You can use [`Handle::try_current`] first to get the handle and then call [`Handle::enter`].
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run
@@ -98,14 +96,14 @@ use crate::*;
 /// > runtime on demand.
 ///
 /// ```rust,no_run
-/// # use once_cell::sync::Lazy;
+/// # use std::sync::LazyLock;
 /// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::BlockingOperator;
 /// # use opendal::Operator;
 /// # use opendal::Result;
 ///
-/// static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+/// static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 ///     tokio::runtime::Builder::new_multi_thread()
 ///         .enable_all()
 ///         .build()
@@ -146,6 +144,12 @@ impl<A: Access> Layer<A> for BlockingLayer {
     type LayeredAccess = BlockingAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_full_capability(|mut cap| {
+            cap.blocking = true;
+            cap
+        });
+
         BlockingAccessor {
             inner,
             handle: self.handle.clone(),
@@ -168,15 +172,11 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
     type BlockingWriter = BlockingWrapper<A::Writer>;
     type Lister = A::Lister;
     type BlockingLister = BlockingWrapper<A::Lister>;
+    type Deleter = A::Deleter;
+    type BlockingDeleter = BlockingWrapper<A::Deleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
-    }
-
-    fn metadata(&self) -> Arc<AccessorInfo> {
-        let mut meta = self.inner.info().as_ref().clone();
-        meta.full_capability_mut().blocking = true;
-        meta.into()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -203,8 +203,8 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -213,10 +213,6 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.inner.batch(args).await
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -252,8 +248,12 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
         self.handle.block_on(self.inner.stat(path, args))
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.handle.block_on(self.inner.delete(path, args))
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.handle.block_on(async {
+            let (rp, writer) = self.inner.delete().await?;
+            let blocking_deleter = Self::BlockingDeleter::new(self.handle.clone(), writer);
+            Ok((rp, blocking_deleter))
+        })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
@@ -267,45 +267,68 @@ impl<A: Access> LayeredAccess for BlockingAccessor<A> {
 
 pub struct BlockingWrapper<I> {
     handle: Handle,
-    inner: I,
+    inner: Option<I>,
 }
 
 impl<I> BlockingWrapper<I> {
     fn new(handle: Handle, inner: I) -> Self {
-        Self { handle, inner }
+        Self {
+            handle,
+            inner: Some(inner),
+        }
     }
 }
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     fn read(&mut self) -> Result<Buffer> {
-        self.handle.block_on(self.inner.read())
+        self.handle.block_on(self.inner.as_mut().unwrap().read())
     }
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.handle.block_on(self.inner.write(bs))
+        self.handle.block_on(self.inner.as_mut().unwrap().write(bs))
     }
 
-    fn close(&mut self) -> Result<()> {
-        self.handle.block_on(self.inner.close())
+    fn close(&mut self) -> Result<Metadata> {
+        self.handle.block_on(self.inner.as_mut().unwrap().close())
+    }
+}
+
+impl<I> Drop for BlockingWrapper<I> {
+    fn drop(&mut self) {
+        if let Some(inner) = self.inner.take() {
+            self.handle.block_on(async move {
+                drop(inner);
+            });
+        }
     }
 }
 
 impl<I: oio::List> oio::BlockingList for BlockingWrapper<I> {
     fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.handle.block_on(self.inner.next())
+        self.handle.block_on(self.inner.as_mut().unwrap().next())
+    }
+}
+
+impl<I: oio::Delete + 'static> oio::BlockingDelete for BlockingWrapper<I> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.as_mut().unwrap().delete(path, args)
+    }
+
+    fn flush(&mut self) -> Result<usize> {
+        self.handle.block_on(self.inner.as_mut().unwrap().flush())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     use super::*;
     use crate::types::Result;
 
-    static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+    static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()

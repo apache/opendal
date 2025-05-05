@@ -107,9 +107,9 @@ use crate::*;
 /// This might introduce a bit overhead for IO operations, but it's the only way to implement
 /// timeout correctly. We used to implement timeout layer in zero cost way that only stores
 /// a [`std::time::Instant`] and check the timeout by comparing the instant with current time.
-/// However, it doesn't works for all cases.
+/// However, it doesn't work for all cases.
 ///
-/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emit. The runtime
+/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emitted. The runtime
 /// will never poll our future again. From the application side, this future is hanging forever
 /// until this TCP connection is closed for reaching the linux [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html) times.
 #[derive(Clone)]
@@ -169,6 +169,11 @@ impl<A: Access> Layer<A> for TimeoutLayer {
     type LayeredAccess = TimeoutAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_executor(|exec| {
+            Executor::with(TimeoutExecutor::new(exec.into_inner(), self.io_timeout))
+        });
+
         TimeoutAccessor {
             inner,
 
@@ -220,6 +225,8 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type BlockingWriter = A::BlockingWriter;
     type Lister = TimeoutWrapper<A::Lister>;
     type BlockingLister = A::BlockingLister;
+    type Deleter = TimeoutWrapper<A::Deleter>;
+    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -230,27 +237,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.io_timeout(Operation::Read, self.inner.read(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn write(&self, path: &str, mut args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.io_timeout(Operation::Write, self.inner.write(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
@@ -271,19 +264,16 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.timeout(Operation::Delete, self.inner.delete(path, args))
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.timeout(Operation::Delete, self.inner.delete())
             .await
+            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.io_timeout(Operation::List, self.inner.list(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.timeout(Operation::Batch, self.inner.batch(args)).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -301,6 +291,10 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         self.inner.blocking_list(path, args)
+    }
+
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        self.inner.blocking_delete()
     }
 }
 
@@ -354,31 +348,42 @@ impl<R> TimeoutWrapper<R> {
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, Operation::ReaderRead.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
     }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, Operation::WriterWrite.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::WriterClose.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, Operation::WriterAbort.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, Operation::ListerNext.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::List.into_static(), fut).await
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
+    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args)
+    }
+
+    async fn flush(&mut self) -> Result<usize> {
+        let fut = self.inner.flush();
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 }
 
@@ -408,9 +413,11 @@ mod tests {
         type BlockingReader = ();
         type BlockingWriter = ();
         type BlockingLister = ();
+        type Deleter = ();
+        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
+            let am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
                 delete: true,
@@ -426,10 +433,10 @@ mod tests {
         }
 
         /// This function will never return.
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             sleep(Duration::from_secs(u64::MAX)).await;
 
-            Ok(RpDelete::default())
+            Ok((RpDelete::default(), ()))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

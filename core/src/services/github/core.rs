@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
@@ -28,6 +25,9 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -36,6 +36,7 @@ use crate::*;
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]
 pub struct GithubCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Github access_token.
@@ -44,8 +45,6 @@ pub struct GithubCore {
     pub owner: String,
     /// Github repo name.
     pub repo: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for GithubCore {
@@ -61,7 +60,7 @@ impl Debug for GithubCore {
 impl GithubCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
@@ -118,6 +117,8 @@ impl GithubCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::Stat);
+
         let req = self.sign(req)?;
 
         let req = req
@@ -140,6 +141,8 @@ impl GithubCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::Read);
+
         let req = self.sign(req)?;
 
         let req = req
@@ -148,7 +151,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
@@ -164,6 +167,8 @@ impl GithubCore {
         );
 
         let req = Request::put(url);
+
+        let req = req.extension(Operation::Write);
 
         let req = self.sign(req)?;
 
@@ -211,6 +216,8 @@ impl GithubCore {
 
         let req = Request::delete(url);
 
+        let req = req.extension(Operation::Delete);
+
         let req = self.sign(req)?;
 
         let req_body = DeleteContentsRequest {
@@ -246,6 +253,8 @@ impl GithubCore {
 
         let req = Request::get(url);
 
+        let req = req.extension(Operation::List);
+
         let req = self.sign(req)?;
 
         let req = req
@@ -273,6 +282,8 @@ impl GithubCore {
         let url = format!("{}?recursive=true", git_url);
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::List);
 
         let req = self.sign(req)?;
 

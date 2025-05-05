@@ -66,6 +66,10 @@ impl OpendalFs {
     pub fn new(op: Operator) -> Box<OpendalFs> {
         Box::new(OpendalFs { op })
     }
+
+    fn fs_path(&self, path: &DavPath) -> Result<String, FsError> {
+        String::from_utf8(path.as_bytes().to_vec()).map_err(|_| FsError::GeneralFailure)
+    }
 }
 
 impl DavFileSystem for OpendalFs {
@@ -73,9 +77,10 @@ impl DavFileSystem for OpendalFs {
         &'a self,
         path: &'a DavPath,
         options: dav_server::fs::OpenOptions,
-    ) -> FsFuture<Box<dyn DavFile>> {
+    ) -> FsFuture<'a, Box<dyn DavFile>> {
         async move {
-            let file = OpendalFile::open(self.op.clone(), path.clone(), options).await?;
+            let path = self.fs_path(path)?;
+            let file = OpendalFile::open(self.op.clone(), path, options).await?;
             Ok(Box::new(file) as Box<dyn DavFile>)
         }
         .boxed()
@@ -85,9 +90,9 @@ impl DavFileSystem for OpendalFs {
         &'a self,
         path: &'a DavPath,
         _meta: ReadDirMeta,
-    ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
+    ) -> FsFuture<'a, FsStream<Box<dyn DavDirEntry>>> {
         async move {
-            let path = path.as_url_string();
+            let path = self.fs_path(path)?;
             self.op
                 .lister(path.as_str())
                 .await
@@ -97,9 +102,10 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
+    fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, Box<dyn DavMetaData>> {
         async move {
-            let opendal_metadata = self.op.stat(path.as_url_string().as_str()).await;
+            let path = self.fs_path(path)?;
+            let opendal_metadata = self.op.stat(path.as_str()).await;
             match opendal_metadata {
                 Ok(metadata) => {
                     let webdav_metadata = OpendalMetaData::new(metadata);
@@ -111,9 +117,9 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
-            let path = path.as_url_string();
+            let path = self.fs_path(path)?;
 
             // check if the parent path is exist.
             // During MKCOL processing, a server MUST make the Request-URI a member of its parent collection, unless the Request-URI is "/".  If no such ancestor exists, the method MUST fail.
@@ -150,21 +156,19 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         self.remove_file(path)
     }
 
-    fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
-            self.op
-                .delete(path.as_url_string().as_str())
-                .await
-                .map_err(convert_error)
+            let path = self.fs_path(path)?;
+            self.op.delete(&path).await.map_err(convert_error)
         }
         .boxed()
     }
 
-    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let from_path = from
                 .as_rel_ospath()
@@ -182,7 +186,7 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
-    fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+    fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let from_path = from
                 .as_rel_ospath()

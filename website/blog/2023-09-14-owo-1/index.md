@@ -3,15 +3,14 @@ title: "OwO #1: The v0.40 Release"
 date: 2023-09-15
 slug: owo-1
 tags: [owo]
-authors:
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: xuanwo
 ---
 
 > OwO (Outcome, Working, Outlook) is an Apache OpenDAL™ release blog series, where we share the current work status and future plans.
 
 Hello! It's been a while since our last update. We've been hard at work determining the optimal way to implement new features and improvements. We're thrilled to announce that we'll soon be releasing v0.40.
+
+<!--truncate-->
 
 This post is structured into three main sections:
 

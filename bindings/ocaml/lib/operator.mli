@@ -21,12 +21,14 @@ val new_operator :
   string ->
   (string * string) list ->
   (Opendal_core.Operator.operator, string) result
-(** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
+(** [new_operator scheme config_map] Create a new block operator from given
+    scheme and config_map.
 
-    @param scheme Supported services, for details, refer to https://opendal.apache.org/docs/category/services/
+    @param scheme
+      Supported services, for details, refer to
+      https://opendal.apache.org/docs/category/services/
     @param config_map Configuration information required by the target service
-    @return The block operator
-*)
+    @return The block operator *)
 
 val list :
   Opendal_core.Operator.operator ->
@@ -37,20 +39,19 @@ val stat :
   Opendal_core.Operator.operator ->
   string ->
   (Opendal_core.Operator.metadata, string) result
-(** [is_exist operator path] Get current path's metadata **without cache** directly.
+(** [is_exist operator path] Get current path's metadata **without cache**
+    directly.
 
     @param operator The operator
     @param path want to stat
-    @return metadata
-*)
+    @return metadata *)
 
 val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
 
     @param operator The operator
     @param path want to check
-    @return is exists
-*)
+    @return is exists *)
 
 val create_dir :
   Opendal_core.Operator.operator -> string -> (bool, string) result
@@ -58,17 +59,17 @@ val create_dir :
 
     # Notes
 
-    To indicate that a path is a directory, it is compulsory to include
-    a trailing / in the path. Failure to do so may result in
-    `NotADirectory` error being returned by OpenDAL.
+    To indicate that a path is a directory, it is compulsory to include a
+    trailing / in the path. Failure to do so may result in `NotADirectory` error
+    being returned by OpenDAL.
 
     # Behavior
 
     - Create on existing dir will succeed.
     - Create dir is always recursive, works like `mkdir -p`
+
     @param operator The operator
-    @param path want to create dir
-*)
+    @param path want to create dir *)
 
 val read :
   Opendal_core.Operator.operator -> string -> (char array, string) result
@@ -76,8 +77,7 @@ val read :
 
     @param operator The operator
     @param path want to read
-    @return data of path
-*)
+    @return data of path *)
 
 val reader :
   Opendal_core.Operator.operator ->
@@ -87,17 +87,17 @@ val reader :
 
     @param operator The operator
     @param path want to read
-    @return reader
-*)
+    @return reader *)
 
 val write :
   Opendal_core.Operator.operator -> string -> bytes -> (unit, string) result
 (** [write operator path data] Write bytes into given path.
-    - Write will make sure all bytes has been written, or an error will be returned.
+    - Write will make sure all bytes has been written, or an error will be
+      returned.
+
     @param operator The operator
     @param path want to write
-    @param data want to write
-*)
+    @param data want to write *)
 
 val copy :
   Opendal_core.Operator.operator -> string -> string -> (unit, string) result
@@ -105,11 +105,12 @@ val copy :
     - [from] and [to] must be a file.
     - [to] will be overwritten if it exists.
     - If [from] and [to] are the same, nothing will happen.
-    - copy is idempotent. For same [from] and [to] input, the result will be the same.
+    - copy is idempotent. For same [from] and [to] input, the result will be the
+      same.
+
     @param operator The operator
     @param from file path
-    @param to file path
-*)
+    @param to file path *)
 
 val rename :
   Opendal_core.Operator.operator -> string -> string -> (unit, string) result
@@ -117,33 +118,34 @@ val rename :
     - [from] and [to] must be a file.
     - [to] will be overwritten if it exists.
     - If [from] and [to] are the same, a `IsSameFile` error will occur.
+
     @param operator The operator
     @param from file path
-    @param to file path
-*)
+    @param to file path *)
 
 val delete : Opendal_core.Operator.operator -> string -> (unit, string) result
 (** [delete operator path] Delete given path.
     - Delete not existing error won't return errors.
+
     @param operator The block operator
-    @param path file path
-*)
+    @param path file path *)
 
 val remove :
   Opendal_core.Operator.operator -> string array -> (unit, string) result
 (** [remove operator paths] Remove path array.
     - We don't support batch delete now, will call delete on each object in turn
+
     @param operator The block operator
-    @param paths file path array
-*)
+    @param paths file path array *)
 
 val remove_all :
   Opendal_core.Operator.operator -> string -> (unit, string) result
-(** [remove_all operator path] Remove the path and all nested dirs and files recursively.
+(** [remove_all operator path] Remove the path and all nested dirs and files
+    recursively.
     - We don't support batch delete now, will call delete on each object in turn
+
     @param operator The block operator
-    @param path file path
-*)
+    @param path file path *)
 
 module Reader : sig
   val pread :

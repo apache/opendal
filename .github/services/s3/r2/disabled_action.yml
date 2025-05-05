@@ -16,7 +16,7 @@
 # under the License.
 
 name: r2
-description: 'Behavior test for Cloudflare R2. This service is sponsored by @Xuanwo.'
+description: "Behavior test for Cloudflare R2. This service is sponsored by @Xuanwo."
 
 runs:
   using: "composite"
@@ -38,6 +38,6 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_REGION=auto
-        OPENDAL_S3_BATCH_MAX_OPERATIONS=700
+        OPENDAL_S3_DELETE_MAX_SIZE=700
         OPENDAL_S3_DISABLE_STAT_WITH_OVERRIDE=true
         EOF

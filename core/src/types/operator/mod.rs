@@ -27,8 +27,8 @@ pub use blocking_operator::BlockingOperator;
 mod builder;
 pub use builder::OperatorBuilder;
 
-mod metadata;
-pub use metadata::OperatorInfo;
+mod info;
+pub use info::OperatorInfo;
 
 pub mod operator_functions;
 pub mod operator_futures;

@@ -40,12 +40,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Copy a file and test with stat.
 pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content.clone())?;
 
-    let target_path = uuid::Uuid::new_v4().to_string();
+    let target_path = TEST_FIXTURE.new_file_path();
 
     op.copy(&source_path, &target_path)?;
 
@@ -55,8 +54,6 @@ pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(&source_content)),
     );
 
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
@@ -96,12 +93,11 @@ pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
         return Ok(());
     }
 
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content)?;
 
-    let target_path = format!("{}/", uuid::Uuid::new_v4());
+    let target_path = TEST_FIXTURE.new_dir_path();
 
     op.create_dir(&target_path)?;
 
@@ -109,16 +105,12 @@ pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
         .copy(&source_path, &target_path)
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
-
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Copy a file to self should return an error.
 pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _size) = gen_bytes(op.info().full_capability());
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&source_path, source_content)?;
 
@@ -126,16 +118,12 @@ pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
         .copy(&source_path, &source_path)
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
-
-    op.delete(&source_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Copy to a nested path, parent path should be created successfully.
 pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
-
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&source_path, source_content.clone())?;
 
     let target_path = format!(
@@ -144,6 +132,7 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
         uuid::Uuid::new_v4(),
         uuid::Uuid::new_v4()
     );
+    TEST_FIXTURE.add_path(target_path.clone());
 
     op.copy(&source_path, &target_path)?;
 
@@ -152,23 +141,15 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
-
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 /// Copy to a exist path should overwrite successfully.
 pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
-
+    let (source_path, source_content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&source_path, source_content.clone())?;
 
-    let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes(op.info().full_capability());
-    assert_ne!(source_content, target_content);
-
+    let (target_path, target_content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&target_path, target_content)?;
 
     op.copy(&source_path, &target_path)?;
@@ -178,8 +159,5 @@ pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
     );
-
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }

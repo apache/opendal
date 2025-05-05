@@ -18,6 +18,8 @@
 #[cfg(feature = "services-compfs")]
 mod core;
 #[cfg(feature = "services-compfs")]
+mod delete;
+#[cfg(feature = "services-compfs")]
 mod lister;
 #[cfg(feature = "services-compfs")]
 mod reader;

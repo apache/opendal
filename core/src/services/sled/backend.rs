@@ -137,8 +137,10 @@ impl Debug for Adapter {
 }
 
 impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+    type Scanner = kv::Scanner;
+
+    fn info(&self) -> kv::Info {
+        kv::Info::new(
             Scheme::Sled,
             &self.datadir,
             Capability {
@@ -146,6 +148,7 @@ impl kv::Adapter for Adapter {
                 write: true,
                 list: true,
                 blocking: true,
+                shared: false,
                 ..Default::default()
             },
         )
@@ -199,13 +202,15 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
+        let res = task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)?
+            .map_err(new_task_join_error)??;
+
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {

@@ -18,90 +18,43 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-/// Operation is the name for APIs in `Accessor`.
+/// Operation is the name of the operation that is being performed.
+///
+/// Most operations can be mapped to the methods of the `Access` trait,
+/// but we modify the names to make them more readable and clear for users.
+///
+/// The same operation might have different meanings and costs in different
+/// storage services.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Operation {
-    /// Operation for [`crate::raw::Access::info`]
+    /// Operation to retrieve information about the specified storage services.
     #[default]
     Info,
-    /// Operation for [`crate::raw::Access::create_dir`]
+    /// Operation to create a directory.
     CreateDir,
-    /// Operation for [`crate::raw::Access::read`]
+    /// Operation to read a file.
     Read,
-    /// Operation for [`crate::raw::oio::Read::read`]
-    ReaderRead,
-    /// Operation for [`crate::raw::Access::write`]
+    /// Operation to write to a file.
     Write,
-    /// Operation for [`crate::raw::oio::Write::write`]
-    WriterWrite,
-    /// Operation for [`crate::raw::oio::Write::close`]
-    WriterClose,
-    /// Operation for [`crate::raw::oio::Write::abort`]
-    WriterAbort,
-    /// Operation for [`crate::raw::Access::copy`]
+    /// Operation to copy a file.
     Copy,
-    /// Operation for [`crate::raw::Access::rename`]
+    /// Operation to rename a file.
     Rename,
-    /// Operation for [`crate::raw::Access::stat`]
+    /// Operation to stat a file or a directory.
     Stat,
-    /// Operation for [`crate::raw::Access::delete`]
+    /// Operation to delete files.
     Delete,
-    /// Operation for [`crate::raw::Access::list`]
+    /// Operation to get the next file from the list.
     List,
-    /// Operation for [`crate::raw::oio::List::next`]
-    ListerNext,
-    /// Operation for [`crate::raw::Access::batch`]
-    Batch,
-    /// Operation for [`crate::raw::Access::presign`]
+    /// Operation to generate a presigned URL.
     Presign,
-    /// Operation for [`crate::raw::Access::blocking_create_dir`]
-    BlockingCreateDir,
-    /// Operation for [`crate::raw::Access::blocking_read`]
-    BlockingRead,
-    /// Operation for [`crate::raw::oio::BlockingRead::read`]
-    BlockingReaderRead,
-    /// Operation for [`crate::raw::Access::blocking_write`]
-    BlockingWrite,
-    /// Operation for [`crate::raw::oio::BlockingWrite::write`]
-    BlockingWriterWrite,
-    /// Operation for [`crate::raw::oio::BlockingWrite::close`]
-    BlockingWriterClose,
-    /// Operation for [`crate::raw::Access::blocking_copy`]
-    BlockingCopy,
-    /// Operation for [`crate::raw::Access::blocking_rename`]
-    BlockingRename,
-    /// Operation for [`crate::raw::Access::blocking_stat`]
-    BlockingStat,
-    /// Operation for [`crate::raw::Access::blocking_delete`]
-    BlockingDelete,
-    /// Operation for [`crate::raw::Access::blocking_list`]
-    BlockingList,
-    /// Operation for [`crate::raw::oio::BlockingList::next`]
-    BlockingListerNext,
 }
 
 impl Operation {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
-    }
-
-    /// Check if given operation is oneshot or not.
-    ///
-    /// For example, `Stat` is oneshot but `ReaderRead` could happen multiple times.
-    ///
-    /// This function can be used to decide take actions based on operations like logging.
-    pub fn is_oneshot(&self) -> bool {
-        !matches!(
-            self,
-            Operation::ReaderRead
-                | Operation::WriterWrite
-                | Operation::ListerNext
-                | Operation::BlockingReaderRead
-                | Operation::BlockingWriterWrite
-                | Operation::BlockingListerNext
-        )
     }
 }
 
@@ -114,34 +67,16 @@ impl Display for Operation {
 impl From<Operation> for &'static str {
     fn from(v: Operation) -> &'static str {
         match v {
-            Operation::Info => "metadata",
+            Operation::Info => "info",
             Operation::CreateDir => "create_dir",
             Operation::Read => "read",
-            Operation::ReaderRead => "Reader::read",
             Operation::Write => "write",
-            Operation::WriterWrite => "Writer::write",
-            Operation::WriterClose => "Writer::close",
-            Operation::WriterAbort => "Writer::abort",
             Operation::Copy => "copy",
             Operation::Rename => "rename",
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",
-            Operation::ListerNext => "List::next",
             Operation::Presign => "presign",
-            Operation::Batch => "batch",
-            Operation::BlockingCreateDir => "blocking_create_dir",
-            Operation::BlockingRead => "blocking_read",
-            Operation::BlockingReaderRead => "BlockingReader::read",
-            Operation::BlockingWrite => "blocking_write",
-            Operation::BlockingWriterWrite => "BlockingWriter::write",
-            Operation::BlockingWriterClose => "BlockingWriter::close",
-            Operation::BlockingCopy => "blocking_copy",
-            Operation::BlockingRename => "blocking_rename",
-            Operation::BlockingStat => "blocking_stat",
-            Operation::BlockingDelete => "blocking_delete",
-            Operation::BlockingList => "blocking_list",
-            Operation::BlockingListerNext => "BlockingLister::next",
         }
     }
 }

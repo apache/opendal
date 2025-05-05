@@ -1,10 +1,15 @@
 # Apache OpenDAL™ Java Bindings
 
-![](https://img.shields.io/badge/status-released-blue)
+[![](https://img.shields.io/badge/status-released-blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
+## Useful Links
+
+- [Documentation](https://opendal.apache.org/docs/java/)
+- [Upgrade Guide](./upgrade.md)
 
 ## Example
 
@@ -51,17 +56,17 @@ Then add the dependency to `opendal` as following:
 
 ```xml
 <dependencies>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-</dependency>
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal</artifactId>
-  <version>${opendal.version}</version>
-  <classifier>${os.detected.classifier}</classifier>
-</dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+  </dependency>
+  <dependency>
+    <groupId>org.apache.opendal</groupId>
+    <artifactId>opendal</artifactId>
+    <version>${opendal.version}</version>
+    <classifier>${os.detected.classifier}</classifier>
+  </dependency>
 </dependencies>
 ```
 
@@ -90,7 +95,7 @@ Note that the dependency without classifier ships all classes and resources exce
 
 For downstream usage, it's recommended:
 
-* Depend on the one without classifier to write code; 
+* Depend on the one without classifier to write code;
 * Depend on the classified ones with "test" for testing.
 
 To load the shared library correctly, you can choose one of the following approaches:
@@ -135,11 +140,11 @@ Services behavior tests read necessary configs from env vars or the `.env` file.
 
 You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
 
-Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
+Take `fs` for example, we need to enable bench on `fs` on `/tmp/`:
 
 ```properties
 OPENDAL_TEST=fs
-OPENDAL_FS_ROOT=/tmp
+OPENDAL_FS_ROOT=/tmp/
 ```
 
 You can run service behavior tests of enabled with the following command:
@@ -157,6 +162,10 @@ export OPENDAL_REDIS_ROOT=/
 export OPENDAL_REDIS_DB=0
 ./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```
+
+## Used by
+
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
 
 ## License and Trademarks
 

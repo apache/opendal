@@ -61,3 +61,6 @@ indent_size = 2
 
 [*.{yaml,yml}]
 indent_size = 2
+
+[*.rb]
+indent_size = 2

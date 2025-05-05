@@ -60,13 +60,15 @@ impl Debug for AzdlsError {
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::CONFLICT => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

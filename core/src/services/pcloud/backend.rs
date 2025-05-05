@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::PcloudDeleter;
 use super::error::parse_error;
 use super::error::PcloudError;
 use super::lister::PcloudLister;
@@ -36,6 +37,8 @@ use crate::*;
 
 impl Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         PcloudBuilder {
             config: self,
@@ -50,6 +53,7 @@ impl Configurator for PcloudConfig {
 pub struct PcloudBuilder {
     config: PcloudConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -119,6 +123,8 @@ impl PcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -159,22 +165,48 @@ impl Builder for PcloudBuilder {
                 .with_context("service", Scheme::Pcloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Pcloud)
-            })?
-        };
-
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Pcloud)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            list: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 endpoint: self.config.endpoint.clone(),
                 username,
                 password,
-                client,
             }),
         })
     }
@@ -190,33 +222,14 @@ impl Access for PcloudBackend {
     type Reader = HttpBody;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
+    type Deleter = oio::OneShotDeleter<PcloudDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Pcloud)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-
-                delete: true,
-                rename: true,
-                copy: true,
-
-                list: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -280,31 +293,11 @@ impl Access for PcloudBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = if path.ends_with('/') {
-            self.core.delete_folder(path).await?
-        } else {
-            self.core.delete_file(path).await?
-        };
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-
-                // pCloud returns 2005 or 2009 if the file or folder is not found
-                if result != 0 && result != 2005 && result != 2009 {
-                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
-                }
-
-                Ok(RpDelete::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(PcloudDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

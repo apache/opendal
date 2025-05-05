@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "async")]
+mod r#async;
 mod lister;
 mod reader;
 mod types;
@@ -122,7 +124,7 @@ impl Operator {
     // Safety: The bytes created from bs will be dropped after the function call.
     // So it's safe to declare its lifetime as 'static.
     fn write(&self, path: &str, bs: &'static [u8]) -> Result<()> {
-        Ok(self.0.write(path, bs)?)
+        Ok(self.0.write(path, bs).map(|_| ())?)
     }
 
     fn exists(&self, path: &str) -> Result<bool> {

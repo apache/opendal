@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use base64::Engine;
 use hmac::Hmac;
 use hmac::Mac;
@@ -28,6 +25,9 @@ use http::Response;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use self::constants::*;
 use crate::raw::*;
@@ -55,6 +55,7 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct UpyunCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -64,8 +65,6 @@ pub struct UpyunCore {
 
     /// signer of this backend.
     pub signer: UpyunSigner,
-
-    pub client: HttpClient,
 }
 
 impl Debug for UpyunCore {
@@ -81,7 +80,7 @@ impl Debug for UpyunCore {
 impl UpyunCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
@@ -115,12 +114,13 @@ impl UpyunCore {
 
         let mut req = req
             .header(header::RANGE, range.to_header())
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {
@@ -134,7 +134,10 @@ impl UpyunCore {
 
         let req = Request::head(url);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
@@ -174,6 +177,8 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -192,6 +197,8 @@ impl UpyunCore {
         );
 
         let req = Request::delete(url);
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -217,6 +224,8 @@ impl UpyunCore {
         req = req.header(X_UPYUN_COPY_SOURCE, from);
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
+
+        let req = req.extension(Operation::Copy);
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -244,6 +253,8 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
+        let req = req.extension(Operation::Rename);
+
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -267,6 +278,8 @@ impl UpyunCore {
         req = req.header("folder", "true");
 
         req = req.header(X_UPYUN_FOLDER, "true");
+
+        let req = req.extension(Operation::CreateDir);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -306,6 +319,8 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
@@ -339,6 +354,8 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_PART_ID, part_number);
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -365,6 +382,8 @@ impl UpyunCore {
         req = req.header(X_UPYUN_MULTI_STAGE, "complete");
 
         req = req.header(X_UPYUN_MULTI_UUID, upload_id);
+
+        let req = req.extension(Operation::Write);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -401,6 +420,8 @@ impl UpyunCore {
             }
             req = req.header(X_UPYUN_LIST_LIMIT, limit);
         }
+
+        let req = req.extension(Operation::List);
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;

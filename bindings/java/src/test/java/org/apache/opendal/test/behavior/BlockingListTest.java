@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
+import org.apache.opendal.ListOptions;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
@@ -107,5 +108,29 @@ public class BlockingListTest extends BehaviorTestBase {
         }
 
         op().removeAll(parent + "/");
+    }
+
+    @Test
+    public void testListRecursive() {
+        final String dir = String.format("%s/%s/", UUID.randomUUID(), UUID.randomUUID());
+        final String fileName = UUID.randomUUID().toString();
+        final String filePath = String.format("%s%s", dir, fileName);
+        final String dirName = String.format("%s/", UUID.randomUUID());
+        final String dirPath = String.format("%s%s", dir, dirName);
+        final String content = "test_list_nested_dir";
+        final String nestedFile = String.format("%s%s", dirPath, UUID.randomUUID());
+
+        op().createDir(dir);
+        op().write(filePath, content);
+        op().createDir(dirPath);
+        op().write(nestedFile, content);
+
+        final List<Entry> entries =
+                op().list(dir, ListOptions.builder().recursive(true).build());
+        assertThat(entries).hasSize(4);
+
+        final List<Entry> noRecursiveEntries =
+                op().list(dir, ListOptions.builder().recursive(false).build());
+        assertThat(noRecursiveEntries).hasSize(3);
     }
 }

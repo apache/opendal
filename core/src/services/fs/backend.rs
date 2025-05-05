@@ -24,6 +24,7 @@ use chrono::DateTime;
 use log::debug;
 
 use super::core::*;
+use super::delete::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
@@ -147,6 +148,39 @@ impl Builder for FsBuilder {
 
         Ok(FsBackend {
             core: Arc::new(FsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Fs)
+                        .set_root(&root.to_string_lossy())
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_if_not_exists: true,
+
+                            create_dir: true,
+                            delete: true,
+
+                            list: true,
+
+                            copy: true,
+                            rename: true,
+                            blocking: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 atomic_write_dir,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
@@ -165,36 +199,14 @@ impl Access for FsBackend {
     type Reader = FsReader<tokio::fs::File>;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type Deleter = oio::OneShotDeleter<FsDeleter>;
     type BlockingReader = FsReader<std::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
+    type BlockingDeleter = oio::OneShotDeleter<FsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Fs)
-            .set_root(&self.core.root.to_string_lossy())
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                create_dir: true,
-                delete: true,
-
-                list: true,
-
-                copy: true,
-                rename: true,
-                blocking: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -295,7 +307,14 @@ impl Access for FsBackend {
         };
 
         let mut open_options = tokio::fs::OpenOptions::new();
-        open_options.create(true).write(true);
+        if op.if_not_exists() {
+            open_options.create_new(true);
+        } else {
+            open_options.create(true);
+        }
+
+        open_options.write(true);
+
         if op.append() {
             open_options.append(true);
         } else {
@@ -305,7 +324,19 @@ impl Access for FsBackend {
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         let w = FsWriter::new(target_path, tmp_path, f);
 
@@ -313,8 +344,8 @@ impl Access for FsBackend {
             FsWriters::One(w)
         } else {
             FsWriters::Two(oio::PositionWriter::new(
+                self.info().clone(),
                 w,
-                op.executor().cloned(),
                 op.concurrent(),
             ))
         };
@@ -322,27 +353,14 @@ impl Access for FsBackend {
         Ok((RpWrite::default(), w))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = tokio::fs::metadata(&p).await;
-
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
-                } else {
-                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
-                }
-
-                Ok(RpDelete::default())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
+        ))
     }
 
-    async fn list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -356,7 +374,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 
@@ -476,7 +494,14 @@ impl Access for FsBackend {
         };
 
         let mut f = std::fs::OpenOptions::new();
-        f.create(true).write(true);
+
+        if op.if_not_exists() {
+            f.create_new(true);
+        } else {
+            f.create(true);
+        }
+
+        f.write(true);
 
         if op.append() {
             f.append(true);
@@ -486,32 +511,31 @@ impl Access for FsBackend {
 
         let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = std::fs::metadata(&p);
-
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    std::fs::remove_dir(&p).map_err(new_std_io_error)?;
-                } else {
-                    std::fs::remove_file(&p).map_err(new_std_io_error)?;
-                }
-
-                Ok(RpDelete::default())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
+        ))
     }
 
-    fn blocking_list(&self, path: &str, arg: OpList) -> Result<(RpList, Self::BlockingLister)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
@@ -525,7 +549,7 @@ impl Access for FsBackend {
             }
         };
 
-        let rd = FsLister::new(&self.core.root, path, f, arg);
+        let rd = FsLister::new(&self.core.root, path, f);
         Ok((RpList::default(), Some(rd)))
     }
 

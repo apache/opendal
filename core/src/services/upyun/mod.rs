@@ -18,6 +18,8 @@
 #[cfg(feature = "services-upyun")]
 mod core;
 #[cfg(feature = "services-upyun")]
+mod delete;
+#[cfg(feature = "services-upyun")]
 mod error;
 #[cfg(feature = "services-upyun")]
 mod lister;

@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-ftp")]
+mod delete;
+#[cfg(feature = "services-ftp")]
 mod err;
 #[cfg(feature = "services-ftp")]
 mod lister;
@@ -28,6 +30,9 @@ mod writer;
 mod backend;
 #[cfg(feature = "services-ftp")]
 pub use backend::FtpBuilder as Ftp;
+#[cfg(feature = "services-ftp")]
+mod core;
 
 mod config;
+
 pub use config::FtpConfig;

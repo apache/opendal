@@ -3,15 +3,14 @@ title: "Apache OpenDAL™ participates in Open Source Promotion Plan 2024"
 date: 2024-04-30
 slug: apache-opendal-participates-in-ospp-2024
 tags: [announcement]
-authors:
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: xuanwo
 ---
 
 Hello, everyone!
 
 We're writing this blog post to announce that the Apache OpenDAL™ Project will be participating in [Open Source Promotion Plan (OSPP) 2024](https://summer-ospp.ac.cn/). If you're not eligible or interested in participating in OSPP, then most of this post likely isn't relevant to you; if you are, this should contain some useful information and links.
+
+<!--truncate-->
 
 Open Source Promotion Plan is a summer program organized by the Institute of Software Chinese Academy of Sciences and long-term supported by the Open Source Software Supply Chain Promotion Plan. It aims to encourage college students to actively participate in the maintenance and development of open source software, promote the vigorous development of open source software communities, and build the open source software supply chain together.
 
@@ -25,4 +24,4 @@ If you are interested in contributing to the OpenDAL Project, we encourage you t
 
 We are excited about this event. Hoping you all feel the same way!
 
-> This announcement is inspired a lot by the [Rust participates in Google Summer of Code 2024](https://blog.rust-lang.org/2024/02/21/Rust-participates-in-GSoC-2024.html). 
+> This announcement is inspired a lot by the [Rust participates in Google Summer of Code 2024](https://blog.rust-lang.org/2024/02/21/Rust-participates-in-GSoC-2024.html).

@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::core::*;
+use super::delete::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
@@ -34,6 +35,8 @@ use crate::*;
 
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         WebdavBuilder {
             config: self,
@@ -47,6 +50,8 @@ impl Configurator for WebdavConfig {
 #[derive(Default)]
 pub struct WebdavBuilder {
     config: WebdavConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -121,6 +126,8 @@ impl WebdavBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -155,15 +162,6 @@ impl Builder for WebdavBuilder {
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Webdav)
-            })?
-        };
-
         let mut authorization = None;
         if let Some(username) = &self.config.username {
             authorization = Some(format_authorization_by_basic(
@@ -176,12 +174,54 @@ impl Builder for WebdavBuilder {
         }
 
         let core = Arc::new(WebdavCore {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Webdav)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_content_type: true,
+                        stat_has_etag: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_empty: true,
+
+                        create_dir: true,
+                        delete: true,
+
+                        copy: !self.config.disable_copy,
+
+                        rename: true,
+
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_content_type: true,
+                        list_has_etag: true,
+                        list_has_last_modified: true,
+
+                        // We already support recursive list but some details still need to polish.
+                        // list_with_recursive: true,
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                // allow deprecated api here for compatibility
+                #[allow(deprecated)]
+                if let Some(client) = self.http_client {
+                    am.update_http_client(|_| client);
+                }
+
+                am.into()
+            },
             endpoint: endpoint.to_string(),
             server_path,
             authorization,
-            disable_copy: self.config.disable_copy,
             root,
-            client,
         });
         Ok(WebdavBackend { core })
     }
@@ -205,36 +245,14 @@ impl Access for WebdavBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
+    type Deleter = oio::OneShotDeleter<WebdavDeleter>;
     type BlockingReader = ();
     type BlockingWriter = ();
     type BlockingLister = ();
+    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Webdav)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                create_dir: true,
-                delete: true,
-
-                copy: !self.core.disable_copy,
-
-                rename: true,
-
-                list: true,
-                // We already support recursive list but some details still need to polish.
-                // list_with_recursive: true,
-                ..Default::default()
-            });
-
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -274,14 +292,11 @@ impl Access for WebdavBackend {
         ))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.webdav_delete(path).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(WebdavDeleter::new(self.core.clone())),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

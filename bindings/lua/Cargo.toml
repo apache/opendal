@@ -18,14 +18,13 @@
 [package]
 name = "opendal-lua"
 publish = false
-version = "0.1.10"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
+rust-version = "1.80"
 
 [features]
 default = ["mlua/lua52"]

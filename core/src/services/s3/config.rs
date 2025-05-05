@@ -51,7 +51,9 @@ pub struct S3Config {
     /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
     /// will prepend "https://" before it.
     ///
-    /// default to `https://s3.amazonaws.com` if not set.
+    /// - If endpoint is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - If still not set, default to `https://s3.amazonaws.com`.
     pub endpoint: Option<String>,
     /// Region represent the signing region of this endpoint. This is required
     /// if you are using the default AWS S3 endpoint.
@@ -122,16 +124,12 @@ pub struct S3Config {
     pub server_side_encryption_customer_algorithm: Option<String>,
     /// server_side_encryption_customer_key for this backend.
     ///
-    /// # Value
-    ///
-    /// base64 encoded key that matches algorithm specified in
+    /// Value: BASE64-encoded key that matches algorithm specified in
     /// `server_side_encryption_customer_algorithm`.
     pub server_side_encryption_customer_key: Option<String>,
     /// Set server_side_encryption_customer_key_md5 for this backend.
     ///
-    /// # Value
-    ///
-    /// MD5 digest of key specified in `server_side_encryption_customer_key`.
+    /// Value: MD5 digest of key specified in `server_side_encryption_customer_key`.
     pub server_side_encryption_customer_key_md5: Option<String>,
     /// default storage_class for this backend.
     ///
@@ -141,6 +139,7 @@ pub struct S3Config {
     /// - `GLACIER_IR`
     /// - `INTELLIGENT_TIERING`
     /// - `ONEZONE_IA`
+    /// - `EXPRESS_ONEZONE`
     /// - `OUTPOSTS`
     /// - `REDUCED_REDUNDANCY`
     /// - `STANDARD`
@@ -160,7 +159,18 @@ pub struct S3Config {
     /// For example, R2 could return `Internal Error` while batch delete 1000 files.
     ///
     /// Please tune this value based on services' document.
+    #[deprecated(
+        since = "0.52.0",
+        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+    )]
     pub batch_max_operations: Option<usize>,
+    /// Set the maximum delete size of this backend.
+    ///
+    /// Some compatible services have a limit on the number of operations in a batch request.
+    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
+    ///
+    /// Please tune this value based on services' document.
+    pub delete_max_size: Option<usize>,
     /// Disable stat with override so that opendal will not send stat request with override queries.
     ///
     /// For example, R2 doesn't support stat with `response_content_type` query.
@@ -171,6 +181,21 @@ pub struct S3Config {
     /// Available options:
     /// - "crc32c"
     pub checksum_algorithm: Option<String>,
+    /// Disable write with if match so that opendal will not send write request with if match headers.
+    ///
+    /// For example, Ceph RADOS S3 doesn't support write with if match.
+    pub disable_write_with_if_match: bool,
+
+    /// Enable write with append so that opendal will send write request with append headers.
+    pub enable_write_with_append: bool,
+
+    /// OpenDAL uses List Objects V2 by default to list objects.
+    /// However, some legacy services do not yet support V2.
+    /// This option allows users to switch back to the older List Objects V1.
+    pub disable_list_objects_v2: bool,
+
+    /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
+    pub enable_request_payer: bool,
 }
 
 impl Debug for S3Config {

@@ -31,16 +31,11 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let builder = S3::from_map(
-//!         vec![
-//!             ("access_key".to_string(), "my_access_key".to_string()),
-//!             ("secret_key".to_string(), "my_secret_key".to_string()),
-//!             ("endpoint".to_string(), "my_endpoint".to_string()),
-//!             ("region".to_string(), "my_region".to_string()),
-//!         ]
-//!         .into_iter()
-//!         .collect(),
-//!     ).unwrap();
+//!    let builder = S3::default()
+//!     .access_key_id("my_access_key")
+//!     .secret_access_key("my_secret_key")
+//!     .endpoint("my_endpoint")
+//!     .region("my_region");
 //!
 //!     // Create a new operator
 //!     let operator = Operator::new(builder).unwrap().finish();
@@ -70,21 +65,25 @@ pub use store::OpendalStore;
 
 mod utils;
 
+#[cfg(feature = "services-s3")]
+mod amazon_s3;
+
 // Make sure `send_wrapper` works as expected
-#[cfg(all(feature = "send_wrapper", target_arch = "wasm32"))]
+#[cfg(all(feature = "send_wrapper", test))]
 mod assert_send {
-    use object_store::ObjectStore;
+    use object_store::{ObjectStore, PutPayload};
+    use opendal::Operator;
 
     #[allow(dead_code)]
     fn assert_send<T: Send>(_: T) {}
 
     #[allow(dead_code)]
     fn assertion() {
-        let op = super::Operator::new(opendal::services::Memory::default())
+        let op = Operator::new(opendal::services::Memory::default())
             .unwrap()
             .finish();
         let store = super::OpendalStore::new(op);
-        assert_send(store.put(&"test".into(), bytes::Bytes::new()));
+        assert_send(store.put(&"test".into(), PutPayload::new()));
         assert_send(store.get(&"test".into()));
         assert_send(store.get_range(&"test".into(), 0..1));
         assert_send(store.head(&"test".into()));

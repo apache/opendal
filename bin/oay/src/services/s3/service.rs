@@ -26,11 +26,9 @@ use axum::routing::get;
 use axum::Router;
 use chrono::SecondsFormat;
 use futures_util::StreamExt;
-use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
 use serde::Serialize;
-use tracing::debug;
 
 use crate::Config;
 
@@ -82,7 +80,7 @@ async fn handle_list_objects(
     state: State<S3State>,
     params: Query<ListObjectsV2Params>,
 ) -> Result<OkResponse, ErrorResponse> {
-    debug!("got params: {:?}", params);
+    log::debug!("got params: {:?}", params);
 
     if !state.op.info().full_capability().list_with_start_after {
         return Err(ErrorResponse {
@@ -100,7 +98,6 @@ async fn handle_list_objects(
         .op
         .lister_with(&params.prefix)
         .start_after(&params.start_after)
-        .metakey(Metakey::Mode | Metakey::LastModified | Metakey::Etag | Metakey::ContentLength)
         .await?
         .chunks(1000);
 

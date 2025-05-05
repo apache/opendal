@@ -1,0 +1,60 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Setup Hadoop
+description: 'Prepare hadoop binary and env'
+
+inputs:
+  need-hadoop:
+    description: "This setup needs hadoop or not"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup java env
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "11"
+
+    - name: Cache hadoop
+      id: cache-hadoop
+      uses: actions/cache@v4
+      if: inputs.need-hadoop == 'true'
+      with:
+        path: /home/runner/hadoop-3.3.5
+        key: cache-hadoop-3.3.5
+
+    - name: Build hadoop if not cached
+      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
+      shell: bash
+      run: |
+        set -e
+        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+
+    - name: Setup hadoop env
+      shell: bash
+      run: |
+        export HADOOP_HOME=/home/runner/hadoop-3.3.5
+        echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
+        echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV 
+        echo "LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${HADOOP_HOME}/lib/native" >> $GITHUB_ENV
+        cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
+
+
+
+

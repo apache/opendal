@@ -18,6 +18,8 @@
 #[cfg(feature = "services-dbfs")]
 mod core;
 #[cfg(feature = "services-dbfs")]
+mod delete;
+#[cfg(feature = "services-dbfs")]
 mod error;
 #[cfg(feature = "services-dbfs")]
 mod lister;

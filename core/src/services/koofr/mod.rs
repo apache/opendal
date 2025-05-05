@@ -18,6 +18,8 @@
 #[cfg(feature = "services-koofr")]
 mod core;
 #[cfg(feature = "services-koofr")]
+mod delete;
+#[cfg(feature = "services-koofr")]
 mod error;
 #[cfg(feature = "services-koofr")]
 mod lister;

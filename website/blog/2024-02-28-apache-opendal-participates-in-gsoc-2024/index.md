@@ -3,15 +3,14 @@ title: "Apache OpenDAL™ participates in Google Summer of Code 2024"
 date: 2024-02-28
 slug: apache-opendal-participates-in-gsoc-2024
 tags: [announcement]
-authors:
-  - name: Xuanwo
-    url: https://github.com/Xuanwo
-    image_url: https://github.com/Xuanwo.png
+authors: xuanwo
 ---
 
 Hello, everyone!
 
 We're writing this blog post to announce that the Apache OpenDAL™ Project will be participating in [Google Summer of Code (GSoC) 2024](https://summerofcode.withgoogle.com/). If you're not eligible or interested in participating in GSoC, then most of this post likely isn't relevant to you; if you are, this should contain some useful information and links.
+
+<!--truncate-->
 
 Google Summer of Code (GSoC) is an annual global program organized by Google that aims to bring new contributors to the world of open-source. The program pairs organizations (such as the OpenDAL Project) with contributors (usually students), with the goal of helping the participants make meaningful open-source contributions under the guidance of experienced mentors.
 
@@ -25,4 +24,4 @@ If you are interested in contributing to the OpenDAL Project, we encourage you t
 
 We are excited about this event. Hoping you all feel the same way!
 
-> This announcement is inspired a lot by the [Rust participates in Google Summer of Code 2024](https://blog.rust-lang.org/2024/02/21/Rust-participates-in-GSoC-2024.html). 
+> This announcement is inspired a lot by the [Rust participates in Google Summer of Code 2024](https://blog.rust-lang.org/2024/02/21/Rust-participates-in-GSoC-2024.html).

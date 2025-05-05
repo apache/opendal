@@ -18,6 +18,8 @@
 #[cfg(feature = "services-github")]
 mod core;
 #[cfg(feature = "services-github")]
+mod delete;
+#[cfg(feature = "services-github")]
 mod error;
 #[cfg(feature = "services-github")]
 mod lister;

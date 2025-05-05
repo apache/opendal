@@ -236,6 +236,7 @@ impl Builder for AzdlsBuilder {
                             list_has_etag: true,
                             list_has_content_length: true,
                             list_has_last_modified: true,
+                            #[cfg(feature = "azdls-list-with-start-after")]
                             list_with_start_after: true,
 
                             presign: self.config.sas_token.is_some(),

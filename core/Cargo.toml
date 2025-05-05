@@ -216,6 +216,9 @@ services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
 
+# If enabled, will use undocumented workflow with azdls API to support list with start after
+azdls-list-with-start-after = []
+
 [lib]
 bench = false
 

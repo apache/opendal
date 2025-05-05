@@ -348,11 +348,7 @@ impl AzdlsCore {
         if !continuation.is_empty() {
             url = url.push("continuation", &percent_encode_path(continuation));
         } else if let Some(start_after) = start_after {
-            write!(
-                url,
-                "&continuation={}",
-                generate_continuation_from_start_after(start_after)
-            )
+            url = url.push("startAfter", &generate_continuation_from_start_after(start_after));
         }
 
         let mut req = Request::get(url.finish())

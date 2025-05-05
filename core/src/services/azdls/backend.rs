@@ -236,6 +236,12 @@ impl Builder for AzdlsBuilder {
                             list_has_etag: true,
                             list_has_content_length: true,
                             list_has_last_modified: true,
+                            list_with_start_after: true,
+
+                            presign: self.config.sas_token.is_some(),
+                            presign_stat: self.config.sas_token.is_some(),
+                            presign_read: self.config.sas_token.is_some(),
+                            presign_write: self.config.sas_token.is_some(),
 
                             shared: true,
 
@@ -256,7 +262,6 @@ impl Builder for AzdlsBuilder {
                 loader: cred_loader,
                 signer,
             }),
-            has_sas_token: self.config.sas_token.is_some(),
         })
     }
 }
@@ -265,7 +270,6 @@ impl Builder for AzdlsBuilder {
 #[derive(Debug, Clone)]
 pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
-    has_sas_token: bool,
 }
 
 impl Access for AzdlsBackend {

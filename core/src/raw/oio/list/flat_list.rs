@@ -59,7 +59,7 @@ pub struct FlatLister<A: Access, L> {
 
     next_dir: Option<oio::Entry>,
     active_lister: Vec<(Option<oio::Entry>, L)>,
-    args: OpList,
+    start_after: Option<String>,
 }
 
 /// # Safety
@@ -81,7 +81,7 @@ where
             acc,
             next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
             active_lister: vec![],
-            args,
+            start_after: args.start_after().map(|s| s.to_string()),
         }
     }
 }
@@ -94,7 +94,12 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = self.acc.list(de.path(), self.args.clone()).await?;
+                let args = self
+                    .start_after
+                    .as_ref()
+                    .map(|s| OpList::new().with_start_after(s))
+                    .unwrap_or_else(|| OpList::new());
+                let (_, mut l) = self.acc.list(de.path(), args).await?;
                 if let Some(v) = l.next().await? {
                     self.active_lister.push((Some(de.clone()), l));
 
@@ -146,7 +151,12 @@ where
     fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = self.acc.blocking_list(de.path(), OpList::new())?;
+                let args = self
+                    .start_after
+                    .as_ref()
+                    .map(|s| OpList::new().with_start_after(s))
+                    .unwrap_or_else(|| OpList::new());
+                let (_, mut l) = self.acc.blocking_list(de.path(), args)?;
                 if let Some(v) = l.next()? {
                     self.active_lister.push((Some(de.clone()), l));
 

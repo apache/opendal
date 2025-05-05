@@ -79,7 +79,10 @@ mod ffi {
         type Reader;
         type Lister;
 
-        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
+        // cxx::UniquePtr isn't yet supported in stable Rust. We'll adopt it once support becomes available
+        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<*mut Operator>;
+        unsafe fn delete_operator(op: *mut Operator);
+
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
         fn write(self: &Operator, path: &str, bs: &'static [u8]) -> Result<()>;
         fn exists(self: &Operator, path: &str) -> Result<bool>;
@@ -89,19 +92,21 @@ mod ffi {
         fn remove(self: &Operator, path: &str) -> Result<()>;
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
-        fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
-        fn lister(self: &Operator, path: &str) -> Result<Box<Lister>>;
+        fn reader(self: &Operator, path: &str) -> Result<*mut Reader>;
+        fn lister(self: &Operator, path: &str) -> Result<*mut Lister>;
 
+        unsafe fn delete_reader(reader: *mut Reader);
         fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
 
+        unsafe fn delete_lister(lister: *mut Lister);
         fn next(self: &mut Lister) -> Result<OptionalEntry>;
     }
 }
 
 pub struct Operator(od::BlockingOperator);
 
-fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
+fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Operator> {
     let scheme = od::Scheme::from_str(scheme)?;
 
     let map: HashMap<String, String> = configs
@@ -109,9 +114,29 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
         .map(|value| (value.key, value.value))
         .collect();
 
-    let op = Box::new(Operator(od::Operator::via_iter(scheme, map)?.blocking()));
+    let op = Box::into_raw(Box::new(Operator(
+        od::Operator::via_iter(scheme, map)?.blocking(),
+    )));
 
     Ok(op)
+}
+
+unsafe fn delete_operator(op: *mut Operator) {
+    if !op.is_null() {
+        drop(Box::from_raw(op));
+    }
+}
+
+unsafe fn delete_reader(reader: *mut Reader) {
+    if !reader.is_null() {
+        drop(Box::from_raw(reader));
+    }
+}
+
+unsafe fn delete_lister(lister: *mut Lister) {
+    if !lister.is_null() {
+        drop(Box::from_raw(lister));
+    }
 }
 
 impl Operator {
@@ -156,16 +181,18 @@ impl Operator {
         Ok(self.0.list(path)?.into_iter().map(Into::into).collect())
     }
 
-    fn reader(&self, path: &str) -> Result<Box<Reader>> {
+    fn reader(&self, path: &str) -> Result<*mut Reader> {
         let meta = self.0.stat(path)?;
-        Ok(Box::new(Reader(
+        let reader = Box::into_raw(Box::new(Reader(
             self.0
                 .reader(path)?
                 .into_std_read(0..meta.content_length())?,
-        )))
+        )));
+        Ok(reader)
     }
 
-    fn lister(&self, path: &str) -> Result<Box<Lister>> {
-        Ok(Box::new(Lister(self.0.lister(path)?)))
+    fn lister(&self, path: &str) -> Result<*mut Lister> {
+        let lister = Box::into_raw(Box::new(Lister(self.0.lister(path)?)));
+        Ok(lister)
     }
 }

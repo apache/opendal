@@ -149,8 +149,6 @@ var _ io.ReadCloser = (*Reader)(nil)
 //
 // # Notes
 //
-//   - This method only returns OpenDAL-specific errors, not io.EOF.
-//   - If no data is read (end of file), it returns (0, nil) instead of (0, io.EOF).
 //   - The caller is responsible for pre-allocating the buffer and determining its size.
 //
 // # Example
@@ -176,6 +174,9 @@ var _ io.ReadCloser = (*Reader)(nil)
 // Note: Always check the number of bytes read (n) as it may be less than len(buf).
 func (r *Reader) Read(buf []byte) (int, error) {
 	length := uint(len(buf))
+	if length == 0 {
+		return 0, nil
+	}
 	read := getFFI[readerRead](r.ctx, symReaderRead)
 	var (
 		totalSize uint
@@ -188,6 +189,9 @@ func (r *Reader) Read(buf []byte) (int, error) {
 		if size == 0 || err != nil || totalSize >= length {
 			break
 		}
+	}
+	if totalSize == 0 && err == nil {
+		err = io.EOF
 	}
 	return int(totalSize), err
 }

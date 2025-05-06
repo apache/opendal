@@ -19,33 +19,47 @@
 
 #pragma once
 
-#include "lib.rs.h"
+#include <cstdint>
+#include <optional>
+#include <string>
 
-namespace opendal::details {
+#include "boost/date_time/posix_time/ptime.hpp"
+
+namespace opendal {
+
 /**
- * @class Reader
- * @brief Reader is designed to read data from the operator.
- * @details It provides basic read and seek operations. If you want to use it
- * like a stream, you can use `ReaderStream` instead.
- * @code{.cpp}
- * opendal::ReaderStream stream(operator.reader("path"));
- * @endcode
+ * @enum EntryMode
+ * @brief The mode of the entry
  */
-class Reader {
- public:
-  Reader(rust::Box<opendal::ffi::Reader> &&reader)
-      : reader_(std::move(reader)) {}
-
-  Reader(Reader &&) = default;
-
-  ~Reader() = default;
-
-  std::size_t read(void *s, std::size_t n);
-
-  std::uint64_t seek(std::uint64_t off, std::ios_base::seekdir dir);
-
- private:
-  rust::Box<opendal::ffi::Reader> reader_;
+enum class EntryMode : int {
+  FILE = 1,
+  DIR = 2,
+  UNKNOWN = 0,
 };
 
-}  // namespace opendal::details
+/**
+ * @struct Metadata
+ * @brief The metadata of a file or directory
+ */
+class Metadata {
+ public:
+  EntryMode type;
+  std::uint64_t content_length;
+  std::optional<std::string> cache_control;
+  std::optional<std::string> content_disposition;
+  std::optional<std::string> content_md5;
+  std::optional<std::string> content_type;
+  std::optional<std::string> etag;
+  std::optional<boost::posix_time::ptime> last_modified;
+};
+
+/**
+ * @struct Entry
+ * @brief The entry of a file or directory
+ */
+class Entry {
+ public:
+  std::string path;
+};
+
+}  // namespace opendal

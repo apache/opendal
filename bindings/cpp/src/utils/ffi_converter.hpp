@@ -17,32 +17,13 @@
  * under the License.
  */
 
-#include "details/reader.hpp"
+#pragma once
 
-namespace opendal::details {
+#include "lib.rs.h"
+#include "data_structure.hpp"
 
-ffi::SeekDir rust_seek_dir(std::ios_base::seekdir dir) {
-  switch (dir) {
-    case std::ios_base::beg:
-      return ffi::SeekDir::Start;
+namespace opendal::utils {
 
-    case std::ios_base::cur:
-      return ffi::SeekDir::Current;
+Entry parse_entry(ffi::Entry &&other);
 
-    case std::ios_base::end:
-      return ffi::SeekDir::End;
-
-    default:
-      throw std::runtime_error("invalid seekdir");
-  }
-}
-
-std::size_t Reader::read(void *s, std::size_t n) {
-  return reader_->read(rust::Slice<uint8_t>(static_cast<uint8_t *>(s), n));
-}
-
-std::uint64_t Reader::seek(std::uint64_t off, std::ios_base::seekdir dir) {
-  return reader_->seek(off, rust_seek_dir(dir));
-}
-
-}  // namespace opendal::details
+}  // namespace opendal::utils

@@ -182,8 +182,9 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 // properly flushed and written to the storage. Otherwise, the data may be lost.
 func (w *Writer) Close() error {
 	free := getFFI[writerFree](w.ctx, symWriterFree)
-	free(w.inner)
-	return nil
+	defer free(w.inner)
+	close := getFFI[writerClose](w.ctx, symWriterClose)
+	return close(w.inner)
 }
 
 var _ io.WriteCloser = (*Writer)(nil)
@@ -303,5 +304,24 @@ var withWriterWrite = withFFI(ffiOpts{
 			return 0, parseError(ctx, result.error)
 		}
 		return int(result.size), nil
+	}
+})
+
+const symWriterClose = "opendal_writer_close"
+
+type writerClose func(r *opendalWriter) error
+
+var withWriterClose = withFFI(ffiOpts{
+	sym:    symWriterClose,
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) writerClose {
+	return func(r *opendalWriter) error {
+		var e *opendalError
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&r),
+		)
+		return parseError(ctx, e)
 	}
 })

@@ -161,12 +161,14 @@ impl HttpFetch for reqwest::Client {
 
         let (parts, body) = req.into_parts();
 
-        let mut req_builder = self
-            .request(
-                parts.method,
-                reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
-            )
-            .headers(parts.headers);
+        let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "request url is invalid")
+                .with_operation("http_util::Client::send::fetch")
+                .with_context("url", uri.to_string())
+                .set_source(err)
+        })?;
+
+        let mut req_builder = self.request(parts.method, url).headers(parts.headers);
 
         // Client under wasm doesn't support set version.
         #[cfg(not(target_arch = "wasm32"))]

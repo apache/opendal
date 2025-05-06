@@ -143,4 +143,5 @@ var withFFIs = []contextWithFFI{
 	withOperatorWriter,
 	withWriterWrite,
 	withWriterFree,
+	withWriterClose,
 }

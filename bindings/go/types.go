@@ -239,6 +239,11 @@ type resultReaderRead struct {
 	error *opendalError
 }
 
+type resultReaderSeek struct {
+	pos uint64
+	error *opendalError
+}
+
 type resultIsExist struct {
 	is_exist uint8
 	error    *opendalError

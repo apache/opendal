@@ -604,6 +604,22 @@ typedef struct opendal_result_reader_read {
 } opendal_result_reader_read;
 
 /**
+ * \brief The result type returned by opendal_reader_seek().
+ * The result type contains a pos field, which is the new position after seek,
+ * which is zero on error. The error field is the error code and error message.
+ */
+typedef struct opendal_result_reader_seek {
+  /**
+   * New position after seek
+   */
+  uint64_t pos;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_reader_seek;
+
+/**
  * \brief The result type returned by opendal_writer_write().
  * The result type contains a size field, which is the size of the data written,
  * which is zero on error. The error field is the error code and error message.
@@ -1443,9 +1459,9 @@ struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *sel
 /**
  * \brief Seek to an offset, in bytes, in a stream.
  */
-struct opendal_error *opendal_reader_seek(struct opendal_reader *self,
-                                          int64_t offset,
-                                          int32_t whence);
+struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *self,
+                                                      int64_t offset,
+                                                      int32_t whence);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.

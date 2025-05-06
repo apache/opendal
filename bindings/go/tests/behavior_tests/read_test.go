@@ -37,6 +37,7 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 		testReadNotExist,
 		testReadWithDirPath,
 		testReadWithSpecialChars,
+		testReaderSeek,
 	}
 	if cap.WriteCanMulti() {
 		tests = append(tests, testIOCopy)
@@ -127,4 +128,42 @@ func testIOCopy(assert *require.Assertions, op *opendal.Operator, fixture *fixtu
 	assert.Nil(err)
 	assert.Equal(size, uint(len(copyContent)), "read size")
 	assert.Equal(content, copyContent, "read content")
+}
+
+func testReaderSeek(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+	offset, length := genOffsetLength(size)
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	r, err := op.Reader(path)
+	assert.Nil(err)
+	defer r.Close()
+
+	pos, err := r.Seek(offset, io.SeekStart)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(int64(offset), pos, "seek start offset")
+	bs := make([]byte, length)
+	n, err := r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[offset:offset+length], bs[:n], "read content")
+
+	pos, err = r.Seek(-length, io.SeekCurrent)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(offset, pos, "seek current offset")
+	bs = make([]byte, length)
+	n, err = r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[offset:offset+length], bs[:n], "read content")
+
+	pos, err = r.Seek(-length, io.SeekEnd)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(int64(size)-length, pos, "seek end offset")
+	bs = make([]byte, length)
+	n, err = r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[int64(size)-length:size], bs[:n], "read content")
 }

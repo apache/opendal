@@ -138,6 +138,7 @@ var withFFIs = []contextWithFFI{
 
 	withOperatorReader,
 	withReaderRead,
+	withReaderSeek,
 	withReaderFree,
 
 	withOperatorWriter,

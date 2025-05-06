@@ -63,8 +63,9 @@ TEST_F(OpendalReaderTest, SeekTest)
     EXPECT_EQ(r.error, nullptr);
 
     //  Test seek set
-    err = opendal_reader_seek(r.reader, 6, OPENDAL_SEEK_SET);
-    EXPECT_EQ(err, nullptr);
+    opendal_result_reader_seek seek_result = opendal_reader_seek(r.reader, 6, OPENDAL_SEEK_SET);
+    EXPECT_EQ(seek_result.pos, 6);
+    EXPECT_EQ(seek_result.error, nullptr);
 
     char buf1[64] = {0};
     opendal_result_reader_read read_result = opendal_reader_read(r.reader, (uint8_t *)buf1, 7);
@@ -73,8 +74,9 @@ TEST_F(OpendalReaderTest, SeekTest)
     EXPECT_EQ(std::string(buf1), "Gabcdef");
 
     // Test seek cur, now we step on '3'
-    err = opendal_reader_seek(r.reader, 3, OPENDAL_SEEK_CUR);
-    EXPECT_EQ(err, nullptr);
+    seek_result = opendal_reader_seek(r.reader, 3, OPENDAL_SEEK_CUR);
+    EXPECT_EQ(seek_result.pos, 16);
+    EXPECT_EQ(seek_result.error, nullptr);
 
     char buf2[64] = {0};
     read_result = opendal_reader_read(r.reader, (uint8_t*)buf2, 32 /* no more 32 bytes*/);
@@ -83,8 +85,9 @@ TEST_F(OpendalReaderTest, SeekTest)
     EXPECT_EQ(std::string(buf2), "34567");
 
     // Test seek end, now we step on 'g'
-    err = opendal_reader_seek(r.reader, -8, OPENDAL_SEEK_END);
-    EXPECT_EQ(err, nullptr);
+    seek_result = opendal_reader_seek(r.reader, -8, OPENDAL_SEEK_END);
+    EXPECT_EQ(seek_result.pos, 13);
+    EXPECT_EQ(seek_result.error, nullptr);
 
     char buf3[64] = {0};
     read_result = opendal_reader_read(r.reader, (uint8_t*)buf3, 32 /* no more 32 bytes*/);

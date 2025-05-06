@@ -17,14 +17,11 @@
  * under the License.
  */
 
-#include "opendal.hpp"
-
-#include <memory>
-
 #include "boost/date_time/posix_time/time_parsers.hpp"
-#include "details/lister.hpp"
-#include "details/operator.hpp"
-#include "details/reader.hpp"
+#include "lib.rs.h"
+#include "opendal.hpp"
+#include "utils/ffi_converter.hpp"
+#include "utils/rust_converter.hpp"
 
 namespace opendal {
 
@@ -34,12 +31,6 @@ std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
   } else {
     return std::nullopt;
   }
-}
-
-Entry parse_entry(ffi::Entry &&other) {
-  return Entry{
-      .path = std::string(std::move(other.path)),
-  };
 }
 
 Metadata parse_meta_data(ffi::Metadata &&meta) {
@@ -63,102 +54,102 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
   return metadata;
 }
 
-Operator::Operator() = default;
+Operator::Operator() noexcept = default;
+
+void Operator::destroy() noexcept {
+  if (operator_) {
+    ffi::delete_operator(operator_);
+    operator_ = nullptr;
+  }
+}
 
 Operator::Operator(std::string_view scheme,
                    const std::unordered_map<std::string, std::string> &config) {
-  operator_ = std::make_unique<details::Operator>(scheme, config);
+  auto rust_map = rust::Vec<ffi::HashMapValue>();
+  rust_map.reserve(config.size());
+
+  for (auto &[k, v] : config) {
+    rust_map.push_back({utils::rust_string(k), utils::rust_string(v)});
+  }
+
+  operator_ = ffi::new_operator(utils::rust_str(scheme), rust_map);
 }
 
-Operator::~Operator() = default;
+Operator::~Operator() noexcept { destroy(); }
 
-Operator::Operator(Operator &&) = default;
-Operator &Operator::operator=(Operator &&) = default;
+Operator::Operator(Operator &&other) noexcept : operator_(other.operator_) {
+  other.operator_ = nullptr;
+}
+
+Operator &Operator::operator=(Operator &&other) noexcept {
+  if (this != &other) {
+    destroy();
+
+    operator_ = other.operator_;
+    other.operator_ = nullptr;
+  }
+
+  return *this;
+}
 
 bool Operator::available() const { return operator_ != nullptr; }
 
 // We can't avoid copy, because std::vector hides the internal structure.
 // std::vector doesn't support init from a pointer without copy.
 std::string Operator::read(std::string_view path) {
-  return operator_->read(path);
+  auto rust_vec = operator_->read(utils::rust_str(path));
+  return {rust_vec.begin(), rust_vec.end()};
 }
 
 void Operator::write(std::string_view path, std::string_view data) {
-  operator_->write(path, data);
+  operator_->write(utils::rust_str(path),
+                   utils::rust_slice<const uint8_t>(data));
 }
 
-bool Operator::exists(std::string_view path) { return operator_->exists(path); }
+bool Operator::exists(std::string_view path) {
+  return operator_->exists(utils::rust_str(path));
+}
 
 bool Operator::is_exist(std::string_view path) { return exists(path); }
 
 void Operator::create_dir(std::string_view path) {
-  operator_->create_dir(path);
+  operator_->create_dir(utils::rust_str(path));
 }
 
 void Operator::copy(std::string_view src, std::string_view dst) {
-  operator_->copy(src, dst);
+  operator_->copy(utils::rust_str(src), utils::rust_str(dst));
 }
 
 void Operator::rename(std::string_view src, std::string_view dst) {
-  operator_->rename(src, dst);
+  operator_->rename(utils::rust_str(src), utils::rust_str(dst));
 }
 
-void Operator::remove(std::string_view path) { operator_->remove(path); }
+void Operator::remove(std::string_view path) {
+  operator_->remove(utils::rust_str(path));
+}
 
 Metadata Operator::stat(std::string_view path) {
-  return parse_meta_data(operator_->stat(path));
+  return parse_meta_data(operator_->stat(utils::rust_str(path)));
 }
 
 std::vector<Entry> Operator::list(std::string_view path) {
-  auto rust_vec = operator_->list(path);
+  auto rust_vec = operator_->list(utils::rust_str(path));
 
   std::vector<Entry> entries;
   entries.reserve(rust_vec.size());
   for (auto &&entry : rust_vec) {
-    entries.emplace_back(parse_entry(std::move(entry)));
+    entries.emplace_back(utils::parse_entry(std::move(entry)));
   }
 
   return entries;
 }
 
 Lister Operator::lister(std::string_view path) {
-  return std::make_unique<details::Lister>(operator_->lister(path));
+  return operator_->lister(utils::rust_str(path));
 }
 
 Reader Operator::reader(std::string_view path) {
-  return std::make_unique<details::Reader>(operator_->reader(path));
-}
-
-Lister::Lister(std::unique_ptr<details::Lister> lister)
-    : raw_lister_{std::move(lister)} {};
-
-Lister::Lister(Lister &&) = default;
-
-Lister::~Lister() = default;
-
-std::optional<Entry> Lister::next() {
-  auto entry = raw_lister_->next();
-
-  if (!entry.has_value) {
-    return std::nullopt;
-  }
-
-  return parse_entry(std::move(entry.value));
-}
-
-Reader::Reader(std::unique_ptr<details::Reader> &&reader)
-    : raw_reader_{std::move(reader)} {}
-
-Reader::Reader(Reader &&) = default;
-
-Reader::~Reader() = default;
-
-std::streamsize Reader::read(void *s, std::streamsize n) {
-  return raw_reader_->read(s, n);
-}
-
-std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
-  return raw_reader_->seek(off, dir);
+  return operator_->reader(utils::rust_str(path));
 }
 
 }  // namespace opendal

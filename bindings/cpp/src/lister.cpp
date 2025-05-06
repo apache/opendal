@@ -17,42 +17,36 @@
  * under the License.
  */
 
-#pragma once
-
+#include "data_structure.hpp"
 #include "lib.rs.h"
+#include "opendal.hpp"
+#include "utils/ffi_converter.hpp"
 
-/**
- * @class Lister
- * @brief Lister is designed to list the entries of a directory.
- * @details It provides next operation to get the next entry. You can also use
- * it like an iterator.
- * @code{.cpp}
- * auto lister = operator.lister("dir/");
- * for (const auto &entry : lister) {
- *   // Do something with entry
- * }
- * @endcode
- */
-namespace opendal::details {
+namespace opendal {
 
-class Lister {
- public:
-  Lister(rust::Box<opendal::ffi::Lister> &&lister)
-      : raw_lister_{std::move(lister)} {}
+void Lister::destroy() noexcept {
+  if (lister_) {
+    ffi::delete_lister(lister_);
+    lister_ = nullptr;
+  }
+}
 
-  Lister(Lister &&) = default;
+Lister::Lister(ffi::Lister *lister) noexcept : lister_{lister} {}
 
-  ~Lister() = default;
+Lister::Lister(Lister &&other) noexcept : lister_{other.lister_} {
+  other.lister_ = nullptr;
+}
 
-  /**
-   * @brief Get the next entry of the lister
-   *
-   * @return The next entry of the lister
-   */
-  ffi::OptionalEntry next() { return raw_lister_->next(); }
+Lister::~Lister() noexcept { destroy(); }
 
- private:
-  rust::Box<opendal::ffi::Lister> raw_lister_;
-};
+std::optional<Entry> Lister::next() {
+  auto entry = lister_->next();
 
-}  // namespace opendal::details
+  if (!entry.has_value) {
+    return std::nullopt;
+  }
+
+  return utils::parse_entry(std::move(entry.value));
+}
+
+}  // namespace opendal

@@ -102,15 +102,21 @@ set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/src
                     ${CARGO_TARGET_DIR}/cxxbridge
                     ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
-
-file(GLOB CPP_SOURCE_FILE "src/details/*.cpp")
-file(GLOB CPP_HEADER_FILE "src/details/*.hpp")
-
-list(APPEND CPP_SOURCE_FILE src/opendal.cpp)
-list(APPEND CPP_HEADER_FILE include/opendal.hpp)
-if (OPENDAL_ENABLE_ASYNC)
-    list(APPEND CPP_SOURCE_FILE src/opendal_async.cpp)
-    list(APPEND CPP_HEADER_FILE include/opendal_async.hpp)
+file(GLOB CPP_SOURCE_FILE 
+    "src/*.cpp"
+    "src/utils/*.cpp"    
+)
+file(GLOB CPP_HEADER_FILE 
+    "include/*.hpp"
+    "src/*.hpp"
+    "src/utils/*.hpp"
+)
+if (NOT OPENDAL_ENABLE_ASYNC)
+    file (GLOB ASYNC_SOURCE_FILE "src/*async*.cpp")
+    list(REMOVE_ITEM CPP_SOURCE_FILE ${ASYNC_SOURCE_FILE})
+    
+    file(GLOB ASYNC_HEADER_FILE "include/*async*.hpp")
+    list(REMOVE_ITEM CPP_HEADER_FILE ${ASYNC_HEADER_FILE})
 endif()
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

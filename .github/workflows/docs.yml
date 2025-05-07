@@ -182,11 +182,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Setup Rust Nightly
-        # yard-rustdoc depends on a particular rust doc JSON format
-        run: |
-          rustup toolchain install nightly-2024-08-19
-
       - name: Build Docs
         working-directory: bindings/ruby
         run: bundle exec rake doc

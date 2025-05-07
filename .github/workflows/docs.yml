@@ -182,6 +182,10 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
       - name: Build Docs
         working-directory: bindings/ruby
         run: bundle exec rake doc

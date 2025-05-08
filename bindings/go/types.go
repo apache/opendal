@@ -117,6 +117,15 @@ var (
 		}[0],
 	}
 
+	typeResultReaderSeek = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultIsExist = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{

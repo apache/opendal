@@ -352,7 +352,7 @@ type readerSeek func(r *opendalReader, offset int64, whence int) (int64, error)
 
 var withReaderSeek = withFFI(ffiOpts{
 	sym:    symReaderSeek,
-	rType:  &ffi.TypePointer,
+	rType:  &typeResultReaderSeek,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerSeek {
 	return func(r *opendalReader, offset int64, whence int) (int64, error) {

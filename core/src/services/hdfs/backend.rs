@@ -196,7 +196,6 @@ impl Builder for HdfsBuilder {
                         list_has_last_modified: true,
 
                         rename: true,
-                        blocking: true,
 
                         shared: true,
 
@@ -238,10 +237,6 @@ impl Access for HdfsBackend {
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
-    type BlockingReader = HdfsReader<hdrs::File>;
-    type BlockingWriter = HdfsWriter<hdrs::File>;
-    type BlockingLister = Option<HdfsLister>;
-    type BlockingDeleter = oio::OneShotDeleter<HdfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
@@ -386,188 +381,6 @@ impl Access for HdfsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from_path = build_rooted_abs_path(&self.root, from);
-        self.client.metadata(&from_path).map_err(new_std_io_error)?;
-
-        let to_path = build_rooted_abs_path(&self.root, to);
-        let result = self.client.metadata(&to_path);
-        match result {
-            Err(err) => {
-                // Early return if other error happened.
-                if err.kind() != io::ErrorKind::NotFound {
-                    return Err(new_std_io_error(err));
-                }
-
-                let parent = PathBuf::from(&to_path)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path should have parent but not, it must be malformed",
-                        )
-                        .with_context("input", &to_path)
-                    })?
-                    .to_path_buf();
-
-                self.client
-                    .create_dir(&parent.to_string_lossy())
-                    .map_err(new_std_io_error)?;
-            }
-            Ok(metadata) => {
-                if metadata.is_file() {
-                    self.client
-                        .remove_file(&to_path)
-                        .map_err(new_std_io_error)?;
-                } else {
-                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
-                        .with_context("input", &to_path));
-                }
-            }
-        }
-
-        self.client
-            .rename_file(&from_path, &to_path)
-            .map_err(new_std_io_error)?;
-
-        Ok(RpRename::new())
-    }
-
-    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        self.client.create_dir(&p).map_err(new_std_io_error)?;
-
-        Ok(RpCreateDir::default())
-    }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let mut m = Metadata::new(mode);
-        m.set_content_length(meta.len());
-        m.set_last_modified(meta.modified().into());
-
-        Ok(RpStat::new(m))
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let mut f = self
-            .client
-            .open_file()
-            .read(true)
-            .open(&p)
-            .map_err(new_std_io_error)?;
-
-        if args.range().offset() != 0 {
-            use std::io::Seek;
-
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .map_err(new_std_io_error)?;
-        }
-
-        Ok((
-            RpRead::new(),
-            HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
-        ))
-    }
-
-    fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let target_path = build_rooted_abs_path(&self.root, path);
-        let mut initial_size = 0;
-        let target_exists = match self.client.metadata(&target_path) {
-            Ok(meta) => {
-                initial_size = meta.len();
-                true
-            }
-            Err(err) => {
-                if err.kind() != io::ErrorKind::NotFound {
-                    return Err(new_std_io_error(err));
-                }
-                false
-            }
-        };
-
-        let should_append = op.append() && target_exists;
-        let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
-            // If the target file exists, we should append to the end of it directly.
-            if should_append {
-                None
-            } else {
-                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
-            }
-        });
-
-        if !target_exists {
-            let parent = get_parent(&target_path);
-            self.client.create_dir(parent).map_err(new_std_io_error)?;
-        }
-        if !should_append {
-            initial_size = 0;
-        }
-
-        let mut open_options = self.client.open_file();
-        open_options.create(true);
-        if should_append {
-            open_options.append(true);
-        } else {
-            open_options.write(true);
-        }
-
-        let f = open_options
-            .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(new_std_io_error)?;
-
-        Ok((
-            RpWrite::new(),
-            HdfsWriter::new(
-                target_path,
-                tmp_path,
-                f,
-                Arc::clone(&self.client),
-                target_exists,
-                initial_size,
-            ),
-        ))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(HdfsDeleter::new(Arc::new(self.clone()))),
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let f = match self.client.read_dir(&p) {
-            Ok(f) => f,
-            Err(e) => {
-                return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
-                }
-            }
-        };
-
-        let rd = HdfsLister::new(&self.root, f, path);
-
-        Ok((RpList::default(), Some(rd)))
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 

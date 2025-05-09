@@ -51,25 +51,3 @@ impl oio::OneShotDelete for FsDeleter {
         }
     }
 }
-
-impl oio::BlockingOneShotDelete for FsDeleter {
-    fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = std::fs::metadata(&p);
-
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    std::fs::remove_dir(&p).map_err(new_std_io_error)?;
-                } else {
-                    std::fs::remove_file(&p).map_err(new_std_io_error)?;
-                }
-
-                Ok(())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
-    }
-}

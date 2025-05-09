@@ -1034,10 +1034,6 @@ impl Access for S3Backend {
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

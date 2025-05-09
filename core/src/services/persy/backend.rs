@@ -162,7 +162,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 delete: true,
-                blocking: true,
                 shared: false,
                 ..Default::default()
             },
@@ -170,15 +169,6 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let mut read_id = self
             .persy
             .get::<String, persy::PersyId>(&self.index, &path.to_string())
@@ -192,16 +182,6 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
-
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
-            .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         let mut tx = self.persy.begin().map_err(parse_error)?;
         let id = tx
             .insert(&self.segment, &value.to_vec())
@@ -216,16 +196,6 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         let mut delete_id = self
             .persy
             .get::<String, persy::PersyId>(&self.index, &path.to_string())

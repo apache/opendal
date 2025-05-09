@@ -244,10 +244,6 @@ impl Access for SftpBackend {
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

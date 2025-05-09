@@ -77,14 +77,5 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         .layer(layers::TimeoutLayer::new())
         .layer(layers::RetryLayer::new().with_max_times(4));
 
-    // Enable blocking layer if needed.
-    if !op.info().full_capability().blocking {
-        // Don't enable blocking layer for compfs
-        if op.info().scheme() != Scheme::Compfs {
-            let _guard = TEST_RUNTIME.enter();
-            op = op.layer(layers::BlockingLayer::create().expect("blocking layer must be created"));
-        }
-    }
-
     Ok(Some(op))
 }

@@ -172,7 +172,6 @@ impl Builder for FsBuilder {
 
                             copy: true,
                             rename: true,
-                            blocking: true,
 
                             shared: true,
 
@@ -200,10 +199,6 @@ impl Access for FsBackend {
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
-    type BlockingReader = FsReader<std::fs::File>;
-    type BlockingWriter = FsWriter<std::fs::File>;
-    type BlockingLister = Option<FsLister<std::fs::ReadDir>>;
-    type BlockingDeleter = oio::OneShotDeleter<FsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -415,184 +410,6 @@ impl Access for FsBackend {
         tokio::fs::rename(from, to)
             .await
             .map_err(new_std_io_error)?;
-
-        Ok(RpRename::default())
-    }
-
-    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        std::fs::create_dir_all(p).map_err(new_std_io_error)?;
-
-        Ok(RpCreateDir::default())
-    }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = std::fs::metadata(p).map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
-        Ok(RpStat::new(m))
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let mut f = std::fs::OpenOptions::new()
-            .read(true)
-            .open(p)
-            .map_err(new_std_io_error)?;
-
-        if args.range().offset() != 0 {
-            use std::io::Seek;
-
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .map_err(new_std_io_error)?;
-        }
-
-        let r = FsReader::new(
-            self.core.clone(),
-            f,
-            args.range().size().unwrap_or(u64::MAX) as _,
-        );
-        Ok((RpRead::new(), r))
-    }
-
-    fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
-            let target_path = self
-                .core
-                .blocking_ensure_write_abs_path(&self.core.root, path)?;
-            let tmp_path = self
-                .core
-                .blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
-
-            // If the target file exists, we should append to the end of it directly.
-            if op.append()
-                && Path::new(&target_path)
-                    .try_exists()
-                    .map_err(new_std_io_error)?
-            {
-                (target_path, None)
-            } else {
-                (target_path, Some(tmp_path))
-            }
-        } else {
-            let p = self
-                .core
-                .blocking_ensure_write_abs_path(&self.core.root, path)?;
-
-            (p, None)
-        };
-
-        let mut f = std::fs::OpenOptions::new();
-
-        if op.if_not_exists() {
-            f.create_new(true);
-        } else {
-            f.create(true);
-        }
-
-        f.write(true);
-
-        if op.append() {
-            f.append(true);
-        } else {
-            f.truncate(true);
-        }
-
-        let f = f
-            .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(|e| {
-                match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => {
-                        // Map io AlreadyExists to opendal ConditionNotMatch
-                        Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "The file already exists in the filesystem",
-                        )
-                        .set_source(e)
-                    }
-                    _ => new_std_io_error(e),
-                }
-            })?;
-
-        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let f = match std::fs::read_dir(p) {
-            Ok(rd) => rd,
-            Err(e) => {
-                return match e.kind() {
-                    // Return empty list if the directory not found
-                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
-                    // If the path is not a directory, return an empty list
-                    //
-                    // The path could be a file or a symbolic link in this case.
-                    // Returning a NotADirectory error to the user isn't helpful; instead,
-                    // providing an empty directory is a more user-friendly. In fact, the dir
-                    // `path/` does not exist.
-                    std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
-                    _ => Err(new_std_io_error(e)),
-                };
-            }
-        };
-
-        let rd = FsLister::new(&self.core.root, path, f);
-        Ok((RpList::default(), Some(rd)))
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.core.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(new_std_io_error)?;
-
-        let to = self
-            .core
-            .blocking_ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))?;
-
-        std::fs::copy(from, to).map_err(new_std_io_error)?;
-
-        Ok(RpCopy::default())
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.core.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        std::fs::metadata(&from).map_err(new_std_io_error)?;
-
-        let to = self
-            .core
-            .blocking_ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))?;
-
-        std::fs::rename(from, to).map_err(new_std_io_error)?;
 
         Ok(RpRename::default())
     }

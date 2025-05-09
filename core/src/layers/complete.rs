@@ -288,63 +288,14 @@ impl<A: Access> CompleteAccessor<A> {
             }
         }
     }
-
-    fn complete_blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, CompleteLister<A, A::BlockingLister>)> {
-        let cap = self.info.native_capability();
-
-        let recursive = args.recursive();
-
-        match (recursive, cap.list_with_recursive) {
-            // - If service can list_with_recursive, we can forward list to it directly.
-            (_, true) => {
-                let (rp, p) = self.inner.blocking_list(path, args)?;
-                Ok((rp, CompleteLister::One(p)))
-            }
-            // If recursive is true but service can't list_with_recursive
-            (true, false) => {
-                // Forward path that ends with /
-                if path.ends_with('/') {
-                    let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::Two(p)))
-                } else {
-                    let parent = get_parent(path);
-                    let p = FlatLister::new(self.inner.clone(), parent);
-                    let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Four(p)))
-                }
-            }
-            // If recursive and service doesn't support list_with_recursive, we need to handle
-            // list prefix by ourselves.
-            (false, false) => {
-                // Forward path that ends with /
-                if path.ends_with('/') {
-                    let (rp, p) = self.inner.blocking_list(path, args)?;
-                    Ok((rp, CompleteLister::One(p)))
-                } else {
-                    let parent = get_parent(path);
-                    let (rp, p) = self.inner.blocking_list(parent, args)?;
-                    let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::Three(p)))
-                }
-            }
-        }
-    }
 }
 
 impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
-    type BlockingReader = CompleteReader<A::BlockingReader>;
     type Writer = CompleteWriter<A::Writer>;
-    type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Lister = CompleteLister<A, A::Lister>;
-    type BlockingLister = CompleteLister<A, A::BlockingLister>;
     type Deleter = A::Deleter;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -386,36 +337,6 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.complete_blocking_create_dir(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let size = args.range().size();
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let append = args.append();
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, append)))
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.complete_blocking_stat(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner().blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.complete_blocking_list(path, args)
     }
 }
 
@@ -461,20 +382,6 @@ impl<R> CompleteReader<R> {
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buf = self.inner.read().await?;
-
-        if buf.is_empty() {
-            self.check()?;
-        } else {
-            self.read += buf.len() as u64;
-        }
-
-        Ok(buf)
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for CompleteReader<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        let buf = self.inner.read()?;
 
         if buf.is_empty() {
             self.check()?;
@@ -575,37 +482,5 @@ where
         self.inner = None;
 
         Ok(())
-    }
-}
-
-impl<W> oio::BlockingWrite for CompleteWriter<W>
-where
-    W: oio::BlockingWrite,
-{
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        let len = bs.len();
-        w.write(bs)?;
-        self.size += len as u64;
-
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        let mut ret = w.close()?;
-        self.check(ret.content_length())?;
-        if ret.content_length() == 0 {
-            ret = ret.with_content_length(self.size);
-        }
-        self.inner = None;
-
-        Ok(ret)
     }
 }

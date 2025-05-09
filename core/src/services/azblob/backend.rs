@@ -550,10 +550,6 @@ impl Access for AzblobBackend {
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

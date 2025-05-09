@@ -71,13 +71,9 @@ pub struct AwaitTreeAccessor<A: Access> {
 impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     type Inner = A;
     type Reader = AwaitTreeWrapper<A::Reader>;
-    type BlockingReader = AwaitTreeWrapper<A::BlockingReader>;
     type Writer = AwaitTreeWrapper<A::Writer>;
-    type BlockingWriter = AwaitTreeWrapper<A::BlockingWriter>;
     type Lister = AwaitTreeWrapper<A::Lister>;
-    type BlockingLister = AwaitTreeWrapper<A::BlockingLister>;
     type Deleter = AwaitTreeWrapper<A::Deleter>;
-    type BlockingDeleter = AwaitTreeWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -142,30 +138,6 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
             .instrument_await(format!("opendal::{}", Operation::Presign))
             .await
     }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner
-            .blocking_delete()
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
-    }
 }
 
 pub struct AwaitTreeWrapper<R> {
@@ -184,12 +156,6 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
             .read()
             .instrument_await(format!("opendal::{}", Operation::Read))
             .await
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for AwaitTreeWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner.read()
     }
 }
 
@@ -248,15 +214,5 @@ impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
             .flush()
             .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
-    }
-}
-
-impl<R: oio::BlockingDelete> oio::BlockingDelete for AwaitTreeWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.inner.flush()
     }
 }

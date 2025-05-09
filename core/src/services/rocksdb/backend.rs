@@ -118,7 +118,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 list: true,
-                blocking: true,
                 shared: false,
                 ..Default::default()
             },
@@ -126,60 +125,21 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         let result = self.db.get(path).map_err(parse_rocksdb_error)?;
         Ok(result.map(Buffer::from))
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         self.db
             .put(path, value.to_vec())
             .map_err(parse_rocksdb_error)
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         self.db.delete(path).map_err(parse_rocksdb_error)
     }
 
     async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        let res = task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)??;
-
-        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
-    }
-
-    /// TODO: we only need key here.
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let it = self.db.prefix_iterator(path).map(|r| r.map(|(k, _)| k));
         let mut res = Vec::default();
 

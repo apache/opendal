@@ -223,10 +223,6 @@ impl Access for PcloudBackend {
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

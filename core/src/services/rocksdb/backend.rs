@@ -152,7 +152,7 @@ impl kv::Adapter for Adapter {
             res.push(key.to_string());
         }
 
-        Ok(res)
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 }
 

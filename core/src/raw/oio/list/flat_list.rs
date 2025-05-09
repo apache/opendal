@@ -143,9 +143,6 @@ mod tests {
     use std::vec;
     use std::vec::IntoIter;
 
-    use log::debug;
-    use oio::BlockingList;
-
     use super::*;
 
     #[derive(Debug)]

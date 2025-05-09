@@ -179,28 +179,12 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for AwaitTreeWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner.write(bs)
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
-    }
-}
-
 impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
             .instrument_await(format!("opendal::{}", Operation::List))
             .await
-    }
-}
-
-impl<R: oio::BlockingList> oio::BlockingList for AwaitTreeWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next()
     }
 }
 

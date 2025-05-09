@@ -162,12 +162,6 @@ impl<R: oio::List> oio::List for AsyncBacktraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingList> oio::BlockingList for AsyncBacktraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next()
-    }
-}
-
 impl<R: oio::Delete> oio::Delete for AsyncBacktraceWrapper<R> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.delete(path, args)

@@ -22,6 +22,7 @@ use std::str;
 use tokio::task;
 
 use crate::raw::adapters::kv;
+use crate::raw::adapters::kv::ScanStdIter;
 use crate::raw::*;
 use crate::services::SledConfig;
 use crate::Builder;
@@ -188,7 +189,7 @@ impl kv::Adapter for Adapter {
             res.push(v);
         }
 
-        Ok(res)
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 }
 

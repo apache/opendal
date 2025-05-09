@@ -305,25 +305,9 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner.write(bs)
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
-    }
-}
-
 impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().await
-    }
-}
-
-impl<R: oio::BlockingList> oio::BlockingList for ConcurrentLimitWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next()
     }
 }
 

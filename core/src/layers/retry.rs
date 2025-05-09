@@ -564,19 +564,6 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
     }
 }
 
-impl<P: oio::BlockingList, I: RetryInterceptor> oio::BlockingList for RetryWrapper<P, I> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        { || self.inner.as_mut().unwrap().next() }
-            .retry(self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(err, dur);
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-    }
-}
-
 impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         { || self.inner.as_mut().unwrap().delete(path, args.clone()) }

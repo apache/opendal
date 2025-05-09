@@ -166,17 +166,6 @@ impl ReadGenerator {
         let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         Ok(Some(r))
     }
-
-    /// Generate next blocking reader.
-    pub fn next_blocking_reader(&mut self) -> Result<Option<oio::BlockingReader>> {
-        let Some(range) = self.next_range() else {
-            return Ok(None);
-        };
-
-        let args = self.ctx.args.clone().with_range(range);
-        let (_, r) = self.ctx.acc.blocking_read(&self.ctx.path, args)?;
-        Ok(Some(r))
-    }
 }
 
 #[cfg(test)]

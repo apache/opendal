@@ -257,14 +257,6 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingList> oio::BlockingList for FastraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::List.into_static());
-        self.inner.next()
-    }
-}
-
 impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let _g = self.span.set_local_parent();

@@ -133,27 +133,3 @@ impl<P: oio::List> oio::List for HierarchyLister<P> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    use std::collections::HashSet;
-    use std::vec::IntoIter;
-
-    use log::debug;
-    use oio::BlockingList;
-
-    use super::*;
-
-    struct MockLister {
-        inner: IntoIter<&'static str>,
-    }
-
-    impl MockLister {
-        fn new(inner: Vec<&'static str>) -> Self {
-            Self {
-                inner: inner.into_iter(),
-            }
-        }
-    }
-}

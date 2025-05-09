@@ -309,7 +309,7 @@ var withOperatorList = withFFI(ffiOpts{
 	sym:    symOperatorList,
 	rType:  &typeResultList,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorList {
+}, func(ctx context.Context, ffiCall ffiCall) operatorList {
 	return func(op *opendalOperator, path string) (*opendalLister, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -336,7 +336,7 @@ var withListerFree = withFFI(ffiOpts{
 	sym:    symListerFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) listerFree {
+}, func(ctx context.Context, ffiCall ffiCall) listerFree {
 	return func(l *opendalLister) {
 		ffiCall(
 			nil,
@@ -353,7 +353,7 @@ var withListerNext = withFFI(ffiOpts{
 	sym:    symListerNext,
 	rType:  &typeResultListerNext,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) listerNext {
+}, func(ctx context.Context, ffiCall ffiCall) listerNext {
 	return func(l *opendalLister) (*opendalEntry, error) {
 		var result opendalResultListerNext
 		ffiCall(
@@ -375,7 +375,7 @@ var withEntryFree = withFFI(ffiOpts{
 	sym:    symEntryFree,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) entryFree {
+}, func(ctx context.Context, ffiCall ffiCall) entryFree {
 	return func(e *opendalEntry) {
 		ffiCall(
 			nil,
@@ -392,7 +392,7 @@ var withEntryName = withFFI(ffiOpts{
 	sym:    symEntryName,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) entryName {
+}, func(ctx context.Context, ffiCall ffiCall) entryName {
 	return func(e *opendalEntry) string {
 		var bytePtr *byte
 		ffiCall(
@@ -411,7 +411,7 @@ var withEntryPath = withFFI(ffiOpts{
 	sym:    symEntryPath,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) entryPath {
+}, func(ctx context.Context, ffiCall ffiCall) entryPath {
 	return func(e *opendalEntry) string {
 		var bytePtr *byte
 		ffiCall(

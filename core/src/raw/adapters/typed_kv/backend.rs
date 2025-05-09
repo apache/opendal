@@ -74,8 +74,6 @@ where
                     cap.shared = true;
                 }
 
-                cap.blocking = true;
-
                 am.set_native_capability(cap);
 
                 am.into()
@@ -97,10 +95,6 @@ impl<S: Adapter> Access for Backend<S> {
     type Writer = KvWriter<S>;
     type Lister = HierarchyLister<KvLister>;
     type Deleter = oio::OneShotDeleter<KvDeleter<S>>;
-    type BlockingReader = Buffer;
-    type BlockingWriter = KvWriter<S>;
-    type BlockingLister = HierarchyLister<KvLister>;
-    type BlockingDeleter = oio::OneShotDeleter<KvDeleter<S>>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
@@ -153,54 +147,6 @@ impl<S: Adapter> Access for Backend<S> {
 
         Ok((RpList::default(), lister))
     }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
-
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-        } else {
-            let bs = self.kv.blocking_get(&p)?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(bs.metadata)),
-                None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-            }
-        }
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let bs = match self.kv.blocking_get(&p)? {
-            // TODO: we can reuse the metadata in value to build content range.
-            Some(bs) => bs.value,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let p = build_abs_path(&self.root, path);
-
-        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p, args)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(KvDeleter::new(self.kv.clone(), self.root.clone())),
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = build_abs_path(&self.root, path);
-        let res = self.kv.blocking_scan(&p)?;
-        let lister = KvLister::new(&self.root, res);
-        let lister = HierarchyLister::new(lister, path, args.recursive());
-
-        Ok((RpList::default(), lister))
-    }
 }
 
 pub struct KvLister {
@@ -234,12 +180,6 @@ impl KvLister {
 
 impl oio::List for KvLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner_next())
-    }
-}
-
-impl oio::BlockingList for KvLister {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
         Ok(self.inner_next())
     }
 }
@@ -318,31 +258,6 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     }
 }
 
-impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let mut buf = self.buf.take().unwrap_or_default();
-        buf.push(bs);
-        self.buf = Some(buf);
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        let kv = self.kv.clone();
-        let value = match &self.value {
-            Some(value) => value.clone(),
-            None => {
-                let value = self.build();
-                self.value = Some(value.clone());
-                value
-            }
-        };
-
-        let meta = value.metadata.clone();
-        kv.blocking_set(&self.path, value)?;
-        Ok(meta)
-    }
-}
-
 pub struct KvDeleter<S> {
     kv: Arc<S>,
     root: String,
@@ -359,15 +274,6 @@ impl<S: Adapter> oio::OneShotDelete for KvDeleter<S> {
         let p = build_abs_path(&self.root, &path);
 
         self.kv.delete(&p).await?;
-        Ok(())
-    }
-}
-
-impl<S: Adapter> oio::BlockingOneShotDelete for KvDeleter<S> {
-    fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-
-        self.kv.blocking_delete(&p)?;
         Ok(())
     }
 }

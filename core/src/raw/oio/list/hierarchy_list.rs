@@ -134,25 +134,6 @@ impl<P: oio::List> oio::List for HierarchyLister<P> {
     }
 }
 
-impl<P: oio::BlockingList> oio::BlockingList for HierarchyLister<P> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        loop {
-            let mut entry = match self.lister.next()? {
-                Some(entry) => entry,
-                None => return Ok(None),
-            };
-
-            if self.recursive {
-                return Ok(Some(entry));
-            }
-
-            if self.keep_entry(&mut entry) {
-                return Ok(Some(entry));
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -174,62 +155,5 @@ mod tests {
                 inner: inner.into_iter(),
             }
         }
-    }
-
-    impl BlockingList for MockLister {
-        fn next(&mut self) -> Result<Option<oio::Entry>> {
-            let entry = self.inner.next().map(|path| {
-                if path.ends_with('/') {
-                    oio::Entry::new(path, Metadata::new(EntryMode::DIR))
-                } else {
-                    oio::Entry::new(path, Metadata::new(EntryMode::FILE))
-                }
-            });
-
-            Ok(entry)
-        }
-    }
-
-    #[test]
-    fn test_blocking_list() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let lister = MockLister::new(vec![
-            "x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a",
-        ]);
-        let mut lister = HierarchyLister::new(lister, "", false);
-
-        let mut entries = Vec::default();
-
-        let mut set = HashSet::new();
-        while let Some(e) = lister.next()? {
-            debug!("got path {}", e.path());
-            assert!(
-                set.insert(e.path().to_string()),
-                "duplicated value: {}",
-                e.path()
-            );
-
-            entries.push(e)
-        }
-
-        assert_eq!(
-            entries[0],
-            oio::Entry::new("x/", Metadata::new(EntryMode::DIR))
-        );
-        assert_eq!(
-            entries[1],
-            oio::Entry::new("y/", Metadata::new(EntryMode::DIR))
-        );
-        assert_eq!(
-            entries[2],
-            oio::Entry::new("xy/", Metadata::new(EntryMode::DIR))
-        );
-        assert_eq!(
-            entries[3],
-            oio::Entry::new("z", Metadata::new(EntryMode::FILE))
-        );
-
-        Ok(())
     }
 }

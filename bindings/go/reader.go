@@ -257,7 +257,7 @@ var withOperatorRead = withFFI(ffiOpts{
 	sym:    symOperatorRead,
 	rType:  &typeResultRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorRead {
+}, func(ctx context.Context, ffiCall ffiCall) operatorRead {
 	return func(op *opendalOperator, path string) (opendalBytes, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -281,7 +281,7 @@ var withOperatorReader = withFFI(ffiOpts{
 	sym:    symOperatorReader,
 	rType:  &typeResultOperatorReader,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorReader {
+}, func(ctx context.Context, ffiCall ffiCall) operatorReader {
 	return func(op *opendalOperator, path string) (*opendalReader, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -308,7 +308,7 @@ var withReaderFree = withFFI(ffiOpts{
 	sym:    symReaderFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerFree {
+}, func(ctx context.Context, ffiCall ffiCall) readerFree {
 	return func(r *opendalReader) {
 		ffiCall(
 			nil,
@@ -325,7 +325,7 @@ var withReaderRead = withFFI(ffiOpts{
 	sym:    symReaderRead,
 	rType:  &typeResultReaderRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerRead {
+}, func(ctx context.Context, ffiCall ffiCall) readerRead {
 	return func(r *opendalReader, buf []byte) (size uint, err error) {
 		var length = len(buf)
 		if length == 0 {
@@ -354,7 +354,7 @@ var withReaderSeek = withFFI(ffiOpts{
 	sym:    symReaderSeek,
 	rType:  &typeResultReaderSeek,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerSeek {
+}, func(ctx context.Context, ffiCall ffiCall) readerSeek {
 	return func(r *opendalReader, offset int64, whence int) (int64, error) {
 		var result resultReaderSeek
 		ffiCall(

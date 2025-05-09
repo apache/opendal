@@ -67,7 +67,7 @@ pub fn all_packages() -> Vec<Package> {
     let dav_server = make_package("integrations/dav-server", "0.6.0", vec![core.clone()]);
     let fuse3 = make_package("integrations/fuse3", "0.0.16", vec![core.clone()]);
     let object_store = make_package("integrations/object_store", "0.52.0", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.6.0", vec![core.clone()]);
+    let parquet = make_package("integrations/parquet", "0.5.2", vec![core.clone()]);
     let unftp_sbe = make_package("integrations/unftp-sbe", "0.2.0", vec![core.clone()]);
 
     // Binaries

@@ -58,7 +58,12 @@ func (op *Operator) Check() (err error) {
 	if err != nil {
 		return
 	}
-	defer ds.Close()
+	defer func() {
+		closeErr := ds.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 	ds.Next()
 	err = ds.Error()
 	if err, ok := err.(*Error); ok && err.Code() == CodeNotFound {

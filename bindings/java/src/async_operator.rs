@@ -31,10 +31,12 @@ use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
 use opendal::Entry;
+use opendal::Error;
+use opendal::ErrorKind;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::convert::{jmap_to_hashmap, read_map_field, read_string_field};
+use crate::convert::{jmap_to_hashmap, read_int64_field, read_map_field, read_string_field};
 use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
@@ -274,8 +276,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    read_options: JObject,
 ) -> jlong {
-    intern_read(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_read(&mut env, op, executor, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -286,22 +289,43 @@ fn intern_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
+    let offset = read_int64_field(env, &options, "offset")?;
+    let length = read_int64_field(env, &options, "length")?;
+
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_read(op, path).await;
+        let result = do_read(op, path, offset, length).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let content = op.read(&path).await?.to_bytes();
+async fn do_read<'local>(
+    op: &mut Operator,
+    path: String,
+    offset: i64,
+    length: i64,
+) -> Result<JObject<'local>> {
+    let offset = u64::try_from(offset)
+        .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "offset must be non-negative"))?;
+
+    let content = if length == -1 {
+        op.read_with(&path).range(offset..).await?.to_bytes()
+    } else {
+        let length = u64::try_from(length)
+            .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "length must be non-negative"))?;
+        op.read_with(&path)
+            .range(offset..(offset + length))
+            .await?
+            .to_bytes()
+    };
 
     let env = unsafe { get_current_env() };
     let result = env.byte_array_from_slice(&content)?;

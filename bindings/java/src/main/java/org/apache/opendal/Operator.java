@@ -96,7 +96,15 @@ public class Operator extends NativeObject {
     }
 
     public byte[] read(String path) {
-        return read(nativeHandle, path);
+        return read(path, ReadOptions.builder().build());
+    }
+
+    public byte[] read(String path, long offset, long length) {
+        return read(path, ReadOptions.builder().offset(offset).length(length).build());
+    }
+
+    public byte[] read(String path, ReadOptions options) {
+        return read(nativeHandle, path, options);
     }
 
     public OperatorInputStream createInputStream(String path) {
@@ -142,7 +150,7 @@ public class Operator extends NativeObject {
 
     private static native void write(long op, String path, byte[] content, WriteOptions options);
 
-    private static native byte[] read(long op, String path);
+    private static native byte[] read(long op, String path, ReadOptions options);
 
     private static native void delete(long op, String path);
 

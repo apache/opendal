@@ -77,6 +77,14 @@ pub(crate) fn read_bool_field(
     Ok(env.get_field(obj, field, "Z")?.z()?)
 }
 
+pub(crate) fn read_int64_field(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> crate::Result<i64> {
+    Ok(env.get_field(obj, field, "J")?.j()?)
+}
+
 pub(crate) fn read_string_field(
     env: &mut JNIEnv<'_>,
     obj: &JObject,

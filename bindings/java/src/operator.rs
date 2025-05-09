@@ -26,8 +26,12 @@ use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::BlockingOperator;
+use opendal::Error;
+use opendal::ErrorKind;
 
-use crate::convert::{jstring_to_string, read_bool_field, read_map_field, read_string_field};
+use crate::convert::{
+    jstring_to_string, read_bool_field, read_int64_field, read_map_field, read_string_field,
+};
 use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
@@ -66,16 +70,36 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
+    read_options: JObject,
 ) -> jbyteArray {
-    intern_read(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_read(&mut env, &mut *op, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JByteArray::default().into_raw()
     })
 }
 
-fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
+fn intern_read(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    path: JString,
+    options: JObject,
+) -> Result<jbyteArray> {
     let path = jstring_to_string(env, &path)?;
-    let content = op.read(&path)?.to_bytes();
+
+    let offset = u64::try_from(read_int64_field(env, &options, "offset")?)
+        .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "offset must be non-negative"))?;
+    let length = read_int64_field(env, &options, "length")?;
+
+    let content = if length == -1 {
+        op.read_with(&path).range(offset..).call()?.to_bytes()
+    } else {
+        let length = u64::try_from(length)
+            .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "length must be non-negative"))?;
+        op.read_with(&path)
+            .range(offset..(offset + length))
+            .call()?
+            .to_bytes()
+    };
     let result = env.byte_array_from_slice(&content)?;
     Ok(result.into_raw())
 }

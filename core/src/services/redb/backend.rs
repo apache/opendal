@@ -24,12 +24,14 @@ use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::RedbConfig;
 use crate::*;
 
 use super::core::RedbCore;
 use super::error::*;
+use super::lister::RedbLister;
 use super::writer::RedbWriter;
 
 impl Configurator for RedbConfig {
@@ -150,7 +152,7 @@ impl Access for RedbBackend {
     type Lister = ();
     type BlockingReader = Buffer;
     type BlockingWriter = RedbWriter;
-    type BlockingLister = ();
+    type BlockingLister = HierarchyLister<RedbLister>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let mut am = AccessorInfo::default();
@@ -164,6 +166,9 @@ impl Access for RedbBackend {
                 write: true,
                 write_can_empty: true,
                 delete: true,
+
+                list: true,
+                list_with_recursive: true,
 
                 blocking: true,
                 shared: false,
@@ -243,6 +248,15 @@ impl Access for RedbBackend {
 
         self.core.delete(&p)?;
         Ok(RpDelete::default())
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+        let pattern = build_abs_path(&self.core.root, path);
+        let range = self.core.iter()?;
+        let lister = RedbLister::new(range, pattern);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
+
+        Ok((RpList::default(), lister))
     }
 }
 

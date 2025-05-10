@@ -66,4 +66,17 @@ impl RedbCore {
         write_txn.commit().map_err(parse_commit_error)?;
         Ok(())
     }
+
+    pub fn iter(&self) -> Result<redb::Range<'static, &'static str, &'static [u8]>> {
+        let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
+
+        let table_define: redb::TableDefinition<&str, &[u8]> =
+            redb::TableDefinition::new(&self.table);
+
+        let table = read_txn
+            .open_table(table_define)
+            .map_err(parse_table_error)?;
+
+        table.range::<&str>(..).map_err(parse_storage_error)
+    }
 }

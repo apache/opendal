@@ -16,6 +16,13 @@
 // under the License.
 
 #[cfg(feature = "services-redb")]
+mod core;
+#[cfg(feature = "services-redb")]
+mod error;
+#[cfg(feature = "services-redb")]
+mod writer;
+
+#[cfg(feature = "services-redb")]
 mod backend;
 #[cfg(feature = "services-redb")]
 pub use backend::RedbBuilder as Redb;

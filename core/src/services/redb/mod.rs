@@ -20,6 +20,8 @@ mod core;
 #[cfg(feature = "services-redb")]
 mod error;
 #[cfg(feature = "services-redb")]
+mod lister;
+#[cfg(feature = "services-redb")]
 mod writer;
 
 #[cfg(feature = "services-redb")]

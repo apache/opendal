@@ -47,17 +47,30 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bindings/c/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Clippy Check
         working-directory: "bindings/c"
         run: |
           cargo clippy -- -D warnings
 
+
       - name: Build C binding
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON
-          make -j$(nproc)
+          cmake .. -DTEST_ENABLE_ASAN=ON -DSERVICES_MEMORY=ON
+          make -j$(nproc) 
 
       - name: Check diff
         run: git diff --exit-code

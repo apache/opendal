@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use tokio::task;
 
+use crate::raw::new_task_join_error;
+use crate::raw::oio::{self, QueueBuf};
 use crate::Buffer;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use crate::raw::new_task_join_error;
-use crate::raw::oio::{self, QueueBuf};
 
 use super::core::RedbCore;
 

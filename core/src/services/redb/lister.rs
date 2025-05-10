@@ -1,7 +1,7 @@
+use crate::raw::oio;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use crate::raw::oio;
 
 use super::error::parse_storage_error;
 

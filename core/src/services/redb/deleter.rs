@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use tokio::task;
 
-use crate::Result;
-use crate::raw::OpDelete;
 use crate::raw::build_abs_path;
 use crate::raw::new_task_join_error;
 use crate::raw::oio;
+use crate::raw::OpDelete;
+use crate::Result;
 
 use super::core::RedbCore;
 

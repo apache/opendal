@@ -20,18 +20,19 @@ use std::sync::Arc;
 
 use tokio::task;
 
-use crate::raw::oio::HierarchyLister;
-use crate::raw::*;
-use crate::services::RedbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::oio::HierarchyLister;
+use crate::raw::*;
+use crate::services::RedbConfig;
 use crate::*;
 
 use super::core::RedbCore;
 use super::deleter::RedbDeleter;
 use super::error::*;
+use super::lister::RedbFilter;
 use super::lister::RedbLister;
 use super::writer::RedbWriter;
 
@@ -106,11 +107,11 @@ pub struct RedbBackend {
 impl Access for RedbBackend {
     type Reader = Buffer;
     type Writer = RedbWriter;
-    type Lister = ();
+    type Lister = HierarchyLister<RedbLister>;
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
     type BlockingReader = Buffer;
     type BlockingWriter = RedbWriter;
-    type BlockingLister = HierarchyLister<RedbLister>;
+    type BlockingLister = HierarchyLister<RedbFilter>;
     type BlockingDeleter = oio::OneShotDeleter<RedbDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -203,10 +204,19 @@ impl Access for RedbBackend {
         ))
     }
 
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let pattern = build_abs_path(&self.core.root, path);
+        let range = self.core.iter()?;
+        let lister = RedbLister::new(RedbFilter::new(range, pattern));
+        let lister = HierarchyLister::new(lister, path, args.recursive());
+
+        Ok((RpList::default(), lister))
+    }
+
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
         let pattern = build_abs_path(&self.core.root, path);
         let range = self.core.iter()?;
-        let lister = RedbLister::new(range, pattern);
+        let lister = RedbFilter::new(range, pattern);
         let lister = HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))

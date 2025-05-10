@@ -1,9 +1,9 @@
 use tokio::task;
 
+use crate::raw::oio;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use crate::raw::oio;
 
 use super::error::parse_storage_error;
 
@@ -16,31 +16,29 @@ impl RedbLister {
     pub fn new(mut filter: RedbFilter) -> Self {
         let (tx, rx) = flume::bounded(1);
 
-        task::spawn_blocking(move || {
-            loop {
-                let Some(result) = filter.range.next() else {
-                    break;
-                };
+        task::spawn_blocking(move || loop {
+            let Some(result) = filter.range.next() else {
+                break;
+            };
 
-                let (key, value) = match result {
-                    Ok(pair) => pair,
-                    Err(e) => {
-                        let e = parse_storage_error(e);
-                        if tx.send(Err(e)).is_err() {
-                            break;
-                        }
-                        continue;
-                    }
-                };
-
-                let key = key.value();
-                let size = value.value().len() as u64;
-                if key.starts_with(&filter.pattern) {
-                    let mode = EntryMode::from_path(key);
-                    let entry = oio::Entry::new(key, Metadata::new(mode).with_content_length(size));
-                    if tx.send(Ok(entry)).is_err() {
+            let (key, value) = match result {
+                Ok(pair) => pair,
+                Err(e) => {
+                    let e = parse_storage_error(e);
+                    if tx.send(Err(e)).is_err() {
                         break;
                     }
+                    continue;
+                }
+            };
+
+            let key = key.value();
+            let size = value.value().len() as u64;
+            if key.starts_with(&filter.pattern) {
+                let mode = EntryMode::from_path(key);
+                let entry = oio::Entry::new(key, Metadata::new(mode).with_content_length(size));
+                if tx.send(Ok(entry)).is_err() {
+                    break;
                 }
             }
         });

@@ -135,7 +135,7 @@ impl Builder for RedbBuilder {
             core: RedbCore {
                 datadir,
                 table: table_name,
-                root: self.config.root.unwrap_or_default(),
+                root: self.config.root.unwrap_or_else(|| "/".into()),
                 db,
             }
             .into(),

@@ -22,7 +22,7 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import NotFound
+from opendal.exceptions import ConditionNotMatch, NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
@@ -175,6 +175,54 @@ async def test_async_writer(service_name, operator, async_operator):
     with pytest.raises(NotFound):
         await async_operator.stat(filename)
 
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+async def test_async_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = await async_operator.open(filename, "wb")
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    with pytest.raises(ConditionNotMatch):
+        await async_operator.open(filename, "wb", if_not_exists=True)
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete")
+async def test_async_writer_from(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename_read = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = await async_operator.open(filename_read, "wb")
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+    filename_write = f"test_file_{str(uuid4())}.txt"
+
+    async with (
+            await async_operator.open(filename_read, "rb") as reader,
+            await async_operator.open(filename_write, "wb") as writer,
+        ):
+            await writer.write_from(reader)
+
+    reader = await async_operator.open(filename_write, "rb")
+    read_content = await reader.read()
+    assert read_content is not None
+    assert read_content == content
+    await reader.close()
+
+    async with (
+            await async_operator.open(filename_read, "wb") as reader,
+            await async_operator.open(filename_write, "wb") as writer,
+        ):
+            with pytest.raises(OSError):
+                await writer.write_from(reader)
+
+    await async_operator.delete(filename_read)
+    await async_operator.delete(filename_write)
 
 @pytest.mark.need_capability("write", "delete")
 def test_sync_writer(service_name, operator, async_operator):

@@ -205,7 +205,6 @@ pub struct Manager {
     options: ConnectOptions,
 }
 
-#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = Client;
     type Error = Error;

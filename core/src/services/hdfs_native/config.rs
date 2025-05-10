@@ -21,6 +21,8 @@ use std::fmt::Formatter;
 use serde::Deserialize;
 use serde::Serialize;
 
+use std::collections::HashMap;
+
 /// Config for HdfsNative services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
@@ -32,6 +34,9 @@ pub struct HdfsNativeConfig {
     pub name_node: Option<String>,
     /// enable the append capacity
     pub enable_append: bool,
+    /// other configs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configs: Option<HashMap<String, String>>,
 }
 
 impl Debug for HdfsNativeConfig {
@@ -40,6 +45,7 @@ impl Debug for HdfsNativeConfig {
             .field("root", &self.root)
             .field("name_node", &self.name_node)
             .field("enable_append", &self.enable_append)
+            .field("configs", &self.configs)
             .finish_non_exhaustive()
     }
 }

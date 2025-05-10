@@ -64,11 +64,13 @@ type ffiOpts struct {
 	aTypes []*ffi.Type
 }
 
+type ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)
+
 func withFFI[T any](
 	opts ffiOpts,
 	withFunc func(
 		ctx context.Context,
-		ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer),
+		ffiCall ffiCall,
 	) T,
 ) func(ctx context.Context, libopendal uintptr) (context.Context, error) {
 	return func(ctx context.Context, libopendal uintptr) (context.Context, error) {

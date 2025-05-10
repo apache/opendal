@@ -197,7 +197,7 @@ var withOperatorWrite = withFFI(ffiOpts{
 	sym:    symOperatorWrite,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWrite {
+}, func(ctx context.Context, ffiCall ffiCall) operatorWrite {
 	return func(op *opendalOperator, path string, data []byte) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -223,7 +223,7 @@ var withOperatorCreateDir = withFFI(ffiOpts{
 	sym:    symOperatorCreateDir,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorCreateDir {
+}, func(ctx context.Context, ffiCall ffiCall) operatorCreateDir {
 	return func(op *opendalOperator, path string) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -247,7 +247,7 @@ var withOperatorWriter = withFFI(ffiOpts{
 	sym:    symOperatorWriter,
 	rType:  &typeResultOperatorWriter,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorWriter {
+}, func(ctx context.Context, ffiCall ffiCall) operatorWriter {
 	return func(op *opendalOperator, path string) (*opendalWriter, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -274,7 +274,7 @@ var withWriterFree = withFFI(ffiOpts{
 	sym:    symWriterFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) writerFree {
+}, func(ctx context.Context, ffiCall ffiCall) writerFree {
 	return func(r *opendalWriter) {
 		ffiCall(
 			nil,
@@ -291,7 +291,7 @@ var withWriterWrite = withFFI(ffiOpts{
 	sym:    symWriterWrite,
 	rType:  &typeResultWriterWrite,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) writerWrite {
+}, func(ctx context.Context, ffiCall ffiCall) writerWrite {
 	return func(r *opendalWriter, data []byte) (size int, err error) {
 		bytes := toOpendalBytes(data)
 		var result resultWriterWrite
@@ -315,7 +315,7 @@ var withWriterClose = withFFI(ffiOpts{
 	sym:    symWriterClose,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) writerClose {
+}, func(ctx context.Context, ffiCall ffiCall) writerClose {
 	return func(r *opendalWriter) error {
 		var e *opendalError
 		ffiCall(

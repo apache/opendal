@@ -147,6 +147,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_java = True
             hint.binding_python = True
             hint.binding_nodejs = True
+            hint.binding_go = True
             hint.bin_ofs = True
             for integration in INTEGRATIONS:
                 setattr(hint, f"integration_{integration}", True)
@@ -270,10 +271,6 @@ def generate_language_binding_cases(
     # Remove hdfs cases for java and go.
     if language == "java":
         cases = [v for v in cases if v["service"] != "hdfs"]
-    elif language == "go":
-        # hdfs: has problem with ListEmptyDir
-        # oss: timed out with ListSubDir
-        cases = [v for v in cases if v["service"] not in ["hdfs", "oss"]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

@@ -15,22 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-hdfs")]
-mod delete;
-#[cfg(feature = "services-hdfs")]
-mod lister;
-#[cfg(feature = "services-hdfs")]
-mod reader;
-#[cfg(feature = "services-hdfs")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-hdfs")]
-mod backend;
-#[cfg(feature = "services-hdfs")]
-pub use backend::HdfsBuilder as Hdfs;
+use crate::raw::AccessorInfo;
 
-#[cfg(feature = "services-hdfs")]
-mod core;
+#[derive(Clone, Debug)]
+pub struct HdfsCore {
+    pub info: Arc<AccessorInfo>,
+    pub client: Arc<hdrs::Client>,
+}
 
-mod config;
-pub use config::HdfsConfig;
+impl HdfsCore {
+    pub fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+}

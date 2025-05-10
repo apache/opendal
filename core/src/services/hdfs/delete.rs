@@ -15,25 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::HdfsBackend;
+use super::core::HdfsCore;
 use crate::raw::*;
 use crate::*;
 use std::io;
 use std::sync::Arc;
 
 pub struct HdfsDeleter {
-    core: Arc<HdfsBackend>,
+    core: Arc<HdfsCore>,
+    root: String,
 }
 
 impl HdfsDeleter {
-    pub fn new(core: Arc<HdfsBackend>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<HdfsCore>, root: String) -> Self {
+        Self { core, root }
     }
 }
 
 impl oio::OneShotDelete for HdfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.core.root, &path);
+        let p = build_rooted_abs_path(&self.root, &path);
 
         let meta = self.core.client.metadata(&p);
 
@@ -62,7 +63,7 @@ impl oio::OneShotDelete for HdfsDeleter {
 
 impl oio::BlockingOneShotDelete for HdfsDeleter {
     fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.core.root, &path);
+        let p = build_rooted_abs_path(&self.root, &path);
 
         let meta = self.core.client.metadata(&p);
 

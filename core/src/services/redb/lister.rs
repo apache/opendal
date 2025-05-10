@@ -1,4 +1,7 @@
-use crate::{EntryMode, Metadata, Result, raw::oio};
+use crate::EntryMode;
+use crate::Metadata;
+use crate::Result;
+use crate::raw::oio;
 
 use super::error::parse_storage_error;
 
@@ -22,13 +25,17 @@ impl oio::BlockingList for RedbLister {
 
             let (key, value) = result.map_err(parse_storage_error)?;
             let key = key.value();
+            let size = value.value().len() as u64;
             if key.starts_with(&self.pattern) {
                 let mode = if key.ends_with('/') {
                     EntryMode::DIR
                 } else {
                     EntryMode::FILE
                 };
-                return Ok(Some(oio::Entry::new(key, Metadata::new(mode))));
+                return Ok(Some(oio::Entry::new(
+                    key,
+                    Metadata::new(mode).with_content_length(size),
+                )));
             }
         }
     }

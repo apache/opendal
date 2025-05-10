@@ -26,11 +26,10 @@ use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::BlockingOperator;
-use opendal::Error;
-use opendal::ErrorKind;
 
 use crate::convert::{
-    jstring_to_string, read_bool_field, read_int64_field, read_map_field, read_string_field,
+    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_bool_field,
+    read_int64_field, read_map_field, read_string_field,
 };
 use crate::make_entry;
 use crate::make_metadata;
@@ -86,21 +85,14 @@ fn intern_read(
 ) -> Result<jbyteArray> {
     let path = jstring_to_string(env, &path)?;
 
-    let offset = u64::try_from(read_int64_field(env, &options, "offset")?)
-        .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "offset must be non-negative"))?;
+    let offset = read_int64_field(env, &options, "offset")?;
     let length = read_int64_field(env, &options, "length")?;
 
-    let content = if length == -1 {
-        op.read_with(&path).range(offset..).call()?.to_bytes()
-    } else {
-        let length = u64::try_from(length)
-            .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "length must be non-negative"))?;
-        op.read_with(&path)
-            .range(offset..(offset + length))
-            .call()?
-            .to_bytes()
-    };
-    let result = env.byte_array_from_slice(&content)?;
+    let mut read_op = op.read_with(&path);
+    read_op = read_op.range(offset_length_to_range(offset, length)?);
+    let content = read_op.call()?;
+
+    let result = bytes_to_jbytearray(env, content.to_bytes())?;
     Ok(result.into_raw())
 }
 

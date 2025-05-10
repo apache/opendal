@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
-use jni::objects::JMap;
+use crate::Result;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::objects::{JByteArray, JMap};
 use jni::sys::jlong;
 use jni::JNIEnv;
+use opendal::{Error, ErrorKind};
+use std::collections::HashMap;
+use std::ops::Bound;
 
 pub(crate) fn usize_to_jlong(n: Option<usize>) -> jlong {
     // usize is always >= 0, so we can use -1 to identify the empty value.
@@ -31,7 +33,7 @@ pub(crate) fn usize_to_jlong(n: Option<usize>) -> jlong {
 pub(crate) fn jmap_to_hashmap(
     env: &mut JNIEnv,
     params: &JObject,
-) -> crate::Result<HashMap<String, String>> {
+) -> Result<HashMap<String, String>> {
     let map = JMap::from_env(env, params)?;
     let mut iter = map.iter(env)?;
 
@@ -48,7 +50,7 @@ pub(crate) fn jmap_to_hashmap(
 pub(crate) fn hashmap_to_jmap<'a>(
     env: &mut JNIEnv<'a>,
     map: &HashMap<String, String>,
-) -> crate::Result<JObject<'a>> {
+) -> Result<JObject<'a>> {
     let map_object = env.new_object("java/util/HashMap", "()V", &[])?;
     let jmap = env.get_map(&map_object)?;
     for (k, v) in map {
@@ -59,29 +61,18 @@ pub(crate) fn hashmap_to_jmap<'a>(
     Ok(map_object)
 }
 
-pub(crate) fn string_to_jstring<'a>(
-    env: &mut JNIEnv<'a>,
-    s: Option<&str>,
-) -> crate::Result<JObject<'a>> {
+pub(crate) fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {
     s.map_or_else(
         || Ok(JObject::null()),
         |v| Ok(env.new_string(v.to_string())?.into()),
     )
 }
 
-pub(crate) fn read_bool_field(
-    env: &mut JNIEnv<'_>,
-    obj: &JObject,
-    field: &str,
-) -> crate::Result<bool> {
+pub(crate) fn read_bool_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<bool> {
     Ok(env.get_field(obj, field, "Z")?.z()?)
 }
 
-pub(crate) fn read_int64_field(
-    env: &mut JNIEnv<'_>,
-    obj: &JObject,
-    field: &str,
-) -> crate::Result<i64> {
+pub(crate) fn read_int64_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<i64> {
     Ok(env.get_field(obj, field, "J")?.j()?)
 }
 
@@ -89,7 +80,7 @@ pub(crate) fn read_string_field(
     env: &mut JNIEnv<'_>,
     obj: &JObject,
     field: &str,
-) -> crate::Result<Option<String>> {
+) -> Result<Option<String>> {
     let result = env.get_field(obj, field, "Ljava/lang/String;")?.l()?;
     if result.is_null() {
         Ok(None)
@@ -102,7 +93,7 @@ pub(crate) fn read_map_field(
     env: &mut JNIEnv<'_>,
     obj: &JObject,
     field: &str,
-) -> crate::Result<Option<HashMap<String, String>>> {
+) -> Result<Option<HashMap<String, String>>> {
     let result = env.get_field(obj, field, "Ljava/util/Map;")?.l()?;
     if result.is_null() {
         Ok(None)
@@ -111,11 +102,38 @@ pub(crate) fn read_map_field(
     }
 }
 
+pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {
+    let offset = u64::try_from(offset)
+        .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "offset must be non-negative"))?;
+
+    match length {
+        -1 => Ok((Bound::Included(offset), Bound::Unbounded)),
+        _ => match u64::try_from(length) {
+            Ok(length) => Ok(match offset.checked_add(length) {
+                Some(end) => (Bound::Included(offset), Bound::Included(end)),
+                None => (Bound::Included(offset), Bound::Unbounded),
+            }),
+            Err(_) => {
+                Err(Error::new(ErrorKind::RangeNotSatisfied, "length must be non-negative").into())
+            }
+        },
+    }
+}
+
+pub(crate) fn bytes_to_jbytearray<'a>(
+    env: &mut JNIEnv<'a>,
+    bytes: impl AsRef<[u8]>,
+) -> Result<JByteArray<'a>> {
+    let bytes = bytes.as_ref();
+    let res = env.byte_array_from_slice(bytes)?;
+    Ok(res)
+}
+
 /// # Safety
 ///
 /// The caller must guarantee that the Object passed in is an instance
 /// of `java.lang.String`, passing in anything else will lead to undefined behavior.
-pub(crate) fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> crate::Result<String> {
+pub(crate) fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
     let res = unsafe { env.get_string_unchecked(s)? };
     Ok(res.into())
 }

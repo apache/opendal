@@ -18,6 +18,8 @@
 #[cfg(feature = "services-redb")]
 mod core;
 #[cfg(feature = "services-redb")]
+mod deleter;
+#[cfg(feature = "services-redb")]
 mod error;
 #[cfg(feature = "services-redb")]
 mod lister;

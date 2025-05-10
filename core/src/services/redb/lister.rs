@@ -27,11 +27,7 @@ impl oio::BlockingList for RedbLister {
             let key = key.value();
             let size = value.value().len() as u64;
             if key.starts_with(&self.pattern) {
-                let mode = if key.ends_with('/') {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::FILE
-                };
+                let mode = EntryMode::from_path(key);
                 return Ok(Some(oio::Entry::new(
                     key,
                     Metadata::new(mode).with_content_length(size),

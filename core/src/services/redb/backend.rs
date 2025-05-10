@@ -30,6 +30,7 @@ use crate::services::RedbConfig;
 use crate::*;
 
 use super::core::RedbCore;
+use super::deleter::RedbDeleter;
 use super::error::*;
 use super::lister::RedbLister;
 use super::writer::RedbWriter;
@@ -106,12 +107,14 @@ impl Access for RedbBackend {
     type Reader = Buffer;
     type Writer = RedbWriter;
     type Lister = ();
+    type Deleter = oio::OneShotDeleter<RedbDeleter>;
     type BlockingReader = Buffer;
     type BlockingWriter = RedbWriter;
     type BlockingLister = HierarchyLister<RedbLister>;
+    type BlockingDeleter = oio::OneShotDeleter<RedbDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Redb)
             .set_root(&self.core.root)
             .set_name(&self.core.datadir)
@@ -189,21 +192,15 @@ impl Access for RedbBackend {
         Ok((RpWrite::new(), RedbWriter::new(self.core.clone(), p)))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str(), args))
-            .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.blocking_delete()
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_abs_path(&self.core.root, path);
-
-        self.core.delete(&p)?;
-        Ok(RpDelete::default())
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(RedbDeleter::new(self.core.clone())),
+        ))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {

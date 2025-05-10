@@ -109,10 +109,14 @@ pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<
     match length {
         -1 => Ok((Bound::Included(offset), Bound::Unbounded)),
         _ => match u64::try_from(length) {
-            Ok(length) => Ok(match offset.checked_add(length) {
-                Some(end) => (Bound::Included(offset), Bound::Included(end)),
-                None => (Bound::Included(offset), Bound::Unbounded),
-            }),
+            Ok(length) => match offset.checked_add(length) {
+                Some(end) => Ok((Bound::Included(offset), Bound::Excluded(end))),
+                None => Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "offset + length causes overflow",
+                )
+                .into()),
+            },
             Err(_) => {
                 Err(Error::new(ErrorKind::RangeNotSatisfied, "length must be non-negative").into())
             }

@@ -45,16 +45,9 @@ jobs:
           need-rocksdb: true
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@2e7f9ec7921547d4b46598398ca573513895d0bd
-        with:
-          version: "v0.10.0"
 
-      - name: Cargo clippy
+      - name: Cargo clippy && test
         working-directory: bin/oli
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: |
           cargo clippy --all-targets --all-features -- -D warnings
           cargo test --all-targets --all-features

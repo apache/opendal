@@ -35,19 +35,10 @@ plugins:
           paths: [python]
           options:
             docstring_style: google
-
-nav:
-  - Overview: index.md
-  - Examples:
-      - Basic: examples/basic.ipynb
-      - Pandas: examples/pandas.ipynb
-      - Polars: examples/polars.ipynb
-  - API Reference:
-      - api/operator.md
-      - api/file.md
-      - api/async_operator.md
-      - api/async_file.md
-      - api/metadata.md
+  - literate-nav:
+      nav_file: SUMMARY.md
+      implicit_index: false
+      tab_length: 4
 
 markdown_extensions:
   - pymdownx.highlight:

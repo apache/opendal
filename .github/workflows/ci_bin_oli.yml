@@ -45,21 +45,13 @@ jobs:
           need-rocksdb: true
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            bin/oli/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@2e7f9ec7921547d4b46598398ca573513895d0bd
       - name: Cargo clippy
         working-directory: bin/oli
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Cargo test
-        working-directory: bin/oli
-        run: cargo test --all-targets --all-features
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: |
+          cargo clippy --all-targets --all-features -- -D warnings
+          cargo test --all-targets --all-features

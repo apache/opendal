@@ -3,6 +3,7 @@
     - [Basic](examples/basic.ipynb)
     - [Pandas](examples/pandas.ipynb)
     - [Polars](examples/polars.ipynb)
+- [Services](services/)
 - API Reference
     - [Operator](api/operator.md)
     - [File](api/file.md)

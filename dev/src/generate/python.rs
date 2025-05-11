@@ -25,21 +25,54 @@ use std::path::PathBuf;
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
+        "etcd" | "foundationdb" | "ftp" | "hdfs" | "hdfs-native" | "rocksdb" | "tikv" => false,
         _ => true,
     }
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
+    let env = setup_environment()?;
     let services = sorted_services(services, enabled_service);
-    let mut env = Environment::new();
-    env.add_template("python", include_str!("python.j2"))?;
-    env.add_function("make_python_type", make_python_type);
-    let template = env.get_template("python")?;
 
+    generate_typing_hints(&env, &workspace_dir, &services)?;
+    generate_mkdocs(&env, &workspace_dir, &services)?;
+    Ok(())
+}
+
+/// Generates Python typing hints
+fn generate_typing_hints(env: &Environment, workspace_dir: &PathBuf, services: &Services) -> Result<()> {
+    let template = env.get_template("python-type-hints")?;
     let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
     fs::write(output, template.render(context! { services => services })?)?;
     Ok(())
+}
+
+/// Generates service documentations for mkdocs website.
+fn generate_mkdocs(env: &Environment, workspace_dir: &PathBuf, services: &Services) -> Result<()> {
+    let template = env.get_template("python-mkdocs-service")?;
+    let output_folder = workspace_dir.join("bindings/python/docs/services/");
+    fs::remove_dir_all(&output_folder)?;
+    fs::create_dir(&output_folder)?;
+
+    for (name, service) in services.iter() {
+        let path = output_folder.join(format!("{}.md", name));
+        fs::write(path, template.render(context! { name => name, service => service })?)?;
+    }
+
+    let template = env.get_template("python-mkdocs-service-summary")?;
+    fs::write(output_folder.join("SUMMARY.md"), template.render(context! { services => services })?)?;
+    Ok(())
+}
+
+/// Creates `Environment` for rendering
+fn setup_environment() -> Result<Environment<'static>> { // includes static template strings
+    let mut env = Environment::new();
+    env.add_template("python-type-hints", include_str!("python-type-hints.j2"))?;
+    // #5457 discussed a better approach generating config types when PyO3 can generate stubs when compiling.
+    env.add_template("python-mkdocs-service", include_str!("python-mkdocs-service.j2"))?;
+    env.add_template("python-mkdocs-service-summary", include_str!("python-mkdocs-service-summary.j2"))?;
+    env.add_function("make_python_type", make_python_type);
+    Ok(env)
 }
 
 fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {

@@ -23,7 +23,8 @@ use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
 use syn::{
-    Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
+    AngleBracketedGenericArguments, Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta,
+    PathArguments, Type, TypePath,
 };
 
 pub type Services = HashMap<String, Service>;
@@ -38,7 +39,13 @@ pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
         let mut sorted = srv.config.into_iter().enumerate().collect::<Vec<_>>();
         sorted.sort_by_key(|(i, v)| (v.optional, *i));
         let config = sorted.into_iter().map(|(_, v)| v).collect();
-        srvs.insert(k, Service { config });
+        srvs.insert(
+            k,
+            Service {
+                ident: srv.ident,
+                config,
+            },
+        );
     }
     srvs
 }
@@ -46,6 +53,8 @@ pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
 /// Service represents a service supported by opendal core, like `s3` and `fs`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Service {
+    /// The configuration class name
+    pub ident: String,
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
@@ -203,13 +212,14 @@ impl ServiceParser {
 
         let ast = syn::parse_file(&self.content)?;
 
-        let config_struct = ast
+        let (ident, config_struct) = ast
             .items
             .iter()
             .find_map(|v| {
                 if let Item::Struct(v) = v {
-                    if v.ident.to_string().contains("Config") {
-                        return Some(v.clone());
+                    let ident = v.ident.to_string();
+                    if ident.contains("Config") {
+                        return Some((ident, v.clone()));
                     }
                 }
                 None
@@ -223,7 +233,7 @@ impl ServiceParser {
         }
 
         log::debug!("service {} parse finished", self.service);
-        Ok(Service { config })
+        Ok(Service { ident, config })
     }
 
     /// TODO: Add comment parse support.
@@ -246,10 +256,12 @@ impl ServiceParser {
                 let optional = segment.ident == "Option";
 
                 let type_name = if optional {
-                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(GenericArgument::Type(Type::Path(inner_path))) =
-                            args.args.first()
-                        {
+                    if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                        args,
+                        ..
+                    }) = &segment.arguments
+                    {
+                        if let Some(GenericArgument::Type(Type::Path(inner_path))) = args.first() {
                             if let Some(inner_segment) = inner_path.path.segments.last() {
                                 inner_segment.ident.to_string()
                             } else {
@@ -429,7 +441,37 @@ default to `/` if not set.",
     }
 
     #[test]
-    fn test_parse_service() {
+    fn test_parse_service_configuration_struct_name() {
+        let content = r#"
+use serde::Deserialize;
+use serde::Serialize;
+
+/// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+pub struct S3Config {
+    /// root of this backend.
+    ///
+    /// All operations will happen under this root.
+    ///
+    /// default to `/` if not set.
+    pub root: Option<String>
+}
+    "#;
+
+        let parser = ServiceParser {
+            service: "s3".to_string(),
+            path: "test".to_string(),
+            content: content.to_string(),
+        };
+
+        let service = parser.parse().unwrap();
+        assert_eq!(service.ident, "S3Config");
+    }
+
+    #[test]
+    fn test_parse_service_configuration_fields() {
         let content = r#"
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file

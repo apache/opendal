@@ -44,16 +44,16 @@ class _Base:
     The services list here is support by opendal pypi wheel.
     """
 
-{% for srv in srvs %}
+{% for name, service in services|items %}
     @overload
     def __init__(
         self,
-        scheme: Literal["{{srv}}"],
+        scheme: Literal["{{name}}"],
         /,
-    {%- if srvs[srv].config -%}
+    {%- if service.config -%}
         *,
     {%- endif %}
-    {%- for field in srvs[srv].config -%}
+    {%- for field in service.config -%}
         {% if field.deprecated %}
         # deprecated: {{field.deprecated["note"]}}
         {%- endif %}

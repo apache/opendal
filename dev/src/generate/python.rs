@@ -31,14 +31,14 @@ fn enabled_service(srv: &str) -> bool {
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let srvs = sorted_services(services, enabled_service);
+    let services = sorted_services(services, enabled_service);
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_function("make_python_type", make_python_type);
-    let tmpl = env.get_template("python")?;
+    let template = env.get_template("python")?;
 
     let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
-    fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
+    fs::write(output, template.render(context! { services => services })?)?;
     Ok(())
 }
 

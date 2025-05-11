@@ -38,7 +38,9 @@ concurrency:
 
 permissions:
   contents: read
-
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -49,18 +51,12 @@ jobs:
         uses: ./.github/actions/setup
 
 
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            bindings/c/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad
 
       - name: Clippy Check
         working-directory: "bindings/c"
+        
         run: |
           cargo clippy -- -D warnings
 

@@ -56,15 +56,13 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
         .success();
 
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +--------------------+------+--------------+---------+
-    | Path               | Type | Size (bytes) | Content |
+    +----------------------------------------------------+
+    | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]         | DIR  | 128          |         |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/dst.txt | FILE | 5            | hello   |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/src.txt | FILE | 5            | hello   |
-    +--------------------+------+--------------+---------+
+    | [TEMP_DIR]           DIR    128                    |
+    | [TEMP_DIR]/dst.txt   FILE   5              hello   |
+    | [TEMP_DIR]/src.txt   FILE   5              hello   |
+    +----------------------------------------------------+
     ");
     Ok(())
 }

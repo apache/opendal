@@ -79,7 +79,7 @@ impl std::fmt::Display for DirectorySnapshot {
             .sort_by_file_name()
             .into_iter();
         let mut table = comfy_table::Table::new();
-        table.load_preset(comfy_table::presets::ASCII_FULL);
+        table.load_preset(comfy_table::presets::ASCII_BORDERS_ONLY_CONDENSED);
         let mut header = vec!["Path"];
         if self.with_type {
             header.push("Type");

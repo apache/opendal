@@ -28,13 +28,12 @@ async fn test_basic_mv() -> Result<()> {
     fs::write(&src_path, expect)?;
 
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +--------------------+------+--------------+---------+
-    | Path               | Type | Size (bytes) | Content |
+    +----------------------------------------------------+
+    | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]         | DIR  | 96           |         |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/src.txt | FILE | 5            | hello   |
-    +--------------------+------+--------------+---------+
+    | [TEMP_DIR]           DIR    96                     |
+    | [TEMP_DIR]/src.txt   FILE   5              hello   |
+    +----------------------------------------------------+
     ");
 
     oli()
@@ -45,13 +44,12 @@ async fn test_basic_mv() -> Result<()> {
         .success();
 
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +--------------------+------+--------------+---------+
-    | Path               | Type | Size (bytes) | Content |
+    +----------------------------------------------------+
+    | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]         | DIR  | 96           |         |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/dst.txt | FILE | 5            | hello   |
-    +--------------------+------+--------------+---------+
+    | [TEMP_DIR]           DIR    96                     |
+    | [TEMP_DIR]/dst.txt   FILE   5              hello   |
+    +----------------------------------------------------+
     ");
     Ok(())
 }
@@ -74,22 +72,20 @@ async fn test_move_a_file_to_a_dir() -> Result<()> {
         .success();
 
     assert_snapshot!(directory_snapshot(src_dir.path()).with_content(true), @r"
-    +------------+------+--------------+---------+
-    | Path       | Type | Size (bytes) | Content |
+    +--------------------------------------------+
+    | Path         Type   Size (bytes)   Content |
     +============================================+
-    | [TEMP_DIR] | DIR  | 64           |         |
-    +------------+------+--------------+---------+
+    | [TEMP_DIR]   DIR    64                     |
+    +--------------------------------------------+
     ");
     assert_snapshot!(directory_snapshot(dst_dir.path()).with_content(true), @r"
-    +--------------------+------+--------------+---------+
-    | Path               | Type | Size (bytes) | Content |
+    +----------------------------------------------------+
+    | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]         | DIR  | 96           |         |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/dir     | DIR  | 96           |         |
-    |--------------------+------+--------------+---------|
-    | [TEMP_DIR]/src.txt | FILE | 5            | hello   |
-    +--------------------+------+--------------+---------+
+    | [TEMP_DIR]           DIR    96                     |
+    | [TEMP_DIR]/dir       DIR    96                     |
+    | [TEMP_DIR]/src.txt   FILE   5              hello   |
+    +----------------------------------------------------+
     ");
 
     Ok(())
@@ -115,21 +111,16 @@ async fn test_mv_with_recursive() -> Result<()> {
     fs::create_dir(&src_empty_dir)?;
 
     insta::assert_snapshot!(directory_snapshot(&src_root), @r"
-    +----------------------+------+--------------+
-    | Path                 | Type | Size (bytes) |
+    +--------------------------------------------+
+    | Path                   Type   Size (bytes) |
     +============================================+
-    | [TEMP_DIR]           | DIR  | 96           |
-    |----------------------+------+--------------|
-    | [TEMP_DIR]/src       | DIR  | 160          |
-    |----------------------+------+--------------|
-    | [TEMP_DIR]/dir       | DIR  | 96           |
-    |----------------------+------+--------------|
-    | [TEMP_DIR]/file2.txt | FILE | 5            |
-    |----------------------+------+--------------|
-    | [TEMP_DIR]/empty_dir | DIR  | 64           |
-    |----------------------+------+--------------|
-    | [TEMP_DIR]/file1.txt | FILE | 5            |
-    +----------------------+------+--------------+
+    | [TEMP_DIR]             DIR    96           |
+    | [TEMP_DIR]/src         DIR    160          |
+    | [TEMP_DIR]/dir         DIR    96           |
+    | [TEMP_DIR]/file2.txt   FILE   5            |
+    | [TEMP_DIR]/empty_dir   DIR    64           |
+    | [TEMP_DIR]/file1.txt   FILE   5            |
+    +--------------------------------------------+
     ");
 
     let dst_path = tempfile::tempdir()?;
@@ -143,28 +134,23 @@ async fn test_mv_with_recursive() -> Result<()> {
         .success();
 
     assert_snapshot!(directory_snapshot(&src_root), @r"
-    +----------------+------+--------------+
-    | Path           | Type | Size (bytes) |
+    +--------------------------------------+
+    | Path             Type   Size (bytes) |
     +======================================+
-    | [TEMP_DIR]     | DIR  | 96           |
-    |----------------+------+--------------|
-    | [TEMP_DIR]/src | DIR  | 64           |
-    +----------------+------+--------------+
+    | [TEMP_DIR]       DIR    96           |
+    | [TEMP_DIR]/src   DIR    64           |
+    +--------------------------------------+
     ");
     assert_snapshot!(directory_snapshot(&dst_path).with_content(true), @r"
-    +----------------------+------+--------------+---------+
-    | Path                 | Type | Size (bytes) | Content |
+    +------------------------------------------------------+
+    | Path                   Type   Size (bytes)   Content |
     +======================================================+
-    | [TEMP_DIR]           | DIR  | 160          |         |
-    |----------------------+------+--------------+---------|
-    | [TEMP_DIR]/dir       | DIR  | 96           |         |
-    |----------------------+------+--------------+---------|
-    | [TEMP_DIR]/file2.txt | FILE | 5            | file2   |
-    |----------------------+------+--------------+---------|
-    | [TEMP_DIR]/empty_dir | DIR  | 64           |         |
-    |----------------------+------+--------------+---------|
-    | [TEMP_DIR]/file1.txt | FILE | 5            | file1   |
-    +----------------------+------+--------------+---------+
+    | [TEMP_DIR]             DIR    160                    |
+    | [TEMP_DIR]/dir         DIR    96                     |
+    | [TEMP_DIR]/file2.txt   FILE   5              file2   |
+    | [TEMP_DIR]/empty_dir   DIR    64                     |
+    | [TEMP_DIR]/file1.txt   FILE   5              file1   |
+    +------------------------------------------------------+
     ");
 
     Ok(())

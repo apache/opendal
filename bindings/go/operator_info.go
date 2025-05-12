@@ -243,7 +243,7 @@ var withOperatorInfoNew = withFFI(ffiOpts{
 	sym:    symOperatorInfoNew,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoNew {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoNew {
 	return func(op *opendalOperator) *opendalOperatorInfo {
 		var result *opendalOperatorInfo
 		ffiCall(
@@ -262,7 +262,7 @@ var withOperatorInfoFree = withFFI(ffiOpts{
 	sym:    symOperatorInfoFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoFree {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoFree {
 	return func(info *opendalOperatorInfo) {
 		ffiCall(
 			nil,
@@ -279,7 +279,7 @@ var withOperatorInfoGetFullCapability = withFFI(ffiOpts{
 	sym:    symOperatorInfoGetFullCapability,
 	rType:  &typeCapability,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoGetFullCapability {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoGetFullCapability {
 	return func(info *opendalOperatorInfo) *opendalCapability {
 		var cap opendalCapability
 		ffiCall(
@@ -298,7 +298,7 @@ var withOperatorInfoGetNativeCapability = withFFI(ffiOpts{
 	sym:    symOperatorInfoGetNativeCapability,
 	rType:  &typeCapability,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoGetNativeCapability {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoGetNativeCapability {
 	return func(info *opendalOperatorInfo) *opendalCapability {
 		var cap opendalCapability
 		ffiCall(
@@ -317,7 +317,7 @@ var withOperatorInfoGetScheme = withFFI(ffiOpts{
 	sym:    symOperatorInfoGetScheme,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoGetScheme {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoGetScheme {
 	return func(info *opendalOperatorInfo) string {
 		var bytePtr *byte
 		ffiCall(
@@ -336,7 +336,7 @@ var withOperatorInfoGetRoot = withFFI(ffiOpts{
 	sym:    symOperatorInfoGetRoot,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoGetRoot {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoGetRoot {
 	return func(info *opendalOperatorInfo) string {
 		var bytePtr *byte
 		ffiCall(
@@ -355,7 +355,7 @@ var withOperatorInfoGetName = withFFI(ffiOpts{
 	sym:    symOperatorInfoGetName,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorInfoGetName {
+}, func(ctx context.Context, ffiCall ffiCall) operatorInfoGetName {
 	return func(info *opendalOperatorInfo) string {
 		var bytePtr *byte
 		ffiCall(

@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.80"
-version = "0.51.1"
+version = "0.52.0"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]

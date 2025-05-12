@@ -17,30 +17,20 @@
  * under the License.
  */
 
-#pragma once
+package org.apache.opendal;
 
-#include "rust/cxx.h"
+import lombok.Builder;
 
-namespace opendal::details {
+@Builder
+public class ReadOptions {
+    /**
+     * Sets the offset of the read operation.
+     */
+    public final long offset;
 
-template <typename T>
-auto rust_str(T &&s) -> decltype(s.data(), s.size(), rust::Str()) {
-  return rust::Str(s.data(), s.size());
+    /**
+     * Sets the length of the read operation.
+     */
+    @Builder.Default
+    public final long length = -1;
 }
-
-template <typename T>
-auto rust_string(T &&s) -> decltype(s.data(), s.size(), rust::String()) {
-  return rust::String(s.data(), s.size());
-}
-
-template <typename T, typename Container>
-auto rust_slice(Container &&s)
-    -> decltype(s.data(), s.size(), rust::Slice<T>()) {
-  using Elem = std::remove_pointer_t<decltype(s.data())>;
-  static_assert(std::is_convertible_v<Elem, T>,
-                "Container element type must be convertible to T");
-
-  return rust::Slice<T>(reinterpret_cast<T *>(s.data()), s.size());
-}
-
-}  // namespace opendal::details

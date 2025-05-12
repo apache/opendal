@@ -61,6 +61,9 @@ jobs:
           - { os: ubuntu-latest, target: "x86_64" }
           - { os: ubuntu-latest, target: "aarch64", manylinux: "manylinux_2_28" }
           - { os: ubuntu-latest, target: "armv7l" }
+          - { os: ubuntu-latest, target: "x86_64-unknown-linux-musl", manylinux: "musllinux_1_1" }
+          - { os: ubuntu-latest, target: "aarch64-unknown-linux-musl", manylinux: "musllinux_1_1" }
+          - { os: ubuntu-latest, target: "armv7-unknown-linux-musleabihf", manylinux: "musllinux_1_1" }
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain

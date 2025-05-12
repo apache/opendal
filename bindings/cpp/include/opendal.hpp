@@ -19,56 +19,22 @@
 
 #pragma once
 
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "boost/date_time/posix_time/ptime.hpp"
 #include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream.hpp"
+#include "data_structure.hpp"
 
 namespace opendal {
 
-namespace details {
+namespace ffi {
 class Operator;
 class Reader;
 class Lister;
-}  // namespace details
-
-/**
- * @enum EntryMode
- * @brief The mode of the entry
- */
-enum class EntryMode : int {
-  FILE = 1,
-  DIR = 2,
-  UNKNOWN = 0,
-};
-
-/**
- * @struct Metadata
- * @brief The metadata of a file or directory
- */
-struct Metadata {
-  EntryMode type;
-  std::uint64_t content_length;
-  std::optional<std::string> cache_control;
-  std::optional<std::string> content_disposition;
-  std::optional<std::string> content_md5;
-  std::optional<std::string> content_type;
-  std::optional<std::string> etag;
-  std::optional<boost::posix_time::ptime> last_modified;
-};
-
-/**
- * @struct Entry
- * @brief The entry of a file or directory
- */
-struct Entry {
-  std::string path;
-};
+}  // namespace ffi
 
 class Reader;
 class Lister;
@@ -79,7 +45,7 @@ class Lister;
  */
 class Operator {
  public:
-  Operator();
+  Operator() noexcept;
 
   /**
    * @brief Construct a new Operator object
@@ -95,10 +61,10 @@ class Operator {
   Operator &operator=(const Operator &) = delete;
 
   // Enable move
-  Operator(Operator &&);
-  Operator &operator=(Operator &&);
+  Operator(Operator &&other) noexcept;
+  Operator &operator=(Operator &&other) noexcept;
 
-  ~Operator();
+  ~Operator() noexcept;
 
   /**
    * @brief Check if the operator is available
@@ -200,7 +166,9 @@ class Operator {
   Lister lister(std::string_view path);
 
  private:
-  std::unique_ptr<details::Operator> operator_;
+  void destroy() noexcept;
+
+  ffi::Operator *operator_{nullptr};
 };
 
 /**
@@ -215,18 +183,22 @@ class Operator {
 class Reader
     : public boost::iostreams::device<boost::iostreams::input_seekable> {
  public:
-  Reader(std::unique_ptr<details::Reader> &&reader);
+  Reader(Reader &&other) noexcept;
 
-  Reader(Reader &&);
-
-  ~Reader();
+  ~Reader() noexcept;
 
   std::streamsize read(void *s, std::streamsize n);
 
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
  private:
-  std::unique_ptr<details::Reader> raw_reader_;
+  friend class Operator;
+
+  Reader(ffi::Reader *pointer) noexcept;
+
+  void destroy() noexcept;
+
+  ffi::Reader *reader_{nullptr};
 };
 
 // Boost IOStreams requires it to be copyable. So we need to use
@@ -265,11 +237,9 @@ class ReaderStream
  */
 class Lister {
  public:
-  Lister(std::unique_ptr<details::Lister> lister);
+  Lister(Lister &&other) noexcept;
 
-  Lister(Lister &&);
-
-  ~Lister();
+  ~Lister() noexcept;
 
   /**
    * @class ListerIterator
@@ -305,13 +275,13 @@ class Lister {
 
    protected:
     // Only used for end iterator
-    Iterator(Lister &lister, bool /*end*/) : lister_(lister) {}
+    Iterator(Lister &lister, bool /*end*/) noexcept : lister_(lister) {}
 
    private:
+    friend class Lister;
+
     Lister &lister_;
     std::optional<Entry> current_entry_;
-
-    friend class Lister;
   };
 
   /**
@@ -325,7 +295,13 @@ class Lister {
   Iterator end() { return Iterator(*this, true); }
 
  private:
-  std::unique_ptr<details::Lister> raw_lister_;
+  friend class Operator;
+
+  Lister(ffi::Lister *pointer) noexcept;
+
+  void destroy() noexcept;
+
+  ffi::Lister *lister_{nullptr};
 };
 
 }  // namespace opendal

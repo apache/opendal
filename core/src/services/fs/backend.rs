@@ -366,10 +366,17 @@ impl Access for FsBackend {
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
+                return match e.kind() {
+                    // Return empty list if the directory not found
+                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
+                    // If the path is not a directory, return an empty list
+                    //
+                    // The path could be a file or a symbolic link in this case.
+                    // Returning a NotADirectory error to the user isn't helpful; instead,
+                    // providing an empty directory is a more user-friendly. In fact, the dir
+                    // `path/` does not exist.
+                    std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
+                    _ => Err(new_std_io_error(e)),
                 };
             }
         };
@@ -541,10 +548,17 @@ impl Access for FsBackend {
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
+                return match e.kind() {
+                    // Return empty list if the directory not found
+                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
+                    // If the path is not a directory, return an empty list
+                    //
+                    // The path could be a file or a symbolic link in this case.
+                    // Returning a NotADirectory error to the user isn't helpful; instead,
+                    // providing an empty directory is a more user-friendly. In fact, the dir
+                    // `path/` does not exist.
+                    std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
+                    _ => Err(new_std_io_error(e)),
                 };
             }
         };

@@ -108,7 +108,7 @@ var withOperatorStat = withFFI(ffiOpts{
 	sym:    symOperatorStat,
 	rType:  &typeResultStat,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorStat {
+}, func(ctx context.Context, ffiCall ffiCall) operatorStat {
 	return func(op *opendalOperator, path string) (*opendalMetadata, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -135,7 +135,7 @@ var withOperatorIsExists = withFFI(ffiOpts{
 	sym:    symOperatorIsExist,
 	rType:  &typeResultIsExist,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorIsExist {
+}, func(ctx context.Context, ffiCall ffiCall) operatorIsExist {
 	return func(op *opendalOperator, path string) (bool, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {

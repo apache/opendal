@@ -20,6 +20,8 @@
 package opendal_test
 
 import (
+	"io"
+
 	"github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -29,13 +31,18 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 	if !cap.Read() || !cap.Write() {
 		return nil
 	}
-	return []behaviorTest{
+	tests := []behaviorTest{
 		testReadFull,
 		testReader,
 		testReadNotExist,
 		testReadWithDirPath,
 		testReadWithSpecialChars,
+		testReaderSeek,
 	}
+	if cap.WriteCanMulti() {
+		tests = append(tests, testIOCopy)
+	}
+	return tests
 }
 
 func testReadFull(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
@@ -95,4 +102,68 @@ func testReadWithSpecialChars(assert *require.Assertions, op *opendal.Operator, 
 	assert.Nil(err)
 	assert.Equal(size, uint(len(bs)))
 	assert.Equal(content, bs)
+}
+
+func testIOCopy(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	r, err := op.Reader(path)
+	assert.Nil(err)
+
+	pathCopy := fixture.NewFilePath()
+
+	w, err := op.Writer(pathCopy)
+	assert.Nil(err)
+
+	n, err := io.Copy(w, r)
+	assert.Nil(err)
+	assert.Equal(size, uint(n), "read size")
+
+	assert.Nil(r.Close(), "close reader must succeed")
+	assert.Nil(w.Close(), "close writer must succeed")
+
+	copyContent, err := op.Read(pathCopy)
+	assert.Nil(err)
+	assert.Equal(size, uint(len(copyContent)), "read size")
+	assert.Equal(content, copyContent, "read content")
+}
+
+func testReaderSeek(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+	offset, length := genOffsetLength(size)
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	r, err := op.Reader(path)
+	assert.Nil(err)
+	defer r.Close()
+
+	pos, err := r.Seek(offset, io.SeekStart)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(int64(offset), pos, "seek start offset")
+	bs := make([]byte, length)
+	n, err := r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[offset:offset+length], bs[:n], "read content")
+
+	pos, err = r.Seek(-length, io.SeekCurrent)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(offset, pos, "seek current offset")
+	bs = make([]byte, length)
+	n, err = r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[offset:offset+length], bs[:n], "read content")
+
+	pos, err = r.Seek(-length, io.SeekEnd)
+	assert.Nil(err, "seek must succeed")
+	assert.Equal(int64(size)-length, pos, "seek end offset")
+	bs = make([]byte, length)
+	n, err = r.Read(bs)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(length, int64(n), "read size")
+	assert.Equal(content[int64(size)-length:size], bs[:n], "read content")
 }

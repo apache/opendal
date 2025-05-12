@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.53.2] - 2025-05-09
+
+### Added
+* feat(core): impl Drop for BlockingWrapper by @asukaminato0721 in https://github.com/apache/opendal/pull/6036
+* feat(bindings/python): add check in py by @asukaminato0721 in https://github.com/apache/opendal/pull/5973
+* feat(core): Use divan for benchmark framework by @Xuanwo in https://github.com/apache/opendal/pull/6051
+* feat(bindings/python): Add start_after support for list by @asukaminato0721 in https://github.com/apache/opendal/pull/6054
+* feat(services/upyun): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6062
+* feat(services/alluxio): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6065
+* feat(services/cos): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6067
+* feat(services/github):  Add operation in http context by @tks1197 in https://github.com/apache/opendal/pull/6069
+* feat(services/s3): Support request payer option by @antoninferrand in https://github.com/apache/opendal/pull/6070
+* feat(layers/prometheus_client): Add disable_label_root to allow skip root label in metrics by @flaneur2020 in https://github.com/apache/opendal/pull/6071
+* feat(bindings/python): export MimeGuessLayer by @pk5ls20 in https://github.com/apache/opendal/pull/6073
+* feat(services/obs): Add operation in http context by @tks1197 in https://github.com/apache/opendal/pull/6079
+* feat(integrations/object_store): add AmazonS3Builder by @meteorgan in https://github.com/apache/opendal/pull/5456
+* feat(integration/object_store): bump object store version by @XiangpengHao in https://github.com/apache/opendal/pull/6091
+* feat(services/pcloud): Add operation http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6092
+* feat(services/vercel_artifacts): Add operation http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6093
+* feat(services/aliyun_drive): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6063
+* feat(services/ghac): Add operation http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6100
+* feat(services/b2): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6066
+* feat(services/webdav): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6107
+* feat(services/swift): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6106
+* feat(services/vercel_blob): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6101
+* feat(services/gdrive): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6068
+* feat(services/koofr): Add operation http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6096
+* feat(services/seafile): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6105
+* feat(services/yandex_disk): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6064
+* feat(services/webhdfs): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6112
+* feat(services/onedrive): Add operation in http context by @jorgehermo9 in https://github.com/apache/opendal/pull/6111
+* feat(bindings/python): build and publish musllinux wheels (#6114) by @zhu0629 in https://github.com/apache/opendal/pull/6116
+* feat(services/azblob): add request context by @erickguan in https://github.com/apache/opendal/pull/6121
+* feat(services/azdls): add request context by @erickguan in https://github.com/apache/opendal/pull/6122
+* feat(bindings/c): Add seek support for c-binding  by @taoseng in https://github.com/apache/opendal/pull/6119
+* feat(bindings/cpp): eliminate indirect pointers by manually managing memory by @deadlinefen in https://github.com/apache/opendal/pull/6147
+* refactor(bindings/c)!: extract the writer closing logic from opendal_writer_free by @taoseng in https://github.com/apache/opendal/pull/6128
+* feat(bindings/go): implement io.Seeker by @yuchanns in https://github.com/apache/opendal/pull/6151
+### Changed
+* refactor(core): Deprecate not used options in OpList by @Xuanwo in https://github.com/apache/opendal/pull/6050
+* refactor(services/gdrive): move raw requests to core by @jorgehermo9 in https://github.com/apache/opendal/pull/6088
+* refactor(services/ghac): move raw http calls to core by @jorgehermo9 in https://github.com/apache/opendal/pull/6095
+* refactor(services/yandex_disk): Move raw request to core by @jorgehermo9 in https://github.com/apache/opendal/pull/6090
+* refactor(services/azdls): Refactor raw request send in writer and bac… by @jorgehermo9 in https://github.com/apache/opendal/pull/6109
+* refactor(services/seafile): Refactor raw request send in writer and lister by @jorgehermo9 in https://github.com/apache/opendal/pull/6104
+* refactor(services/azblob): Refactor raw request send in writer by @jorgehermo9 in https://github.com/apache/opendal/pull/6102
+* refactor(services/aliyun_drive): Move raw request to core by @jorgehermo9 in https://github.com/apache/opendal/pull/6089
+* refactor(services/webhdfs): Refactor raw request send in writer and backend by @jorgehermo9 in https://github.com/apache/opendal/pull/6113
+* refactor(bindings/go): add ffiCall type for FFI function signature by @yuchanns in https://github.com/apache/opendal/pull/6158
+### Fixed
+* fix(core): Only run size tests on 64bit platforms by @cryptomilk in https://github.com/apache/opendal/pull/6078
+* fix(bindings/go): Reader returns io.EOF at the end of file by @yuchanns in https://github.com/apache/opendal/pull/6150
+* fix(core/services/fs): Returning empty dir while list a file path by @Xuanwo in https://github.com/apache/opendal/pull/6154
+### Docs
+* doc(services/onedrive): add a comment about onedrive's writer  by @erickguan in https://github.com/apache/opendal/pull/6120
+### CI
+* ci(bindings/go): include sqlite service into behavior tests by @yuchanns in https://github.com/apache/opendal/pull/6039
+### Chore
+* chore: delete unused code in scripts by @yihong0618 in https://github.com/apache/opendal/pull/6084
+* chore(integrations/unftp): Make compatible with latest libunftp by @hannesdejager in https://github.com/apache/opendal/pull/6094
+* chore(deps): bump logforth from 0.23.1 to 0.24.0 in /bin/ofs by @dependabot in https://github.com/apache/opendal/pull/6137
+* chore(deps): bump assert_cmd from 2.0.16 to 2.0.17 in /bin/oli by @dependabot in https://github.com/apache/opendal/pull/6138
+* chore(deps): bump logforth from 0.23.1 to 0.24.0 in /bin/oay by @dependabot in https://github.com/apache/opendal/pull/6139
+* chore(deps): update dav-server requirement from 0.7.0 to 0.8.0 in /integrations/dav-server by @dependabot in https://github.com/apache/opendal/pull/6133
+* chore(deps): bump golangci/golangci-lint-action from 6 to 7 by @dependabot in https://github.com/apache/opendal/pull/6134
+
 ## [v0.53.1] - 2025-04-14
 
 ### Added
@@ -4490,6 +4556,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.53.2]: https://github.com/apache/opendal/compare/v0.53.1...v0.53.2
 [v0.53.1]: https://github.com/apache/opendal/compare/v0.53.0...v0.53.1
 [v0.53.0]: https://github.com/apache/opendal/compare/v0.52.0...v0.53.0
 [v0.52.0]: https://github.com/apache/opendal/compare/v0.51.2...v0.52.0

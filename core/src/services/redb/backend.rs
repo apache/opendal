@@ -275,7 +275,7 @@ fn create_table(db: &redb::Database, table: &str) -> Result<()> {
 
         match read_txn.open_table(table_define) {
             Ok(_) => return Ok(()),
-            Err(e) if matches!(e, redb::TableError::TableDoesNotExist(_)) => (),
+            Err(redb::TableError::TableDoesNotExist(_)) => (),
             Err(e) => return Err(parse_table_error(e)),
         }
     }

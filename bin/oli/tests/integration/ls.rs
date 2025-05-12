@@ -16,10 +16,9 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_ls() -> Result<()> {
@@ -29,23 +28,22 @@ async fn test_basic_ls() -> Result<()> {
     let dst_path_3 = dir.path().join("dst_3.txt");
 
     let expect = "hello";
-    fs::write(dst_path_1, expect)?;
-    fs::write(dst_path_2, expect)?;
-    fs::write(dst_path_3, expect)?;
-
-    let mut cmd = Command::cargo_bin("oli")?;
+    fs::write(&dst_path_1, expect)?;
+    fs::write(&dst_path_2, expect)?;
+    fs::write(&dst_path_3, expect)?;
 
     let current_dir = dir.path().to_string_lossy().to_string() + "/";
+    assert_cmd_snapshot!(oli().arg("ls").arg(current_dir), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [TEMP_DIR]/
+    dst_1.txt
+    dst_2.txt
+    dst_3.txt
 
-    cmd.arg("ls").arg(current_dir);
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-
-    assert!(output_stdout.contains("dst_1.txt"));
-    assert!(output_stdout.contains("dst_2.txt"));
-    assert!(output_stdout.contains("dst_3.txt"));
+    ----- stderr -----
+    ");
 
     Ok(())
 }

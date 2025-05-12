@@ -98,6 +98,18 @@ impl Builder for RedbBuilder {
                 .into()
         };
 
+        {
+            let write_txn = db.begin_write().map_err(parse_transaction_error)?;
+
+            let table_define: redb::TableDefinition<&str, &[u8]> =
+                redb::TableDefinition::new(&table_name);
+
+            write_txn
+                .open_table(table_define)
+                .map_err(parse_table_error)?;
+            write_txn.commit().map_err(parse_commit_error)?;
+        }
+
         Ok(RedbBackend::new(Adapter {
             datadir: datadir_path,
             table: table_name,

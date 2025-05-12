@@ -624,6 +624,7 @@ class _Base:
         disable_write_with_if_match: _bool = ...,
         enable_write_with_append: _bool = ...,
         disable_list_objects_v2: _bool = ...,
+        enable_request_payer: _bool = ...,
     ) -> None: ...
 
     @overload

@@ -33,7 +33,10 @@ use crate::*;
 impl Configurator for RedbConfig {
     type Builder = RedbBuilder;
     fn into_builder(self) -> Self::Builder {
-        RedbBuilder { config: self }
+        RedbBuilder {
+            config: self,
+            database: None,
+        }
     }
 }
 
@@ -42,6 +45,8 @@ impl Configurator for RedbConfig {
 #[derive(Default, Debug)]
 pub struct RedbBuilder {
     config: RedbConfig,
+
+    database: Option<Arc<redb::Database>>,
 }
 
 impl RedbBuilder {
@@ -62,6 +67,12 @@ impl RedbBuilder {
         self.config.root = Some(path.into());
         self
     }
+
+    /// Set the database for Redb
+    pub fn database(mut self, db: &Arc<redb::Database>) -> Self {
+        self.database = Some(db.clone());
+        self
+    }
 }
 
 impl Builder for RedbBuilder {
@@ -79,9 +90,13 @@ impl Builder for RedbBuilder {
                 .with_context("service", Scheme::Redb)
         })?;
 
-        let db = redb::Database::create(&datadir_path).map_err(parse_database_error)?;
-
-        let db = Arc::new(db);
+        let db = if let Some(db) = self.database {
+            db
+        } else {
+            redb::Database::create(&datadir_path)
+                .map_err(parse_database_error)?
+                .into()
+        };
 
         Ok(RedbBackend::new(Adapter {
             datadir: datadir_path,

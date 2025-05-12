@@ -184,50 +184,6 @@ fn intern_write(
 ///
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_append(
-    mut env: JNIEnv,
-    _: JClass,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> jlong {
-    intern_append(&mut env, op, executor, path, content).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
-    })
-}
-
-fn intern_append(
-    env: &mut JNIEnv,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
-
-    let path = jstring_to_string(env, &path)?;
-    let content = env.convert_byte_array(content)?;
-
-    executor_or_default(env, executor)?.spawn(async move {
-        let result = op
-            .write_with(&path, content)
-            .append(true)
-            .await
-            .map(|_| JValueOwned::Void)
-            .map_err(Into::into);
-        complete_future(id, result)
-    });
-
-    Ok(id)
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator is ready.
-#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat(
     mut env: JNIEnv,
     _: JClass,

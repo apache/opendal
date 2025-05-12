@@ -227,15 +227,6 @@ public class AsyncOperator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
-    public CompletableFuture<Void> append(String path, String content) {
-        return append(path, content.getBytes(StandardCharsets.UTF_8));
-    }
-
-    public CompletableFuture<Void> append(String path, byte[] content) {
-        final long requestId = append(nativeHandle, executorHandle, path, content);
-        return AsyncRegistry.take(requestId);
-    }
-
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, executorHandle, path);
         return AsyncRegistry.take(requestId);

@@ -50,6 +50,18 @@ pub struct RedbBuilder {
 }
 
 impl RedbBuilder {
+    /// Set the database for Redb.
+    ///
+    /// This method should be called when you want to
+    /// use multiple tables of one database because
+    /// Redb doesn't allow opening a database that have been opened.
+    ///
+    /// Don't forget to set Builder's `datadir` to the origin datadir of `db`.
+    pub fn database(mut self, db: Arc<redb::Database>) -> Self {
+        self.database = Some(db);
+        self
+    }
+
     /// Set the path to the redb data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
@@ -65,12 +77,6 @@ impl RedbBuilder {
     /// Set the root for Redb.
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = Some(path.into());
-        self
-    }
-
-    /// Set the database for Redb
-    pub fn database(mut self, db: &Arc<redb::Database>) -> Self {
-        self.database = Some(db.clone());
         self
     }
 }

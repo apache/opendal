@@ -98,17 +98,7 @@ impl Builder for RedbBuilder {
                 .into()
         };
 
-        {
-            let write_txn = db.begin_write().map_err(parse_transaction_error)?;
-
-            let table_define: redb::TableDefinition<&str, &[u8]> =
-                redb::TableDefinition::new(&table_name);
-
-            write_txn
-                .open_table(table_define)
-                .map_err(parse_table_error)?;
-            write_txn.commit().map_err(parse_commit_error)?;
-        }
+        create_table(&db, &table_name)?;
 
         Ok(RedbBackend::new(Adapter {
             datadir: datadir_path,
@@ -264,4 +254,36 @@ fn parse_database_error(e: redb::DatabaseError) -> Error {
 
 fn parse_commit_error(e: redb::CommitError) -> Error {
     Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
+}
+
+/// Check if a table exists, otherwise create it.
+fn create_table(db: &redb::Database, table: &str) -> Result<()> {
+    // Only one `WriteTransaction` is permitted at same time,
+    // applying new one will block until it available.
+    //
+    // So we first try checking table existence via `ReadTransaction`.
+    {
+        let read_txn = db.begin_read().map_err(parse_transaction_error)?;
+
+        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
+
+        match read_txn.open_table(table_define) {
+            Ok(_) => return Ok(()),
+            Err(e) if matches!(e, redb::TableError::TableDoesNotExist(_)) => (),
+            Err(e) => return Err(parse_table_error(e)),
+        }
+    }
+
+    {
+        let write_txn = db.begin_write().map_err(parse_transaction_error)?;
+
+        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
+
+        write_txn
+            .open_table(table_define)
+            .map_err(parse_table_error)?;
+        write_txn.commit().map_err(parse_commit_error)?;
+    }
+
+    Ok(())
 }

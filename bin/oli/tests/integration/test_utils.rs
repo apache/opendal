@@ -110,7 +110,7 @@ impl std::fmt::Display for DirectorySnapshot {
                 );
             }
             if self.with_size {
-                row.push(format!("{}", entry.metadata().unwrap().size()));
+                row.push(format!("{}", entry.metadata().unwrap().len()));
             }
             if self.with_content && entry.file_type().is_file() {
                 let content = std::fs::read_to_string(entry.path()).unwrap();

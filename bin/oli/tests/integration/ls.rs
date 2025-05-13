@@ -33,16 +33,16 @@ async fn test_basic_ls() -> Result<()> {
     fs::write(&dst_path_3, expect)?;
 
     let current_dir = dir.path().to_string_lossy().to_string() + "/";
-    assert_cmd_snapshot!(oli().arg("ls").arg(current_dir), @r"
-    success: true
-    exit_code: 0
-    ----- stdout -----
-    [TEMP_DIR]/
-    dst_3.txt
-    dst_2.txt
-    dst_1.txt
-
-    ----- stderr -----
+    oli().arg("ls").arg(current_dir);
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
++---------------------------------------+
+| Path                   Type   Content |
++=======================================+
+| [TEMP_DIR]             DIR            |
+| [TEMP_DIR]/dst_1.txt   FILE   hello   |
+| [TEMP_DIR]/dst_2.txt   FILE   hello   |
+| [TEMP_DIR]/dst_3.txt   FILE   hello   |
++---------------------------------------+
     ");
 
     Ok(())

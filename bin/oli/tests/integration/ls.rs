@@ -33,17 +33,14 @@ async fn test_basic_ls() -> Result<()> {
     fs::write(&dst_path_3, expect)?;
 
     let current_dir = dir.path().to_string_lossy().to_string() + "/";
-    oli().arg("ls").arg(current_dir);
-    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-+---------------------------------------+
-| Path                   Type   Content |
-+=======================================+
-| [TEMP_DIR]             DIR            |
-| [TEMP_DIR]/dst_1.txt   FILE   hello   |
-| [TEMP_DIR]/dst_2.txt   FILE   hello   |
-| [TEMP_DIR]/dst_3.txt   FILE   hello   |
-+---------------------------------------+
-    ");
+    let t = oli().arg("ls").arg(current_dir).assert().success();
+    let output = String::from_utf8(t.get_output().stdout.clone())?;
+    let mut output_list = output
+        .split("\n")
+        .filter(|x| !x.starts_with(".tmp") && !x.is_empty())
+        .collect::<Vec<_>>();
+    output_list.sort();
+    assert_eq!(output_list, ["dst_1.txt", "dst_2.txt", "dst_3.txt"]);
 
     Ok(())
 }

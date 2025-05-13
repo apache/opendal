@@ -84,10 +84,12 @@ async fn test_cp_file_to_existing_dir() -> Result<()> {
     let source_arg = source_file_path.to_str().unwrap();
     let dest_arg = dest_dir.to_str().unwrap();
 
-    let mut cmd = Command::cargo_bin("oli")?;
-    cmd.arg("cp").arg(source_arg).arg(dest_arg);
-
-    cmd.assert().success();
+    oli()
+        .arg("cp")
+        .arg(source_arg)
+        .arg(dest_arg)
+        .assert()
+        .success();
 
     // Verify the file was copied into the destination directory
     let expected_dest_file_path = dest_dir.join(source_file_name);
@@ -129,13 +131,13 @@ async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
     // Define destination path (should not exist yet)
     let dest_dir_path = dest_base_dir.join("dest_dir");
 
-    let mut cmd = Command::cargo_bin("oli")?;
-    cmd.arg("cp")
+    oli()
+        .arg("cp")
         .arg("-r")
         .arg(source_dir.to_str().unwrap())
-        .arg(dest_dir_path.to_str().unwrap());
-
-    cmd.assert().success();
+        .arg(dest_dir_path.to_str().unwrap())
+        .assert()
+        .success();
 
     // Verify the destination directory structure and content
     let expected_file1_path = dest_dir_path.join("file1.txt");

@@ -20,7 +20,6 @@ pub use assert_cmd::prelude::*;
 pub use tempfile::tempdir;
 
 use std::{
-    os::unix::fs::MetadataExt,
     path::{self, PathBuf},
     process::Command,
 };
@@ -45,7 +44,7 @@ pub fn directory_snapshot(dir: impl AsRef<path::Path>) -> DirectorySnapshot {
         dir: dir.as_ref().to_path_buf(),
         // default formatting options
         with_type: true,
-        with_size: true,
+        with_size: false,
         with_content: false,
     }
 }

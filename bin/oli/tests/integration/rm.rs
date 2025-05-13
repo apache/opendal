@@ -26,23 +26,23 @@ async fn test_basic_rm() -> Result<()> {
     let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
     fs::write(&dst_path, expect)?;
-    assert_snapshot!(directory_snapshot(dir.path()), @r"
-    +------------------------------------------+
-    | Path                 Type   Size (bytes) |
-    +==========================================+
-    | [TEMP_DIR]           DIR    60           |
-    | [TEMP_DIR]/dst.txt   FILE   5            |
-    +------------------------------------------+
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +-------------------------------------+
+    | Path                 Type   Content |
+    +=====================================+
+    | [TEMP_DIR]           DIR            |
+    | [TEMP_DIR]/dst.txt   FILE   hello   |
+    +-------------------------------------+
     ");
 
     oli().arg("rm").arg(dst_path).assert().success();
 
-    assert_snapshot!(directory_snapshot(dir.path()), @r"
-    +----------------------------------+
-    | Path         Type   Size (bytes) |
-    +==================================+
-    | [TEMP_DIR]   DIR    40           |
-    +----------------------------------+
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
++-----------------------------+
+| Path         Type   Content |
++=============================+
+| [TEMP_DIR]   DIR            |
++-----------------------------+
     ");
     Ok(())
 }
@@ -54,13 +54,13 @@ async fn test_rm_for_path_in_current_dir() -> Result<()> {
     let expect = "hello";
     fs::write(&dst_path, expect)?;
 
-    assert_snapshot!(directory_snapshot(dir.path()), @r"
-    +------------------------------------------+
-    | Path                 Type   Size (bytes) |
-    +==========================================+
-    | [TEMP_DIR]           DIR    60           |
-    | [TEMP_DIR]/dst.txt   FILE   5            |
-    +------------------------------------------+
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +-------------------------------------+
+    | Path                 Type   Content |
+    +=====================================+
+    | [TEMP_DIR]           DIR            |
+    | [TEMP_DIR]/dst.txt   FILE   hello   |
+    +-------------------------------------+
     ");
 
     oli()
@@ -70,12 +70,12 @@ async fn test_rm_for_path_in_current_dir() -> Result<()> {
         .assert()
         .success();
 
-    assert_snapshot!(directory_snapshot(dir.path()), @r"
-    +----------------------------------+
-    | Path         Type   Size (bytes) |
-    +==================================+
-    | [TEMP_DIR]   DIR    40           |
-    +----------------------------------+
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +-----------------------------+
+    | Path         Type   Content |
+    +=============================+
+    | [TEMP_DIR]   DIR            |
+    +-----------------------------+
     ");
 
     Ok(())

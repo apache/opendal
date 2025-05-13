@@ -54,15 +54,14 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
         .current_dir(dir.path())
         .assert()
         .success();
-
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +----------------------------------------------------+
-    | Path                 Type   Size (bytes)   Content |
-    +====================================================+
-    | [TEMP_DIR]           DIR    80                     |
-    | [TEMP_DIR]/dst.txt   FILE   5              hello   |
-    | [TEMP_DIR]/src.txt   FILE   5              hello   |
-    +----------------------------------------------------+
++-------------------------------------+
+| Path                 Type   Content |
++=====================================+
+| [TEMP_DIR]           DIR            |
+| [TEMP_DIR]/dst.txt   FILE   hello   |
+| [TEMP_DIR]/src.txt   FILE   hello   |
++-------------------------------------+
     ");
     Ok(())
 }
@@ -90,16 +89,17 @@ async fn test_cp_file_to_existing_dir() -> Result<()> {
         .arg(dest_arg)
         .assert()
         .success();
+
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +----------------------------------------------------------+
-    | Path                       Type   Size (bytes)   Content |
-    +==========================================================+
-    | [TEMP_DIR]                 DIR    80                     |
-    | [TEMP_DIR]/dest            DIR    60                     |
-    | [TEMP_DIR]/test_file.txt   FILE   5              hello   |
-    | [TEMP_DIR]/source          DIR    60                     |
-    | [TEMP_DIR]/test_file.txt   FILE   5              hello   |
-    +----------------------------------------------------------+
++-------------------------------------------+
+| Path                       Type   Content |
++===========================================+
+| [TEMP_DIR]                 DIR            |
+| [TEMP_DIR]/dest            DIR            |
+| [TEMP_DIR]/test_file.txt   FILE   hello   |
+| [TEMP_DIR]/source          DIR            |
+| [TEMP_DIR]/test_file.txt   FILE   hello   |
++-------------------------------------------+
     ");
     Ok(())
 }
@@ -136,24 +136,25 @@ async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
         .arg(dest_dir_path.to_str().unwrap())
         .assert()
         .success();
+
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-    +--------------------------------------------------------------+
-    | Path                     Type   Size (bytes)   Content       |
-    +==============================================================+
-    | [TEMP_DIR]               DIR    80                           |
-    | [TEMP_DIR]/dest_root     DIR    60                           |
-    | [TEMP_DIR]/dest_dir      DIR    100                          |
-    | [TEMP_DIR]/file1.txt     FILE   13             file1_content |
-    | [TEMP_DIR]/file3.txt     FILE   13             file3_content |
-    | [TEMP_DIR]/sub_dir       DIR    60                           |
-    | [TEMP_DIR]/file2.txt     FILE   13             file2_content |
-    | [TEMP_DIR]/source_root   DIR    60                           |
-    | [TEMP_DIR]/source_dir    DIR    100                          |
-    | [TEMP_DIR]/file1.txt     FILE   13             file1_content |
-    | [TEMP_DIR]/file3.txt     FILE   13             file3_content |
-    | [TEMP_DIR]/sub_dir       DIR    60                           |
-    | [TEMP_DIR]/file2.txt     FILE   13             file2_content |
-    +--------------------------------------------------------------+
++-----------------------------------------------+
+| Path                     Type   Content       |
++===============================================+
+| [TEMP_DIR]               DIR                  |
+| [TEMP_DIR]/dest_root     DIR                  |
+| [TEMP_DIR]/dest_dir      DIR                  |
+| [TEMP_DIR]/file1.txt     FILE   file1_content |
+| [TEMP_DIR]/file3.txt     FILE   file3_content |
+| [TEMP_DIR]/sub_dir       DIR                  |
+| [TEMP_DIR]/file2.txt     FILE   file2_content |
+| [TEMP_DIR]/source_root   DIR                  |
+| [TEMP_DIR]/source_dir    DIR                  |
+| [TEMP_DIR]/file1.txt     FILE   file1_content |
+| [TEMP_DIR]/file3.txt     FILE   file3_content |
+| [TEMP_DIR]/sub_dir       DIR                  |
+| [TEMP_DIR]/file2.txt     FILE   file2_content |
++-----------------------------------------------+
     ");
     Ok(())
 }

@@ -112,3 +112,55 @@ async fn test_cp_file_to_existing_dir() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
+    let temp_dir = tempdir()?;
+    let source_base_dir = temp_dir.path().join("source_root");
+    let dest_base_dir = temp_dir.path().join("dest_root");
+
+    // Create source directory structure
+    let source_dir = source_base_dir.join("source_dir");
+    fs::create_dir_all(&source_dir)?;
+
+    let file1_path = source_dir.join("file1.txt");
+    fs::write(&file1_path, "file1_content")?;
+
+    let sub_dir_path = source_dir.join("sub_dir");
+    fs::create_dir(&sub_dir_path)?;
+
+    let file2_path = sub_dir_path.join("file2.txt");
+    fs::write(&file2_path, "file2_content")?;
+
+    let file3_path = source_dir.join("file3.txt");
+    fs::write(&file3_path, "file3_content")?;
+
+    // Define destination path (should not exist yet)
+    let dest_dir_path = dest_base_dir.join("dest_dir");
+
+    let mut cmd = Command::cargo_bin("oli")?;
+    cmd.arg("cp")
+        .arg("-r")
+        .arg(source_dir.to_str().unwrap())
+        .arg(dest_dir_path.to_str().unwrap());
+
+    cmd.assert().success();
+
+    // Verify the destination directory structure and content
+    let expected_file1_path = dest_dir_path.join("file1.txt");
+    assert!(expected_file1_path.exists());
+    assert_eq!(fs::read_to_string(expected_file1_path)?, "file1_content");
+
+    let expected_sub_dir_path = dest_dir_path.join("sub_dir");
+    assert!(expected_sub_dir_path.is_dir());
+
+    let expected_file2_path = expected_sub_dir_path.join("file2.txt");
+    assert!(expected_file2_path.exists());
+    assert_eq!(fs::read_to_string(expected_file2_path)?, "file2_content");
+
+    let expected_file3_path = dest_dir_path.join("file3.txt");
+    assert!(expected_file3_path.exists());
+    assert_eq!(fs::read_to_string(expected_file3_path)?, "file3_content");
+
+    Ok(())
+}

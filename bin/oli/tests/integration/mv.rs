@@ -76,14 +76,15 @@ async fn test_move_a_file_to_a_dir() -> Result<()> {
 | [TEMP_DIR]   DIR            |
 +-----------------------------+
     ");
+
     assert_snapshot!(directory_snapshot(dst_dir.path()).with_content(true), @r"
-    +-------------------------------------+
-    | Path                 Type   Content |
-    +=====================================+
-    | [TEMP_DIR]           DIR            |
-    | [TEMP_DIR]/dir       DIR            |
-    | [TEMP_DIR]/src.txt   FILE   hello   |
-    +-------------------------------------+
++-----------------------------------------+
+| Path                     Type   Content |
++=========================================+
+| [TEMP_DIR]               DIR            |
+| [TEMP_DIR]/dir           DIR            |
+| [TEMP_DIR]/dir/src.txt   FILE   hello   |
++-----------------------------------------+
     ");
 
     Ok(())
@@ -108,17 +109,18 @@ async fn test_mv_with_recursive() -> Result<()> {
     let src_empty_dir = src_path.join("empty_dir/");
 
     fs::create_dir(&src_empty_dir)?;
+
     insta::assert_snapshot!(directory_snapshot(&src_root).with_content(true), @r"
-+---------------------------------------+
-| Path                   Type   Content |
-+=======================================+
-| [TEMP_DIR]             DIR            |
-| [TEMP_DIR]/src         DIR            |
-| [TEMP_DIR]/dir         DIR            |
-| [TEMP_DIR]/file2.txt   FILE   file2   |
-| [TEMP_DIR]/empty_dir   DIR            |
-| [TEMP_DIR]/file1.txt   FILE   file1   |
-+---------------------------------------+
++-----------------------------------------------+
+| Path                           Type   Content |
++===============================================+
+| [TEMP_DIR]                     DIR            |
+| [TEMP_DIR]/src                 DIR            |
+| [TEMP_DIR]/src/dir             DIR            |
+| [TEMP_DIR]/src/dir/file2.txt   FILE   file2   |
+| [TEMP_DIR]/src/empty_dir       DIR            |
+| [TEMP_DIR]/src/file1.txt       FILE   file1   |
++-----------------------------------------------+
     ");
 
     let dst_path = tempfile::tempdir()?;
@@ -138,16 +140,17 @@ async fn test_mv_with_recursive() -> Result<()> {
 | [TEMP_DIR]/src   DIR            |
 +---------------------------------+
     ");
+
     assert_snapshot!(directory_snapshot(&dst_path).with_content(true), @r"
-+---------------------------------------+
-| Path                   Type   Content |
-+=======================================+
-| [TEMP_DIR]             DIR            |
-| [TEMP_DIR]/dir         DIR            |
-| [TEMP_DIR]/file2.txt   FILE   file2   |
-| [TEMP_DIR]/empty_dir   DIR            |
-| [TEMP_DIR]/file1.txt   FILE   file1   |
-+---------------------------------------+
++-------------------------------------------+
+| Path                       Type   Content |
++===========================================+
+| [TEMP_DIR]                 DIR            |
+| [TEMP_DIR]/dir             DIR            |
+| [TEMP_DIR]/dir/file2.txt   FILE   file2   |
+| [TEMP_DIR]/empty_dir       DIR            |
+| [TEMP_DIR]/file1.txt       FILE   file1   |
++-------------------------------------------+
     ");
 
     Ok(())

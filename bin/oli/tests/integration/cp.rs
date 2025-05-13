@@ -91,15 +91,15 @@ async fn test_cp_file_to_existing_dir() -> Result<()> {
         .success();
 
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-+-------------------------------------------+
-| Path                       Type   Content |
-+===========================================+
-| [TEMP_DIR]                 DIR            |
-| [TEMP_DIR]/dest            DIR            |
-| [TEMP_DIR]/test_file.txt   FILE   hello   |
-| [TEMP_DIR]/source          DIR            |
-| [TEMP_DIR]/test_file.txt   FILE   hello   |
-+-------------------------------------------+
++--------------------------------------------------+
+| Path                              Type   Content |
++==================================================+
+| [TEMP_DIR]                        DIR            |
+| [TEMP_DIR]/dest                   DIR            |
+| [TEMP_DIR]/dest/test_file.txt     FILE   hello   |
+| [TEMP_DIR]/source                 DIR            |
+| [TEMP_DIR]/source/test_file.txt   FILE   hello   |
++--------------------------------------------------+
     ");
     Ok(())
 }
@@ -136,25 +136,24 @@ async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
         .arg(dest_dir_path.to_str().unwrap())
         .assert()
         .success();
-
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
-+-----------------------------------------------+
-| Path                     Type   Content       |
-+===============================================+
-| [TEMP_DIR]               DIR                  |
-| [TEMP_DIR]/dest_root     DIR                  |
-| [TEMP_DIR]/dest_dir      DIR                  |
-| [TEMP_DIR]/file1.txt     FILE   file1_content |
-| [TEMP_DIR]/file3.txt     FILE   file3_content |
-| [TEMP_DIR]/sub_dir       DIR                  |
-| [TEMP_DIR]/file2.txt     FILE   file2_content |
-| [TEMP_DIR]/source_root   DIR                  |
-| [TEMP_DIR]/source_dir    DIR                  |
-| [TEMP_DIR]/file1.txt     FILE   file1_content |
-| [TEMP_DIR]/file3.txt     FILE   file3_content |
-| [TEMP_DIR]/sub_dir       DIR                  |
-| [TEMP_DIR]/file2.txt     FILE   file2_content |
-+-----------------------------------------------+
++----------------------------------------------------------------------------+
+| Path                                                  Type   Content       |
++============================================================================+
+| [TEMP_DIR]                                            DIR                  |
+| [TEMP_DIR]/dest_root                                  DIR                  |
+| [TEMP_DIR]/dest_root/dest_dir                         DIR                  |
+| [TEMP_DIR]/dest_root/dest_dir/file1.txt               FILE   file1_content |
+| [TEMP_DIR]/dest_root/dest_dir/file3.txt               FILE   file3_content |
+| [TEMP_DIR]/dest_root/dest_dir/sub_dir                 DIR                  |
+| [TEMP_DIR]/dest_root/dest_dir/sub_dir/file2.txt       FILE   file2_content |
+| [TEMP_DIR]/source_root                                DIR                  |
+| [TEMP_DIR]/source_root/source_dir                     DIR                  |
+| [TEMP_DIR]/source_root/source_dir/file1.txt           FILE   file1_content |
+| [TEMP_DIR]/source_root/source_dir/file3.txt           FILE   file3_content |
+| [TEMP_DIR]/source_root/source_dir/sub_dir             DIR                  |
+| [TEMP_DIR]/source_root/source_dir/sub_dir/file2.txt   FILE   file2_content |
++----------------------------------------------------------------------------+
     ");
     Ok(())
 }

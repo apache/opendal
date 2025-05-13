@@ -23,6 +23,7 @@ use opendal::ErrorKind;
 use opendal::Metadata;
 use std::path::Path;
 
+use anyhow::Context;
 use anyhow::Result;
 use futures::AsyncWriteExt;
 use futures::TryStreamExt;
@@ -148,14 +149,14 @@ impl CopyCmd {
         // Proceed with recursive copy logic. dst_root is the target directory.
         let dst_root = Path::new(&final_dst_path);
         let mut ds = src_op.lister_with(&src_path).recursive(true).await?;
-        let prefix = src_path.strip_prefix('/').unwrap_or(&src_path); // Using original logic for now
+        let prefix = src_path.strip_prefix('/').unwrap_or(src_path.as_str());
 
         while let Some(de) = ds.try_next().await? {
             let meta = de.metadata();
             let depath = de.path();
 
             // Calculate relative path from the source root
-            let relative_path = depath.strip_prefix(prefix).ok_or_else(|| {
+            let relative_path = depath.strip_prefix(prefix).with_context(|| {
                 anyhow::anyhow!(
                     "Internal error: Failed to strip prefix '{}' from path '{}'",
                     prefix,

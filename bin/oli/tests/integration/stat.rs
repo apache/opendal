@@ -31,7 +31,7 @@ async fn test_basic_stat() -> Result<()> {
     success: true
     exit_code: 0
     ----- stdout -----
-    [TEMP_DIR]/dst.txt
+    path: [TEMP_DIR]/dst.txt
     size: 5
     type: file
     last-modified: [TIMESTAMP]

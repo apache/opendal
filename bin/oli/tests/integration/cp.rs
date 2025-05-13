@@ -69,9 +69,9 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
 
 #[tokio::test]
 async fn test_cp_file_to_existing_dir() -> Result<()> {
-    let temp_dir = tempdir()?;
-    let source_dir = temp_dir.path().join("source");
-    let dest_dir = temp_dir.path().join("dest");
+    let dir = tempdir()?;
+    let source_dir = dir.path().join("source");
+    let dest_dir = dir.path().join("dest");
     fs::create_dir_all(&source_dir)?;
     fs::create_dir_all(&dest_dir)?;
 
@@ -90,27 +90,25 @@ async fn test_cp_file_to_existing_dir() -> Result<()> {
         .arg(dest_arg)
         .assert()
         .success();
-
-    // Verify the file was copied into the destination directory
-    let expected_dest_file_path = dest_dir.join(source_file_name);
-    assert!(
-        expected_dest_file_path.exists(),
-        "Destination file should exist at: {:?}",
-        expected_dest_file_path
-    );
-
-    // Verify content
-    let dest_content = fs::read_to_string(&expected_dest_file_path)?;
-    assert_eq!(source_content, dest_content);
-
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +----------------------------------------------------------+
+    | Path                       Type   Size (bytes)   Content |
+    +==========================================================+
+    | [TEMP_DIR]                 DIR    80                     |
+    | [TEMP_DIR]/dest            DIR    60                     |
+    | [TEMP_DIR]/test_file.txt   FILE   5              hello   |
+    | [TEMP_DIR]/source          DIR    60                     |
+    | [TEMP_DIR]/test_file.txt   FILE   5              hello   |
+    +----------------------------------------------------------+
+    ");
     Ok(())
 }
 
 #[tokio::test]
 async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
-    let temp_dir = tempdir()?;
-    let source_base_dir = temp_dir.path().join("source_root");
-    let dest_base_dir = temp_dir.path().join("dest_root");
+    let dir = tempdir()?;
+    let source_base_dir = dir.path().join("source_root");
+    let dest_base_dir = dir.path().join("dest_root");
 
     // Create source directory structure
     let source_dir = source_base_dir.join("source_dir");
@@ -138,22 +136,24 @@ async fn test_recursive_cp_dir_to_new_dir() -> Result<()> {
         .arg(dest_dir_path.to_str().unwrap())
         .assert()
         .success();
-
-    // Verify the destination directory structure and content
-    let expected_file1_path = dest_dir_path.join("file1.txt");
-    assert!(expected_file1_path.exists());
-    assert_eq!(fs::read_to_string(expected_file1_path)?, "file1_content");
-
-    let expected_sub_dir_path = dest_dir_path.join("sub_dir");
-    assert!(expected_sub_dir_path.is_dir());
-
-    let expected_file2_path = expected_sub_dir_path.join("file2.txt");
-    assert!(expected_file2_path.exists());
-    assert_eq!(fs::read_to_string(expected_file2_path)?, "file2_content");
-
-    let expected_file3_path = dest_dir_path.join("file3.txt");
-    assert!(expected_file3_path.exists());
-    assert_eq!(fs::read_to_string(expected_file3_path)?, "file3_content");
-
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +--------------------------------------------------------------+
+    | Path                     Type   Size (bytes)   Content       |
+    +==============================================================+
+    | [TEMP_DIR]               DIR    80                           |
+    | [TEMP_DIR]/dest_root     DIR    60                           |
+    | [TEMP_DIR]/dest_dir      DIR    100                          |
+    | [TEMP_DIR]/file1.txt     FILE   13             file1_content |
+    | [TEMP_DIR]/file3.txt     FILE   13             file3_content |
+    | [TEMP_DIR]/sub_dir       DIR    60                           |
+    | [TEMP_DIR]/file2.txt     FILE   13             file2_content |
+    | [TEMP_DIR]/source_root   DIR    60                           |
+    | [TEMP_DIR]/source_dir    DIR    100                          |
+    | [TEMP_DIR]/file1.txt     FILE   13             file1_content |
+    | [TEMP_DIR]/file3.txt     FILE   13             file3_content |
+    | [TEMP_DIR]/sub_dir       DIR    60                           |
+    | [TEMP_DIR]/file2.txt     FILE   13             file2_content |
+    +--------------------------------------------------------------+
+    ");
     Ok(())
 }

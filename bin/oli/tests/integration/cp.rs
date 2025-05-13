@@ -45,11 +45,7 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let src_path = dir.path().join("src.txt");
     let expect = "hello";
-<<<<<<< HEAD:bin/oli/tests/integration/cp.rs
     fs::write(&src_path, expect)?;
-=======
-    fs::write(src_path, expect)?;
->>>>>>> 66f8f7d (keep origin):bin/oli/tests/cp.rs
 
     oli()
         .arg("cp")
@@ -59,7 +55,6 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
         .assert()
         .success();
 
-<<<<<<< HEAD:bin/oli/tests/integration/cp.rs
     assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
     +----------------------------------------------------+
     | Path                 Type   Size (bytes)   Content |
@@ -69,10 +64,6 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     | [TEMP_DIR]/src.txt   FILE   5              hello   |
     +----------------------------------------------------+
     ");
-=======
-    let actual = fs::read_to_string(dst_path)?;
-    assert_eq!(expect, actual);
->>>>>>> 66f8f7d (keep origin):bin/oli/tests/cp.rs
     Ok(())
 }
 

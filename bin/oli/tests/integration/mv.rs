@@ -31,7 +31,7 @@ async fn test_basic_mv() -> Result<()> {
     +----------------------------------------------------+
     | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]           DIR    96                     |
+    | [TEMP_DIR]           DIR    60                     |
     | [TEMP_DIR]/src.txt   FILE   5              hello   |
     +----------------------------------------------------+
     ");
@@ -47,7 +47,7 @@ async fn test_basic_mv() -> Result<()> {
     +----------------------------------------------------+
     | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]           DIR    96                     |
+    | [TEMP_DIR]           DIR    60                     |
     | [TEMP_DIR]/dst.txt   FILE   5              hello   |
     +----------------------------------------------------+
     ");
@@ -75,15 +75,15 @@ async fn test_move_a_file_to_a_dir() -> Result<()> {
     +--------------------------------------------+
     | Path         Type   Size (bytes)   Content |
     +============================================+
-    | [TEMP_DIR]   DIR    64                     |
+    | [TEMP_DIR]   DIR    40                     |
     +--------------------------------------------+
     ");
     assert_snapshot!(directory_snapshot(dst_dir.path()).with_content(true), @r"
     +----------------------------------------------------+
     | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]           DIR    96                     |
-    | [TEMP_DIR]/dir       DIR    96                     |
+    | [TEMP_DIR]           DIR    60                     |
+    | [TEMP_DIR]/dir       DIR    60                     |
     | [TEMP_DIR]/src.txt   FILE   5              hello   |
     +----------------------------------------------------+
     ");
@@ -114,11 +114,11 @@ async fn test_mv_with_recursive() -> Result<()> {
     +--------------------------------------------+
     | Path                   Type   Size (bytes) |
     +============================================+
-    | [TEMP_DIR]             DIR    96           |
-    | [TEMP_DIR]/src         DIR    160          |
-    | [TEMP_DIR]/dir         DIR    96           |
+    | [TEMP_DIR]             DIR    60           |
+    | [TEMP_DIR]/src         DIR    100          |
+    | [TEMP_DIR]/dir         DIR    60           |
     | [TEMP_DIR]/file2.txt   FILE   5            |
-    | [TEMP_DIR]/empty_dir   DIR    64           |
+    | [TEMP_DIR]/empty_dir   DIR    40           |
     | [TEMP_DIR]/file1.txt   FILE   5            |
     +--------------------------------------------+
     ");
@@ -137,18 +137,18 @@ async fn test_mv_with_recursive() -> Result<()> {
     +--------------------------------------+
     | Path             Type   Size (bytes) |
     +======================================+
-    | [TEMP_DIR]       DIR    96           |
-    | [TEMP_DIR]/src   DIR    64           |
+    | [TEMP_DIR]       DIR    60           |
+    | [TEMP_DIR]/src   DIR    40           |
     +--------------------------------------+
     ");
     assert_snapshot!(directory_snapshot(&dst_path).with_content(true), @r"
     +------------------------------------------------------+
     | Path                   Type   Size (bytes)   Content |
     +======================================================+
-    | [TEMP_DIR]             DIR    160                    |
-    | [TEMP_DIR]/dir         DIR    96                     |
+    | [TEMP_DIR]             DIR    100                    |
+    | [TEMP_DIR]/dir         DIR    60                     |
     | [TEMP_DIR]/file2.txt   FILE   5              file2   |
-    | [TEMP_DIR]/empty_dir   DIR    64                     |
+    | [TEMP_DIR]/empty_dir   DIR    40                     |
     | [TEMP_DIR]/file1.txt   FILE   5              file1   |
     +------------------------------------------------------+
     ");

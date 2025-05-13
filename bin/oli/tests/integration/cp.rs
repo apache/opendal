@@ -59,7 +59,7 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     +----------------------------------------------------+
     | Path                 Type   Size (bytes)   Content |
     +====================================================+
-    | [TEMP_DIR]           DIR    128                    |
+    | [TEMP_DIR]           DIR    80                     |
     | [TEMP_DIR]/dst.txt   FILE   5              hello   |
     | [TEMP_DIR]/src.txt   FILE   5              hello   |
     +----------------------------------------------------+

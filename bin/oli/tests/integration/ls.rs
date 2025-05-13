@@ -38,9 +38,9 @@ async fn test_basic_ls() -> Result<()> {
     exit_code: 0
     ----- stdout -----
     [TEMP_DIR]/
-    dst_1.txt
-    dst_2.txt
     dst_3.txt
+    dst_2.txt
+    dst_1.txt
 
     ----- stderr -----
     ");

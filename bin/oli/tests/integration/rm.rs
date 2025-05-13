@@ -30,7 +30,7 @@ async fn test_basic_rm() -> Result<()> {
     +------------------------------------------+
     | Path                 Type   Size (bytes) |
     +==========================================+
-    | [TEMP_DIR]           DIR    96           |
+    | [TEMP_DIR]           DIR    60           |
     | [TEMP_DIR]/dst.txt   FILE   5            |
     +------------------------------------------+
     ");
@@ -41,7 +41,7 @@ async fn test_basic_rm() -> Result<()> {
     +----------------------------------+
     | Path         Type   Size (bytes) |
     +==================================+
-    | [TEMP_DIR]   DIR    64           |
+    | [TEMP_DIR]   DIR    40           |
     +----------------------------------+
     ");
     Ok(())
@@ -58,7 +58,7 @@ async fn test_rm_for_path_in_current_dir() -> Result<()> {
     +------------------------------------------+
     | Path                 Type   Size (bytes) |
     +==========================================+
-    | [TEMP_DIR]           DIR    96           |
+    | [TEMP_DIR]           DIR    60           |
     | [TEMP_DIR]/dst.txt   FILE   5            |
     +------------------------------------------+
     ");
@@ -74,7 +74,7 @@ async fn test_rm_for_path_in_current_dir() -> Result<()> {
     +----------------------------------+
     | Path         Type   Size (bytes) |
     +==================================+
-    | [TEMP_DIR]   DIR    64           |
+    | [TEMP_DIR]   DIR    40           |
     +----------------------------------+
     ");
 

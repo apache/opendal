@@ -138,7 +138,11 @@ impl CopyCmd {
                 );
             }
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                dst_op.create_dir(&final_dst_path).await?;
+                let mut path_to_create = final_dst_path.clone();
+                if !path_to_create.ends_with('/') {
+                    path_to_create.push('/');
+                }
+                dst_op.create_dir(&path_to_create).await?;
             }
             Err(e) => {
                 // Another error occurred trying to stat the base destination.
@@ -149,43 +153,60 @@ impl CopyCmd {
         // Proceed with recursive copy logic. dst_root is the target directory.
         let dst_root = Path::new(&final_dst_path);
         let mut ds = src_op.lister_with(&src_path).recursive(true).await?;
-        let prefix = src_path.strip_prefix('/').unwrap_or(src_path.as_str());
 
         while let Some(de) = ds.try_next().await? {
             let meta = de.metadata();
             let depath = de.path();
 
-            // Calculate relative path from the source root
-            let relative_path = depath.strip_prefix(prefix).with_context(|| {
-                anyhow::anyhow!(
-                    "Internal error: Failed to strip prefix '{}' from path '{}'",
-                    prefix,
-                    depath
+            // Calculate relative path using Path::strip_prefix
+            let src_root_path = Path::new(&src_path);
+            let entry_path = Path::new(depath);
+            let relative_path = entry_path.strip_prefix(src_root_path).with_context(|| {
+                format!(
+                    "Internal error: Lister path '{}' does not start with source path '{}'",
+                    depath, src_path
                 )
-            })?;
-            let relative_path = relative_path.strip_prefix('/').unwrap_or(relative_path);
+            })?; // relative_path is a &Path
 
-            let current_dst_path = dst_root.join(relative_path).to_string_lossy().to_string();
+            let current_dst_path_path = dst_root.join(relative_path);
+            let current_dst_path = current_dst_path_path.to_string_lossy().to_string();
 
             if meta.mode().is_dir() {
-                dst_op.create_dir(&current_dst_path).await?;
+                let mut dir_path_to_create = current_dst_path.clone();
+                if !dir_path_to_create.ends_with('/') {
+                    dir_path_to_create.push('/');
+                }
+                dst_op.create_dir(&dir_path_to_create).await?;
                 continue;
             }
 
-            if let Some(parent) = Path::new(&current_dst_path).parent() {
-                if parent != dst_root {
-                    dst_op.create_dir(&parent.to_string_lossy()).await?;
+            // Explicitly stat the source file to get fresh metadata
+            let fresh_meta = src_op.stat(depath).await.with_context(|| {
+                format!(
+                    "Failed to stat source file '{}' before recursive copy",
+                    depath
+                )
+            })?;
+
+            // Use the Path object `current_dst_path_path` to check parent
+            if let Some(parent_path) = current_dst_path_path.parent() {
+                if parent_path != dst_root {
+                    let mut parent_dir_string = parent_path.to_string_lossy().into_owned();
+                    if !parent_dir_string.ends_with('/') {
+                        parent_dir_string.push('/');
+                    }
+                    dst_op.create_dir(&parent_dir_string).await?;
                 }
             }
 
-            let reader = src_op.reader_with(de.path()).chunk(8 * 1024 * 1024).await?;
+            let reader = src_op.reader_with(depath).chunk(8 * 1024 * 1024).await?;
             let buf_reader = reader
-                .into_futures_async_read(0..meta.content_length())
+                .into_futures_async_read(0..fresh_meta.content_length())
                 .await?;
 
-            let copy_progress = CopyProgress::new(meta, de.path().to_string());
+            let copy_progress = CopyProgress::new(&fresh_meta, depath.to_string());
             let mut writer = dst_op
-                .writer(&current_dst_path) // Use the calculated path
+                .writer(&current_dst_path)
                 .await?
                 .into_futures_async_write();
 

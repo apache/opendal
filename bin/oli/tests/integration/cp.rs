@@ -16,47 +16,53 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
-async fn test_basic_cat() -> Result<()> {
+async fn test_basic_cp() -> Result<()> {
     let dir = tempfile::tempdir()?;
+    let src_path = dir.path().join("src.txt");
     let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
-    fs::write(&dst_path, expect)?;
+    fs::write(&src_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    oli()
+        .arg("cp")
+        .arg(&src_path)
+        .arg(&dst_path)
+        .assert()
+        .success();
 
-    cmd.arg("cat").arg(dst_path.as_os_str());
     let actual = fs::read_to_string(&dst_path)?;
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-
-    assert_eq!(output_stdout, actual);
+    assert_eq!(expect, actual);
     Ok(())
 }
 
 #[tokio::test]
-async fn test_cat_for_path_in_current_dir() -> Result<()> {
+async fn test_cp_for_path_in_current_dir() -> Result<()> {
     let dir = tempfile::tempdir()?;
-    let dst_path = dir.path().join("dst.txt");
+    let src_path = dir.path().join("src.txt");
     let expect = "hello";
-    fs::write(&dst_path, expect)?;
+    fs::write(&src_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    oli()
+        .arg("cp")
+        .arg("src.txt")
+        .arg("dst.txt")
+        .current_dir(dir.path())
+        .assert()
+        .success();
 
-    cmd.arg("cat").arg("dst.txt").current_dir(dir.path());
-    let actual = fs::read_to_string(&dst_path)?;
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-
-    assert_eq!(output_stdout, actual);
+    assert_snapshot!(directory_snapshot(dir.path()).with_content(true), @r"
+    +----------------------------------------------------+
+    | Path                 Type   Size (bytes)   Content |
+    +====================================================+
+    | [TEMP_DIR]           DIR    128                    |
+    | [TEMP_DIR]/dst.txt   FILE   5              hello   |
+    | [TEMP_DIR]/src.txt   FILE   5              hello   |
+    +----------------------------------------------------+
+    ");
     Ok(())
 }

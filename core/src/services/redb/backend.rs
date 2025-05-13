@@ -56,19 +56,36 @@ impl RedbBuilder {
     /// use multiple tables of one database because
     /// Redb doesn't allow opening a database that have been opened.
     ///
-    /// Don't forget to set Builder's `datadir` to the origin datadir of `db`.
+    /// <div class="warning">
+    ///
+    /// `datadir` and `database` should not be set simultaneously.
+    /// If both are set, `database` will take precedence.
+    ///
+    /// </div>
     pub fn database(mut self, db: Arc<redb::Database>) -> Self {
         self.database = Some(db);
         self
     }
 
     /// Set the path to the redb data directory. Will create if not exists.
+    ///
+    ///
+    /// <div class="warning">
+    ///
+    /// Opening redb database via `datadir` takes away the ability to access multiple redb tables.
+    /// If you need to access multiple redb tables, the correct solution is to
+    /// create an `Arc<redb::database>` beforehand and then share it via [`database`]
+    /// with multiple builders where every builder will open one redb table.
+    ///
+    /// </div>
+    ///
+    /// [`database`]: RedbBuilder::database
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
-    /// Set the table name for Redb.
+    /// Set the table name for Redb. Will create if not exists.
     pub fn table(mut self, table: &str) -> Self {
         self.config.table = Some(table.into());
         self
@@ -86,28 +103,30 @@ impl Builder for RedbBuilder {
     type Config = RedbConfig;
 
     fn build(self) -> Result<impl Access> {
-        let datadir_path = self.config.datadir.ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Redb)
-        })?;
-
         let table_name = self.config.table.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
                 .with_context("service", Scheme::Redb)
         })?;
 
-        let db = if let Some(db) = self.database {
-            db
+        let (datadir, db) = if let Some(db) = self.database {
+            (None, db)
         } else {
-            redb::Database::create(&datadir_path)
+            let datadir = self.config.datadir.ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                    .with_context("service", Scheme::Redb)
+            })?;
+
+            let db = redb::Database::create(&datadir)
                 .map_err(parse_database_error)?
-                .into()
+                .into();
+
+            (Some(datadir), db)
         };
 
         create_table(&db, &table_name)?;
 
         Ok(RedbBackend::new(Adapter {
-            datadir: datadir_path,
+            datadir,
             table: table_name,
             db,
         })
@@ -120,7 +139,7 @@ pub type RedbBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    datadir: String,
+    datadir: Option<String>,
     table: String,
     db: Arc<redb::Database>,
 }
@@ -139,7 +158,7 @@ impl kv::Adapter for Adapter {
     fn info(&self) -> kv::Info {
         kv::Info::new(
             Scheme::Redb,
-            &self.datadir,
+            &self.table,
             Capability {
                 read: true,
                 write: true,

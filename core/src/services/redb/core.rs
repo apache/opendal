@@ -6,6 +6,7 @@ use super::error::*;
 
 #[derive(Debug)]
 pub struct RedbCore {
+    #[allow(dead_code)]
     pub(super) datadir: Option<String>,
     pub(super) table: String,
     pub(super) root: String,
@@ -13,6 +14,40 @@ pub struct RedbCore {
 }
 
 impl RedbCore {
+    /// Check if a table exists, otherwise create it.
+    pub fn create_table(&self) -> Result<()> {
+        // Only one `WriteTransaction` is permitted at same time,
+        // applying new one will block until it available.
+        //
+        // So we first try checking table existence via `ReadTransaction`.
+        {
+            let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
+
+            let table_define: redb::TableDefinition<&str, &[u8]> =
+                redb::TableDefinition::new(&self.table);
+
+            match read_txn.open_table(table_define) {
+                Ok(_) => return Ok(()),
+                Err(redb::TableError::TableDoesNotExist(_)) => (),
+                Err(e) => return Err(parse_table_error(e)),
+            }
+        }
+
+        {
+            let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
+
+            let table_define: redb::TableDefinition<&str, &[u8]> =
+                redb::TableDefinition::new(&self.table);
+
+            write_txn
+                .open_table(table_define)
+                .map_err(parse_table_error)?;
+            write_txn.commit().map_err(parse_commit_error)?;
+        }
+
+        Ok(())
+    }
+
     pub fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
 

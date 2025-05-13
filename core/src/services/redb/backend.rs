@@ -129,17 +129,15 @@ impl Builder for RedbBuilder {
             (Some(datadir), db)
         };
 
-        create_table(&db, &table_name)?;
+        let core = RedbCore {
+            datadir,
+            table: table_name,
+            root: self.config.root.unwrap_or_else(|| "/".into()),
+            db,
+        };
+        core.create_table()?;
 
-        Ok(RedbBackend {
-            core: RedbCore {
-                datadir,
-                table: table_name,
-                root: self.config.root.unwrap_or_else(|| "/".into()),
-                db,
-            }
-            .into(),
-        })
+        Ok(RedbBackend { core: core.into() })
     }
 }
 
@@ -162,7 +160,7 @@ impl Access for RedbBackend {
         let am = AccessorInfo::default();
         am.set_scheme(Scheme::Redb)
             .set_root(&self.core.root)
-            .set_name(&self.core.datadir)
+            .set_name(&self.core.table)
             .set_native_capability(Capability {
                 read: true,
                 stat: true,
@@ -265,36 +263,4 @@ impl Access for RedbBackend {
 
         Ok((RpList::default(), lister))
     }
-}
-
-/// Check if a table exists, otherwise create it.
-fn create_table(db: &redb::Database, table: &str) -> Result<()> {
-    // Only one `WriteTransaction` is permitted at same time,
-    // applying new one will block until it available.
-    //
-    // So we first try checking table existence via `ReadTransaction`.
-    {
-        let read_txn = db.begin_read().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
-
-        match read_txn.open_table(table_define) {
-            Ok(_) => return Ok(()),
-            Err(redb::TableError::TableDoesNotExist(_)) => (),
-            Err(e) => return Err(parse_table_error(e)),
-        }
-    }
-
-    {
-        let write_txn = db.begin_write().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
-
-        write_txn
-            .open_table(table_define)
-            .map_err(parse_table_error)?;
-        write_txn.commit().map_err(parse_commit_error)?;
-    }
-
-    Ok(())
 }

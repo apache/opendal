@@ -94,7 +94,7 @@ jobs:
           cargo update zerofrom --precise 0.1.5
           cargo update litemap --precise 0.7.4
           cargo update idna_adapter --precise 1.2.0
-          cargo +${OPENDAL_MSRV} clippy -- -D warnings
+          cargo +${OPENDAL_MSRV} clippy --all-targets --all-features -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}

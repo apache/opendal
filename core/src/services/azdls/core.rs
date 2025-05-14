@@ -36,6 +36,8 @@ use crate::*;
 
 use super::error::parse_error;
 
+use super::lister::generate_continuation_from_start_after;
+
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 pub const DIRECTORY: &str = "directory";
@@ -325,6 +327,7 @@ impl AzdlsCore {
     pub async fn azdls_list(
         &self,
         path: &str,
+        start_after: Option<&str>,
         continuation: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
@@ -341,8 +344,14 @@ impl AzdlsCore {
         if let Some(limit) = limit {
             url = url.push("maxResults", &limit.to_string());
         }
+
         if !continuation.is_empty() {
             url = url.push("continuation", &percent_encode_path(continuation));
+        } else if let Some(start_after) = start_after {
+            url = url.push(
+                "startAfter",
+                &generate_continuation_from_start_after(start_after),
+            );
         }
 
         let mut req = Request::get(url.finish())

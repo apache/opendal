@@ -16,36 +16,41 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
-async fn test_basic_ls() -> Result<()> {
+async fn test_basic_cat() -> Result<()> {
     let dir = tempfile::tempdir()?;
-    let dst_path_1 = dir.path().join("dst_1.txt");
-    let dst_path_2 = dir.path().join("dst_2.txt");
-    let dst_path_3 = dir.path().join("dst_3.txt");
-
+    let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
-    fs::write(dst_path_1, expect)?;
-    fs::write(dst_path_2, expect)?;
-    fs::write(dst_path_3, expect)?;
+    fs::write(&dst_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    assert_cmd_snapshot!(oli().arg("cat").arg(dst_path), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    hello
+    ----- stderr -----
+    ");
 
-    let current_dir = dir.path().to_string_lossy().to_string() + "/";
+    Ok(())
+}
 
-    cmd.arg("ls").arg(current_dir);
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
+#[tokio::test]
+async fn test_cat_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
 
-    let output_stdout = String::from_utf8(output)?;
-
-    assert!(output_stdout.contains("dst_1.txt"));
-    assert!(output_stdout.contains("dst_2.txt"));
-    assert!(output_stdout.contains("dst_3.txt"));
-
+    assert_cmd_snapshot!( oli().arg("cat").arg("dst.txt").current_dir(dir.path()), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    hello
+    ----- stderr -----
+    ");
     Ok(())
 }

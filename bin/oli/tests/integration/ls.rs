@@ -16,39 +16,34 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
-async fn test_basic_rm() -> Result<()> {
+async fn test_basic_ls() -> Result<()> {
     let dir = tempfile::tempdir()?;
-    let dst_path = dir.path().join("dst.txt");
+    let dst_path_1 = dir.path().join("dst_1.txt");
+    let dst_path_2 = dir.path().join("dst_2.txt");
+    let dst_path_3 = dir.path().join("dst_3.txt");
+
     let expect = "hello";
-    fs::write(&dst_path, expect)?;
+    fs::write(&dst_path_1, expect)?;
+    fs::write(&dst_path_2, expect)?;
+    fs::write(&dst_path_3, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    let current_dir = dir.path().to_string_lossy().to_string() + "/";
+    assert_cmd_snapshot!(oli().arg("ls").arg(current_dir), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [TEMP_DIR]/
+    dst_1.txt
+    dst_2.txt
+    dst_3.txt
 
-    cmd.arg("rm").arg(dst_path.as_os_str());
-    cmd.assert().success();
+    ----- stderr -----
+    ");
 
-    assert!(fs::read_to_string(&dst_path).is_err());
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_rm_for_path_in_current_dir() -> Result<()> {
-    let dir = tempfile::tempdir()?;
-    let dst_path = dir.path().join("dst.txt");
-    let expect = "hello";
-    fs::write(&dst_path, expect)?;
-
-    let mut cmd = Command::cargo_bin("oli")?;
-
-    cmd.arg("rm").arg("dst.txt").current_dir(dir.path());
-    cmd.assert().success();
-
-    assert!(fs::read_to_string(&dst_path).is_err());
     Ok(())
 }

@@ -31,3 +31,6 @@ mod one_shot_delete;
 pub use one_shot_delete::BlockingOneShotDelete;
 pub use one_shot_delete::OneShotDelete;
 pub use one_shot_delete::OneShotDeleter;
+
+mod recursive_delete;
+pub use recursive_delete::RecursiveDeleter;

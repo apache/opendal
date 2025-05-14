@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     // =============== OpenDAL C bindings ===============
 
     // Creates a step for building the dependent C bindings
-    const libopendal_c_cmake = b.addSystemCommand(&[_][]const u8{ "OPENDAL_FLAGS=services-all", "cmake", "-S", "../c", "-B", "../c/build" });
+    const libopendal_c_cmake = b.addSystemCommand(&[_][]const u8{ "env", "OPENDAL_FLAGS=services-all", "cmake", "-S", "../c", "-B", "../c/build" });
     const config_libopendal_c = b.step("libopendal_c_cmake", "Generate OpenDAL C binding CMake files");
     config_libopendal_c.dependOn(&libopendal_c_cmake.step);
     const libopendal_c = b.addSystemCommand(&[_][]const u8{ "make", "-C", "../c/build" });

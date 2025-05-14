@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check_clippy:
+  check_clippy_and_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,13 @@ jobs:
           need-rocksdb: true
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cargo clippy
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad
+      - name: Cargo clippy && test
         working-directory: bin/oli
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: |
+          cargo clippy --all-targets --all-features -- -D warnings
+          cargo test --all-targets --all-features

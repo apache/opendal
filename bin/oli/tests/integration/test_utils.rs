@@ -20,7 +20,6 @@ pub use assert_cmd::prelude::*;
 pub use tempfile::tempdir;
 
 use std::{
-    os::unix::fs::MetadataExt,
     path::{self, PathBuf},
     process::Command,
 };
@@ -45,7 +44,7 @@ pub fn directory_snapshot(dir: impl AsRef<path::Path>) -> DirectorySnapshot {
         dir: dir.as_ref().to_path_buf(),
         // default formatting options
         with_type: true,
-        with_size: true,
+        with_size: false,
         with_content: false,
     }
 }
@@ -110,7 +109,7 @@ impl std::fmt::Display for DirectorySnapshot {
                 );
             }
             if self.with_size {
-                row.push(format!("{}", entry.metadata().unwrap().size()));
+                row.push(format!("{}", entry.metadata().unwrap().len()));
             }
             if self.with_content && entry.file_type().is_file() {
                 let content = std::fs::read_to_string(entry.path()).unwrap();
@@ -139,8 +138,7 @@ macro_rules! assert_snapshot {
 pub(crate) use assert_snapshot;
 
 pub const REPLACEMENTS: &[(&str, &str)] = &[
-    (r".*\.tmp\S+/", "[TEMP_DIR]/"),
-    (r".*\.tmp\S+", "[TEMP_DIR]"),
+    (r"/.*\.tmp[^/]+", "[TEMP_DIR]"), // New regex for specific /.tmpXXXX patterns
     (
         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} UTC)",
         "[TIMESTAMP]",

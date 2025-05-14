@@ -38,9 +38,7 @@ concurrency:
 
 permissions:
   contents: read
-env:
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -49,10 +47,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-
-
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad
 
       - name: Clippy Check
         working-directory: "bindings/c"

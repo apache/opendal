@@ -89,6 +89,7 @@ jobs:
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Generate minimal versions lockfile
+        working-directory: core
         run: |
           rustup toolchain install nightly
           cargo +nightly generate-lockfile -Z direct-minimal-versions -Z minimal-versions

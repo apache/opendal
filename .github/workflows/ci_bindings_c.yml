@@ -65,8 +65,8 @@ jobs:
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON -DSERVICES_MEMORY=ON
-          make -j$(nproc) 
+          OPENDAL_FLAGS=opendal/services-fs cmake .. -DTEST_ENABLE_ASAN=ON
+          make -j$(nproc)
 
       - name: Check diff
         run: git diff --exit-code

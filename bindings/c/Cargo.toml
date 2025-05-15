@@ -41,22 +41,3 @@ tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 
 [features]
 default = []
-
-# Feature to enable all services (optional)
-services-all = [
-    "opendal/services-azblob",
-    "opendal/services-azdls",
-    "opendal/services-cos",
-    "opendal/services-fs",
-    "opendal/services-gcs",
-    "opendal/services-ghac",
-    "opendal/services-http",
-    "opendal/services-ipmfs",
-    "opendal/services-memory",
-    "opendal/services-obs",
-    "opendal/services-oss",
-    "opendal/services-s3",
-    "opendal/services-webdav",
-    "opendal/services-webhdfs",
-    "opendal/services-azfile",
-]

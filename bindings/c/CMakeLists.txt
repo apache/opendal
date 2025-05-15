@@ -25,8 +25,9 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
+set(FEATURES "" CACHE STRING "opendal features")
 
-set(CARGO_FEATURES_FLAG "--features=$ENV{OPENDAL_FLAGS}")
+set(CARGO_FEATURES_FLAG "--features=${FEATURES}")
 
 # force the compiler to support these standards
 set(CMAKE_C_STANDARD 11)

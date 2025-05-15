@@ -98,7 +98,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
   - The library is under `../../target/debug` after building.
 
-  - use env to enable services, like `OPENDAL_FLAGS=opendal/services-memory,opendal/services-s3 cmake ..`
+  - use `FEATURES` to enable services, like `cmake .. -DFEATURES="opendal/services-memory,opendal/services-fs"`
 
 - To **clean** the build results.
 

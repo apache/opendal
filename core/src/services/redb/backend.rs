@@ -198,7 +198,7 @@ impl Access for RedbBackend {
             let bs = self.core.get(&p)?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                    Metadata::new(EntryMode::from_path(&p)).with_content_length(bs.len() as u64),
                 )),
                 None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
             }

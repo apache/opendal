@@ -170,7 +170,6 @@ impl Access for RedbBackend {
                 delete: true,
 
                 list: true,
-                list_with_recursive: true,
 
                 blocking: true,
                 shared: false,

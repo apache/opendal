@@ -13,7 +13,7 @@ OpenDAL projects offer both native async and blocking support. This means we can
 
 However, this approach has several drawbacks:
 
-- Huge maintainance burden: We need to maintain two versions of the same code, which is a significant overhead.
+- Huge maintenance burden: We need to maintain two versions of the same code, which is a significant overhead.
 - Increased complexity: The codebase becomes more complex, making it harder to understand and maintain.
 - API inconsistency: The API for blocking and async operations may differ, leading to confusion for users, for example, concurrent reading support is not available in blocking APIs.
 

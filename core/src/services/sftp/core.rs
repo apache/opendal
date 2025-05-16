@@ -91,7 +91,6 @@ pub struct Manager {
     known_hosts_strategy: KnownHosts,
 }
 
-#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = Sftp;
     type Error = Error;

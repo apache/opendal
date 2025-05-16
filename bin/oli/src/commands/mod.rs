@@ -24,6 +24,7 @@ pub mod ls;
 pub mod mv;
 pub mod rm;
 pub mod stat;
+pub mod tee;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum OliSubcommand {
@@ -34,6 +35,7 @@ pub enum OliSubcommand {
     Rm(rm::RmCmd),
     Stat(stat::StatCmd),
     Mv(mv::MoveCmd),
+    Tee(tee::TeeCmd),
 }
 
 impl OliSubcommand {
@@ -46,6 +48,7 @@ impl OliSubcommand {
             Self::Rm(cmd) => cmd.run(),
             Self::Stat(cmd) => cmd.run(),
             Self::Mv(cmd) => cmd.run(),
+            Self::Tee(cmd) => cmd.run(),
         }
     }
 }

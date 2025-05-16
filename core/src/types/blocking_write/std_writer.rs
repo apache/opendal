@@ -49,14 +49,10 @@ impl StdWriter {
         self.flush()?;
 
         let Some(w) = &mut self.w else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "writer has been closed",
-            ));
+            return Err(std::io::Error::other("writer has been closed"));
         };
 
-        w.close()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        w.close().map_err(std::io::Error::other)?;
 
         // Drop writer after close succeed;
         self.w = None;
@@ -68,10 +64,7 @@ impl StdWriter {
 impl Write for StdWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let Some(w) = &mut self.w else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "writer has been closed",
-            ));
+            return Err(std::io::Error::other("writer has been closed"));
         };
 
         loop {
@@ -81,19 +74,14 @@ impl Write for StdWriter {
             }
 
             let bs = self.buf.get().expect("frozen buffer must be valid");
-            let n = w
-                .write(Buffer::from(bs))
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            let n = w.write(Buffer::from(bs)).map_err(std::io::Error::other)?;
             self.buf.advance(n);
         }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         let Some(w) = &mut self.w else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "writer has been closed",
-            ));
+            return Err(std::io::Error::other("writer has been closed"));
         };
 
         loop {
@@ -103,8 +91,7 @@ impl Write for StdWriter {
                 return Ok(());
             };
 
-            w.write(Buffer::from(bs))
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            w.write(Buffer::from(bs)).map_err(std::io::Error::other)?;
             self.buf.clean();
         }
     }

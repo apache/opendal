@@ -16,12 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use tokio::task;
 
-use crate::raw::adapters::kv;
+use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::RedbConfig;
 use crate::Builder;
@@ -29,6 +28,13 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
+
+use super::core::RedbCore;
+use super::deleter::RedbDeleter;
+use super::error::*;
+use super::lister::RedbFilter;
+use super::lister::RedbLister;
+use super::writer::RedbWriter;
 
 impl Configurator for RedbConfig {
     type Builder = RedbBuilder;
@@ -123,192 +129,137 @@ impl Builder for RedbBuilder {
             (Some(datadir), db)
         };
 
-        create_table(&db, &table_name)?;
-
-        Ok(RedbBackend::new(Adapter {
+        let core = RedbCore {
             datadir,
             table: table_name,
+            root: self.config.root.unwrap_or_else(|| "/".into()),
             db,
-        })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        };
+        core.create_table()?;
+
+        Ok(RedbBackend { core: core.into() })
     }
 }
 
-/// Backend for Redb services.
-pub type RedbBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    datadir: Option<String>,
-    table: String,
-    db: Arc<redb::Database>,
+#[derive(Debug, Clone)]
+pub struct RedbBackend {
+    core: Arc<RedbCore>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("path", &self.datadir);
-        ds.finish()
-    }
-}
+impl Access for RedbBackend {
+    type Reader = Buffer;
+    type Writer = RedbWriter;
+    type Lister = HierarchyLister<RedbLister>;
+    type Deleter = oio::OneShotDeleter<RedbDeleter>;
+    type BlockingReader = Buffer;
+    type BlockingWriter = RedbWriter;
+    type BlockingLister = HierarchyLister<RedbFilter>;
+    type BlockingDeleter = oio::OneShotDeleter<RedbDeleter>;
 
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Redb,
-            &self.table,
-            Capability {
+    fn info(&self) -> Arc<AccessorInfo> {
+        let am = AccessorInfo::default();
+        am.set_scheme(Scheme::Redb)
+            .set_root(&self.core.root)
+            .set_name(&self.core.table)
+            .set_native_capability(Capability {
                 read: true,
+                stat: true,
+
                 write: true,
+                write_can_empty: true,
+                delete: true,
+
+                list: true,
+
                 blocking: true,
                 shared: false,
                 ..Default::default()
-            },
-        )
+            });
+
+        am.into()
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+        task::spawn_blocking(move || cloned_self.blocking_stat(cloned_path.as_str(), args))
             .await
             .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
-        let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.core.root, path);
 
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        let table = read_txn
-            .open_table(table_define)
-            .map_err(parse_table_error)?;
-
-        let result = match table.get(path) {
-            Ok(Some(v)) => Ok(Some(v.value().to_vec())),
-            Ok(None) => Ok(None),
-            Err(e) => Err(parse_storage_error(e)),
-        }?;
-        Ok(result.map(Buffer::from))
+        if p == build_abs_path(&self.core.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p)?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::from_path(&p)).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
+            }
+        }
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let cloned_self = self.clone();
         let cloned_path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
+        task::spawn_blocking(move || cloned_self.blocking_read(cloned_path.as_str(), args))
             .await
             .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        {
-            let mut table = write_txn
-                .open_table(table_define)
-                .map_err(parse_table_error)?;
-
-            table
-                .insert(path, &*value.to_vec())
-                .map_err(parse_storage_error)?;
-        }
-
-        write_txn.commit().map_err(parse_commit_error)?;
-        Ok(())
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        let p = build_abs_path(&self.core.root, path);
+        let bs = match self.core.get(&p)? {
+            Some(bs) => Buffer::from(bs),
+            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.blocking_write(path, args)
     }
 
-    fn blocking_delete(&self, path: &str) -> Result<()> {
-        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let p = build_abs_path(&self.core.root, path);
 
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        {
-            let mut table = write_txn
-                .open_table(table_define)
-                .map_err(parse_table_error)?;
-
-            table.remove(path).map_err(parse_storage_error)?;
-        }
-
-        write_txn.commit().map_err(parse_commit_error)?;
-        Ok(())
-    }
-}
-
-fn parse_transaction_error(e: redb::TransactionError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_table_error(e: redb::TableError) -> Error {
-    match e {
-        redb::TableError::TableDoesNotExist(_) => {
-            Error::new(ErrorKind::NotFound, "error from redb").set_source(e)
-        }
-        _ => Error::new(ErrorKind::Unexpected, "error from redb").set_source(e),
-    }
-}
-
-fn parse_storage_error(e: redb::StorageError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_database_error(e: redb::DatabaseError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_commit_error(e: redb::CommitError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-/// Check if a table exists, otherwise create it.
-fn create_table(db: &redb::Database, table: &str) -> Result<()> {
-    // Only one `WriteTransaction` is permitted at same time,
-    // applying new one will block until it available.
-    //
-    // So we first try checking table existence via `ReadTransaction`.
-    {
-        let read_txn = db.begin_read().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
-
-        match read_txn.open_table(table_define) {
-            Ok(_) => return Ok(()),
-            Err(redb::TableError::TableDoesNotExist(_)) => (),
-            Err(e) => return Err(parse_table_error(e)),
-        }
+        Ok((RpWrite::new(), RedbWriter::new(self.core.clone(), p)))
     }
 
-    {
-        let write_txn = db.begin_write().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
-
-        write_txn
-            .open_table(table_define)
-            .map_err(parse_table_error)?;
-        write_txn.commit().map_err(parse_commit_error)?;
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.blocking_delete()
     }
 
-    Ok(())
+    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(RedbDeleter::new(self.core.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let pattern = build_abs_path(&self.core.root, path);
+        let range = self.core.iter()?;
+        let lister = RedbLister::new(RedbFilter::new(range, pattern));
+        let lister = HierarchyLister::new(lister, path, args.recursive());
+
+        Ok((RpList::default(), lister))
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
+        let pattern = build_abs_path(&self.core.root, path);
+        let range = self.core.iter()?;
+        let lister = RedbFilter::new(range, pattern);
+        let lister = HierarchyLister::new(lister, path, args.recursive());
+
+        Ok((RpList::default(), lister))
+    }
 }

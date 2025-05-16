@@ -665,7 +665,7 @@ impl BlockingOperator {
         self.writer_with(path).call()
     }
 
-    /// Create a new reader with extra options
+    /// Create a new writer with extra options
     ///
     /// # Examples
     ///

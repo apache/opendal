@@ -362,10 +362,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if KNOWN_AZDLS_ENDPOINT_SUFFIX
-        .iter()
-        .any(|s| *s == endpoint_suffix.as_str())
-    {
+    if KNOWN_AZDLS_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
         storage_name.map(|s| s.to_string())
     } else {
         None

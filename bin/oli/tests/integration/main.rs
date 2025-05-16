@@ -15,14 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-module github.com/apache/opendal/bindings/go
+//! The entry point to combine all integration tests into a single binary.
+//!
+//! See [this post](https://matklad.github.io/2021/02/27/delete-cargo-integration-tests.html)
+//! for the rationale behind this approach.
 
-go 1.22.4
+mod cat;
+mod cp;
+mod ls;
+mod mv;
+mod rm;
+mod stat;
 
-toolchain go1.22.5
-
-require (
-	github.com/ebitengine/purego v0.8.3
-	github.com/jupiterrider/ffi v0.4.1
-	golang.org/x/sys v0.24.0
-)
+pub mod test_utils;

@@ -98,8 +98,8 @@ impl ErrorKind {
     /// For some kinds of errors, backtrace is not useful and we can skip it (e.g., check if a file exists).
     ///
     /// See <https://github.com/apache/opendal/discussions/5569>
-    fn disable_backtrace(&self) -> bool {
-        matches!(self, ErrorKind::NotFound)
+    fn enable_backtrace(&self) -> bool {
+        matches!(self, ErrorKind::Unexpected)
     }
 }
 
@@ -227,8 +227,9 @@ pub struct Error {
     status: ErrorStatus,
     operation: &'static str,
     context: Vec<(&'static str, String)>,
+
     source: Option<anyhow::Error>,
-    backtrace: Backtrace,
+    backtrace: Option<Box<Backtrace>>,
 }
 
 impl Display for Error {
@@ -293,10 +294,11 @@ impl Debug for Error {
             writeln!(f, "Source:")?;
             writeln!(f, "   {source:#}")?;
         }
-        if self.backtrace.status() == BacktraceStatus::Captured {
+
+        if let Some(backtrace) = &self.backtrace {
             writeln!(f)?;
             writeln!(f, "Backtrace:")?;
-            writeln!(f, "{}", self.backtrace)?;
+            writeln!(f, "{}", backtrace)?;
         }
 
         Ok(())
@@ -320,13 +322,16 @@ impl Error {
             operation: "",
             context: Vec::default(),
             source: None,
-            // `Backtrace::capture()` will check if backtrace has been enabled
-            // internally. It's zero cost if backtrace is disabled.
-            backtrace: if kind.disable_backtrace() {
-                Backtrace::disabled()
-            } else {
-                Backtrace::capture()
-            },
+
+            backtrace: kind
+                .enable_backtrace()
+                // `Backtrace::capture()` will check if backtrace has
+                // been enabled internally. It's zero cost if backtrace
+                // is disabled.
+                .then(Backtrace::capture)
+                // We only keep captured backtrace to avoid an extra box.
+                .filter(|bt| bt.status() == BacktraceStatus::Captured)
+                .map(Box::new),
         }
     }
 
@@ -428,11 +433,11 @@ impl From<Error> for io::Error {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use anyhow::anyhow;
     use pretty_assertions::assert_eq;
+    use std::mem::size_of;
     use std::sync::LazyLock;
-
-    use super::*;
 
     static TEST_ERROR: LazyLock<Error> = LazyLock::new(|| Error {
         kind: ErrorKind::Unexpected,
@@ -444,8 +449,18 @@ mod tests {
             ("called", "send_async".to_string()),
         ],
         source: Some(anyhow!("networking error")),
-        backtrace: Backtrace::disabled(),
+        backtrace: None,
     });
+
+    /// This is not a real test case.
+    ///
+    /// We assert our public structs here to make sure we don't introduce
+    /// unexpected struct/enum size change.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn assert_size() {
+        assert_eq!(88, size_of::<Error>());
+    }
 
     #[test]
     fn test_error_display() {

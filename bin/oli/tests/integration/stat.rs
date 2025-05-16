@@ -16,10 +16,9 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_stat() -> Result<()> {
@@ -28,19 +27,17 @@ async fn test_basic_stat() -> Result<()> {
     let expect = "hello";
     fs::write(&dst_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    assert_cmd_snapshot!(oli().arg("stat").arg(dst_path), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    path: [TEMP_DIR]/dst.txt
+    size: 5
+    type: file
+    last-modified: [TIMESTAMP]
 
-    cmd.arg("stat").arg(dst_path.as_os_str());
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-    let mut expected_path = "path: ".to_string();
-    expected_path.push_str(&dst_path.to_string_lossy());
-    assert!(output_stdout.contains(&expected_path));
-    assert!(output_stdout.contains("size: 5"));
-    assert!(output_stdout.contains("type: file"));
-    assert!(output_stdout.contains("last-modified: "));
+    ----- stderr -----
+    ");
 
     Ok(())
 }
@@ -50,19 +47,19 @@ async fn test_stat_for_path_in_current_dir() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
-    fs::write(dst_path, expect)?;
+    fs::write(&dst_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    assert_cmd_snapshot!(oli().arg("stat").arg("dst.txt").current_dir(dir.path()), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    path: dst.txt
+    size: 5
+    type: file
+    last-modified: [TIMESTAMP]
 
-    cmd.arg("stat").arg("dst.txt").current_dir(dir.path());
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-    assert!(output_stdout.contains("path: dst.txt"));
-    assert!(output_stdout.contains("size: 5"));
-    assert!(output_stdout.contains("type: file"));
-    assert!(output_stdout.contains("last-modified: "));
+    ----- stderr -----
+    ");
 
     Ok(())
 }

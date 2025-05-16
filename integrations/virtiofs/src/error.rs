@@ -61,21 +61,15 @@ impl From<Error> for io::Error {
             Error::VhostUserFsError { message, source } => {
                 let message = format!("Vhost user fs error: {}", message);
                 match source {
-                    Some(source) => io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("{}, source: {:?}", message, source),
-                    ),
-                    None => io::Error::new(io::ErrorKind::Other, message),
+                    Some(source) => io::Error::other(format!("{}, source: {:?}", message, source)),
+                    None => io::Error::other(message),
                 }
             }
             Error::Unexpected { message, source } => {
                 let message = format!("Unexpected error: {}", message);
                 match source {
-                    Some(source) => io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("{}, source: {:?}", message, source),
-                    ),
-                    None => io::Error::new(io::ErrorKind::Other, message),
+                    Some(source) => io::Error::other(format!("{}, source: {:?}", message, source)),
+                    None => io::Error::other(message),
                 }
             }
         }

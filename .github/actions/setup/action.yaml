@@ -64,37 +64,19 @@ runs:
         version: "23.4"
         repo-token: ${{ inputs.github-token }}
 
-    - name: Cache nextest on linux
-      id: cache-nextest
-      uses: actions/cache@v4
+    - name: Install cargo-nextest
       if: inputs.need-nextest == 'true'
+      uses: taiki-e/install-action@v2
       with:
-        path: |
-          ~/.cargo/bin/cargo-nextest
-          ~/.cargo/bin/cargo-nextest.exe
-        key: r0-${{runner.os}}-nextest-0.9.72
+        tool: cargo-nextest@0.9.72
 
-    - name: Build nextest if not cached
-      if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
-      shell: bash
-      run: cargo install cargo-nextest@0.9.72 --locked
-
-    - name: Cache cargo-deny on linux
-      id: cache-deny
-      uses: actions/cache@v4
+    - name: Install cargo-deny
       if: inputs.need-deny == 'true'
+      uses: taiki-e/install-action@v2
       with:
-        path: |
-          ~/.cargo/bin/cargo-deny
-          ~/.cargo/bin/cargo-deny.exe
-        key: r0-${{runner.os}}-deny-0.14.22
+        tool: cargo-deny@0.14.22
 
-    - name: Build cargo-deny if not cached
-      if: steps.cache-deny.outputs.cache-hit != 'true' && inputs.need-deny == 'true'
-      shell: bash
-      run: cargo install cargo-deny@0.14.22 --locked
-
-    - name: Setup rust on linux
+    - name: Setup rocksdb on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       shell: bash
       run: |

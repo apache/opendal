@@ -16,10 +16,9 @@
 // under the License.
 
 use std::fs;
-use std::process::Command;
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_cat() -> Result<()> {
@@ -28,16 +27,14 @@ async fn test_basic_cat() -> Result<()> {
     let expect = "hello";
     fs::write(&dst_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    assert_cmd_snapshot!(oli().arg("cat").arg(dst_path), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    hello
+    ----- stderr -----
+    ");
 
-    cmd.arg("cat").arg(dst_path.as_os_str());
-    let actual = fs::read_to_string(&dst_path)?;
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-
-    assert_eq!(output_stdout, actual);
     Ok(())
 }
 
@@ -48,15 +45,12 @@ async fn test_cat_for_path_in_current_dir() -> Result<()> {
     let expect = "hello";
     fs::write(&dst_path, expect)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
-
-    cmd.arg("cat").arg("dst.txt").current_dir(dir.path());
-    let actual = fs::read_to_string(&dst_path)?;
-    let res = cmd.assert().success();
-    let output = res.get_output().stdout.clone();
-
-    let output_stdout = String::from_utf8(output)?;
-
-    assert_eq!(output_stdout, actual);
+    assert_cmd_snapshot!( oli().arg("cat").arg("dst.txt").current_dir(dir.path()), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    hello
+    ----- stderr -----
+    ");
     Ok(())
 }

@@ -19,11 +19,15 @@ use crate::config::Config;
 use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 use anyhow::Result;
-use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
-use futures::AsyncWriteExt;
 use futures::AsyncReadExt;
+use futures::AsyncWriteExt;
+use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
 #[derive(Debug, clap::Parser)]
-#[command(name = "tee", about = "Read from source and write to destination and stdout", disable_version_flag = true)]
+#[command(
+    name = "tee",
+    about = "Read from source and write to destination and stdout",
+    disable_version_flag = true
+)]
 pub struct TeeCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
@@ -44,7 +48,11 @@ impl TeeCmd {
         let (src_op, src_path) = cfg.parse_location(&self.source)?;
         let (dst_op, dst_path) = cfg.parse_location(&self.destination)?;
 
-        let mut reader = src_op.reader(&src_path).await?.into_futures_async_read(..).await?;
+        let mut reader = src_op
+            .reader(&src_path)
+            .await?
+            .into_futures_async_read(..)
+            .await?;
         let mut writer = dst_op.writer(&dst_path).await?.into_futures_async_write();
         let mut stdout = tokio::io::stdout();
 
@@ -65,8 +73,6 @@ impl TeeCmd {
         writer.close().await?; // Use shutdown for TokioAsyncWrite
         stdout.flush().await?;
 
-        println!("\nFile written to {} and stdout.", dst_path);
-
         Ok(())
     }
-} 
+}

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::test_utils::*;
 use anyhow::Result;
-use assert_cmd::Command;
 use std::fs;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -30,22 +30,17 @@ async fn test_tee_basic() -> Result<()> {
     let test_content = "Hello, OpenDAL!";
     fs::write(&source_path, test_content)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
-    cmd.arg("tee")
-        .arg(format!("fs:///{}", source_path.to_str().unwrap()))
-        .arg(format!("fs:///{}", dest_path.to_str().unwrap()));
+    let output = oli()
+        .arg("tee")
+        .arg(&source_path)
+        .arg(&dest_path)
+        .assert()
+        .success();
 
-    let output = cmd.assert().success();
     let stdout_output = String::from_utf8(output.get_output().stdout.clone())?;
-    
-    // Check stdout
-    assert!(stdout_output.contains(test_content), "Stdout should contain the test content.");
-    assert!(stdout_output.contains(&format!("File written to fs:///{} and stdout.", dest_path.to_str().unwrap())), "Stdout should contain the success message.");
-
-
-    // Check destination file content
+    assert_eq!(stdout_output, test_content);
     let dest_content = fs::read_to_string(&dest_path)?;
-    assert_eq!(test_content, dest_content, "Destination file content should match source.");
+    assert_eq!(dest_content, test_content);
 
     Ok(())
 }
@@ -56,12 +51,12 @@ async fn test_tee_non_existent_source() -> Result<()> {
     let source_path = temp_dir.path().join(Uuid::new_v4().to_string()); // Non-existent
     let dest_path = temp_dir.path().join("dest.txt");
 
-    let mut cmd = Command::cargo_bin("oli")?;
-    cmd.arg("tee")
-        .arg(format!("fs:///{}", source_path.to_str().unwrap()))
-        .arg(format!("fs:///{}", dest_path.to_str().unwrap()));
-
-    cmd.assert().failure();
+    oli()
+        .arg("tee")
+        .arg(source_path.to_str().unwrap())
+        .arg(dest_path.to_str().unwrap())
+        .assert()
+        .failure();
 
     Ok(())
 }
@@ -78,22 +73,16 @@ async fn test_tee_destination_already_exists() -> Result<()> {
     fs::write(&source_path, source_content)?;
     fs::write(&dest_path, initial_dest_content)?;
 
-    let mut cmd = Command::cargo_bin("oli")?;
-    cmd.arg("tee")
-        .arg(format!("fs:///{}", source_path.to_str().unwrap()))
-        .arg(format!("fs:///{}", dest_path.to_str().unwrap()));
-    
-    let output = cmd.assert().success();
+    let output = oli()
+        .arg("tee")
+        .arg(source_path.to_str().unwrap())
+        .arg(dest_path.to_str().unwrap())
+        .assert()
+        .success();
     let stdout_output = String::from_utf8(output.get_output().stdout.clone())?;
-
-    // Check stdout
-    assert!(stdout_output.contains(source_content), "Stdout should contain the source content.");
-    assert!(stdout_output.contains(&format!("File written to fs:///{} and stdout.", dest_path.to_str().unwrap())), "Stdout should contain the success message.");
-
-
-    // Check that destination file is overwritten
+    assert_eq!(stdout_output, source_content);
     let dest_content_after_tee = fs::read_to_string(&dest_path)?;
-    assert_eq!(source_content, dest_content_after_tee, "Destination file should be overwritten with source content.");
+    assert_eq!(dest_content_after_tee, source_content);
 
     Ok(())
 }

@@ -116,7 +116,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
   ```sh
   cd build
-  make basic error_handle
+  make basic error_handle async_stat
   ```
 
 ## Documentation

@@ -33,6 +33,9 @@ pub struct TeeCmd {
     pub config_params: ConfigParams,
     #[arg()]
     pub destination: String,
+
+    #[arg(short, long, help = "Append to the given FILEs, do not overwrite")]
+    pub append: bool,
 }
 
 impl TeeCmd {
@@ -45,7 +48,15 @@ impl TeeCmd {
 
         let (dst_op, dst_path) = cfg.parse_location(&self.destination)?;
 
-        let mut writer = dst_op.writer(&dst_path).await?.into_futures_async_write();
+        let mut writer = if self.append {
+            dst_op
+                .writer_with(&dst_path)
+                .append(true)
+                .await?
+                .into_futures_async_write()
+        } else {
+            dst_op.writer(&dst_path).await?.into_futures_async_write()
+        };
         let mut stdout = tokio::io::stdout();
 
         let mut buf = vec![0; 8 * 1024 * 1024]; // 8MB buffer

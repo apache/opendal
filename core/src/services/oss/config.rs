@@ -36,6 +36,9 @@ pub struct OssConfig {
     /// Bucket for oss.
     pub bucket: String,
 
+    /// is bucket versioning enabled for this bucket
+    pub enable_versioning: bool,
+
     // OSS features
     /// Server side encryption for oss.
     pub server_side_encryption: Option<String>,

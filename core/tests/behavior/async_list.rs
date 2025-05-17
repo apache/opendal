@@ -42,6 +42,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_nested_dir,
             test_list_dir_with_file_path,
             test_list_with_start_after,
+            test_list_non_exist_dir_with_recursive,
             test_list_dir_with_recursive,
             test_list_dir_with_recursive_no_trailing_slash,
             test_list_file_with_recursive,
@@ -403,6 +404,20 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let mut obs = op.lister_with(&dir).recursive(true).await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
+    Ok(())
+}
+
 pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
     op.create_dir("/").await?;
 
@@ -610,10 +625,19 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     let file_name = TEST_FIXTURE.new_file_path();
     let file_path = format!("{}{}", parent, file_name);
     op.write(file_path.as_str(), "1").await?;
+
+    // List with deleted should include self too.
+    let ds = op.list_with(&file_path).deleted(true).await?;
+    assert_eq!(
+        ds.len(),
+        1,
+        "list with deleted should contain current active file version"
+    );
+
     op.write(file_path.as_str(), "2").await?;
     op.delete(file_path.as_str()).await?;
 
-    // This file has been deleted
+    // This file has been deleted, list with deleted should contain its versions and delete marker.
     let mut ds = op.list_with(&file_path).deleted(true).await?;
     ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
 

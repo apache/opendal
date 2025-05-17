@@ -87,6 +87,11 @@ mod fastrace;
 #[cfg(feature = "layers-fastrace")]
 pub use self::fastrace::FastraceLayer;
 
+#[cfg(feature = "layers-otel-metrics")]
+mod otelmetrics;
+#[cfg(feature = "layers-otel-metrics")]
+pub use self::otelmetrics::OtelMetricsLayer;
+
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]

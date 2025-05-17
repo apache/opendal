@@ -78,7 +78,7 @@ impl typed_kv::Adapter for Adapter {
     fn info(&self) -> typed_kv::Info {
         typed_kv::Info::new(
             Scheme::Memory,
-            &format!("{:?}", &self.inner as *const _),
+            &format!("{:p}", Arc::as_ptr(&self.inner)),
             typed_kv::Capability {
                 get: true,
                 set: true,

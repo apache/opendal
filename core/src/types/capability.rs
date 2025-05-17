@@ -70,6 +70,10 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// Indicates if conditional stat operations using If-None-Match are supported.
     pub stat_with_if_none_match: bool,
+    /// Indicates if conditional stat operations using If-Modified-Since are supported.
+    pub stat_with_if_modified_since: bool,
+    /// Indicates if conditional stat operations using If-Unmodified-Since are supported.
+    pub stat_with_if_unmodified_since: bool,
     /// Indicates if Cache-Control header override is supported during stat operations.
     pub stat_with_override_cache_control: bool,
     /// Indicates if Content-Disposition header override is supported during stat operations.
@@ -214,6 +218,8 @@ pub struct Capability {
     pub presign_stat: bool,
     /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
+    /// Indicates if presigned URLs for delete operations are supported.
+    pub presign_delete: bool,
 
     /// Indicate if the operator supports shared access.
     pub shared: bool,

@@ -193,6 +193,7 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	filePath := fixture.PushPath(fmt.Sprintf("%s%s", dir, uuid.NewString()))
 	dirPath := fixture.PushPath(fmt.Sprintf("%s%s/", dir, uuid.NewString()))
 
+	assert.Nil(op.CreateDir(parent), "create must succeed")
 	assert.Nil(op.CreateDir(dir), "create must succeed")
 	assert.Nil(op.Write(filePath, []byte("test_list_nested_dir")), "write must succeed")
 	assert.Nil(op.CreateDir(dirPath), "create must succeed")

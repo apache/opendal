@@ -470,7 +470,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<()> {
+    pub fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<Metadata> {
         self.write_with(path, bs).call()
     }
 
@@ -633,8 +633,7 @@ impl BlockingOperator {
                 let context = WriteContext::new(inner, path, args, options);
                 let mut w = BlockingWriter::new(context)?;
                 w.write(bs)?;
-                w.close()?;
-                Ok(())
+                w.close()
             },
         ))
     }
@@ -666,7 +665,7 @@ impl BlockingOperator {
         self.writer_with(path).call()
     }
 
-    /// Create a new reader with extra options
+    /// Create a new writer with extra options
     ///
     /// # Examples
     ///
@@ -1109,6 +1108,30 @@ impl BlockingOperator {
             OpList::default(),
             |inner, path, args| BlockingLister::create(inner, &path, args),
         ))
+    }
+
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a `list` request to path and return any errors we met.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::ErrorKind;
+    ///
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.check()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn check(&self) -> Result<()> {
+        let mut ds = self.lister("/")?;
+
+        match ds.next() {
+            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
     }
 }
 

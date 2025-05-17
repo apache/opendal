@@ -28,8 +28,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     if cap.read && cap.write && cap.copy && cap.blocking && cap.list {
         tests.extend(blocking_trials!(
             op,
+            test_check,
             test_blocking_list_dir,
             test_blocking_list_non_exist_dir,
+            test_blocking_list_not_exist_dir_with_recursive,
             test_blocking_list_dir_with_recursive,
             test_blocking_list_dir_with_recursive_no_trailing_slash,
             test_blocking_list_file_with_recursive,
@@ -38,12 +40,19 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 }
 
+/// Check should be OK.
+pub fn test_check(op: BlockingOperator) -> Result<()> {
+    op.check().expect("operator check is ok");
+
+    Ok(())
+}
+
 /// List dir should return newly created file.
 pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (_, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
     op.write(&path, content).expect("write must succeed");
 
@@ -61,14 +70,12 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
         }
     }
     assert!(found, "file should be found in list");
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
 /// List non exist dir should return nothing.
 pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
-    let dir = format!("{}/", uuid::Uuid::new_v4());
+    let dir = TEST_FIXTURE.new_dir_path();
 
     let obs = op.lister(&dir)?;
     let mut objects = HashMap::new();
@@ -84,6 +91,10 @@ pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
+    if !op.info().full_capability().delete {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = [
@@ -110,6 +121,21 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
         )
     }
 
+    Ok(())
+}
+
+pub fn test_blocking_list_not_exist_dir_with_recursive(op: BlockingOperator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let obs = op.lister_with(&dir).recursive(true).call()?;
+    let mut objects = HashMap::new();
+    for de in obs {
+        let de = de?;
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
 }
 

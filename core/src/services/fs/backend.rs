@@ -148,6 +148,39 @@ impl Builder for FsBuilder {
 
         Ok(FsBackend {
             core: Arc::new(FsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Fs)
+                        .set_root(&root.to_string_lossy())
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_if_not_exists: true,
+
+                            create_dir: true,
+                            delete: true,
+
+                            list: true,
+
+                            copy: true,
+                            rename: true,
+                            blocking: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    am.into()
+                },
                 root,
                 atomic_write_dir,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
@@ -173,35 +206,7 @@ impl Access for FsBackend {
     type BlockingDeleter = oio::OneShotDeleter<FsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Fs)
-            .set_root(&self.core.root.to_string_lossy())
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                create_dir: true,
-                delete: true,
-
-                list: true,
-
-                copy: true,
-                rename: true,
-                blocking: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -302,7 +307,14 @@ impl Access for FsBackend {
         };
 
         let mut open_options = tokio::fs::OpenOptions::new();
-        open_options.create(true).write(true);
+        if op.if_not_exists() {
+            open_options.create_new(true);
+        } else {
+            open_options.create(true);
+        }
+
+        open_options.write(true);
+
         if op.append() {
             open_options.append(true);
         } else {
@@ -312,7 +324,19 @@ impl Access for FsBackend {
         let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         let w = FsWriter::new(target_path, tmp_path, f);
 
@@ -320,8 +344,8 @@ impl Access for FsBackend {
             FsWriters::One(w)
         } else {
             FsWriters::Two(oio::PositionWriter::new(
+                self.info().clone(),
                 w,
-                op.executor().cloned(),
                 op.concurrent(),
             ))
         };
@@ -342,10 +366,33 @@ impl Access for FsBackend {
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
+                return match e.kind() {
+                    // Return empty list if the directory not found
+                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
+                    // TODO: enable after our MSRV has been raised to 1.83
+                    //
+                    // If the path is not a directory, return an empty list
+                    //
+                    // The path could be a file or a symbolic link in this case.
+                    // Returning a NotADirectory error to the user isn't helpful; instead,
+                    // providing an empty directory is a more user-friendly. In fact, the dir
+                    // `path/` does not exist.
+                    // std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
+                    _ => {
+                        // TODO: remove this after we have MSRV 1.83
+                        #[cfg(unix)]
+                        if e.raw_os_error() == Some(20) {
+                            // On unix 20: Not a directory
+                            return Ok((RpList::default(), None));
+                        }
+                        #[cfg(windows)]
+                        if e.raw_os_error() == Some(267) {
+                            // On windows 267: DIRECTORY
+                            return Ok((RpList::default(), None));
+                        }
+
+                        Err(new_std_io_error(e))
+                    }
                 };
             }
         };
@@ -470,7 +517,14 @@ impl Access for FsBackend {
         };
 
         let mut f = std::fs::OpenOptions::new();
-        f.create(true).write(true);
+
+        if op.if_not_exists() {
+            f.create_new(true);
+        } else {
+            f.create(true);
+        }
+
+        f.write(true);
 
         if op.append() {
             f.append(true);
@@ -480,7 +534,19 @@ impl Access for FsBackend {
 
         let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .map_err(new_std_io_error)?;
+            .map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        // Map io AlreadyExists to opendal ConditionNotMatch
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "The file already exists in the filesystem",
+                        )
+                        .set_source(e)
+                    }
+                    _ => new_std_io_error(e),
+                }
+            })?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
@@ -498,10 +564,32 @@ impl Access for FsBackend {
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
+                return match e.kind() {
+                    // Return empty list if the directory not found
+                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
+                    // TODO: enable after our MSRV has been raised to 1.83
+                    //
+                    // If the path is not a directory, return an empty list
+                    //
+                    // The path could be a file or a symbolic link in this case.
+                    // Returning a NotADirectory error to the user isn't helpful; instead,
+                    // providing an empty directory is a more user-friendly. In fact, the dir
+                    // `path/` does not exist.
+                    // std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
+                    _ => {
+                        // TODO: remove this after we have MSRV 1.83
+                        #[cfg(unix)]
+                        if e.raw_os_error() == Some(20) {
+                            // On unix 20: Not a directory
+                            return Ok((RpList::default(), None));
+                        }
+                        #[cfg(windows)]
+                        if e.raw_os_error() == Some(267) {
+                            // On windows 267: DIRECTORY
+                            return Ok((RpList::default(), None));
+                        }
+                        Err(new_std_io_error(e))
+                    }
                 };
             }
         };

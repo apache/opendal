@@ -148,6 +148,17 @@ pub struct opendal_result_reader_read {
     pub error: *mut opendal_error,
 }
 
+/// \brief The result type returned by opendal_reader_seek().
+/// The result type contains a pos field, which is the new position after seek,
+/// which is zero on error. The error field is the error code and error message.
+#[repr(C)]
+pub struct opendal_result_reader_seek {
+    /// New position after seek
+    pub pos: u64,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
 /// \brief The result type returned by opendal_operator_writer().
 /// The result type for opendal_operator_writer(), the field `writer` contains the writer
 /// of the path, which is an iterator of the objects under the path. the field `code` represents

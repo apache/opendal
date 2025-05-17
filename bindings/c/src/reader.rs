@@ -16,11 +16,17 @@
 // under the License.
 
 use std::ffi::c_void;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 
 use ::opendal as core;
 
+use crate::result::opendal_result_reader_seek;
+
 use super::*;
+
+pub const OPENDAL_SEEK_SET: i32 = 0;
+pub const OPENDAL_SEEK_CUR: i32 = 1;
+pub const OPENDAL_SEEK_END: i32 = 2;
 
 /// \brief The result type returned by opendal's reader operation.
 ///
@@ -66,6 +72,43 @@ impl opendal_reader {
                 size: 0,
                 error: opendal_error::new(
                     core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
+                        .set_source(e),
+                ),
+            },
+        }
+    }
+
+    /// \brief Seek to an offset, in bytes, in a stream.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_seek(
+        &mut self,
+        offset: i64,
+        whence: i32,
+    ) -> opendal_result_reader_seek {
+        let pos = match whence {
+            _x @ OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
+            _x @ OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
+            _x @ OPENDAL_SEEK_END => SeekFrom::End(offset),
+            _ => {
+                return opendal_result_reader_seek {
+                    pos: 0,
+                    error: opendal_error::new(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        "undefined whence",
+                    )),
+                }
+            }
+        };
+
+        match self.deref_mut().seek(pos) {
+            Ok(pos) => opendal_result_reader_seek {
+                pos,
+                error: std::ptr::null_mut(),
+            },
+            Err(e) => opendal_result_reader_seek {
+                pos: 0,
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
                         .set_source(e),
                 ),
             },

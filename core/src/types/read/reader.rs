@@ -195,10 +195,76 @@ impl Reader {
     ///
     /// # Notes
     ///
-    /// This API can be public but we are not sure if it's useful for users.
-    /// And the name `BufferStream` is not good enough to expose to users.
-    /// Let's keep it inside for now.
-    async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
+    /// BufferStream is a zero-cost abstraction. It doesn't involve extra copy of data.
+    /// It will return underlying [`Buffer`] directly.
+    ///
+    /// The [`Buffer`] this stream yields can be seen as an iterator of [`Bytes`].
+    ///
+    /// # Inputs
+    ///
+    /// - `range`: The range of data to read. range like `..` it will read all data from reader.
+    ///
+    /// # Examples
+    ///
+    /// ## Basic Usage
+    ///
+    /// ```
+    /// use std::io;
+    ///
+    /// use futures::TryStreamExt;
+    /// use opendal::{Buffer, Operator};
+    /// use opendal::Result;
+    /// use bytes::Bytes;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let mut s = op
+    ///         .reader("hello.txt")
+    ///         .await?
+    ///         .into_stream(1024..2048)
+    ///         .await?;
+    ///
+    ///     let bs: Vec<Buffer> = s.try_collect().await?;
+    ///     // We can use those buffer as bytes if we want.
+    ///     let bytes_vec: Vec<Bytes> = bs.clone().into_iter().flatten().collect();
+    ///     // Or we can merge them into a single [`Buffer`] and later use it as [`bytes::Buf`].
+    ///     let new_buffer: Buffer = bs.into_iter().flatten().collect::<Buffer>();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## Concurrent Read
+    ///
+    /// The following example reads data in 256B chunks with 8 concurrent.
+    ///
+    /// ```
+    /// use std::io;
+    /// use bytes::Bytes;
+    ///
+    /// use futures::TryStreamExt;
+    /// use opendal::{Buffer, Operator};
+    /// use opendal::Result;
+    ///
+    /// async fn test(op: Operator) -> io::Result<()> {
+    ///     let s = op
+    ///         .reader_with("hello.txt")
+    ///         .concurrent(8)
+    ///         .chunk(256)
+    ///         .await?
+    ///         .into_stream(1024..2048)
+    ///         .await?;
+    ///
+    ///     // Every buffer except the last one in the stream will be 256B.
+    ///     let bs: Vec<Buffer> = s.try_collect().await?;
+    ///     // We can use those buffer as bytes if we want.
+    ///     let bytes_vec: Vec<Bytes> = bs.clone().into_iter().flatten().collect();
+    ///     // Or we can merge them into a single [`Buffer`] and later use it as [`bytes::Buf`].
+    ///     let new_buffer: Buffer = bs.into_iter().flatten().collect::<Buffer>();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
         BufferStream::create(self.ctx, range).await
     }
 
@@ -209,6 +275,10 @@ impl Reader {
     ///
     /// FuturesAsyncReader is not a zero-cost abstraction. The underlying reader
     /// returns an owned [`Buffer`], which involves an extra copy operation.
+    ///
+    /// # Inputs
+    ///
+    /// - `range`: The range of data to read. range like `..` it will read all data from reader.
     ///
     /// # Examples
     ///
@@ -269,6 +339,10 @@ impl Reader {
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
+    ///
+    /// # Inputs
+    ///
+    /// - `range`: The range of data to read. range like `..` it will read all data from reader.
     ///
     /// # Examples
     ///

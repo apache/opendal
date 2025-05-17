@@ -20,7 +20,6 @@
 //! By using ops, users can add more context for operation.
 
 use crate::raw::*;
-use crate::*;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -80,7 +79,7 @@ impl OpDeleter {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return per-request.
@@ -97,13 +96,6 @@ pub struct OpList {
     ///
     /// Default to `false`.
     recursive: bool,
-    /// The concurrent of stat operations inside list operation.
-    /// Users could use this to control the number of concurrent stat operation when metadata is unknown.
-    ///
-    /// - If this is set to <= 1, the list operation will be sequential.
-    /// - If this is set to > 1, the list operation will be concurrent,
-    ///   and the maximum number of concurrent operations will be determined by this value.
-    concurrent: usize,
     /// The version is used to control whether the object versions should be returned.
     ///
     /// - If `false`, list operation will not return with object versions
@@ -120,19 +112,6 @@ pub struct OpList {
     ///
     /// Default to `false`
     deleted: bool,
-}
-
-impl Default for OpList {
-    fn default() -> Self {
-        OpList {
-            limit: None,
-            start_after: None,
-            recursive: false,
-            concurrent: 1,
-            versions: false,
-            deleted: false,
-        }
-    }
 }
 
 impl OpList {
@@ -182,14 +161,16 @@ impl OpList {
     /// Change the concurrent of this list operation.
     ///
     /// The default concurrent is 1.
-    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
-        self.concurrent = concurrent;
+    #[deprecated(since = "0.53.2", note = "concurrent in list is no-op")]
+    pub fn with_concurrent(self, concurrent: usize) -> Self {
+        let _ = concurrent;
         self
     }
 
     /// Get the concurrent of list operation.
+    #[deprecated(since = "0.53.2", note = "concurrent in list is no-op")]
     pub fn concurrent(&self) -> usize {
-        self.concurrent
+        0
     }
 
     /// Change the version of this list operation
@@ -273,6 +254,8 @@ pub enum PresignOperation {
     Read(OpRead),
     /// Presign a write operation.
     Write(OpWrite),
+    /// Presign a delete operation.
+    Delete(OpDelete),
 }
 
 impl From<OpStat> for PresignOperation {
@@ -293,6 +276,12 @@ impl From<OpWrite> for PresignOperation {
     }
 }
 
+impl From<OpDelete> for PresignOperation {
+    fn from(v: OpDelete) -> Self {
+        Self::Delete(v)
+    }
+}
+
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
@@ -305,7 +294,6 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
-    executor: Option<Executor>,
 }
 
 impl OpRead {
@@ -418,31 +406,6 @@ impl OpRead {
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
-
-    /// Set the executor of the option
-    pub fn with_executor(mut self, executor: Executor) -> Self {
-        self.executor = Some(executor);
-        self
-    }
-
-    /// Merge given executor into option.
-    ///
-    /// If executor has already been set, this will do nothing.
-    /// Otherwise, this will set the given executor.
-    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
-        if self.executor.is_some() {
-            return self;
-        }
-        if let Some(exec) = executor {
-            return self.with_executor(exec);
-        }
-        self
-    }
-
-    /// Get executor from option
-    pub fn executor(&self) -> Option<&Executor> {
-        self.executor.as_ref()
-    }
 }
 
 /// Args for reader operation.
@@ -511,6 +474,8 @@ impl OpReader {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_modified_since: Option<DateTime<Utc>>,
+    if_unmodified_since: Option<DateTime<Utc>>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -543,6 +508,28 @@ impl OpStat {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the If-Modified-Since of the option
+    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_modified_since = Some(v);
+        self
+    }
+
+    /// Get If-Modified-Since from option
+    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_modified_since
+    }
+
+    /// Set the If-Unmodified-Since of the option
+    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+        self.if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get If-Unmodified-Since from option
+    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+        self.if_unmodified_since
     }
 
     /// Sets the content-disposition header that should be sent back by the remote read operation.
@@ -600,7 +587,6 @@ pub struct OpWrite {
     content_disposition: Option<String>,
     content_encoding: Option<String>,
     cache_control: Option<String>,
-    executor: Option<Executor>,
     if_match: Option<String>,
     if_none_match: Option<String>,
     if_not_exists: bool,
@@ -689,17 +675,6 @@ impl OpWrite {
         self
     }
 
-    /// Get the executor from option
-    pub fn executor(&self) -> Option<&Executor> {
-        self.executor.as_ref()
-    }
-
-    /// Set the executor of the option
-    pub fn with_executor(mut self, executor: Executor) -> Self {
-        self.executor = Some(executor);
-        self
-    }
-
     /// Set the If-Match of the option
     pub fn with_if_match(mut self, s: &str) -> Self {
         self.if_match = Some(s.to_string());
@@ -731,20 +706,6 @@ impl OpWrite {
     /// Get If-Not-Exist from option
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
-    }
-
-    /// Merge given executor into option.
-    ///
-    /// If executor has already been set, this will do nothing.
-    /// Otherwise, this will set the given executor.
-    pub(crate) fn merge_executor(self, executor: Option<Executor>) -> Self {
-        if self.executor.is_some() {
-            return self;
-        }
-        if let Some(exec) = executor {
-            return self.with_executor(exec);
-        }
-        self
     }
 
     /// Set the user defined metadata of the op

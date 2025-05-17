@@ -15,16 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-use std::time::Duration;
-
 use metrics::counter;
+use metrics::gauge;
 use metrics::histogram;
 use metrics::Label;
 
 use crate::layers::observe;
 use crate::raw::*;
-use crate::*;
 
 /// Add [metrics](https://docs.rs/metrics/) for every operation.
 ///
@@ -63,142 +60,121 @@ use crate::*;
 /// Take [`metrics_exporter_prometheus`](https://docs.rs/metrics-exporter-prometheus/latest/metrics_exporter_prometheus/) as an example:
 ///
 /// ```ignore
-/// let builder = PrometheusBuilder::new();
+/// let builder = PrometheusBuilder::new()
+///     .set_buckets_for_metric(
+///         Matcher::Suffix("bytes".into()),
+///         &observe::DEFAULT_BYTES_BUCKETS,
+///     )
+///     .set_buckets_for_metric(
+///         Matcher::Suffix("duration_seconds".into()),
+///         &observe::DEFAULT_DURATION_SECONDS_BUCKETS,
+///     )
+///     // ..
+///     .expect("failed to create builder");
 /// builder.install().expect("failed to install recorder/exporter");
 /// let handle = builder.install_recorder().expect("failed to install recorder");
 /// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
 /// let recorder = builder.build_recorder().expect("failed to build recorder");
 /// ```
 #[derive(Clone, Debug, Default)]
-pub struct MetricsLayer {
-    path_label_level: usize,
-}
-
-impl MetricsLayer {
-    /// Set the level of path label.
-    ///
-    /// - level = 0: we will ignore the path label.
-    /// - level > 0: the path label will be the path split by "/" and get the last n level,
-    ///   if n=1 and input path is "abc/def/ghi", and then we will get "abc/" as the path label.
-    pub fn path_label(mut self, level: usize) -> Self {
-        self.path_label_level = level;
-        self
-    }
-}
+pub struct MetricsLayer {}
 
 impl<A: Access> Layer<A> for MetricsLayer {
     type LayeredAccess = observe::MetricsAccessor<A, MetricsInterceptor>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let interceptor = MetricsInterceptor {
-            path_label_level: self.path_label_level,
-        };
+        let interceptor = MetricsInterceptor {};
         observe::MetricsLayer::new(interceptor).layer(inner)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct MetricsInterceptor {
-    path_label_level: usize,
-}
+pub struct MetricsInterceptor {}
 
 impl observe::MetricsIntercept for MetricsInterceptor {
-    fn observe_operation_duration_seconds(
-        &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
-        path: &str,
-        op: Operation,
-        duration: Duration,
-    ) {
-        let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
-            operation: op,
-            error: None,
-        }
-        .into_labels(self.path_label_level);
-        histogram!(observe::METRIC_OPERATION_DURATION_SECONDS.name(), labels).record(duration)
-    }
+    fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {
+        let labels = OperationLabels(labels).into_labels();
 
-    fn observe_operation_bytes(
-        &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
-        path: &str,
-        op: Operation,
-        bytes: usize,
-    ) {
-        let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
-            operation: op,
-            error: None,
-        }
-        .into_labels(self.path_label_level);
-        histogram!(observe::METRIC_OPERATION_BYTES.name(), labels).record(bytes as f64)
-    }
+        match value {
+            observe::MetricValue::OperationBytes(v) => {
+                histogram!(value.name(), labels).record(v as f64)
+            }
+            observe::MetricValue::OperationBytesRate(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::OperationEntries(v) => {
+                histogram!(value.name(), labels).record(v as f64)
+            }
+            observe::MetricValue::OperationEntriesRate(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::OperationDurationSeconds(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::OperationErrorsTotal => {
+                counter!(value.name(), labels).increment(1)
+            }
+            observe::MetricValue::OperationExecuting(v) => {
+                gauge!(value.name(), labels).increment(v as f64)
+            }
+            observe::MetricValue::OperationTtfbSeconds(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
 
-    fn observe_operation_errors_total(
-        &self,
-        scheme: Scheme,
-        namespace: Arc<String>,
-        root: Arc<String>,
-        path: &str,
-        op: Operation,
-        error: ErrorKind,
-    ) {
-        let labels = OperationLabels {
-            scheme,
-            namespace,
-            root,
-            path,
-            operation: op,
-            error: Some(error),
+            observe::MetricValue::HttpExecuting(v) => {
+                gauge!(value.name(), labels).increment(v as f64)
+            }
+            observe::MetricValue::HttpRequestBytes(v) => {
+                histogram!(value.name(), labels).record(v as f64)
+            }
+            observe::MetricValue::HttpRequestBytesRate(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::HttpRequestDurationSeconds(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::HttpResponseBytes(v) => {
+                histogram!(value.name(), labels).record(v as f64)
+            }
+            observe::MetricValue::HttpResponseBytesRate(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::HttpResponseDurationSeconds(v) => {
+                histogram!(value.name(), labels).record(v)
+            }
+            observe::MetricValue::HttpConnectionErrorsTotal => {
+                counter!(value.name(), labels).increment(1)
+            }
+            observe::MetricValue::HttpStatusErrorsTotal => {
+                counter!(value.name(), labels).increment(1)
+            }
         }
-        .into_labels(self.path_label_level);
-        counter!(observe::METRIC_OPERATION_ERRORS_TOTAL.name(), labels).increment(1)
     }
 }
 
-struct OperationLabels<'a> {
-    scheme: Scheme,
-    namespace: Arc<String>,
-    root: Arc<String>,
-    path: &'a str,
-    operation: Operation,
-    error: Option<ErrorKind>,
-}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct OperationLabels(observe::MetricLabels);
 
-impl OperationLabels<'_> {
-    /// labels:
-    ///
-    /// 1. `["scheme", "namespace", "root", "operation"]`
-    /// 2. `["scheme", "namespace", "root", "operation", "path"]`
-    /// 3. `["scheme", "namespace", "root", "operation", "error"]`
-    /// 4. `["scheme", "namespace", "root", "operation", "path", "error"]`
-    fn into_labels(self, path_label_level: usize) -> Vec<Label> {
+impl OperationLabels {
+    fn into_labels(self) -> Vec<Label> {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
-            Label::new(observe::LABEL_SCHEME, self.scheme.into_static()),
-            Label::new(observe::LABEL_NAMESPACE, (*self.namespace).clone()),
-            Label::new(observe::LABEL_ROOT, (*self.root).clone()),
-            Label::new(observe::LABEL_OPERATION, self.operation.into_static()),
+            Label::new(observe::LABEL_SCHEME, self.0.scheme.into_static()),
+            Label::new(observe::LABEL_NAMESPACE, self.0.namespace),
+            Label::new(observe::LABEL_ROOT, self.0.root),
+            Label::new(observe::LABEL_OPERATION, self.0.operation),
         ]);
 
-        if let Some(path) = observe::path_label_value(self.path, path_label_level) {
-            labels.push(Label::new(observe::LABEL_PATH, path.to_owned()));
+        if let Some(error) = self.0.error {
+            labels.push(Label::new(observe::LABEL_ERROR, error.into_static()));
         }
 
-        if let Some(error) = self.error {
-            labels.push(Label::new(observe::LABEL_ERROR, error.into_static()));
+        if let Some(status_code) = self.0.status_code {
+            labels.push(Label::new(
+                observe::LABEL_STATUS_CODE,
+                status_code.as_str().to_owned(),
+            ));
         }
 
         labels

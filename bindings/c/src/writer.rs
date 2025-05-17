@@ -67,12 +67,24 @@ impl opendal_writer {
         }
     }
 
+    /// \brief Close the writer and make sure all data have been stored.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_writer_close(ptr: *mut opendal_writer) -> *mut opendal_error {
+        if !ptr.is_null() {
+            if let Err(e) = (*ptr).deref_mut().close() {
+                return opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "close writer failed")
+                        .set_source(e),
+                );
+            }
+        }
+        std::ptr::null_mut()
+    }
+
     /// \brief Frees the heap memory used by the opendal_writer.
-    /// \note This function make sure all data have been stored.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            let _ = (*ptr).deref_mut().close();
             drop(Box::from_raw((*ptr).inner as *mut core::BlockingWriter));
             drop(Box::from_raw(ptr));
         }

@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Buf;
 use http::header;
 use http::request;
@@ -25,6 +22,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -32,12 +32,11 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// Yandex Disk oauth access_token.
     pub access_token: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for YandexDiskCore {
@@ -51,7 +50,7 @@ impl Debug for YandexDiskCore {
 impl YandexDiskCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     #[inline]
@@ -65,7 +64,7 @@ impl YandexDiskCore {
 
 impl YandexDiskCore {
     /// Get upload url.
-    pub async fn get_upload_url(&self, path: &str) -> Result<String> {
+    async fn get_upload_url(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -74,6 +73,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Write);
 
         let req = self.sign(req);
 
@@ -97,7 +98,17 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn get_download_url(&self, path: &str) -> Result<String> {
+    pub async fn upload(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url(path).await?;
+        let req = Request::put(upload_url)
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    async fn get_download_url(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -106,6 +117,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Read);
 
         let req = self.sign(req);
 
@@ -127,6 +140,17 @@ impl YandexDiskCore {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+
+    pub async fn download(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(path).await?;
+        let req = Request::get(download_url)
+            .header(header::RANGE, range.to_header())
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
@@ -156,6 +180,8 @@ impl YandexDiskCore {
 
         let req = Request::put(url);
 
+        let req = req.extension(Operation::CreateDir);
+
         let req = self.sign(req);
 
         // Set body
@@ -175,6 +201,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::post(url);
+
+        let req = req.extension(Operation::Copy);
 
         let req = self.sign(req);
 
@@ -196,6 +224,8 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
+        let req = req.extension(Operation::Rename);
+
         let req = self.sign(req);
 
         // Set body
@@ -213,6 +243,8 @@ impl YandexDiskCore {
         );
 
         let req = Request::delete(url);
+
+        let req = req.extension(Operation::Delete);
 
         let req = self.sign(req);
 
@@ -244,6 +276,8 @@ impl YandexDiskCore {
         }
 
         let req = Request::get(url);
+
+        let req = req.extension(Operation::Stat);
 
         let req = self.sign(req);
 

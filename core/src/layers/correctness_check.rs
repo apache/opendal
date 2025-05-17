@@ -56,7 +56,7 @@ pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &s
 
     Error::new(
         ErrorKind::Unsupported,
-        format!("service {scheme} doesn't support operation {op} with args {args}"),
+        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
     )
     .with_operation(op)
 }
@@ -100,6 +100,34 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 self.info.as_ref(),
                 Operation::Read,
                 "version",
+            ));
+        }
+        if !capability.read_with_if_match && args.if_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_match",
+            ));
+        }
+        if !capability.read_with_if_none_match && args.if_none_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_none_match",
+            ));
+        }
+        if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_modified_since",
+            ));
+        }
+        if !capability.read_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Read,
+                "if_unmodified_since",
             ));
         }
 
@@ -146,6 +174,34 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "version",
             ));
         }
+        if !capability.stat_with_if_match && args.if_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_match",
+            ));
+        }
+        if !capability.stat_with_if_none_match && args.if_none_match().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_none_match",
+            ));
+        }
+        if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_modified_since",
+            ));
+        }
+        if !capability.stat_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Stat,
+                "if_unmodified_since",
+            ));
+        }
 
         self.inner.stat(path, args).await
     }
@@ -166,7 +222,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         if !capability.read_with_version && args.version().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingRead,
+                Operation::Read,
                 "version",
             ));
         }
@@ -179,21 +235,21 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         if args.append() && !capability.write_can_append {
             return Err(new_unsupported_error(
                 &self.info,
-                Operation::BlockingWrite,
+                Operation::Write,
                 "append",
             ));
         }
         if args.if_not_exists() && !capability.write_with_if_not_exists {
             return Err(new_unsupported_error(
                 &self.info,
-                Operation::BlockingWrite,
+                Operation::Write,
                 "if_not_exists",
             ));
         }
         if args.if_none_match().is_some() && !capability.write_with_if_none_match {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingWrite,
+                Operation::Write,
                 "if_none_match",
             ));
         }
@@ -206,7 +262,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         if !capability.stat_with_version && args.version().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
-                Operation::BlockingStat,
+                Operation::Stat,
                 "version",
             ));
         }
@@ -240,7 +296,7 @@ impl<T> CheckWrapper<T> {
         if args.version().is_some() && !self.info.full_capability().delete_with_version {
             return Err(new_unsupported_error(
                 &self.info,
-                Operation::DeleterDelete,
+                Operation::Delete,
                 "version",
             ));
         }
@@ -293,7 +349,7 @@ mod tests {
         type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut info = AccessorInfo::default();
+            let info = AccessorInfo::default();
             info.set_native_capability(self.capability);
 
             info.into()
@@ -327,8 +383,8 @@ mod tests {
             Ok(())
         }
 
-        async fn close(&mut self) -> Result<()> {
-            Ok(())
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -410,7 +466,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write => service memory doesn't support operation write with args if_none_match"
+            "Unsupported (permanent) at write => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         // Now try a wildcard if-none-match
@@ -421,8 +477,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => \
-            service memory doesn't support operation write with args if_none_match"
+             "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         let res = op

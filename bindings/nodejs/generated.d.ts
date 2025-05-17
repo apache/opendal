@@ -245,6 +245,15 @@ export class Operator {
    */
   check(): Promise<void>
   /**
+   * Check the op synchronously.
+   *
+   * ### Example
+   * ```javascript
+   * op.checkSync();
+   * ```
+   */
+  checkSync(): void
+  /**
    * Check if this path exists or not.
    *
    * ### Example
@@ -252,7 +261,7 @@ export class Operator {
    * await op.isExist("test");
    * ```
    */
-  isExist(path: string): Promise<boolean>
+  exists(path: string): Promise<boolean>
   /**
    * Check if this path exists or not synchronously.
    *
@@ -261,7 +270,7 @@ export class Operator {
    * op.isExistSync("test");
    * ```
    */
-  isExistSync(path: string): boolean
+  existsSync(path: string): boolean
   /**
    * Create dir with a given path.
    *

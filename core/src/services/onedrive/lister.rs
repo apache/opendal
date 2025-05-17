@@ -15,72 +15,86 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use bytes::Buf;
 
-use super::backend::OnedriveBackend;
+use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::GraphApiOnedriveListResponse;
-use super::graph_model::ItemType;
+use super::graph_model::{GraphApiOneDriveListResponse, ItemType, GENERAL_SELECT_PARAM};
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
 
-pub struct OnedriveLister {
-    root: String,
+pub struct OneDriveLister {
+    core: Arc<OneDriveCore>,
     path: String,
-    backend: OnedriveBackend,
+    op: OpList,
 }
 
-impl OnedriveLister {
+impl OneDriveLister {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
-    pub(crate) fn new(root: String, path: String, backend: OnedriveBackend) -> Self {
+    pub(crate) fn new(path: String, core: Arc<OneDriveCore>, args: &OpList) -> Self {
         Self {
-            root,
+            core,
             path,
-            backend,
+            op: args.clone(),
         }
     }
 }
 
-impl oio::PageList for OnedriveLister {
+impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let request_url = if ctx.token.is_empty() {
-            let path = build_rooted_abs_path(&self.root, &self.path);
-            let url: String = if path == "." || path == "/" {
-                "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
+            let base = format!(
+                "{}:/children?{}",
+                self.core.onedrive_item_url(&self.path, true),
+                GENERAL_SELECT_PARAM
+            );
+            if let Some(limit) = self.op.limit() {
+                base + &format!("&$top={}", limit)
             } else {
-                // According to OneDrive API examples, the path should not end with a slash.
-                // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
-                let path = path.strip_suffix('/').unwrap_or("");
-                format!(
-                    "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
-                    percent_encode_path(path),
-                )
-            };
-            url
+                base
+            }
         } else {
             ctx.token.clone()
         };
 
-        let resp = self
-            .backend
-            .onedrive_get_next_list_page(&request_url)
-            .await?;
+        let response = self.core.onedrive_get_next_list_page(&request_url).await?;
 
-        let status_code = resp.status();
+        let status_code = response.status();
         if !status_code.is_success() {
             if status_code == http::StatusCode::NOT_FOUND {
                 ctx.done = true;
                 return Ok(());
             }
-            let error = parse_error(resp);
-            return Err(error);
+            return Err(parse_error(response));
         }
 
-        let bytes = resp.into_body();
-        let decoded_response: GraphApiOnedriveListResponse =
+        let bytes = response.into_body();
+        let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
+
+        let list_with_versions = self.core.info.native_capability().list_with_versions;
+
+        // Include the current directory itself when handling the first page of the listing.
+        if ctx.token.is_empty() && !ctx.done {
+            // TODO: when listing a directory directly, we could reuse the stat result,
+            // cache the result when listing nested directory
+            let path = if self.path == "/" {
+                "".to_string()
+            } else {
+                self.path.clone()
+            };
+
+            let meta = self.core.onedrive_stat(&path, OpStat::default()).await?;
+
+            // skip `list_with_versions` intentionally because a folder doesn't have versions
+
+            let entry = oio::Entry::new(&path, meta);
+            ctx.entries.push_back(entry);
+        }
 
         if let Some(next_link) = decoded_response.next_link {
             ctx.token = next_link;
@@ -96,19 +110,36 @@ impl oio::PageList for OnedriveLister {
                 .unwrap_or("");
 
             let path = format!("{}/{}", parent_path, name);
-
-            let normalized_path = build_rel_path(&self.root, &path);
-
-            let entry: oio::Entry = match drive_item.item_type {
-                ItemType::Folder { .. } => {
-                    let normalized_path = format!("{}/", normalized_path);
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
-                }
-                ItemType::File { .. } => {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::FILE))
-                }
+            let mut normalized_path = build_rel_path(self.core.root.as_str(), path.as_str());
+            let entry_mode = match drive_item.item_type {
+                ItemType::Folder { .. } => EntryMode::DIR,
+                ItemType::File { .. } => EntryMode::FILE,
             };
 
+            // Add the trailing `/` because OneDrive returns a directory with the name
+            if entry_mode == EntryMode::DIR {
+                normalized_path.push('/');
+            }
+
+            let mut meta = Metadata::new(entry_mode)
+                .with_etag(drive_item.e_tag)
+                .with_content_length(drive_item.size.max(0) as u64);
+            let last_modified =
+                parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
+            meta.set_last_modified(last_modified);
+
+            // When listing a directory with `$expand=versions`, OneDrive returns 400 "Operation not supported".
+            // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
+            // N+1 is horrendous but we can't do any better without OneDrive's API support.
+            // When OneDrive supports listing with versions API, remove this.
+            if list_with_versions {
+                let versions = self.core.onedrive_list_versions(&path).await?;
+                if let Some(version) = versions.first() {
+                    meta.set_version(&version.id);
+                }
+            }
+
+            let entry = oio::Entry::new(&normalized_path, meta);
             ctx.entries.push_back(entry)
         }
 

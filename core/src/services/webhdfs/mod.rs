@@ -31,5 +31,8 @@ mod backend;
 #[cfg(feature = "services-webhdfs")]
 pub use backend::WebhdfsBuilder as Webhdfs;
 
+#[cfg(feature = "services-webhdfs")]
+mod core;
+
 mod config;
 pub use config::WebhdfsConfig;

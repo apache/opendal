@@ -34,7 +34,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_blocking_write_file,
             test_blocking_write_with_dir_path,
-            test_blocking_write_with_special_chars
+            test_blocking_write_with_special_chars,
+            test_blocking_write_returns_metadata
         ))
     }
 
@@ -42,6 +43,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(blocking_trials!(
             op,
             test_blocking_write_with_append,
+            test_blocking_write_with_append_returns_metadata,
             test_blocking_writer_with_append
         ))
     }
@@ -49,16 +51,12 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
 /// Write a single file and test with stat.
 pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path, content)?;
 
     let meta = op.stat(&path).expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
@@ -76,11 +74,6 @@ pub fn test_blocking_write_with_dir_path(op: BlockingOperator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()> {
-    // Ignore test for supabase until https://github.com/apache/opendal/issues/2194 addressed.
-    if op.info().scheme() == opendal::Scheme::Supabase {
-        warn!("ignore test for supabase until https://github.com/apache/opendal/issues/2194 is resolved");
-        return Ok(());
-    }
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
         warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
@@ -95,14 +88,44 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
 
     let meta = op.stat(&path).expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
+    Ok(())
+}
 
-    op.delete(&path).expect("delete must succeed");
+pub fn test_blocking_write_returns_metadata(op: BlockingOperator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let meta = op.write(&path, content)?;
+
+    let stat_meta = op.stat(&path).expect("stat must succeed");
+
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag(),);
+    }
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if meta.version().is_some() {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
+    if meta.content_md5().is_some() {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
+    if meta.content_type().is_some() {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
+    }
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
+
     Ok(())
 }
 
 /// Test append to a file must success.
 pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let path = TEST_FIXTURE.new_file_path();
     let (content_one, size_one) = gen_bytes(op.info().full_capability());
     let (content_two, size_two) = gen_bytes(op.info().full_capability());
 
@@ -121,15 +144,57 @@ pub fn test_blocking_write_with_append(op: BlockingOperator) -> Result<()> {
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
     assert_eq!(bs[size_one..], content_two);
-
-    op.delete(&path).expect("delete file must success");
-
     Ok(())
+}
+
+pub fn test_blocking_write_with_append_returns_metadata(op: BlockingOperator) -> Result<()> {
+    let (path, content_one, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write_with(&path, content_one)
+        .append(true)
+        .call()
+        .expect("append file first time must success");
+
+    let (data, _) = gen_bytes(op.info().full_capability());
+    let meta = op
+        .write_with(&path, data)
+        .append(true)
+        .call()
+        .expect("append to an existing file must success");
+
+    let stat_meta = op.stat(&path).expect("stat must succeed");
+    assert_metadata(stat_meta, meta);
+    Ok(())
+}
+
+fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
+    assert_eq!(stat_meta.content_length(), meta.content_length());
+    if meta.etag().is_some() {
+        assert_eq!(stat_meta.etag(), meta.etag());
+    }
+    if meta.last_modified().is_some() {
+        assert_eq!(stat_meta.last_modified(), meta.last_modified());
+    }
+    if meta.version().is_some() {
+        assert_eq!(stat_meta.version(), meta.version());
+    }
+    if meta.content_md5().is_some() {
+        assert_eq!(stat_meta.content_md5(), meta.content_md5());
+    }
+    if meta.content_type().is_some() {
+        assert_eq!(stat_meta.content_type(), meta.content_type());
+    }
+    if meta.content_encoding().is_some() {
+        assert_eq!(stat_meta.content_encoding(), meta.content_encoding());
+    }
+    if meta.content_disposition().is_some() {
+        assert_eq!(stat_meta.content_disposition(), meta.content_disposition());
+    }
 }
 
 /// Copy data from reader to writer
 pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let path = TEST_FIXTURE.new_file_path();
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
@@ -150,7 +215,5 @@ pub fn test_blocking_writer_with_append(op: BlockingOperator) -> Result<()> {
         format!("{:x}", Sha256::digest(content)),
         "read content"
     );
-
-    op.delete(&path).expect("delete must succeed");
     Ok(())
 }

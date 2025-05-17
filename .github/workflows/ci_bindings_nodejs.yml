@@ -19,14 +19,18 @@ name: Bindings NodeJS CI
 
 env:
   DEBUG: napi:*
-  MACOSX_DEPLOYMENT_TARGET: '10.13'
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
+  # refer to https://github.com/nodejs/corepack/issues/612#issuecomment-2631462297
+  #
+  # SHOULD remove after nodejs been upgraded.
+  COREPACK_INTEGRITY_KEYS: 0
 
 on:
   push:
     branches:
       - main
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - main
@@ -57,12 +61,12 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
 
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -78,6 +82,9 @@ jobs:
 
       - name: Test
         run: cargo test --no-fail-fast
+
+      - name: Check Clippy
+        run: cargo clippy -- -D warnings
 
   linux:
     name: linux - ${{ matrix.settings.target }}
@@ -99,7 +106,7 @@ jobs:
               -e NAPI_TARGET=x86_64-unknown-linux-gnu \
               -w /build/bindings/nodejs \
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
-              bash -c "corepack enable && pnpm build"
+              bash -c "npm i -g --force corepack@latest && corepack enable && pnpm build"
               cd bindings/nodejs
               # change owner to current user
               sudo chown -R 1001:121 *.node
@@ -112,6 +119,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64 \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-gnu &&
+              npm i -g --force corepack@latest &&
               corepack enable &&
               pnpm build --target aarch64-unknown-linux-gnu &&
               aarch64-unknown-linux-gnu-strip *.node"
@@ -127,6 +135,7 @@ jobs:
               ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine \
               bash -c "set -e &&
               rustup target add aarch64-unknown-linux-musl &&
+              npm i -g --force corepack@latest &&
               corepack enable &&
               pnpm build --target aarch64-unknown-linux-musl &&
               /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node"
@@ -142,11 +151,11 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -191,11 +200,11 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -247,11 +256,11 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -265,9 +274,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [ macos, linux, windows ]
+    needs: [macos, linux, windows]
     permissions:
       id-token: write
+      contents: write
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -286,7 +296,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
-        run: corepack enable
+        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

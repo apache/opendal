@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;
@@ -69,13 +69,11 @@ static HEADER_DESTINATION: &str = "Destination";
 static HEADER_OVERWRITE: &str = "Overwrite";
 
 pub struct WebdavCore {
+    pub info: Arc<AccessorInfo>,
     pub endpoint: String,
     pub server_path: String,
     pub root: String,
-    pub disable_copy: bool,
     pub authorization: Option<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for WebdavCore {
@@ -108,10 +106,11 @@ impl WebdavCore {
         req = req.header(HEADER_DEPTH, "0");
 
         let req = req
+            .extension(Operation::Stat)
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -149,9 +148,12 @@ impl WebdavCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn webdav_put(
@@ -182,9 +184,12 @@ impl WebdavCore {
             req = req.header(header::CONTENT_DISPOSITION, v)
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -197,9 +202,12 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -223,9 +231,12 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -249,9 +260,12 @@ impl WebdavCore {
         req = req.header(HEADER_DESTINATION, target_uri);
         req = req.header(HEADER_OVERWRITE, "T");
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<Buffer>> {
@@ -273,10 +287,11 @@ impl WebdavCore {
         }
 
         let req = req
+            .extension(Operation::List)
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Create dir recursively for given path.
@@ -330,9 +345,12 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::CreateDir)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.info.http_client().send(req).await?;
         let status = resp.status();
 
         match status {

@@ -50,6 +50,12 @@ jobs:
           dotnet-version: '7.0.x'
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      
+      - name: Clippy Check
+        working-directory: "bindings/dotnet"
+        run: |
+          cargo clippy -- -D warnings
+
       - name: Build & Test
         working-directory: "bindings/dotnet"
         run: |

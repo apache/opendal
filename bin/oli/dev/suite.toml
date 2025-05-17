@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-workload = "upload"
-parallelism = 4
 file_size = "64MiB"
+parallelism = 4
 timeout = "60s"
+workload = "upload"

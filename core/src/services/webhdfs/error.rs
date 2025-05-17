@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use http::response::Parts;
 use http::Response;
 use http::StatusCode;
@@ -41,8 +40,8 @@ struct WebHdfsError {
 }
 
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
     let s = String::from_utf8_lossy(&bs);
     parse_error_msg(parts, &s)
 }

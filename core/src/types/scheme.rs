@@ -56,8 +56,6 @@ pub enum Scheme {
     Pcloud,
     /// [Koofr][crate::services::Koofr]: Koofr Services.
     Koofr,
-    /// [Chainsafe][crate::services::Chainsafe]: Chainsafe Services.
-    Chainsafe,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
@@ -123,8 +121,6 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
-    /// [libsql][crate::services::Libsql]: Libsql services
-    Libsql,
     /// [mysql][crate::services::Mysql]: Mysql services
     Mysql,
     /// [sqlite][crate::services::Sqlite]: Sqlite services
@@ -137,8 +133,6 @@ pub enum Scheme {
     Sftp,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
-    /// [Supabase][crate::services::Supabase]: Supabase storage service
-    Supabase,
     /// [swift][crate::services::Swift]: Swift backend support.
     Swift,
     /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
@@ -167,7 +161,7 @@ pub enum Scheme {
     Lakefs,
     /// [NebulaGraph](crate::services::NebulaGraph): NebulaGraph Services
     NebulaGraph,
-    /// Custom that allow users to implement services outside of OpenDAL.
+    /// Custom that allow users to implement services outside OpenDAL.
     ///
     /// # NOTE
     ///
@@ -247,8 +241,6 @@ impl Scheme {
             Scheme::Ipmfs,
             #[cfg(feature = "services-icloud")]
             Scheme::Icloud,
-            #[cfg(feature = "services-libsql")]
-            Scheme::Libsql,
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached,
             #[cfg(feature = "services-memory")]
@@ -293,8 +285,6 @@ impl Scheme {
             Scheme::Sled,
             #[cfg(feature = "services-sqlite")]
             Scheme::Sqlite,
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase,
             #[cfg(feature = "services-swift")]
             Scheme::Swift,
             #[cfg(feature = "services-tikv")]
@@ -351,7 +341,6 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "b2" => Ok(Scheme::B2),
-            "chainsafe" => Ok(Scheme::Chainsafe),
             "cacache" => Ok(Scheme::Cacache),
             "compfs" => Ok(Scheme::Compfs),
             "cloudflare_kv" => Ok(Scheme::CloudflareKv),
@@ -375,7 +364,6 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "icloud" => Ok(Scheme::Icloud),
             "koofr" => Ok(Scheme::Koofr),
-            "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
             "mysql" => Ok(Scheme::Mysql),
@@ -397,7 +385,6 @@ impl FromStr for Scheme {
             "pcloud" => Ok(Scheme::Pcloud),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
-            "supabase" => Ok(Scheme::Supabase),
             "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
             "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
@@ -424,7 +411,6 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::B2 => "b2",
-            Scheme::Chainsafe => "chainsafe",
             Scheme::Cacache => "cacache",
             Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
@@ -446,7 +432,6 @@ impl From<Scheme> for &'static str {
             Scheme::Ipmfs => "ipmfs",
             Scheme::Icloud => "icloud",
             Scheme::Koofr => "koofr",
-            Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",
@@ -466,7 +451,6 @@ impl From<Scheme> for &'static str {
             Scheme::Seafile => "seafile",
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
-            Scheme::Supabase => "supabase",
             Scheme::Swift => "swift",
             Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::VercelBlob => "vercel_blob",

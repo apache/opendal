@@ -43,9 +43,6 @@ pub use b2::*;
 mod cacache;
 pub use self::cacache::*;
 
-mod chainsafe;
-pub use chainsafe::*;
-
 mod cloudflare_kv;
 pub use self::cloudflare_kv::*;
 
@@ -121,9 +118,6 @@ pub use koofr::*;
 mod lakefs;
 pub use lakefs::*;
 
-mod libsql;
-pub use libsql::*;
-
 mod memcached;
 pub use memcached::*;
 
@@ -190,9 +184,6 @@ pub use self::sled::*;
 mod sqlite;
 pub use self::sqlite::*;
 
-mod supabase;
-pub use supabase::*;
-
 mod surrealdb;
 pub use surrealdb::*;
 
@@ -219,3 +210,6 @@ pub use webhdfs::*;
 
 mod yandex_disk;
 pub use yandex_disk::*;
+
+#[cfg(target_arch = "wasm32")]
+mod opfs;

@@ -105,6 +105,7 @@ Some components may require specific setup steps. Please refer to their respecti
 - [Core](core/CONTRIBUTING.md)
 - [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 - [Python Binding](bindings/python/CONTRIBUTING.md)
+- [Java Binding](bindings/java#build)
 
 ## Code of Conduct
 

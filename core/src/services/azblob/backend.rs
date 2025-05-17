@@ -32,6 +32,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::core::constants::X_MS_META_PREFIX;
+use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
@@ -56,9 +57,12 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzblobBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -68,6 +72,8 @@ impl Configurator for AzblobConfig {
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
     config: AzblobConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -244,6 +250,8 @@ impl AzblobBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -369,15 +377,6 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob)
-            })?
-        };
-
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self
@@ -434,6 +433,74 @@ impl Builder for AzblobBuilder {
 
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Azblob)
+                        .set_root(&root)
+                        .set_name(container)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_override_content_disposition: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+
+                            write: true,
+                            write_can_append: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_if_not_exists: true,
+                            write_with_if_none_match: true,
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            delete_max_size: Some(AZBLOB_BATCH_LIMIT),
+
+                            copy: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_length: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            presign: self.config.sas_token.is_some(),
+                            presign_stat: self.config.sas_token.is_some(),
+                            presign_read: self.config.sas_token.is_some(),
+                            presign_write: self.config.sas_token.is_some(),
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 endpoint,
                 encryption_key,
@@ -441,11 +508,9 @@ impl Builder for AzblobBuilder {
                 encryption_algorithm,
                 container: self.config.container.clone(),
 
-                client,
                 loader: cred_loader,
                 signer,
             }),
-            has_sas_token: self.config.sas_token.is_some(),
         })
     }
 }
@@ -464,10 +529,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if KNOWN_AZBLOB_ENDPOINT_SUFFIX
-        .iter()
-        .any(|s| *s == endpoint_suffix.as_str())
-    {
+    if KNOWN_AZBLOB_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
         storage_name.map(|s| s.to_string())
     } else {
         None
@@ -478,7 +540,6 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     core: Arc<AzblobCore>,
-    has_sas_token: bool,
 }
 
 impl Access for AzblobBackend {
@@ -492,64 +553,7 @@ impl Access for AzblobBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Azblob)
-            .set_root(&self.core.root)
-            .set_name(&self.core.container)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_override_content_disposition: true,
-
-                write: true,
-                write_can_append: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_cache_control: true,
-                write_with_content_type: true,
-                write_with_if_not_exists: true,
-                write_with_if_none_match: true,
-                write_with_user_metadata: true,
-
-                delete: true,
-                delete_max_size: Some(AZBLOB_BATCH_LIMIT),
-
-                copy: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_etag: true,
-                list_has_content_length: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-
-                presign: self.has_sas_token,
-                presign_stat: self.has_sas_token,
-                presign_read: self.has_sas_token,
-                presign_write: self.has_sas_token,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -561,6 +565,9 @@ impl Access for AzblobBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = parse_into_metadata(path, headers)?;
+                if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
+                    meta.set_version(version_id);
+                }
 
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {
@@ -593,8 +600,8 @@ impl Access for AzblobBackend {
             AzblobWriters::Two(oio::AppendWriter::new(w))
         } else {
             AzblobWriters::One(oio::BlockWriter::new(
+                self.core.info.clone(),
                 w,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };
@@ -632,17 +639,23 @@ impl Access for AzblobBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(v) => {
                 self.core
-                    .azblob_get_blob_request(path, BytesRange::default(), v)?
+                    .azblob_get_blob_request(path, BytesRange::default(), v)
             }
             PresignOperation::Write(_) => {
                 self.core
-                    .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())?
+                    .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+
+        let mut req = req?;
 
         self.core.sign_query(&mut req).await?;
 

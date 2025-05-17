@@ -256,3 +256,15 @@ pub mod rfc_5485_conditional_reader {}
 /// List With Deleted
 #[doc = include_str!("5495_list_with_deleted.md")]
 pub mod rfc_5495_list_with_deleted {}
+
+/// Write Returns Metadata
+#[doc = include_str!("5556_write_returns_metadata.md")]
+pub mod rfc_5556_write_returns_metadata {}
+
+/// Read Returns Metadata
+#[doc = include_str!("5871_read_returns_metadata.md")]
+pub mod rfc_5871_read_returns_metadata {}
+
+/// Remove Native Blocking
+#[doc = include_str!("6189_remove_native_blocking.md")]
+pub mod rfc_6189_remove_native_blocking {}

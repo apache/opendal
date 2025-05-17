@@ -182,7 +182,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
-            .instrument_await(format!("opendal::{}", Operation::ReaderRead))
+            .instrument_await(format!("opendal::{}", Operation::Read))
             .await
     }
 }
@@ -197,19 +197,19 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .write(bs)
-            .instrument_await(format!("opendal::{}", Operation::WriterWrite.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()
-            .instrument_await(format!("opendal::{}", Operation::WriterAbort.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
         self.inner
             .close()
-            .instrument_await(format!("opendal::{}", Operation::WriterClose.into_static()))
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
     }
 }
 
@@ -218,7 +218,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for AwaitTreeWrapper<R> {
         self.inner.write(bs)
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         self.inner.close()
     }
 }
@@ -227,7 +227,7 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
-            .instrument_await(format!("opendal::{}", Operation::ListerNext))
+            .instrument_await(format!("opendal::{}", Operation::List))
             .await
     }
 }
@@ -246,7 +246,7 @@ impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
     async fn flush(&mut self) -> Result<usize> {
         self.inner
             .flush()
-            .instrument_await(format!("opendal::{}", Operation::DeleterFlush))
+            .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
     }
 }

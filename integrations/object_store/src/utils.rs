@@ -42,6 +42,10 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
             path: path.to_string(),
             source: Box::new(err),
         },
+        ErrorKind::ConditionNotMatch => object_store::Error::Precondition {
+            path: path.to_string(),
+            source: Box::new(err),
+        },
         kind => object_store::Error::Generic {
             store: kind.into_static(),
             source: Box::new(err),
@@ -54,7 +58,7 @@ pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
-        size: meta.content_length() as usize,
+        size: meta.content_length(),
         e_tag: meta.etag().map(|x| x.to_string()),
         version: meta.version().map(|x| x.to_string()),
     }

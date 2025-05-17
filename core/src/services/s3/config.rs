@@ -124,16 +124,12 @@ pub struct S3Config {
     pub server_side_encryption_customer_algorithm: Option<String>,
     /// server_side_encryption_customer_key for this backend.
     ///
-    /// # Value
-    ///
-    /// base64 encoded key that matches algorithm specified in
+    /// Value: BASE64-encoded key that matches algorithm specified in
     /// `server_side_encryption_customer_algorithm`.
     pub server_side_encryption_customer_key: Option<String>,
     /// Set server_side_encryption_customer_key_md5 for this backend.
     ///
-    /// # Value
-    ///
-    /// MD5 digest of key specified in `server_side_encryption_customer_key`.
+    /// Value: MD5 digest of key specified in `server_side_encryption_customer_key`.
     pub server_side_encryption_customer_key_md5: Option<String>,
     /// default storage_class for this backend.
     ///
@@ -143,6 +139,7 @@ pub struct S3Config {
     /// - `GLACIER_IR`
     /// - `INTELLIGENT_TIERING`
     /// - `ONEZONE_IA`
+    /// - `EXPRESS_ONEZONE`
     /// - `OUTPOSTS`
     /// - `REDUCED_REDUNDANCY`
     /// - `STANDARD`
@@ -188,6 +185,17 @@ pub struct S3Config {
     ///
     /// For example, Ceph RADOS S3 doesn't support write with if match.
     pub disable_write_with_if_match: bool,
+
+    /// Enable write with append so that opendal will send write request with append headers.
+    pub enable_write_with_append: bool,
+
+    /// OpenDAL uses List Objects V2 by default to list objects.
+    /// However, some legacy services do not yet support V2.
+    /// This option allows users to switch back to the older List Objects V1.
+    pub disable_list_objects_v2: bool,
+
+    /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
+    pub enable_request_payer: bool,
 }
 
 impl Debug for S3Config {

@@ -25,7 +25,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Read reads the entire contents of the file at the specified path into a byte slice.
@@ -131,7 +130,7 @@ type Reader struct {
 	ctx   context.Context
 }
 
-var _ io.ReadCloser = (*Reader)(nil)
+var _ io.ReadSeekCloser = (*Reader)(nil)
 
 // Read reads data from the underlying storage into the provided buffer.
 //
@@ -150,8 +149,6 @@ var _ io.ReadCloser = (*Reader)(nil)
 //
 // # Notes
 //
-//   - This method only returns OpenDAL-specific errors, not io.EOF.
-//   - If no data is read (end of file), it returns (0, nil) instead of (0, io.EOF).
 //   - The caller is responsible for pre-allocating the buffer and determining its size.
 //
 // # Example
@@ -177,6 +174,9 @@ var _ io.ReadCloser = (*Reader)(nil)
 // Note: Always check the number of bytes read (n) as it may be less than len(buf).
 func (r *Reader) Read(buf []byte) (int, error) {
 	length := uint(len(buf))
+	if length == 0 {
+		return 0, nil
+	}
 	read := getFFI[readerRead](r.ctx, symReaderRead)
 	var (
 		totalSize uint
@@ -190,7 +190,56 @@ func (r *Reader) Read(buf []byte) (int, error) {
 			break
 		}
 	}
+	if totalSize == 0 && err == nil {
+		err = io.EOF
+	}
 	return int(totalSize), err
+}
+
+// Seek sets the offset for the next Read operation on the reader.
+//
+// This method implements the io.Seeker interface for Reader.
+//
+// # Parameters
+//
+//   - offset: The offset from the origin (specified by whence).
+//   - whence: The reference point for offset. Can be:
+//   - io.SeekStart (0): Relative to the start of the file
+//   - io.SeekCurrent (1): Relative to the current position
+//   - io.SeekEnd (2): Relative to the end of the file
+//
+// # Returns
+//
+//   - int64: The new absolute position in the file after the seek operation.
+//   - error: An error if the seek operation fails, or nil if successful.
+//
+// # Example
+//
+//	reader, err := op.Reader("path/to/file")
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	defer reader.Close()
+//
+//	// Seek to the middle of the file
+//	pos, err := reader.Seek(1000, io.SeekStart)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	fmt.Printf("New position: %d\n", pos)
+//
+//	// Seek relative to current position
+//	pos, err = reader.Seek(100, io.SeekCurrent)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	fmt.Printf("New position: %d\n", pos)
+//
+// Note: The actual new position may differ from the requested position
+// if the underlying storage system has restrictions on seeking.
+func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	seek := getFFI[readerSeek](r.ctx, symReaderSeek)
+	return seek(r.inner, offset, whence)
 }
 
 // Close releases resources associated with the OperatorReader.
@@ -208,9 +257,9 @@ var withOperatorRead = withFFI(ffiOpts{
 	sym:    symOperatorRead,
 	rType:  &typeResultRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorRead {
+}, func(ctx context.Context, ffiCall ffiCall) operatorRead {
 	return func(op *opendalOperator, path string) (opendalBytes, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return opendalBytes{}, err
 		}
@@ -232,9 +281,9 @@ var withOperatorReader = withFFI(ffiOpts{
 	sym:    symOperatorReader,
 	rType:  &typeResultOperatorReader,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorReader {
+}, func(ctx context.Context, ffiCall ffiCall) operatorReader {
 	return func(op *opendalOperator, path string) (*opendalReader, error) {
-		bytePath, err := unix.BytePtrFromString(path)
+		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
 		}
@@ -259,7 +308,7 @@ var withReaderFree = withFFI(ffiOpts{
 	sym:    symReaderFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerFree {
+}, func(ctx context.Context, ffiCall ffiCall) readerFree {
 	return func(r *opendalReader) {
 		ffiCall(
 			nil,
@@ -276,7 +325,7 @@ var withReaderRead = withFFI(ffiOpts{
 	sym:    symReaderRead,
 	rType:  &typeResultReaderRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) readerRead {
+}, func(ctx context.Context, ffiCall ffiCall) readerRead {
 	return func(r *opendalReader, buf []byte) (size uint, err error) {
 		var length = len(buf)
 		if length == 0 {
@@ -294,5 +343,29 @@ var withReaderRead = withFFI(ffiOpts{
 			return 0, parseError(ctx, result.error)
 		}
 		return result.size, nil
+	}
+})
+
+const symReaderSeek = "opendal_reader_seek"
+
+type readerSeek func(r *opendalReader, offset int64, whence int) (int64, error)
+
+var withReaderSeek = withFFI(ffiOpts{
+	sym:    symReaderSeek,
+	rType:  &typeResultReaderSeek,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) readerSeek {
+	return func(r *opendalReader, offset int64, whence int) (int64, error) {
+		var result resultReaderSeek
+		ffiCall(
+			unsafe.Pointer(&result),
+			unsafe.Pointer(&r),
+			unsafe.Pointer(&offset),
+			unsafe.Pointer(&whence),
+		)
+		if result.error != nil {
+			return 0, parseError(ctx, result.error)
+		}
+		return int64(result.pos), nil
 	}
 })

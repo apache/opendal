@@ -19,12 +19,12 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
 
+use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
@@ -33,6 +33,8 @@ use crate::*;
 
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         IpfsBuilder {
             config: self,
@@ -46,6 +48,8 @@ impl Configurator for IpfsConfig {
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
     config: IpfsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -93,6 +97,8 @@ impl IpfsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -125,55 +131,9 @@ impl Builder for IpfsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Ipfs)
-            })?
-        };
-
-        Ok(IpfsBackend {
-            root,
-            endpoint,
-            client,
-        })
-    }
-}
-
-/// Backend for IPFS.
-#[derive(Clone)]
-pub struct IpfsBackend {
-    endpoint: String,
-    root: String,
-    client: HttpClient,
-}
-
-impl Debug for IpfsBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .field("client", &self.client)
-            .finish()
-    }
-}
-
-impl Access for IpfsBackend {
-    type Reader = HttpBody;
-    type Writer = ();
-    type Lister = oio::PageLister<DirStream>;
-    type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Ipfs)
-            .set_root(&self.root)
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Ipfs)
+            .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
                 stat_has_content_length: true,
@@ -190,162 +150,52 @@ impl Access for IpfsBackend {
                 ..Default::default()
             });
 
-        ma.into()
+        let accessor_info = Arc::new(info);
+        let core = Arc::new(IpfsCore {
+            info: accessor_info,
+            root,
+            endpoint,
+        });
+
+        Ok(IpfsBackend { core })
+    }
+}
+
+/// Backend for IPFS.
+#[derive(Clone)]
+pub struct IpfsBackend {
+    core: Arc<IpfsCore>,
+}
+
+impl Debug for IpfsBackend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IpfsBackend")
+            .field("core", &self.core)
+            .finish()
+    }
+}
+
+impl Access for IpfsBackend {
+    type Reader = HttpBody;
+    type Writer = ();
+    type Lister = oio::PageLister<DirStream>;
+    type Deleter = ();
+    type BlockingReader = ();
+    type BlockingWriter = ();
+    type BlockingLister = ();
+    type BlockingDeleter = ();
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.core.info.clone()
     }
 
-    /// IPFS's stat behavior highly depends on its implementation.
-    ///
-    /// Based on IPFS [Path Gateway Specification](https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md),
-    /// response payload could be:
-    ///
-    /// > - UnixFS (implicit default)
-    /// >   - File
-    /// >     - Bytes representing file contents
-    /// >   - Directory
-    /// >     - Generated HTML with directory index
-    /// >     - When `index.html` is present, gateway can skip generating directory index and return it instead
-    /// > - Raw block (not this case)
-    /// > - CAR (not this case)
-    ///
-    /// When we HEAD a given path, we could have the following responses:
-    ///
-    /// - File
-    ///
-    /// ```http
-    /// :) curl -I https://ipfs.io/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/normal_file
-    /// HTTP/1.1 200 Connection established
-    ///
-    /// HTTP/2 200
-    /// server: openresty
-    /// date: Thu, 08 Sep 2022 00:48:50 GMT
-    /// content-type: application/octet-stream
-    /// content-length: 262144
-    /// access-control-allow-methods: GET
-    /// cache-control: public, max-age=29030400, immutable
-    /// etag: "QmdP6teFTLSNVhT4W5jkhEuUBsjQ3xkp1GmRvDU6937Me1"
-    /// x-ipfs-gateway-host: ipfs-bank11-fr2
-    /// x-ipfs-path: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/normal_file
-    /// x-ipfs-roots: QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ,QmdP6teFTLSNVhT4W5jkhEuUBsjQ3xkp1GmRvDU6937Me1
-    /// x-ipfs-pop: ipfs-bank11-fr2
-    /// timing-allow-origin: *
-    /// x-ipfs-datasize: 262144
-    /// access-control-allow-origin: *
-    /// access-control-allow-methods: GET, POST, OPTIONS
-    /// access-control-allow-headers: X-Requested-With, Range, Content-Range, X-Chunked-Output, X-Stream-Output
-    /// access-control-expose-headers: Content-Range, X-Chunked-Output, X-Stream-Output
-    /// x-ipfs-lb-pop: gateway-bank1-fr2
-    /// strict-transport-security: max-age=31536000; includeSubDomains; preload
-    /// x-proxy-cache: MISS
-    /// accept-ranges: bytes
-    /// ```
-    ///
-    /// - Dir with generated index
-    ///
-    /// ```http
-    /// :( curl -I https://ipfs.io/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/normal_dir
-    /// HTTP/1.1 200 Connection established
-    ///
-    /// HTTP/2 200
-    /// server: openresty
-    /// date: Wed, 07 Sep 2022 08:46:13 GMT
-    /// content-type: text/html
-    /// vary: Accept-Encoding
-    /// access-control-allow-methods: GET
-    /// etag: "DirIndex-2b567f6r5vvdg_CID-QmY44DyCDymRN1Qy7sGbupz1ysMkXTWomAQku5vBg7fRQW"
-    /// x-ipfs-gateway-host: ipfs-bank6-sg1
-    /// x-ipfs-path: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/normal_dir
-    /// x-ipfs-roots: QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ,QmY44DyCDymRN1Qy7sGbupz1ysMkXTWomAQku5vBg7fRQW
-    /// x-ipfs-pop: ipfs-bank6-sg1
-    /// timing-allow-origin: *
-    /// access-control-allow-origin: *
-    /// access-control-allow-methods: GET, POST, OPTIONS
-    /// access-control-allow-headers: X-Requested-With, Range, Content-Range, X-Chunked-Output, X-Stream-Output
-    /// access-control-expose-headers: Content-Range, X-Chunked-Output, X-Stream-Output
-    /// x-ipfs-lb-pop: gateway-bank3-sg1
-    /// strict-transport-security: max-age=31536000; includeSubDomains; preload
-    /// x-proxy-cache: MISS
-    /// ```
-    ///
-    /// - Dir with index.html
-    ///
-    /// ```http
-    /// :) curl -I http://127.0.0.1:8080/ipfs/QmVturFGV3z4WsP7cRV8Ci4avCdGWYXk2qBKvtAwFUp5Az
-    /// HTTP/1.1 302 Found
-    /// Access-Control-Allow-Headers: Content-Type
-    /// Access-Control-Allow-Headers: Range
-    /// Access-Control-Allow-Headers: User-Agent
-    /// Access-Control-Allow-Headers: X-Requested-With
-    /// Access-Control-Allow-Methods: GET
-    /// Access-Control-Allow-Origin: *
-    /// Access-Control-Expose-Headers: Content-Length
-    /// Access-Control-Expose-Headers: Content-Range
-    /// Access-Control-Expose-Headers: X-Chunked-Output
-    /// Access-Control-Expose-Headers: X-Ipfs-Path
-    /// Access-Control-Expose-Headers: X-Ipfs-Roots
-    /// Access-Control-Expose-Headers: X-Stream-Output
-    /// Content-Type: text/html; charset=utf-8
-    /// Location: /ipfs/QmVturFGV3z4WsP7cRV8Ci4avCdGWYXk2qBKvtAwFUp5Az/
-    /// X-Ipfs-Path: /ipfs/QmVturFGV3z4WsP7cRV8Ci4avCdGWYXk2qBKvtAwFUp5Az
-    /// X-Ipfs-Roots: QmVturFGV3z4WsP7cRV8Ci4avCdGWYXk2qBKvtAwFUp5Az
-    /// Date: Thu, 08 Sep 2022 00:52:29 GMT
-    /// ```
-    ///
-    /// In conclusion:
-    ///
-    /// - HTTP Status Code == 302 => directory
-    /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
-    /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        let resp = self.ipfs_head(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let mut m = Metadata::new(EntryMode::Unknown);
-
-                if let Some(v) = parse_content_length(resp.headers())? {
-                    m.set_content_length(v);
-                }
-
-                if let Some(v) = parse_content_type(resp.headers())? {
-                    m.set_content_type(v);
-                }
-
-                if let Some(v) = parse_etag(resp.headers())? {
-                    m.set_etag(v);
-
-                    if v.starts_with("\"DirIndex") {
-                        m.set_mode(EntryMode::DIR);
-                    } else {
-                        m.set_mode(EntryMode::FILE);
-                    }
-                } else {
-                    // Some service will stream the output of DirIndex.
-                    // If we don't have an etag, it's highly to be a dir.
-                    m.set_mode(EntryMode::DIR);
-                }
-
-                if let Some(v) = parse_content_disposition(resp.headers())? {
-                    m.set_content_disposition(v);
-                }
-
-                Ok(RpStat::new(m))
-            }
-            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let metadata = self.core.ipfs_stat(path).await?;
+        Ok(RpStat::new(metadata))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.ipfs_get(path, args.range()).await?;
+        let resp = self.core.ipfs_get(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -362,68 +212,20 @@ impl Access for IpfsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = DirStream::new(Arc::new(self.clone()), path);
+        let l = DirStream::new(self.core.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 
-impl IpfsBackend {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.fetch(req).await
-    }
-
-    async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let req = Request::head(&url);
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        // Use "application/vnd.ipld.raw" to disable IPLD codec deserialization
-        // OpenDAL will parse ipld data directly.
-        //
-        // ref: https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md
-        req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-}
-
 pub struct DirStream {
-    backend: Arc<IpfsBackend>,
+    core: Arc<IpfsCore>,
     path: String,
 }
 
 impl DirStream {
-    fn new(backend: Arc<IpfsBackend>, path: &str) -> Self {
+    fn new(core: Arc<IpfsCore>, path: &str) -> Self {
         Self {
-            backend,
+            core,
             path: path.to_string(),
         }
     }
@@ -431,7 +233,7 @@ impl DirStream {
 
 impl oio::PageList for DirStream {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.backend.ipfs_list(&self.path).await?;
+        let resp = self.core.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
@@ -449,11 +251,7 @@ impl oio::PageList for DirStream {
             .collect::<Vec<String>>();
 
         for mut name in names {
-            let meta = self
-                .backend
-                .stat(&name, OpStat::new())
-                .await?
-                .into_metadata();
+            let meta = self.core.ipfs_stat(&name).await?;
 
             if meta.mode().is_dir() {
                 name += "/";

@@ -106,7 +106,7 @@ var withErrorFree = withFFI(ffiOpts{
 	sym:    symErrorFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) errorFree {
+}, func(_ context.Context, ffiCall ffiCall) errorFree {
 	return func(e *opendalError) {
 		ffiCall(
 			nil,

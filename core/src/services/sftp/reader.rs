@@ -19,7 +19,7 @@ use bb8::PooledConnection;
 use bytes::BytesMut;
 use openssh_sftp_client::file::File;
 
-use super::backend::Manager;
+use super::core::Manager;
 use super::error::parse_sftp_error;
 use crate::raw::*;
 use crate::*;

@@ -19,6 +19,8 @@
 mod backend;
 #[cfg(feature = "services-gridfs")]
 pub use backend::GridfsBuilder as Gridfs;
+#[cfg(feature = "services-gridfs")]
+mod core;
 
 mod config;
 pub use config::GridfsConfig;

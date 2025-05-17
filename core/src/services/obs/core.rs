@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -39,16 +40,17 @@ use crate::*;
 
 pub mod constants {
     pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";
+    pub const X_OBS_VERSION_ID: &str = "x-obs-version-id";
 }
 
 pub struct ObsCore {
+    pub info: Arc<AccessorInfo>,
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
 
     pub signer: HuaweicloudObsSigner,
     pub loader: HuaweicloudObsCredentialLoader,
-    pub client: HttpClient,
 }
 
 impl Debug for ObsCore {
@@ -100,7 +102,7 @@ impl ObsCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -115,7 +117,7 @@ impl ObsCore {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn obs_get_object_request(
@@ -142,7 +144,10 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -178,7 +183,10 @@ impl ObsCore {
             }
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -209,7 +217,10 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -221,7 +232,10 @@ impl ObsCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -260,7 +274,11 @@ impl ObsCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
         Ok(req)
     }
 
@@ -272,6 +290,7 @@ impl ObsCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
+            .extension(Operation::Copy)
             .header("x-obs-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -289,28 +308,23 @@ impl ObsCore {
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
 
-        let mut queries = vec![];
         if !path.is_empty() {
-            queries.push(format!("prefix={}", percent_encode_path(&p)));
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            queries.push(format!("delimiter={delimiter}"));
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            queries.push(format!("max-keys={limit}"));
+            url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            queries.push(format!("marker={next_marker}"));
+            url = url.push("marker", next_marker);
         }
 
-        let url = if queries.is_empty() {
-            self.endpoint.to_string()
-        } else {
-            format!("{}?{}", self.endpoint, queries.join("&"))
-        };
-
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -331,7 +345,11 @@ impl ObsCore {
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
         }
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        let mut req = req
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -361,8 +379,11 @@ impl ObsCore {
             req = req.header(CONTENT_LENGTH, size);
         }
 
-        // Set body
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req
+            .extension(Operation::Write)
+            // Set body
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
@@ -388,13 +409,14 @@ impl ObsCore {
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
-        .map_err(new_xml_deserialize_error)?;
+        .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
+            .extension(Operation::Write)
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -418,6 +440,7 @@ impl ObsCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -473,6 +496,17 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Output of `CompleteMultipartUpload` operation
+#[derive(Debug, Default, Deserialize)]
+#[serde[default, rename_all = "PascalCase"]]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
 }

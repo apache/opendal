@@ -15,24 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use bytes::Buf;
 use http::StatusCode;
 
-use super::backend::WebhdfsBackend;
+use super::core::WebhdfsCore;
 use super::error::parse_error;
 use super::message::*;
 use crate::raw::*;
 use crate::*;
 
 pub struct WebhdfsLister {
-    backend: WebhdfsBackend,
+    core: Arc<WebhdfsCore>,
     path: String,
 }
 
 impl WebhdfsLister {
-    pub fn new(backend: WebhdfsBackend, path: &str) -> Self {
+    pub fn new(core: Arc<WebhdfsCore>, path: &str) -> Self {
         Self {
-            backend,
+            core,
             path: path.to_string(),
         }
     }
@@ -40,8 +42,8 @@ impl WebhdfsLister {
 
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let file_status = if self.backend.disable_list_batch {
-            let resp = self.backend.webhdfs_list_status_request(&self.path).await?;
+        let file_status = if self.core.disable_list_batch {
+            let resp = self.core.webhdfs_list_status(&self.path).await?;
             match resp.status() {
                 StatusCode::OK => {
                     ctx.done = true;
@@ -64,8 +66,8 @@ impl oio::PageList for WebhdfsLister {
             }
         } else {
             let resp = self
-                .backend
-                .webhdfs_list_status_batch_request(&self.path, &ctx.token)
+                .core
+                .webhdfs_list_status_batch(&self.path, &ctx.token)
                 .await?;
             match resp.status() {
                 StatusCode::OK => {

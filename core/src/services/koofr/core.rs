@@ -38,6 +38,7 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct KoofrCore {
+    pub info: Arc<AccessorInfo>,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -52,8 +53,6 @@ pub struct KoofrCore {
 
     // Koofr mount_id.
     pub mount_id: OnceCell<String>,
-
-    pub client: HttpClient,
 }
 
 impl Debug for KoofrCore {
@@ -69,7 +68,7 @@ impl Debug for KoofrCore {
 impl KoofrCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     pub async fn get_mount_id(&self) -> Result<&String> {
@@ -128,7 +127,7 @@ impl KoofrCore {
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(auth_req).await?;
+        let resp = self.info.http_client().send(auth_req).await?;
 
         let status = resp.status();
 
@@ -200,10 +199,11 @@ impl KoofrCore {
 
                 let req = req
                     .header(header::CONTENT_TYPE, "application/json")
+                    .extension(Operation::CreateDir)
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
-                let resp = self.client.send(req).await?;
+                let resp = self.info.http_client().send(req).await?;
 
                 let status = resp.status();
 
@@ -233,7 +233,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -254,9 +257,12 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn put(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
@@ -290,6 +296,8 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
+        let req = req.extension(Operation::Write);
+
         let req = multipart.apply(req)?;
 
         self.send(req).await
@@ -311,7 +319,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -342,6 +353,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Copy)
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -374,6 +386,7 @@ impl KoofrCore {
 
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Rename)
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -396,7 +409,10 @@ impl KoofrCore {
 
         let req = self.sign(req).await?;
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }

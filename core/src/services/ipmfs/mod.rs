@@ -18,6 +18,8 @@
 #[cfg(feature = "services-ipmfs")]
 mod backend;
 #[cfg(feature = "services-ipmfs")]
+mod core;
+#[cfg(feature = "services-ipmfs")]
 mod delete;
 #[cfg(feature = "services-ipmfs")]
 mod error;

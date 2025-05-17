@@ -24,7 +24,6 @@ import (
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
-	"golang.org/x/sys/unix"
 )
 
 // Copy duplicates a file from the source path to the destination path.
@@ -108,10 +107,10 @@ var withOperatorNew = withFFI(ffiOpts{
 	sym:    symOperatorNew,
 	rType:  &typeResultOperatorNew,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorNew {
+}, func(ctx context.Context, ffiCall ffiCall) operatorNew {
 	return func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
 		var byteName *byte
-		byteName, err = unix.BytePtrFromString(scheme.Name())
+		byteName, err = BytePtrFromString(scheme.Name())
 		if err != nil {
 			return
 		}
@@ -138,7 +137,7 @@ var withOperatorFree = withFFI(ffiOpts{
 	sym:    symOperatorFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorFree {
+}, func(_ context.Context, ffiCall ffiCall) operatorFree {
 	return func(op *opendalOperator) {
 		ffiCall(
 			nil,
@@ -156,7 +155,7 @@ type operatorOptionsNew func() (opts *operatorOptions)
 var withOperatorOptionsNew = withFFI(ffiOpts{
 	sym:   symOperatorOptionsNew,
 	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorOptionsNew {
+}, func(_ context.Context, ffiCall ffiCall) operatorOptionsNew {
 	return func() (opts *operatorOptions) {
 		ffiCall(unsafe.Pointer(&opts))
 		return
@@ -171,17 +170,17 @@ var withOperatorOptionsSet = withFFI(ffiOpts{
 	sym:    symOperatorOptionSet,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorOptionsSet {
+}, func(_ context.Context, ffiCall ffiCall) operatorOptionsSet {
 	return func(opts *operatorOptions, key, value string) (err error) {
 		var (
 			byteKey   *byte
 			byteValue *byte
 		)
-		byteKey, err = unix.BytePtrFromString(key)
+		byteKey, err = BytePtrFromString(key)
 		if err != nil {
 			return err
 		}
-		byteValue, err = unix.BytePtrFromString(value)
+		byteValue, err = BytePtrFromString(value)
 		if err != nil {
 			return err
 		}
@@ -203,7 +202,7 @@ var withOperatorOptionsFree = withFFI(ffiOpts{
 	sym:    symOperatorOptionsFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorOptionsFree {
+}, func(_ context.Context, ffiCall ffiCall) operatorOptionsFree {
 	return func(opts *operatorOptions) {
 		ffiCall(
 			nil,
@@ -220,17 +219,17 @@ var withOperatorCopy = withFFI(ffiOpts{
 	sym:    symOperatorCopy,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorCopy {
+}, func(ctx context.Context, ffiCall ffiCall) operatorCopy {
 	return func(op *opendalOperator, src, dest string) (err error) {
 		var (
 			byteSrc  *byte
 			byteDest *byte
 		)
-		byteSrc, err = unix.BytePtrFromString(src)
+		byteSrc, err = BytePtrFromString(src)
 		if err != nil {
 			return err
 		}
-		byteDest, err = unix.BytePtrFromString(dest)
+		byteDest, err = BytePtrFromString(dest)
 		if err != nil {
 			return err
 		}
@@ -253,17 +252,17 @@ var withOperatorRename = withFFI(ffiOpts{
 	sym:    symOperatorRename,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorRename {
+}, func(ctx context.Context, ffiCall ffiCall) operatorRename {
 	return func(op *opendalOperator, src, dest string) (err error) {
 		var (
 			byteSrc  *byte
 			byteDest *byte
 		)
-		byteSrc, err = unix.BytePtrFromString(src)
+		byteSrc, err = BytePtrFromString(src)
 		if err != nil {
 			return err
 		}
-		byteDest, err = unix.BytePtrFromString(dest)
+		byteDest, err = BytePtrFromString(dest)
 		if err != nil {
 			return err
 		}
@@ -286,7 +285,7 @@ var withBytesFree = withFFI(ffiOpts{
 	sym:    symBytesFree,
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) bytesFree {
+}, func(_ context.Context, ffiCall ffiCall) bytesFree {
 	return func(b *opendalBytes) {
 		ffiCall(
 			nil,

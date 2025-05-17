@@ -16,7 +16,7 @@
 # under the License.
 
 name: cos
-description: 'Behavior test for COS. This service is sponsored by @datafuse_labs.'
+description: "Behavior test for COS. This service is sponsored by @datafuse_labs."
 
 runs:
   using: "composite"
@@ -30,3 +30,8 @@ runs:
         OPENDAL_COS_ENDPOINT: op://services/cos/endpoint
         OPENDAL_COS_SECRET_ID: op://services/cos/secret_id
         OPENDAL_COS_SECRET_KEY: op://services/cos/secret_key
+
+    - name: Add extra settings
+      shell: bash
+      run: |
+        echo "OPENDAL_COS_ENABLE_VERSIONING=true" >> $GITHUB_ENV

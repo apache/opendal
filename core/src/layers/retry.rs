@@ -116,12 +116,12 @@ use crate::*;
 /// Ok(())
 /// # }
 /// ```
-pub struct RetryLayer<I = DefaultRetryInterceptor> {
+pub struct RetryLayer<I: RetryInterceptor = DefaultRetryInterceptor> {
     builder: ExponentialBuilder,
     notify: Arc<I>,
 }
 
-impl<I> Clone for RetryLayer<I> {
+impl<I: RetryInterceptor> Clone for RetryLayer<I> {
     fn clone(&self) -> Self {
         Self {
             builder: self.builder,
@@ -154,37 +154,27 @@ impl RetryLayer {
     ///     .expect("must init")
     ///     .layer(RetryLayer::new());
     /// ```
-    pub fn new() -> Self {
+    pub fn new() -> RetryLayer {
         Self::default()
     }
+}
 
+impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::layers::RetryInterceptor;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
-    /// use opendal::Error;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
-    /// struct MyRetryInterceptor;
-    ///
-    /// impl RetryInterceptor for MyRetryInterceptor {
-    ///     fn intercept(&self, err: &Error, dur: Duration) {
-    ///         // do something
-    ///     }
-    /// }
+    /// fn notify(_err: &opendal::Error, _dur: std::time::Duration) {}
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
-    ///     .layer(RetryLayer::new().with_notify(MyRetryInterceptor))
+    ///     .layer(RetryLayer::new().with_notify(notify))
     ///     .finish();
     /// ```
-    pub fn with_notify<I: RetryInterceptor>(self, notify: I) -> RetryLayer<I> {
+    pub fn with_notify<NI: RetryInterceptor>(self, notify: NI) -> RetryLayer<NI> {
         RetryLayer {
             builder: self.builder,
             notify: Arc::new(notify),
@@ -218,7 +208,7 @@ impl RetryLayer {
 
     /// Set max_delay of current backoff.
     ///
-    /// Delay will not increasing if current delay is larger than max_delay.
+    /// Delay will not increase if current delay is larger than max_delay.
     pub fn with_max_delay(mut self, max_delay: Duration) -> Self {
         self.builder = self.builder.with_max_delay(max_delay);
         self
@@ -261,8 +251,17 @@ pub trait RetryInterceptor: Send + Sync + 'static {
     /// # Notes
     ///
     /// The intercept must be quick and non-blocking. No heavy IO is
-    /// allowed. Otherwise the retry will be blocked.
+    /// allowed. Otherwise, the retry will be blocked.
     fn intercept(&self, err: &Error, dur: Duration);
+}
+
+impl<F> RetryInterceptor for F
+where
+    F: Fn(&Error, Duration) + Send + Sync + 'static,
+{
+    fn intercept(&self, err: &Error, dur: Duration) {
+        self(err, dur);
+    }
 }
 
 /// The DefaultRetryInterceptor will log the retry error in warning level.
@@ -649,7 +648,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         res.map_err(|err| err.set_persistent())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
@@ -684,7 +683,7 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
             .map_err(|e| e.set_persistent())
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<Metadata> {
         { || self.inner.as_mut().unwrap().close() }
             .retry(self.builder)
             .when(|e| e.is_temporary())
@@ -837,18 +836,19 @@ mod tests {
         type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.set_native_capability(Capability {
-                read: true,
-                write: true,
-                write_can_multi: true,
-                delete: true,
-                delete_max_size: Some(10),
-                stat: true,
-                list: true,
-                list_with_recursive: true,
-                ..Default::default()
-            });
+            let am = AccessorInfo::default();
+            am.set_scheme(Scheme::Custom("mock"))
+                .set_native_capability(Capability {
+                    read: true,
+                    write: true,
+                    write_can_multi: true,
+                    delete: true,
+                    delete_max_size: Some(10),
+                    stat: true,
+                    list: true,
+                    list_with_recursive: true,
+                    ..Default::default()
+                });
 
             am.into()
         }
@@ -932,7 +932,7 @@ mod tests {
             Ok(())
         }
 
-        async fn close(&mut self) -> Result<()> {
+        async fn close(&mut self) -> Result<Metadata> {
             Err(Error::new(ErrorKind::Unexpected, "always close failed").set_temporary())
         }
 

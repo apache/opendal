@@ -61,7 +61,10 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_error* error = opendal_operator_write(this->p, this->path.c_str(), &data);
+    opendal_error* error = opendal_operator_check(this->p);
+    EXPECT_EQ(error, nullptr);
+
+    error = opendal_operator_write(this->p, this->path.c_str(), &data);
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
@@ -102,6 +105,8 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_result_writer_write w = opendal_writer_write(writer.writer, &data);
     EXPECT_EQ(w.error, nullptr);
     EXPECT_EQ(w.size, this->content.length());
+    opendal_error *close_err = opendal_writer_close(writer.writer);
+    EXPECT_EQ(close_err, nullptr);
     opendal_writer_free(writer.writer);
 
     // The blocking file "test" must have content "Hello, World!" and read into buffer

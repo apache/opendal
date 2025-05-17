@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use bytes::Buf;
 use http::Response;
 use serde::Deserialize;
 
@@ -43,8 +42,8 @@ impl Debug for PcloudError {
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
-    let bs = body.copy_to_bytes(body.remaining());
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
     let message = String::from_utf8_lossy(&bs).into_owned();
 
     let mut err = Error::new(ErrorKind::Unexpected, message);

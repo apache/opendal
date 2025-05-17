@@ -25,6 +25,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define OPENDAL_SEEK_SET 0
+
+#define OPENDAL_SEEK_CUR 1
+
+#define OPENDAL_SEEK_END 2
+
 /**
  * \brief The error code for all opendal APIs in C binding.
  * \todo The error handling is not complete, the error with error message will be
@@ -598,6 +604,22 @@ typedef struct opendal_result_reader_read {
 } opendal_result_reader_read;
 
 /**
+ * \brief The result type returned by opendal_reader_seek().
+ * The result type contains a pos field, which is the new position after seek,
+ * which is zero on error. The error field is the error code and error message.
+ */
+typedef struct opendal_result_reader_seek {
+  /**
+   * New position after seek
+   */
+  uint64_t pos;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_reader_seek;
+
+/**
  * \brief The result type returned by opendal_writer_write().
  * The result type contains a size field, which is the size of the data written,
  * which is zero on error. The error field is the error code and error message.
@@ -735,7 +757,7 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
  * each service, especially for the **Configuration Part**.
  *
- * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+ * @param scheme the service scheme you want to specify, e.g. "fs", "s3"
  * @param options the pointer to the options for this operator, it could be NULL, which means no
  * option is set
  * @see opendal_operator_options
@@ -1300,6 +1322,8 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *src,
                                             const char *dest);
 
+struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
 /**
  * \brief Get information of underlying accessor.
  *
@@ -1433,6 +1457,13 @@ struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *sel
                                                       uintptr_t len);
 
 /**
+ * \brief Seek to an offset, in bytes, in a stream.
+ */
+struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *self,
+                                                      int64_t offset,
+                                                      int32_t whence);
+
+/**
  * \brief Frees the heap memory used by the opendal_reader.
  */
 void opendal_reader_free(struct opendal_reader *ptr);
@@ -1444,8 +1475,12 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
                                                         const struct opendal_bytes *bytes);
 
 /**
+ * \brief Close the writer and make sure all data have been stored.
+ */
+struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
+
+/**
  * \brief Frees the heap memory used by the opendal_writer.
- * \note This function make sure all data have been stored.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
 

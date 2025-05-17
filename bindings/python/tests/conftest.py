@@ -17,6 +17,7 @@
 
 import os
 from uuid import uuid4
+
 import pytest
 from dotenv import load_dotenv
 
@@ -64,6 +65,7 @@ def async_operator(service_name, setup_config):
         opendal.AsyncOperator(service_name, **setup_config)
         .layer(opendal.layers.RetryLayer())
         .layer(opendal.layers.ConcurrentLimitLayer(1024))
+        .layer(opendal.layers.MimeGuessLayer())
     )
 
 
@@ -87,5 +89,7 @@ def check_capability(request, operator, async_operator):
                 ]
             ):
                 pytest.skip(
-                    f"skip because {request.node.get_closest_marker('need_capability').args} not supported"
+                    "skip because "
+                    f"{request.node.get_closest_marker('need_capability').args}"
+                    " not supported"
                 )

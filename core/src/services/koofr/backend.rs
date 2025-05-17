@@ -40,6 +40,8 @@ use crate::*;
 
 impl Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         KoofrBuilder {
             config: self,
@@ -54,6 +56,7 @@ impl Configurator for KoofrConfig {
 pub struct KoofrBuilder {
     config: KoofrConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -124,6 +127,8 @@ impl KoofrBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -164,26 +169,57 @@ impl Builder for KoofrBuilder {
                 .with_context("service", Scheme::Koofr)),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Koofr)
-            })?
-        };
-
         let signer = Arc::new(Mutex::new(KoofrSigner::default()));
 
         Ok(KoofrBackend {
             core: Arc::new(KoofrCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Koofr)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_last_modified: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+
+                            rename: true,
+
+                            copy: true,
+
+                            list: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 endpoint: self.config.endpoint.clone(),
                 email: self.config.email.clone(),
                 password,
                 mount_id: OnceCell::new(),
                 signer,
-                client,
             }),
         })
     }
@@ -206,39 +242,7 @@ impl Access for KoofrBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Koofr)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_last_modified: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-
-                rename: true,
-
-                copy: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

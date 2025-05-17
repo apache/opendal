@@ -47,6 +47,7 @@ pub(super) mod constants {
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
 #[derive(Clone)]
 pub struct B2Core {
+    pub info: Arc<AccessorInfo>,
     pub signer: Arc<RwLock<B2Signer>>,
 
     /// The root of this core.
@@ -55,8 +56,6 @@ pub struct B2Core {
     pub bucket: String,
     /// The bucket id of this backend.
     pub bucket_id: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for B2Core {
@@ -72,7 +71,7 @@ impl Debug for B2Core {
 impl B2Core {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// [b2_authorize_account](https://www.backblaze.com/apidocs/b2-authorize-account)
@@ -101,7 +100,7 @@ impl B2Core {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await?;
+            let resp = self.info.http_client().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -155,9 +154,11 @@ impl B2Core {
             req = req.header(header::RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
@@ -171,6 +172,8 @@ impl B2Core {
         let mut req = Request::get(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -265,6 +268,8 @@ impl B2Core {
             req = req.header(header::CONTENT_DISPOSITION, pos)
         }
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -292,6 +297,8 @@ impl B2Core {
             mime.clone_into(&mut start_large_file_request.content_type)
         }
 
+        let req = req.extension(Operation::Write);
+
         let body =
             serde_json::to_vec(&start_large_file_request).map_err(new_json_serialize_error)?;
         let body = bytes::Bytes::from(body);
@@ -314,6 +321,8 @@ impl B2Core {
         let mut req = Request::get(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -351,6 +360,8 @@ impl B2Core {
 
         req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
 
+        let req = req.extension(Operation::Write);
+
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -369,6 +380,8 @@ impl B2Core {
         let mut req = Request::post(&url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Write);
 
         let body = serde_json::to_vec(&FinishLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -394,6 +407,8 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
+        let req = req.extension(Operation::Write);
+
         let body = serde_json::to_vec(&CancelLargeFileRequest {
             file_id: file_id.to_owned(),
         })
@@ -408,6 +423,27 @@ impl B2Core {
         self.send(req).await
     }
 
+    pub async fn get_file_info(&self, path: &str, delimiter: Option<&str>) -> Result<File> {
+        let resp = self
+            .list_file_names_raw(Some(path), delimiter, None, None, Operation::Stat)
+            .await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body();
+                let mut resp: ListFileNamesResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+                if resp.files.is_empty() {
+                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
+                }
+                Ok(resp.files.swap_remove(0))
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     pub async fn list_file_names(
         &self,
         prefix: Option<&str>,
@@ -415,36 +451,49 @@ impl B2Core {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
+        self.list_file_names_raw(prefix, delimiter, limit, start_after, Operation::List)
+            .await
+    }
+
+    async fn list_file_names_raw(
+        &self,
+        prefix: Option<&str>,
+        delimiter: Option<&str>,
+        limit: Option<usize>,
+        start_after: Option<String>,
+        operation: Operation,
+    ) -> Result<Response<Buffer>> {
         let auth_info = self.get_auth_info().await?;
 
-        let mut url = format!(
-            "{}/b2api/v2/b2_list_file_names?bucketId={}",
-            auth_info.api_url, self.bucket_id
-        );
+        let url = format!("{}/b2api/v2/b2_list_file_names", auth_info.api_url);
+
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("bucketId", &self.bucket_id);
 
         if let Some(prefix) = prefix {
             let prefix = build_abs_path(&self.root, prefix);
-            url.push_str(&format!("&prefix={}", percent_encode_path(&prefix)));
+            if !prefix.is_empty() {
+                url = url.push("prefix", &percent_encode_path(&prefix));
+            }
         }
 
         if let Some(limit) = limit {
-            url.push_str(&format!("&maxFileCount={}", limit));
+            url = url.push("maxFileCount", &limit.to_string());
         }
 
         if let Some(start_after) = start_after {
-            url.push_str(&format!(
-                "&startFileName={}",
-                percent_encode_path(&start_after)
-            ));
+            url = url.push("startFileName", &percent_encode_path(&start_after));
         }
 
         if let Some(delimiter) = delimiter {
-            url.push_str(&format!("&delimiter={}", delimiter));
+            url = url.push("delimiter", delimiter);
         }
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(url.finish());
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        req = req.extension(operation);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -462,6 +511,8 @@ impl B2Core {
         let mut req = Request::post(url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Copy);
 
         let body = CopyFileRequest {
             source_file_id,
@@ -489,6 +540,8 @@ impl B2Core {
         let mut req = Request::post(url);
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+
+        let req = req.extension(Operation::Delete);
 
         let body = HideFileRequest {
             bucket_id: self.bucket_id.clone(),
@@ -619,6 +672,15 @@ pub struct CancelLargeFileRequest {
 pub struct ListFileNamesResponse {
     pub files: Vec<File>,
     pub next_file_name: Option<String>,
+}
+
+/// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadResponse {
+    pub content_length: u64,
+    pub content_md5: Option<String>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -19,6 +19,7 @@
 //!
 //! By using functions, users can add more options for operation.
 
+use std::collections::HashMap;
 use std::ops::RangeBounds;
 
 use crate::raw::*;
@@ -69,7 +70,7 @@ impl<T, R> OperatorFunction<T, R> {
 pub struct FunctionWrite(
     /// The args for FunctionWrite is a bit special because we also
     /// need to move the bytes input this function.
-    pub(crate) OperatorFunction<(OpWrite, OpWriter, Buffer), ()>,
+    pub(crate) OperatorFunction<(OpWrite, OpWriter, Buffer), Metadata>,
 );
 
 impl FunctionWrite {
@@ -133,9 +134,17 @@ impl FunctionWrite {
         self
     }
 
+    /// Sets user metadata for this write request.
+    pub fn user_metadata(mut self, v: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.0 = self.0.map_args(|(args, options, bs)| {
+            (args.with_user_metadata(HashMap::from_iter(v)), options, bs)
+        });
+        self
+    }
+
     /// Call the function to consume all the input and generate a
     /// result.
-    pub fn call(self) -> Result<()> {
+    pub fn call(self) -> Result<Metadata> {
         self.0.call()
     }
 }

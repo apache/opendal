@@ -178,11 +178,29 @@ public class AsyncOperator extends NativeObject {
         return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
     }
 
+    /**
+     * Create a new operator that is layered with the given layer.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @param layer the layer to be applied.
+     *
+     * @return the layered new operator.
+     */
     public AsyncOperator layer(Layer layer) {
         final long nativeHandle = layer.layer(this.nativeHandle);
         return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
     }
 
+    /**
+     * Create a new operator that performs every operation blocking.
+     *
+     * <p>Note that the current operator is not modified. The returned operator is a new instance.
+     * You must close the current operator on demand to avoid resource leak.
+     *
+     * @return the blocking new operator.
+     */
     public Operator blocking() {
         final long nativeHandle = makeBlockingOp(this.nativeHandle);
         final OperatorInfo info = this.info;
@@ -190,20 +208,22 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, String content) {
-        return write(path, content.getBytes(StandardCharsets.UTF_8));
+        return write(
+                path,
+                content.getBytes(StandardCharsets.UTF_8),
+                WriteOptions.builder().build());
     }
 
     public CompletableFuture<Void> write(String path, byte[] content) {
-        final long requestId = write(nativeHandle, executorHandle, path, content);
-        return AsyncRegistry.take(requestId);
+        return write(path, content, WriteOptions.builder().build());
     }
 
-    public CompletableFuture<Void> append(String path, String content) {
-        return append(path, content.getBytes(StandardCharsets.UTF_8));
+    public CompletableFuture<Void> write(String path, String content, WriteOptions options) {
+        return write(path, content.getBytes(StandardCharsets.UTF_8), options);
     }
 
-    public CompletableFuture<Void> append(String path, byte[] content) {
-        final long requestId = append(nativeHandle, executorHandle, path, content);
+    public CompletableFuture<Void> write(String path, byte[] content, WriteOptions options) {
+        final long requestId = write(nativeHandle, executorHandle, path, content, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -213,7 +233,15 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<byte[]> read(String path) {
-        final long requestId = read(nativeHandle, executorHandle, path);
+        return read(path, ReadOptions.builder().build());
+    }
+
+    public CompletableFuture<byte[]> read(String path, long offset, long length) {
+        return read(path, ReadOptions.builder().offset(offset).length(length).build());
+    }
+
+    public CompletableFuture<byte[]> read(String path, ReadOptions options) {
+        final long requestId = read(nativeHandle, executorHandle, path, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -258,7 +286,11 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        final long requestId = list(nativeHandle, executorHandle, path);
+        return list(path, ListOptions.builder().build());
+    }
+
+    public CompletableFuture<List<Entry>> list(String path, ListOptions options) {
+        final long requestId = list(nativeHandle, executorHandle, path, options);
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
@@ -270,9 +302,10 @@ public class AsyncOperator extends NativeObject {
 
     private static native long constructor(long executorHandle, String scheme, Map<String, String> map);
 
-    private static native long read(long nativeHandle, long executorHandle, String path);
+    private static native long read(long nativeHandle, long executorHandle, String path, ReadOptions options);
 
-    private static native long write(long nativeHandle, long executorHandle, String path, byte[] content);
+    private static native long write(
+            long nativeHandle, long executorHandle, String path, byte[] content, WriteOptions options);
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 
@@ -298,5 +331,5 @@ public class AsyncOperator extends NativeObject {
 
     private static native long removeAll(long nativeHandle, long executorHandle, String path);
 
-    private static native long list(long nativeHandle, long executorHandle, String path);
+    private static native long list(long nativeHandle, long executorHandle, String path, ListOptions options);
 }

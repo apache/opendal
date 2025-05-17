@@ -29,12 +29,15 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
-use opendal::raw::PresignedRequest;
+use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::convert::jmap_to_hashmap;
-use crate::convert::jstring_to_string;
+use crate::convert::{
+    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field, read_map_field,
+    read_string_field,
+};
+use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
@@ -110,8 +113,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write(
     executor: *const Executor,
     path: JString,
     content: JByteArray,
+    write_options: JObject,
 ) -> jlong {
-    intern_write(&mut env, op, executor, path, content).unwrap_or_else(|e| {
+    intern_write(&mut env, op, executor, path, content, write_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -123,66 +127,57 @@ fn intern_write(
     executor: *const Executor,
     path: JString,
     content: JByteArray,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
+    let content_type = read_string_field(env, &options, "contentType")?;
+    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
+    let content_encoding = read_string_field(env, &options, "contentEncoding")?;
+    let cache_control = read_string_field(env, &options, "cacheControl")?;
+    let if_match = read_string_field(env, &options, "ifMatch")?;
+    let if_none_match = read_string_field(env, &options, "ifNoneMatch")?;
+    let append = read_bool_field(env, &options, "append")?;
+    let if_not_exists = read_bool_field(env, &options, "ifNotExists")?;
+    let user_metadata = read_map_field(env, &options, "userMetadata")?;
+
+    let mut write_op = op.write_with(&path, content);
+    if let Some(content_type) = content_type {
+        write_op = write_op.content_type(&content_type);
+    }
+    if let Some(content_disposition) = content_disposition {
+        write_op = write_op.content_disposition(&content_disposition);
+    }
+    if let Some(content_encoding) = content_encoding {
+        write_op = write_op.content_encoding(&content_encoding);
+    }
+    if let Some(cache_control) = cache_control {
+        write_op = write_op.cache_control(&cache_control);
+    }
+    if let Some(if_match) = if_match {
+        write_op = write_op.if_match(&if_match);
+    }
+    if let Some(if_none_match) = if_none_match {
+        write_op = write_op.if_none_match(&if_none_match);
+    }
+    if let Some(user_metadata) = user_metadata {
+        write_op = write_op.user_metadata(user_metadata);
+    }
+    write_op = write_op.if_not_exists(if_not_exists);
+    write_op = write_op.append(append);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_write(op, path, content).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = write_op
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_write(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
-    Ok(op.write(&path, content).await?)
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator is ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_append(
-    mut env: JNIEnv,
-    _: JClass,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> jlong {
-    intern_append(&mut env, op, executor, path, content).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
-    })
-}
-
-fn intern_append(
-    env: &mut JNIEnv,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
-
-    let path = jstring_to_string(env, &path)?;
-    let content = env.convert_byte_array(content)?;
-
-    executor_or_default(env, executor)?.spawn(async move {
-        let result = do_append(op, path, content).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
-    });
-
-    Ok(id)
-}
-
-async fn do_append(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
-    Ok(op.write_with(&path, content).append(true).await?)
 }
 
 /// # Safety
@@ -214,17 +209,13 @@ fn intern_stat(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_stat(op, path).await;
+        let metadata = op.stat(&path).await.map_err(Into::into);
+        let mut env = unsafe { get_current_env() };
+        let result = metadata.and_then(|metadata| make_metadata(&mut env, metadata));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_stat<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let metadata = op.stat(&path).await?;
-    let mut env = unsafe { get_current_env() };
-    make_metadata(&mut env, metadata)
 }
 
 /// # Safety
@@ -237,8 +228,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    read_options: JObject,
 ) -> jlong {
-    intern_read(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_read(&mut env, op, executor, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -249,26 +241,28 @@ fn intern_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
+    let offset = read_int64_field(env, &options, "offset")?;
+    let length = read_int64_field(env, &options, "length")?;
+
+    let mut read_op = op.read_with(&path);
+    read_op = read_op.range(offset_length_to_range(offset, length)?);
+
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_read(op, path).await;
-        complete_future(id, result.map(JValueOwned::Object))
+        let result = read_op.await.map_err(Into::into);
+
+        let mut env = unsafe { get_current_env() };
+        let result = result.and_then(|bs| bytes_to_jbytearray(&mut env, bs.to_bytes()));
+        complete_future(id, result.map(|bs| JValueOwned::Object(bs.into())))
     });
 
     Ok(id)
-}
-
-async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let content = op.read(&path).await?.to_bytes();
-
-    let env = unsafe { get_current_env() };
-    let result = env.byte_array_from_slice(&content)?;
-    Ok(result.into())
 }
 
 /// # Safety
@@ -300,15 +294,15 @@ fn intern_delete(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_delete(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .delete(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.delete(&path).await?)
 }
 
 /// # Safety
@@ -373,15 +367,15 @@ fn intern_create_dir(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_create_dir(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .create_dir(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_create_dir(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.create_dir(&path).await?)
 }
 
 /// # Safety
@@ -416,15 +410,15 @@ fn intern_copy(
     let target_path = jstring_to_string(env, &target_path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_copy(op, source_path, target_path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .copy(&source_path, &target_path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_copy(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
-    Ok(op.copy(&source_path, &target_path).await?)
 }
 
 /// # Safety
@@ -459,15 +453,15 @@ fn intern_rename(
     let target_path = jstring_to_string(env, &target_path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_rename(op, source_path, target_path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .rename(&source_path, &target_path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_rename(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
-    Ok(op.rename(&source_path, &target_path).await?)
 }
 
 /// # Safety
@@ -499,15 +493,15 @@ fn intern_remove_all(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_remove_all(op, path).await;
-        complete_future(id, result.map(|_| JValueOwned::Void))
+        let result = op
+            .remove_all(&path)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
+        complete_future(id, result)
     });
 
     Ok(id)
-}
-
-async fn do_remove_all(op: &mut Operator, path: String) -> Result<()> {
-    Ok(op.remove_all(&path).await?)
 }
 
 /// # Safety
@@ -520,8 +514,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> jlong {
-    intern_list(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_list(&mut env, op, executor, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -532,32 +527,38 @@ fn intern_list(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
+    let recursive = read_bool_field(env, &options, "recursive")?;
+
+    let mut list_op = op.list_with(&path);
+    list_op = list_op.recursive(recursive);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_list(op, path).await;
+        let entries = list_op.await.map_err(Into::into);
+        let result = make_entries(entries);
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let obs = op.list(&path).await?;
+fn make_entries<'local>(entries: Result<Vec<Entry>>) -> Result<JObject<'local>> {
+    let entries = entries?;
 
     let mut env = unsafe { get_current_env() };
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(&mut env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(&mut env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 
@@ -596,7 +597,7 @@ fn intern_presign_read(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_read(op, path, expire).await;
+        let result = op.presign_read(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
@@ -604,15 +605,6 @@ fn intern_presign_read(
 
     Ok(id)
 }
-
-async fn do_presign_read(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_read(&path, expire).await?)
-}
-
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
@@ -645,21 +637,13 @@ fn intern_presign_write(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_write(op, path, expire).await;
+        let result = op.presign_write(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_presign_write(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_write(&path, expire).await?)
 }
 
 /// # Safety
@@ -694,21 +678,13 @@ fn intern_presign_stat(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_stat(op, path, expire).await;
+        let result = op.presign_stat(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_presign_stat(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_stat(&path, expire).await?)
 }
 
 fn make_object<'local>(

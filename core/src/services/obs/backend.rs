@@ -40,9 +40,12 @@ use crate::*;
 
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         ObsBuilder {
             config: self,
+
             http_client: None,
         }
     }
@@ -53,6 +56,8 @@ impl Configurator for ObsConfig {
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
     config: ObsConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -126,12 +131,21 @@ impl ObsBuilder {
         self
     }
 
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -184,15 +198,6 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Obs)
-            })?
-        };
-
         let mut cfg = HuaweicloudObsConfig::default();
         // Load cfg from env first.
         cfg = cfg.from_env();
@@ -225,12 +230,81 @@ impl Builder for ObsBuilder {
         debug!("backend build finished");
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Obs)
+                        .set_root(&root)
+                        .set_name(&bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_has_cache_control: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_content_range: true,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_disposition: true,
+                            stat_has_user_metadata: true,
+
+                            read: true,
+
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_append: true,
+                            write_can_multi: true,
+                            write_with_content_type: true,
+                            write_with_cache_control: true,
+                            // The min multipart size of OBS is 5 MiB.
+                            //
+                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of OBS is 5 GiB.
+                            //
+                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            write_with_user_metadata: true,
+
+                            delete: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 bucket,
                 root,
                 endpoint: format!("{}://{}", &scheme, &endpoint),
                 signer,
                 loader,
-                client,
             }),
         })
     }
@@ -253,68 +327,7 @@ impl Access for ObsBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Obs)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
-                stat_has_user_metadata: true,
-
-                read: true,
-
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_append: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                write_with_cache_control: true,
-                // The min multipart size of OBS is 5 MiB.
-                //
-                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of OBS is 5 GiB.
-                //
-                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                write_with_user_metadata: true,
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -342,6 +355,10 @@ impl Access for ObsBackend {
 
                 if !user_meta.is_empty() {
                     meta.with_user_metadata(user_meta);
+                }
+
+                if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
+                    meta.set_version(v);
                 }
 
                 Ok(RpStat::new(meta))
@@ -377,8 +394,8 @@ impl Access for ObsBackend {
             ObsWriters::Two(oio::AppendWriter::new(writer))
         } else {
             ObsWriters::One(oio::MultipartWriter::new(
+                self.core.info.clone(),
                 writer,
-                args.executor().cloned(),
                 args.concurrent(),
             ))
         };
@@ -410,17 +427,22 @@ impl Access for ObsBackend {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v),
             PresignOperation::Read(v) => {
                 self.core
-                    .obs_get_object_request(path, BytesRange::default(), v)?
+                    .obs_get_object_request(path, BytesRange::default(), v)
             }
             PresignOperation::Write(v) => {
                 self.core
-                    .obs_put_object_request(path, None, v, Buffer::new())?
+                    .obs_put_object_request(path, None, v, Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
+        let mut req = req?;
         self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.

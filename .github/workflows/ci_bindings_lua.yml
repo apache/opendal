@@ -50,6 +50,10 @@ jobs:
           sudo apt-get install -y lua-busted luarocks liblua5.2-dev
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      - name: Clippy Check
+        working-directory: "bindings/lua"
+        run: |
+          cargo clippy -- -D warnings
       - name: Build & Test
         working-directory: "bindings/lua"
         run: |

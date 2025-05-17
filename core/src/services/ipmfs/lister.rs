@@ -21,23 +21,24 @@ use bytes::Buf;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::backend::IpmfsBackend;
+use super::core::IpmfsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
+use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
 pub struct IpmfsLister {
-    backend: Arc<IpmfsBackend>,
+    core: Arc<IpmfsCore>,
     root: String,
     path: String,
 }
 
 impl IpmfsLister {
-    pub fn new(backend: Arc<IpmfsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(core: Arc<IpmfsCore>, root: &str, path: &str) -> Self {
         Self {
-            backend,
+            core,
             root: root.to_string(),
             path: path.to_string(),
         }
@@ -46,10 +47,25 @@ impl IpmfsLister {
 
 impl oio::PageList for IpmfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.backend.ipmfs_ls(&self.path).await?;
+        let resp = self.core.ipmfs_ls(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
+            let err = parse_error(resp);
+            if matches!(err.kind(), ErrorKind::NotFound) {
+                // treat as empty listing
+                ctx.done = true;
+                return Ok(());
+            }
+            return Err(err);
+        }
+
+        // Add current directory entry when processing the first page
+        if ctx.token.is_empty() && !ctx.done {
+            let path = build_abs_path(&self.root, self.path.as_str());
+            let path = build_rel_path(&self.root, &path);
+
+            ctx.entries
+                .push_back(oio::Entry::new(&path, Metadata::new(EntryMode::DIR)));
         }
 
         let bs = resp.into_body();

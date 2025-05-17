@@ -11,7 +11,7 @@ const DISPLAY_NAME: &str = "Read Only Cloud Filter";
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    logforth::stderr().apply();
 
     let root = env::var("ROOT").expect("$ROOT is set");
     let client_path = env::var("CLIENT_PATH").expect("$CLIENT_PATH is set");

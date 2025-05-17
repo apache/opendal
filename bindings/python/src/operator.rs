@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -72,7 +73,7 @@ impl Operator {
             .unwrap_or_default();
 
         Ok(Operator {
-            core: build_operator(scheme.clone(), map.clone())?.blocking(),
+            core: build_operator(scheme, map.clone())?.blocking(),
             __scheme: scheme,
             __map: map,
         })
@@ -83,13 +84,14 @@ impl Operator {
         let op = layer.0.layer(self.core.clone().into());
         Ok(Self {
             core: op.blocking(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open(&self, path: String, mode: String) -> PyResult<File> {
+    pub fn open(&self, path: PathBuf, mode: String) -> PyResult<File> {
+        let path = path.to_string_lossy().to_string();
         let this = self.core.clone();
         if mode == "rb" {
             let r = this
@@ -109,18 +111,20 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<Bound<'p, PyAny>> {
-        let buffer = self.core.read(path).map_err(format_pyerr)?.to_vec();
+    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+        let path = path.to_string_lossy().to_string();
+        let buffer = self.core.read(&path).map_err(format_pyerr)?.to_vec();
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
-        let kwargs = kwargs.unwrap_or_default();
+    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+        let path = path.to_string_lossy().to_string();
+        let mut kwargs = kwargs.unwrap_or_default();
         let mut write = self
             .core
-            .write_with(path, bs)
+            .write_with(&path, bs)
             .append(kwargs.append.unwrap_or(false));
         if let Some(chunk) = kwargs.chunk {
             write = write.chunk(chunk);
@@ -134,31 +138,40 @@ impl Operator {
         if let Some(cache_control) = &kwargs.cache_control {
             write = write.cache_control(cache_control);
         }
+        if let Some(user_metadata) = kwargs.user_metadata.take() {
+            write = write.user_metadata(user_metadata);
+        }
 
-        write.call().map_err(format_pyerr)
+        write.call().map(|_| ()).map_err(format_pyerr)
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat(&self, path: &str) -> PyResult<Metadata> {
+    pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
+        let path = path.to_string_lossy().to_string();
         self.core
-            .stat(path)
+            .stat(&path)
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
 
     /// Copy source to target.
-    pub fn copy(&self, source: &str, target: &str) -> PyResult<()> {
-        self.core.copy(source, target).map_err(format_pyerr)
+    pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
+        let source = source.to_string_lossy().to_string();
+        let target = target.to_string_lossy().to_string();
+        self.core.copy(&source, &target).map_err(format_pyerr)
     }
 
     /// Rename filename.
-    pub fn rename(&self, source: &str, target: &str) -> PyResult<()> {
-        self.core.rename(source, target).map_err(format_pyerr)
+    pub fn rename(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
+        let source = source.to_string_lossy().to_string();
+        let target = target.to_string_lossy().to_string();
+        self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
     /// Remove all file
-    pub fn remove_all(&self, path: &str) -> PyResult<()> {
-        self.core.remove_all(path).map_err(format_pyerr)
+    pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
+        let path = path.to_string_lossy().to_string();
+        self.core.remove_all(&path).map_err(format_pyerr)
     }
 
     /// Create a dir at given path.
@@ -173,8 +186,9 @@ impl Operator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir(&self, path: &str) -> PyResult<()> {
-        self.core.create_dir(path).map_err(format_pyerr)
+    pub fn create_dir(&self, path: PathBuf) -> PyResult<()> {
+        let path = path.to_string_lossy().to_string();
+        self.core.create_dir(&path).map_err(format_pyerr)
     }
 
     /// Delete given path.
@@ -182,21 +196,39 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete(&self, path: &str) -> PyResult<()> {
-        self.core.delete(path).map_err(format_pyerr)
+    pub fn delete(&self, path: PathBuf) -> PyResult<()> {
+        let path = path.to_string_lossy().to_string();
+        self.core.delete(&path).map_err(format_pyerr)
+    }
+
+    /// Check given path is exists.
+    ///
+    /// # Notes
+    ///
+    /// - Check not existing path won't return errors.
+    pub fn exists(&self, path: PathBuf) -> PyResult<bool> {
+        let path = path.to_string_lossy().to_string();
+        self.core.exists(&path).map_err(format_pyerr)
     }
 
     /// List current dir path.
-    pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
-        let l = self.core.lister(path).map_err(format_pyerr)?;
+    #[pyo3(signature = (path, *, start_after=None))]
+    pub fn list(&self, path: PathBuf, start_after: Option<String>) -> PyResult<BlockingLister> {
+        let path = path.to_string_lossy().to_string();
+        let mut builder = self.core.lister_with(&path);
+        if let Some(start_after) = start_after {
+            builder = builder.start_after(&start_after);
+        }
+        let l = builder.call().map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
     /// List dir in flat way.
-    pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
+    pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
+        let path = path.to_string_lossy().to_string();
         let l = self
             .core
-            .lister_with(path)
+            .lister_with(&path)
             .recursive(true)
             .call()
             .map_err(format_pyerr)?;
@@ -209,10 +241,15 @@ impl Operator {
         ))
     }
 
+    /// Check if this operator can work correctly.
+    pub fn check(&self) -> PyResult<()> {
+        self.core.check().map_err(format_pyerr)
+    }
+
     pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
         Ok(AsyncOperator {
             core: self.core.clone().into(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -235,7 +272,7 @@ impl Operator {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
+        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
     }
 }
 
@@ -268,7 +305,7 @@ impl AsyncOperator {
             .unwrap_or_default();
 
         Ok(AsyncOperator {
-            core: build_operator(scheme.clone(), map.clone())?.into(),
+            core: build_operator(scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
         })
@@ -279,7 +316,7 @@ impl AsyncOperator {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
             core: op,
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -288,10 +325,11 @@ impl AsyncOperator {
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         mode: String,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
 
         future_into_py(py, async move {
             if mode == "rb" {
@@ -315,8 +353,9 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
@@ -328,13 +367,14 @@ impl AsyncOperator {
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         bs: &Bound<PyBytes>,
         kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
-        let kwargs = kwargs.unwrap_or_default();
+        let mut kwargs = kwargs.unwrap_or_default();
         let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let mut write = this
                 .write_with(&path, bs)
@@ -351,13 +391,18 @@ impl AsyncOperator {
             if let Some(cache_control) = &kwargs.cache_control {
                 write = write.cache_control(cache_control);
             }
-            write.await.map_err(format_pyerr)
+            if let Some(user_metadata) = kwargs.user_metadata.take() {
+                write = write.user_metadata(user_metadata);
+            }
+
+            write.await.map(|_| ()).map_err(format_pyerr)
         })
     }
 
     /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let res: Metadata = this
                 .stat(&path)
@@ -373,10 +418,12 @@ impl AsyncOperator {
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
-        source: String,
-        target: String,
+        source: PathBuf,
+        target: PathBuf,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let source = source.to_string_lossy().to_string();
+        let target = target.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.copy(&source, &target).await.map_err(format_pyerr)
         })
@@ -386,21 +433,30 @@ impl AsyncOperator {
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
-        source: String,
-        target: String,
+        source: PathBuf,
+        target: PathBuf,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let source = source.to_string_lossy().to_string();
+        let target = target.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.rename(&source, &target).await.map_err(format_pyerr)
         })
     }
 
     /// Remove all file
-    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn remove_all<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.remove_all(&path).await.map_err(format_pyerr)
         })
+    }
+
+    /// Check if this operator can work correctly.
+    pub fn check<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        future_into_py(py, async move { this.check().await.map_err(format_pyerr) })
     }
 
     /// Create a dir at given path.
@@ -415,8 +471,9 @@ impl AsyncOperator {
     ///
     /// - Create on existing dir will succeed.
     /// - Create dir is always recursive, works like `mkdir -p`
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
         })
@@ -427,19 +484,45 @@ impl AsyncOperator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },
         )
     }
 
-    /// List current dir path.
-    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    /// Check given path is exists.
+    ///
+    /// # Notes
+    ///
+    /// - Check not existing path won't return errors.
+    pub fn exists<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+        future_into_py(
+            py,
+            async move { this.exists(&path).await.map_err(format_pyerr) },
+        )
+    }
+
+    /// List current dir path.
+    #[pyo3(signature = (path, *, start_after=None))]
+    pub fn list<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        start_after: Option<String>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let lister = this.lister(&path).await.map_err(format_pyerr)?;
+            let mut builder = this.lister_with(&path);
+            if let Some(start_after) = start_after {
+                builder = builder.start_after(&start_after);
+            }
+            let lister = builder.await.map_err(format_pyerr)?;
             let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
 
             Ok(pylister)
@@ -447,14 +530,12 @@ impl AsyncOperator {
     }
 
     /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<Bound<'p, PyAny>> {
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let lister = this
-                .lister_with(&path)
-                .recursive(true)
-                .await
-                .map_err(format_pyerr)?;
+            let builder = this.lister_with(&path).recursive(true);
+            let lister = builder.await.map_err(format_pyerr)?;
             let pylister: PyObject =
                 Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
             Ok(pylister)
@@ -465,10 +546,11 @@ impl AsyncOperator {
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let res = this
                 .presign_stat(&path, Duration::from_secs(expire_second))
@@ -484,10 +566,11 @@ impl AsyncOperator {
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let res = this
                 .presign_read(&path, Duration::from_secs(expire_second))
@@ -503,13 +586,34 @@ impl AsyncOperator {
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
-        path: String,
+        path: PathBuf,
         expire_second: u64,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             let res = this
                 .presign_write(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
+        })
+    }
+
+    /// Presign an operation for delete which expires after `expire_second` seconds.
+    pub fn presign_delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        expire_second: u64,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+        future_into_py(py, async move {
+            let res = this
+                .presign_delete(&path, Duration::from_secs(expire_second))
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -527,7 +631,7 @@ impl AsyncOperator {
     pub fn to_operator(&self) -> PyResult<Operator> {
         Ok(Operator {
             core: self.core.clone().blocking(),
-            __scheme: self.__scheme.clone(),
+            __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
@@ -554,7 +658,7 @@ impl AsyncOperator {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
-        Ok(PyTuple::new(py, [args, kwargs])?.into_py_any(py)?)
+        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
     }
 }
 

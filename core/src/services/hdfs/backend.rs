@@ -174,10 +174,40 @@ impl Builder for HdfsBuilder {
         }
 
         Ok(HdfsBackend {
+            info: {
+                let am = AccessorInfo::default();
+                am.set_scheme(Scheme::Hdfs)
+                    .set_root(&root)
+                    .set_native_capability(Capability {
+                        stat: true,
+                        stat_has_content_length: true,
+                        stat_has_last_modified: true,
+
+                        read: true,
+
+                        write: true,
+                        write_can_append: self.config.enable_append,
+
+                        create_dir: true,
+                        delete: true,
+
+                        list: true,
+                        list_has_content_length: true,
+                        list_has_last_modified: true,
+
+                        rename: true,
+                        blocking: true,
+
+                        shared: true,
+
+                        ..Default::default()
+                    });
+
+                am.into()
+            },
             root,
             atomic_write_dir,
             client: Arc::new(client),
-            enable_append: self.config.enable_append,
         })
     }
 }
@@ -193,10 +223,10 @@ fn tmp_file_of(path: &str) -> String {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
     atomic_write_dir: Option<String>,
     pub client: Arc<hdrs::Client>,
-    enable_append: bool,
 }
 
 /// hdrs::Client is thread-safe.
@@ -214,35 +244,7 @@ impl Access for HdfsBackend {
     type BlockingDeleter = oio::OneShotDeleter<HdfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Hdfs)
-            .set_root(&self.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                write: true,
-                write_can_append: self.enable_append,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                rename: true,
-                blocking: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -299,8 +301,12 @@ impl Access for HdfsBackend {
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let target_path = build_rooted_abs_path(&self.root, path);
+        let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
-            Ok(_) => true,
+            Ok(meta) => {
+                initial_size = meta.len();
+                true
+            }
             Err(err) => {
                 if err.kind() != io::ErrorKind::NotFound {
                     return Err(new_std_io_error(err));
@@ -322,6 +328,9 @@ impl Access for HdfsBackend {
         if !target_exists {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
+        }
+        if !should_append {
+            initial_size = 0;
         }
 
         let mut open_options = self.client.open_file();
@@ -345,6 +354,7 @@ impl Access for HdfsBackend {
                 f,
                 Arc::clone(&self.client),
                 target_exists,
+                initial_size,
             ),
         ))
     }
@@ -474,8 +484,12 @@ impl Access for HdfsBackend {
 
     fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let target_path = build_rooted_abs_path(&self.root, path);
+        let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
-            Ok(_) => true,
+            Ok(meta) => {
+                initial_size = meta.len();
+                true
+            }
             Err(err) => {
                 if err.kind() != io::ErrorKind::NotFound {
                     return Err(new_std_io_error(err));
@@ -498,6 +512,9 @@ impl Access for HdfsBackend {
             let parent = get_parent(&target_path);
             self.client.create_dir(parent).map_err(new_std_io_error)?;
         }
+        if !should_append {
+            initial_size = 0;
+        }
 
         let mut open_options = self.client.open_file();
         open_options.create(true);
@@ -519,6 +536,7 @@ impl Access for HdfsBackend {
                 f,
                 Arc::clone(&self.client),
                 target_exists,
+                initial_size,
             ),
         ))
     }

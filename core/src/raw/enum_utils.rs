@@ -77,7 +77,7 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         match self {
             Self::One(v) => v.close().await,
             Self::Two(v) => v.close().await,
@@ -146,7 +146,7 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         match self {
             Self::One(v) => v.close().await,
             Self::Two(v) => v.close().await,
@@ -159,6 +159,16 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
             Self::One(v) => v.abort().await,
             Self::Two(v) => v.abort().await,
             Self::Three(v) => v.abort().await,
+        }
+    }
+}
+
+impl<ONE: oio::List, TWO: oio::List, THREE: oio::List> oio::List for ThreeWays<ONE, TWO, THREE> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+            Self::Three(v) => v.next().await,
         }
     }
 }

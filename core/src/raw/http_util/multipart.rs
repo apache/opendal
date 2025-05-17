@@ -523,6 +523,111 @@ impl Part for MixedPart {
     }
 }
 
+/// RelatedPart is a builder for multipart/related part.
+pub struct RelatedPart {
+    /// Common
+    headers: HeaderMap,
+    content: Buffer,
+}
+
+impl Default for RelatedPart {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RelatedPart {
+    /// Create a new related
+    pub fn new() -> Self {
+        Self {
+            headers: HeaderMap::new(),
+            content: Buffer::new(),
+        }
+    }
+
+    /// Build a mixed part from a request.
+    pub fn from_request(req: Request<Buffer>) -> Self {
+        let (parts, content) = req.into_parts();
+
+        Self {
+            headers: parts.headers,
+            content,
+        }
+    }
+
+    /// Consume a mixed part to build a response.
+    pub fn into_response(mut self) -> Response<Buffer> {
+        let mut builder = Response::builder();
+
+        // Swap headers directly instead of copy the entire map.
+        mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
+
+        builder
+            .body(self.content)
+            .expect("a related part must be valid response")
+    }
+
+    /// Insert a header into part.
+    pub fn header(mut self, key: HeaderName, value: HeaderValue) -> Self {
+        self.headers.insert(key, value);
+        self
+    }
+
+    /// Set the content for this part.
+    pub fn content(mut self, content: impl Into<Buffer>) -> Self {
+        self.content = content.into();
+        self
+    }
+}
+
+impl Part for RelatedPart {
+    const TYPE: &'static str = "related";
+
+    fn format(self) -> Buffer {
+        // This is what multipart/related body might look for an insert in GCS
+        // https://cloud.google.com/storage/docs/uploading-objects
+        /*
+        --separator_string
+        Content-Type: application/json; charset=UTF-8
+
+        {"name":"my-document.txt"}
+
+        --separator_string
+        Content-Type: text/plain
+
+        This is a text file.
+        --separator_string--
+        */
+
+        let mut bufs = Vec::with_capacity(3);
+        let mut bs = BytesMut::new();
+
+        // Write request headers.
+        for (k, v) in self.headers.iter() {
+            bs.extend_from_slice(k.as_str().as_bytes());
+            bs.extend_from_slice(b": ");
+            bs.extend_from_slice(v.as_bytes());
+            bs.extend_from_slice(b"\r\n");
+        }
+        bs.extend_from_slice(b"\r\n");
+        bufs.push(Buffer::from(bs.freeze()));
+
+        if !self.content.is_empty() {
+            bufs.push(self.content);
+            bufs.push(Buffer::from("\r\n"))
+        }
+
+        bufs.into_iter().flatten().collect()
+    }
+
+    fn parse(_s: &str) -> Result<Self> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "parsing multipart/related is not supported",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use http::header::CONTENT_TYPE;
@@ -1028,5 +1133,48 @@ Content-Length: 846
             multipart.parts[2].status_code,
             Some(StatusCode::from_u16(200).unwrap())
         );
+    }
+
+    #[test]
+    fn test_multipart_related_gcs_simple() {
+        // This is what multipart/related body might look for an insert in GCS
+        // https://cloud.google.com/storage/docs/uploading-objects
+        let expected = r#"--separator_string
+content-type: application/json; charset=UTF-8
+
+{"name":"my-document.txt"}
+--separator_string
+content-type: text/plain
+
+This is a text file.
+--separator_string--
+"#;
+
+        let multipart = Multipart::new()
+            .with_boundary("separator_string")
+            .part(
+                RelatedPart::new()
+                    .header(
+                        "Content-Type".parse().unwrap(),
+                        "application/json; charset=UTF-8".parse().unwrap(),
+                    )
+                    .content(r#"{"name":"my-document.txt"}"#),
+            )
+            .part(
+                RelatedPart::new()
+                    .header(
+                        "Content-Type".parse().unwrap(),
+                        "text/plain".parse().unwrap(),
+                    )
+                    .content("This is a text file."),
+            );
+
+        let bs = multipart.build();
+
+        let output = String::from_utf8(bs.to_bytes().to_vec())
+            .unwrap()
+            .replace("\r\n", "\n");
+
+        assert_eq!(output, expected);
     }
 }

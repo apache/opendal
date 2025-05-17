@@ -132,7 +132,21 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-  
+
+  test_binding_go:
+    name: binding_go / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.binding_go
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).binding_go }}
+    uses: ./.github/workflows/test_behavior_binding_go.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}
+
   test_bin_ofs:
     name: bin_ofs / ${{ matrix.os }}
     needs: [plan]
@@ -142,6 +156,20 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).bin_ofs }}
     uses: ./.github/workflows/test_behavior_bin_ofs.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}
+
+  test_integration_object_store:
+    name: integration_object_store / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.integration_object_store
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).integration_object_store }}
+    uses: ./.github/workflows/test_behavior_integration_object_store.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}

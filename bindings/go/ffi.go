@@ -24,12 +24,11 @@ import (
 	"errors"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
 	"github.com/jupiterrider/ffi"
 )
 
 func contextWithFFIs(path string) (ctx context.Context, cancel context.CancelFunc, err error) {
-	libopendal, err := purego.Dlopen(path, purego.RTLD_LAZY|purego.RTLD_GLOBAL)
+	libopendal, err := LoadLibrary(path)
 	if err != nil {
 		return
 	}
@@ -41,7 +40,7 @@ func contextWithFFIs(path string) (ctx context.Context, cancel context.CancelFun
 		}
 	}
 	cancel = func() {
-		purego.Dlclose(libopendal)
+		_ = FreeLibrary(libopendal)
 	}
 	return
 }
@@ -65,11 +64,13 @@ type ffiOpts struct {
 	aTypes []*ffi.Type
 }
 
+type ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)
+
 func withFFI[T any](
 	opts ffiOpts,
 	withFunc func(
 		ctx context.Context,
-		ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer),
+		ffiCall ffiCall,
 	) T,
 ) func(ctx context.Context, libopendal uintptr) (context.Context, error) {
 	return func(ctx context.Context, libopendal uintptr) (context.Context, error) {
@@ -83,7 +84,7 @@ func withFFI[T any](
 		); status != ffi.OK {
 			return nil, errors.New(status.String())
 		}
-		fn, err := purego.Dlsym(libopendal, opts.sym.String())
+		fn, err := GetProcAddress(libopendal, opts.sym.String())
 		if err != nil {
 			return nil, err
 		}
@@ -139,9 +140,11 @@ var withFFIs = []contextWithFFI{
 
 	withOperatorReader,
 	withReaderRead,
+	withReaderSeek,
 	withReaderFree,
 
 	withOperatorWriter,
 	withWriterWrite,
 	withWriterFree,
+	withWriterClose,
 }

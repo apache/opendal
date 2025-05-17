@@ -15,9 +15,10 @@ This service can be used to:
 
 ## Configuration
 
-- `datadir`: Set the path to the redb data directory
+- `datadir`: Set the path to the redb data directory.
+- `table`: Set the table name for Redb.
 
-You can refer to [`RedbBuilder`]'s docs for more information
+You can refer to [`RedbBuilder`]'s docs for more information.
 
 ## Example
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use chrono::prelude::*;
 use pyo3::prelude::*;
 
 use crate::*;
@@ -89,6 +90,27 @@ impl Metadata {
     #[getter]
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
+    }
+
+    /// Last modified time
+    #[getter]
+    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+        self.0.last_modified()
+    }
+    pub fn __repr__(&self) -> String {
+        let last_modified_str = match self.0.last_modified() {
+            Some(dt) => dt.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            None => "None".to_string(),
+        };
+
+        format!(
+            "Metadata(mode={}, content_length={}, content_type={}, last_modified={}, etag={})",
+            self.0.mode(),
+            self.0.content_length(),
+            self.0.content_type().unwrap_or("None"),
+            last_modified_str,
+            self.0.etag().unwrap_or("None"),
+        )
     }
 }
 

@@ -91,7 +91,7 @@ pub fn blocking_write(
     path: String,
     bs: &'static [u8],
 ) -> Result<(), String> {
-    map_res_error(operator.0.write(path.as_str(), bs))
+    map_res_error(operator.0.write(path.as_str(), bs).map(|_| ()))
 }
 
 #[ocaml::func]
@@ -115,7 +115,7 @@ pub fn blocking_delete(operator: &mut Operator, path: String) -> Result<(), Stri
 #[ocaml::func]
 #[ocaml::sig("operator -> string array -> (unit, string) Result.t ")]
 pub fn blocking_remove(operator: &mut Operator, path: Vec<String>) -> Result<(), String> {
-    map_res_error(operator.0.remove(path))
+    map_res_error(operator.0.delete_iter(path))
 }
 
 #[ocaml::func]

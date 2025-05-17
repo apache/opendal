@@ -15,95 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Buffer;
 use crate::Error;
 use crate::ErrorKind;
 
 use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
-
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use redis::from_redis_value;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::RedisError;
-
-use std::time::Duration;
+use redis::{Cmd, Pipeline, RedisFuture, Value};
 
 #[derive(Clone)]
 pub enum RedisConnection {
     Normal(ConnectionManager),
     Cluster(ClusterConnection),
 }
-impl RedisConnection {
-    pub async fn get(&mut self, key: &str) -> crate::Result<Option<Buffer>> {
-        let result: Option<bytes::Bytes> = match self {
-            RedisConnection::Normal(ref mut conn) => {
-                conn.get(key).await.map_err(format_redis_error)
-            }
-            RedisConnection::Cluster(ref mut conn) => {
-                conn.get(key).await.map_err(format_redis_error)
-            }
-        }?;
-        Ok(result.map(Buffer::from))
-    }
 
-    pub async fn set(
-        &mut self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> crate::Result<()> {
-        let value = value.to_vec();
-        if let Some(ttl) = ttl {
-            match self {
-                RedisConnection::Normal(ref mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs())
-                    .await
-                    .map_err(format_redis_error)?,
-                RedisConnection::Cluster(ref mut conn) => conn
-                    .set_ex(key, value, ttl.as_secs())
-                    .await
-                    .map_err(format_redis_error)?,
-            }
-        } else {
-            match self {
-                RedisConnection::Normal(ref mut conn) => {
-                    conn.set(key, value).await.map_err(format_redis_error)?
-                }
-                RedisConnection::Cluster(ref mut conn) => {
-                    conn.set(key, value).await.map_err(format_redis_error)?
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn delete(&mut self, key: &str) -> crate::Result<()> {
+impl ConnectionLike for RedisConnection {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         match self {
-            RedisConnection::Normal(ref mut conn) => {
-                let _: () = conn.del(key).await.map_err(format_redis_error)?;
-            }
-            RedisConnection::Cluster(ref mut conn) => {
-                let _: () = conn.del(key).await.map_err(format_redis_error)?;
-            }
+            RedisConnection::Normal(conn) => conn.req_packed_command(cmd),
+            RedisConnection::Cluster(conn) => conn.req_packed_command(cmd),
         }
-
-        Ok(())
     }
 
-    pub async fn append(&mut self, key: &str, value: &[u8]) -> crate::Result<()> {
+    fn req_packed_commands<'a>(
+        &'a mut self,
+        cmd: &'a Pipeline,
+        offset: usize,
+        count: usize,
+    ) -> RedisFuture<'a, Vec<Value>> {
         match self {
-            RedisConnection::Normal(ref mut conn) => {
-                () = conn.append(key, value).await.map_err(format_redis_error)?;
-            }
-            RedisConnection::Cluster(ref mut conn) => {
-                () = conn.append(key, value).await.map_err(format_redis_error)?;
-            }
+            RedisConnection::Normal(conn) => conn.req_packed_commands(cmd, offset, count),
+            RedisConnection::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
         }
-        Ok(())
+    }
+
+    fn get_db(&self) -> i64 {
+        match self {
+            RedisConnection::Normal(conn) => conn.get_db(),
+            RedisConnection::Cluster(conn) => conn.get_db(),
+        }
     }
 }
 
@@ -136,18 +90,7 @@ impl bb8::ManageConnection for RedisConnectionManager {
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let pong_value = match conn {
-            RedisConnection::Normal(ref mut conn) => conn
-                .send_packed_command(&redis::cmd("PING"))
-                .await
-                .map_err(format_redis_error)?,
-
-            RedisConnection::Cluster(ref mut conn) => conn
-                .req_packed_command(&redis::cmd("PING"))
-                .await
-                .map_err(format_redis_error)?,
-        };
-        let pong: String = from_redis_value(&pong_value).map_err(format_redis_error)?;
+        let pong: String = conn.ping().await.map_err(format_redis_error)?;
 
         if pong == "PONG" {
             Ok(())

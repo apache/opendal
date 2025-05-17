@@ -49,7 +49,7 @@ type Callback = Pin<Box<dyn Future<Output = ()>>>;
 async fn main() -> ExitCode {
     let args = Arguments::from_args();
 
-    env_logger::init();
+    logforth::stderr().apply();
 
     let Ok(Some(op)) = tests::init_test_service() else {
         return ExitCode::SUCCESS;

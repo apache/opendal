@@ -30,6 +30,8 @@ use crate::*;
 
 impl Configurator for IcloudConfig {
     type Builder = IcloudBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         IcloudBuilder {
             config: self,
@@ -50,6 +52,7 @@ pub struct IcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub http_client: Option<HttpClient>,
 }
 
@@ -143,6 +146,8 @@ impl IcloudBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -186,19 +191,32 @@ impl Builder for IcloudBuilder {
                 .with_context("service", Scheme::Icloud)),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Icloud)
-            })?
-        };
-
         let session_data = SessionData::new();
 
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Icloud)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+
+                read: true,
+
+                shared: true,
+                ..Default::default()
+            });
+
+        // allow deprecated api here for compatibility
+        #[allow(deprecated)]
+        if let Some(client) = self.http_client {
+            info.update_http_client(|_| client);
+        }
+
+        let accessor_info = Arc::new(info);
+
         let signer = IcloudSigner {
-            client: client.clone(),
+            info: accessor_info.clone(),
             data: session_data,
             apple_id,
             password,
@@ -211,6 +229,7 @@ impl Builder for IcloudBuilder {
         let signer = Arc::new(Mutex::new(signer));
         Ok(IcloudBackend {
             core: Arc::new(IcloudCore {
+                info: accessor_info,
                 signer: signer.clone(),
                 root,
                 path_cache: PathCacher::new(IcloudPathQuery::new(signer.clone())),
@@ -235,20 +254,7 @@ impl Access for IcloudBackend {
     type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut ma = AccessorInfo::default();
-        ma.set_scheme(Scheme::Icloud)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                shared: true,
-                ..Default::default()
-            });
-        ma.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

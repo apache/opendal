@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
+use crate::raw::*;
+use crate::*;
 use http::Response;
 use http::StatusCode;
 
-use crate::raw::*;
-use crate::*;
-
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, mut body) = resp.into_parts();
+    let (parts, body) = resp.into_parts();
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
@@ -38,7 +36,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let bs = body.copy_to_bytes(body.remaining());
+    let bs = body.to_bytes();
     let message = String::from_utf8_lossy(&bs);
 
     let mut err = Error::new(kind, message);

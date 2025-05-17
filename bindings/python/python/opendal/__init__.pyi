@@ -200,12 +200,15 @@ class AsyncOperator(_Base):
     """
     def __init__(self, scheme: str, **options: Any) -> None: ...
     def layer(self, layer: Layer) -> "AsyncOperator": ...
-    async def open(self, path: PathBuf, mode: str) -> AsyncFile:
+    async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
         """Open a file at the given path for reading or writing.
 
         Args:
             path (str|Path): The path to the file.
             mode (str): The mode to open the file. Can be "rb" or "wb".
+            **options (any): Reader options if mode == "rb" and
+            writer options if mode == "wb".
+                See the documentation `reader_with` and `writer_with` for more details.
 
         Returns:
             A file-like object that can be used to read or write the file.
@@ -471,6 +474,20 @@ class AsyncFile:
 
         Args:
             bs (bytes): The content to write.
+        """
+    async def write_from(self, other: AsyncFile) -> None:
+        """Write the content of another AsyncFile to this file.
+
+        This method efficiently transfers data from `other` to this file
+        without loading the entire content into memory.  It's suitable for
+        large files where memory usage is a concern.
+
+        Args:
+            other (AsyncFile): The AsyncFile to read data from.
+            It must be opened in binary read mode ('rb').
+
+        Raises:
+            IOError: If this file is not opened in a writable binary mode ('wb').
         """
     async def seek(self, pos: int, whence: int = 0) -> int:
         """Set the file's current position.

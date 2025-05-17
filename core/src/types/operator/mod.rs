@@ -39,4 +39,3 @@ mod registry;
 // TODO: warning as not used. How can we expose them as public api?
 pub use registry::OperatorFactory;
 pub use registry::OperatorRegistry;
-pub use registry::GLOBAL_OPERATOR_REGISTRY;

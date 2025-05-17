@@ -107,8 +107,6 @@ impl OperatorRegistry {
         Ipmfs::register_in_registry(&mut registry);
         #[cfg(feature = "services-icloud")]
         Icloud::register_in_registry(&mut registry);
-        #[cfg(feature = "services-libsql")]
-        Libsql::register_in_registry(&mut registry);
         #[cfg(feature = "services-memcached")]
         Memcached::register_in_registry(&mut registry);
         #[cfg(feature = "services-memory")]
@@ -153,8 +151,6 @@ impl OperatorRegistry {
         Sled::register_in_registry(&mut registry);
         #[cfg(feature = "services-sqlite")]
         Sqlite::register_in_registry(&mut registry);
-        #[cfg(feature = "services-supabase")]
-        Supabase::register_in_registry(&mut registry);
         #[cfg(feature = "services-swift")]
         Swift::register_in_registry(&mut registry);
         #[cfg(feature = "services-tikv")]

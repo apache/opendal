@@ -81,6 +81,7 @@ pub fn query_pairs(query: &str) -> Vec<(String, String)> {
         })
         .map(|(key, value)| (percent_decode_path(key), percent_decode_path(value)))
         .collect()
+}
 
 /// QueryPairsWriter is used to write query pairs to a url.
 pub struct QueryPairsWriter {

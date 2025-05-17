@@ -19,14 +19,13 @@ use crate::config::Config;
 use crate::make_tokio_runtime;
 use crate::params::config::ConfigParams;
 use anyhow::Result;
-use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
 use tokio::io::AsyncReadExt as TokioAsyncReadExt;
 use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
 #[derive(Debug, clap::Parser)]
 #[command(
     name = "tee",
-    about = "Read from source and write to destination and stdout",
+    about = "Read from standard input and write to destination and stdout",
     disable_version_flag = true
 )]
 pub struct TeeCmd {
@@ -34,8 +33,6 @@ pub struct TeeCmd {
     pub config_params: ConfigParams,
     #[arg()]
     pub destination: String,
-    #[arg(default_value = "-")]
-    pub source: String,
 }
 
 impl TeeCmd {
@@ -53,37 +50,17 @@ impl TeeCmd {
 
         let mut buf = vec![0; 8 * 1024 * 1024]; // 8MB buffer
 
-        if self.source == "-" {
-            let mut stdin = tokio::io::stdin();
-            loop {
-                let n = stdin.read(&mut buf).await?;
-                if n == 0 {
-                    break;
-                }
-
-                // Write to destination
-                writer.write_all(&buf[..n]).await?;
-                // Write to stdout
-                stdout.write_all(&buf[..n]).await?;
+        let mut stdin = tokio::io::stdin();
+        loop {
+            let n = stdin.read(&mut buf).await?;
+            if n == 0 {
+                break;
             }
-        } else {
-            let (src_op, src_path) = cfg.parse_location(&self.source)?;
-            let mut reader = src_op
-                .reader(&src_path)
-                .await?
-                .into_futures_async_read(..)
-                .await?;
-            loop {
-                let n = reader.read(&mut buf).await?;
-                if n == 0 {
-                    break;
-                }
 
-                // Write to destination
-                writer.write_all(&buf[..n]).await?;
-                // Write to stdout
-                stdout.write_all(&buf[..n]).await?;
-            }
+            // Write to destination
+            writer.write_all(&buf[..n]).await?;
+            // Write to stdout
+            stdout.write_all(&buf[..n]).await?;
         }
 
         writer.close().await?;

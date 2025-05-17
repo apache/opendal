@@ -18,6 +18,7 @@
 use crate::test_utils::*;
 use anyhow::Result;
 use std::fs;
+use std::io::Write;
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -32,8 +33,8 @@ async fn test_tee_basic() -> Result<()> {
 
     let output = oli()
         .arg("tee")
-        .arg(&source_path)
         .arg(&dest_path)
+        .arg(&source_path)
         .assert()
         .success();
 
@@ -53,8 +54,8 @@ async fn test_tee_non_existent_source() -> Result<()> {
 
     oli()
         .arg("tee")
-        .arg(source_path.to_str().unwrap())
         .arg(dest_path.to_str().unwrap())
+        .arg(source_path.to_str().unwrap())
         .assert()
         .failure();
 
@@ -75,14 +76,50 @@ async fn test_tee_destination_already_exists() -> Result<()> {
 
     let output = oli()
         .arg("tee")
-        .arg(source_path.to_str().unwrap())
         .arg(dest_path.to_str().unwrap())
+        .arg(source_path.to_str().unwrap())
         .assert()
         .success();
     let stdout_output = String::from_utf8(output.get_output().stdout.clone())?;
     assert_eq!(stdout_output, source_content);
     let dest_content_after_tee = fs::read_to_string(&dest_path)?;
     assert_eq!(dest_content_after_tee, source_content);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_tee_stdin() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let dest_path = temp_dir.path().join("dest_stdin.txt");
+
+    let test_content = "Hello from stdin!";
+
+    let mut cmd = oli();
+    cmd.arg("tee").arg(&dest_path);
+    // No source arg, should default to "-" (stdin)
+
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped()); // Ensure stdout is piped for capture
+    let mut child = cmd.spawn()?;
+    let mut stdin = child.stdin.take().expect("Failed to open stdin");
+
+    // Write content to stdin in a separate thread
+    let content_to_write = test_content.to_string();
+    std::thread::spawn(move || {
+        stdin
+            .write_all(content_to_write.as_bytes())
+            .expect("Failed to write to stdin");
+    });
+
+    let output = child.wait_with_output()?;
+
+    assert!(output.status.success());
+
+    let stdout_output = String::from_utf8(output.stdout.clone())?;
+    assert_eq!(stdout_output, test_content);
+    let dest_content = fs::read_to_string(&dest_path)?;
+    assert_eq!(dest_content, test_content);
 
     Ok(())
 }

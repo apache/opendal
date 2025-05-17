@@ -21,6 +21,7 @@ use crate::params::config::ConfigParams;
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
+use tokio::io::AsyncReadExt as TokioAsyncReadExt;
 use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
 #[derive(Debug, clap::Parser)]
 #[command(
@@ -32,9 +33,9 @@ pub struct TeeCmd {
     #[command(flatten)]
     pub config_params: ConfigParams,
     #[arg()]
-    pub source: String,
-    #[arg()]
     pub destination: String,
+    #[arg(default_value = "-")]
+    pub source: String,
 }
 
 impl TeeCmd {
@@ -45,32 +46,47 @@ impl TeeCmd {
     async fn do_run(self) -> Result<()> {
         let cfg = Config::load(&self.config_params.config)?;
 
-        let (src_op, src_path) = cfg.parse_location(&self.source)?;
         let (dst_op, dst_path) = cfg.parse_location(&self.destination)?;
 
-        let mut reader = src_op
-            .reader(&src_path)
-            .await?
-            .into_futures_async_read(..)
-            .await?;
         let mut writer = dst_op.writer(&dst_path).await?.into_futures_async_write();
         let mut stdout = tokio::io::stdout();
 
         let mut buf = vec![0; 8 * 1024 * 1024]; // 8MB buffer
 
-        loop {
-            let n = reader.read(&mut buf).await?;
-            if n == 0 {
-                break;
-            }
+        if self.source == "-" {
+            let mut stdin = tokio::io::stdin();
+            loop {
+                let n = stdin.read(&mut buf).await?;
+                if n == 0 {
+                    break;
+                }
 
-            // Write to destination
-            writer.write_all(&buf[..n]).await?;
-            // Write to stdout
-            stdout.write_all(&buf[..n]).await?;
+                // Write to destination
+                writer.write_all(&buf[..n]).await?;
+                // Write to stdout
+                stdout.write_all(&buf[..n]).await?;
+            }
+        } else {
+            let (src_op, src_path) = cfg.parse_location(&self.source)?;
+            let mut reader = src_op
+                .reader(&src_path)
+                .await?
+                .into_futures_async_read(..)
+                .await?;
+            loop {
+                let n = reader.read(&mut buf).await?;
+                if n == 0 {
+                    break;
+                }
+
+                // Write to destination
+                writer.write_all(&buf[..n]).await?;
+                // Write to stdout
+                stdout.write_all(&buf[..n]).await?;
+            }
         }
 
-        writer.close().await?; // Use shutdown for TokioAsyncWrite
+        writer.close().await?;
         stdout.flush().await?;
 
         Ok(())

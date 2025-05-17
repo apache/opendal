@@ -25,6 +25,9 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
+set(FEATURES "" CACHE STRING "opendal features")
+
+set(CARGO_FEATURES_FLAG "--features=${FEATURES}")
 
 # force the compiler to support these standards
 set(CMAKE_C_STANDARD 11)
@@ -59,7 +62,7 @@ message(NOTICE "-- OpenDAL C shared lib: ${OPENDAL_SHARED_LIB}")
 
 # custom target for cargo build
 add_custom_target(cargo_build
-    COMMAND sh -c "cargo build ${CARGO_BUILD_TYPE}"
+    COMMAND sh -c "cargo build ${CARGO_BUILD_TYPE} ${CARGO_FEATURES_FLAG}"
     BYPRODUCTS  ${OPENDAL_STATIC_LIB} ${OPENDAL_SHARED_LIB}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )

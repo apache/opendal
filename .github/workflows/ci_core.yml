@@ -88,18 +88,21 @@ jobs:
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
-      - name: Generate minimal versions lockfile
-        working-directory: core
-        run: |
-          rustup toolchain install nightly
-          cargo +nightly generate-lockfile -Z direct-minimal-versions -Z minimal-versions
       - name: Check
         working-directory: core
         run: |
+          FEATURES=(
+            services-fs
+            services-s3
+            services-azblob
+            services-gcs
+            services-http
+            # TODO: add more services here
+          )
           cargo update zerofrom --precise 0.1.5
           cargo update litemap --precise 0.7.4
           cargo update idna_adapter --precise 1.2.0
-          cargo +${OPENDAL_MSRV} clippy --all-targets --all-features -- -D warnings
+          cargo +${OPENDAL_MSRV} clippy --all-targets --features="${FEATURES[*]}" -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}

@@ -460,7 +460,7 @@ impl Error {
     /// ]
     /// ```
     pub fn backtrace(&self) -> Option<&Backtrace> {
-        self.backtrace.as_ref()
+        self.backtrace.as_ref().map(|bt| bt.as_ref())
     }
 }
 

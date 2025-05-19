@@ -417,6 +417,51 @@ impl Error {
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
     }
+
+    /// Return error's backtrace.
+    ///
+    /// Note: the standard way of exposing backtrace is the unstable feature [`error_generic_member_access`](https://github.com/rust-lang/rust/issues/99301).
+    /// We don't provide it as it requires nightly rust.
+    ///
+    /// If you just want to print error with backtrace, use `Debug`, like `format!("{err:?}")`.
+    ///
+    /// If you use nightly rust, and want to access `opendal::Error`'s backtrace in the standard way, you can
+    /// implement a newtype like this:
+    ///
+    /// ```ignore
+    /// // assume you already have `#![feature(error_generic_member_access)]` on the top of your crate
+    ///
+    /// #[derive(::std::fmt::Debug)]
+    /// pub struct OpendalError(opendal::Error);
+    ///
+    /// impl std::fmt::Display for OpendalError {
+    ///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    ///         self.0.fmt(f)
+    ///     }
+    /// }
+    ///
+    /// impl std::error::Error for OpendalError {
+    ///     fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+    ///         if let Some(bt) = self.0.backtrace() {
+    ///             request.provide_ref::<std::backtrace::Backtrace>(bt);
+    ///         }
+    ///     }
+    ///
+    ///     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    ///         self.0.source()
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Additionally, you can add a clippy lint to prevent usage of the original `opendal::Error` type.
+    /// ```toml
+    /// disallowed-types = [
+    ///     { path = "opendal::Error", reason = "Please use `my_crate::OpendalError` instead." },
+    /// ]
+    /// ```
+    pub fn backtrace(&self) -> Option<&Backtrace> {
+        self.backtrace.as_ref()
+    }
 }
 
 impl From<Error> for io::Error {

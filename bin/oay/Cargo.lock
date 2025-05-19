@@ -192,9 +192,9 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 
 [[package]]
 name = "cc"
-version = "1.2.21"
+version = "1.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8691782945451c1c383942c4874dbe63814f61cb57ef773cda2972682b7bb3c0"
+checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
 dependencies = [
  "shlex",
 ]
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1031,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.41.20"
+version = "0.41.21"
 dependencies = [
  "anyhow",
  "axum",
@@ -1066,7 +1066,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "opendal"
-version = "0.53.2"
+version = "0.53.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1486,9 +1486,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.2"
+version = "0.103.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7149975849f1abb3832b246010ef62ccc80d3a76169517ada7188252b9cfb437"
+checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
 dependencies = [
  "ring",
  "rustls-pki-types",

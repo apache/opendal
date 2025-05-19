@@ -277,6 +277,7 @@ jobs:
     needs: [macos, linux, windows]
     permissions:
       id-token: write
+      contents: write
 
     # Notes: this defaults only apply on run tasks.
     defaults:

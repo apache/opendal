@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.53.3] - 2025-05-14
+
+### Added
+* feat(java): add ReadOptions for read methods by @liamzwbao in https://github.com/apache/opendal/pull/6157
+* feat(core): support sharing one redb database between different Operators by @TD-Sky in https://github.com/apache/opendal/pull/6173
+* feat(bin/oli): support cp to dir by @asukaminato0721 in https://github.com/apache/opendal/pull/6140
+### Changed
+* refactor(bindings/java): deprecate append in favor of write with append=true by @kingsword09 in https://github.com/apache/opendal/pull/6169
+### Fixed
+* fix(bindings/go): update dependencies by @JupiterRider in https://github.com/apache/opendal/pull/6175
+* fix(integrations/object_store): fix double percent encoding by @Colerar in https://github.com/apache/opendal/pull/6166
+* fix(services/fs): Make fs services work on our MSRV by @Xuanwo in https://github.com/apache/opendal/pull/6183
+### CI
+* ci: uses taiki-e/install-action to replace cargo insatll by @xxchan in https://github.com/apache/opendal/pull/6168
+* ci(bindings/node): Add contents permissions for nodejs release by @Xuanwo in https://github.com/apache/opendal/pull/6182
+* ci(bindings/java): Enable zig build for java by @Xuanwo in https://github.com/apache/opendal/pull/6181
+
 ## [v0.53.2] - 2025-05-09
 
 ### Added
@@ -4556,6 +4573,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.53.3]: https://github.com/apache/opendal/compare/v0.53.2...v0.53.3
 [v0.53.2]: https://github.com/apache/opendal/compare/v0.53.1...v0.53.2
 [v0.53.1]: https://github.com/apache/opendal/compare/v0.53.0...v0.53.1
 [v0.53.0]: https://github.com/apache/opendal/compare/v0.52.0...v0.53.0

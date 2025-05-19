@@ -26,5 +26,6 @@ mod ls;
 mod mv;
 mod rm;
 mod stat;
+mod tee;
 
 pub mod test_utils;

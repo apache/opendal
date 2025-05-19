@@ -32,8 +32,7 @@ on:
   workflow_dispatch:
 
 env:
-  # Refer to https://github.com/apache/opendal/issues/5935
-  CARGO_BUILD_ENABLE_ZIGBUILD: "false"
+  CARGO_BUILD_ENABLE_ZIGBUILD: "true"
 
 jobs:
   stage-snapshot:

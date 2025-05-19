@@ -100,8 +100,8 @@ jobs:
             # TODO: add more services here
           )
           cargo update zerofrom --precise 0.1.5
-          cargo update litemap --precise 0.7.4
           cargo update idna_adapter --precise 1.2.0
+          cargo update litemap --precise 0.7.4
           cargo +${OPENDAL_MSRV} clippy --all-targets --features="${FEATURES[*]}" -- -D warnings
 
   build_default_features:

@@ -139,6 +139,15 @@ impl AzdlsBuilder {
         self
     }
 
+    /// Set sas_token of this backend.
+    pub fn sas_token(mut self, sas_token: &str) -> Self {
+        if !sas_token.is_empty() {
+            self.config.sas_token = Some(sas_token.to_string());
+        }
+
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -187,7 +196,7 @@ impl Builder for AzdlsBuilder {
                 .clone()
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
-            sas_token: None,
+            sas_token: self.config.sas_token.clone(),
             ..Default::default()
         };
 
@@ -227,6 +236,13 @@ impl Builder for AzdlsBuilder {
                             list_has_etag: true,
                             list_has_content_length: true,
                             list_has_last_modified: true,
+                            #[cfg(feature = "azdls-list-with-start-after")]
+                            list_with_start_after: true,
+
+                            presign: self.config.sas_token.is_some(),
+                            presign_stat: self.config.sas_token.is_some(),
+                            presign_read: self.config.sas_token.is_some(),
+                            presign_write: self.config.sas_token.is_some(),
 
                             shared: true,
 
@@ -327,7 +343,7 @@ impl Access for AzdlsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
+        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args);
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

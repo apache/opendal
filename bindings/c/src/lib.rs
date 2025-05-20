@@ -30,6 +30,8 @@
 //!
 //! For examples, you may see the examples subdirectory
 
+use tracing_subscriber::EnvFilter;
+
 mod error;
 pub use error::opendal_code;
 pub use error::opendal_error;
@@ -70,3 +72,27 @@ pub use reader::opendal_reader;
 
 mod writer;
 pub use writer::opendal_writer;
+
+mod logging;
+pub use logging::opendal_init_glog_logging;
+
+/// 
+/// Initializes a global logger for OpenDAL.
+/// 
+/// This function should be called once at the beginning of the program.
+/// It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
+/// environment variable for log level configuration.
+/// 
+/// # Example
+/// ```c
+/// // In your C code
+/// opendal_init_logger();
+/// // Now OpenDAL operations will output logs according to RUST_LOG
+/// ```
+#[no_mangle]
+pub extern "C" fn opendal_init_logger() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init()
+        .unwrap_or_else(|e| eprintln!("opendal_init_logger: failed to init logger: {}", e));
+}

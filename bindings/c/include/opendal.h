@@ -635,9 +635,31 @@ typedef struct opendal_result_writer_write {
   struct opendal_error *error;
 } opendal_result_writer_write;
 
+typedef void (*opendal_glog_callback_t)(int32_t level,
+                                        const char *file,
+                                        uint32_t line,
+                                        const char *message);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ *
+ * Initializes a global logger for OpenDAL.
+ *
+ * This function should be called once at the beginning of the program.
+ * It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
+ * environment variable for log level configuration.
+ *
+ * # Example
+ * ```c
+ * // In your C code
+ * opendal_init_logger();
+ * // Now OpenDAL operations will output logs according to RUST_LOG
+ * ```
+ */
+void opendal_init_logger(void);
 
 /**
  * \brief Frees the opendal_error, ok to call on NULL
@@ -1483,6 +1505,19 @@ struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
  * \brief Frees the heap memory used by the opendal_writer.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
+
+/**
+ * Initializes OpenDAL logging to forward logs to a C callback,
+ * presumably for integration with glog or a similar C/C++ logging library.
+ *
+ * This function should be called once at the beginning of the program.
+ *
+ * # Safety
+ * The `callback` function pointer must be valid for the lifetime of the program
+ * if it is not NULL. It must also be safe to call from multiple threads if OpenDAL
+ * operations are performed in a multi-threaded environment.
+ */
+void opendal_init_glog_logging(opendal_glog_callback_t callback);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -59,7 +59,7 @@ jobs:
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON -DFEATURES=opendal/services-memory 
+          cmake .. -DTEST_ENABLE_ASAN=ON -DFEATURES=opendal/layers-tracing,opendal/services-memory 
           make -j$(nproc)
 
       - name: Compile logging_example.c

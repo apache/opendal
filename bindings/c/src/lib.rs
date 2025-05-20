@@ -76,13 +76,13 @@ pub use writer::opendal_writer;
 mod logging;
 pub use logging::opendal_init_glog_logging;
 
-/// 
+///
 /// Initializes a global logger for OpenDAL.
-/// 
+///
 /// This function should be called once at the beginning of the program.
 /// It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
 /// environment variable for log level configuration.
-/// 
+///
 /// # Example
 /// ```c
 /// // In your C code

@@ -18,7 +18,7 @@
 use std::ffi::{c_char, CString};
 use std::sync::{Mutex, OnceLock};
 use tracing::subscriber::set_global_default;
-use tracing::{Event, Level, Subscriber, Metadata};
+use tracing::{Event, Level, Metadata, Subscriber};
 
 // Define the C callback function pointer type.
 // Parameters:
@@ -109,7 +109,11 @@ impl Subscriber for GlogSubscriber {
     }
 
     fn event(&self, event: &Event) {
-        println!("[Rust GlogSubscriber::event] Entered. Level: {:?}, Target: {}", event.metadata().level(), event.metadata().target()); // DEBUG
+        println!(
+            "[Rust GlogSubscriber::event] Entered. Level: {:?}, Target: {}",
+            event.metadata().level(),
+            event.metadata().target()
+        ); // DEBUG
         let glog_cb_guard = get_glog_callback().lock().unwrap();
         if let Some(cb) = *glog_cb_guard {
             let metadata = event.metadata();
@@ -120,23 +124,29 @@ impl Subscriber for GlogSubscriber {
             // Create a visitor to extract the message
             struct MessageVisitor<'a>(&'a mut Option<String>);
             impl<'a> tracing::field::Visit for MessageVisitor<'a> {
-                fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                fn record_debug(
+                    &mut self,
+                    field: &tracing::field::Field,
+                    value: &dyn std::fmt::Debug,
+                ) {
                     if field.name() == "message" {
-                        if self.0.is_none() { // Take the first "message" field
-                           *self.0 = Some(format!("{:?}", value));
+                        if self.0.is_none() {
+                            // Take the first "message" field
+                            *self.0 = Some(format!("{:?}", value));
                         }
                     }
                 }
             }
-            
+
             let mut message_opt = None;
             let mut visitor = MessageVisitor(&mut message_opt);
             event.record(&mut visitor);
 
             if let Some(message_str) = message_opt {
-                 // DEBUG PRINT
-                 println!("[Rust GlogSubscriber] Event message_str: {}", message_str);
-                 if let Ok(message_cstring) = CString::new(message_str) { // message_str is String, CString takes ownership
+                // DEBUG PRINT
+                println!("[Rust GlogSubscriber] Event message_str: {}", message_str);
+                if let Ok(message_cstring) = CString::new(message_str) {
+                    // message_str is String, CString takes ownership
                     unsafe {
                         cb(
                             level,
@@ -149,12 +159,16 @@ impl Subscriber for GlogSubscriber {
                     eprintln!("OpenDAL glog layer: log message contained null byte and could not be sent to C.");
                 }
             } else {
-                 // If there's no field named "message", try to format the whole event.
-                 // This is a fallback and might not be ideal for structured glog.
-                 let fallback_message = format!("{:?}", event.fields());
-                 // DEBUG PRINT
-                 println!("[Rust GlogSubscriber] Fallback message_str: {}", fallback_message);
-                 if let Ok(message_cstring) = CString::new(fallback_message) { // fallback_message is String
+                // If there's no field named "message", try to format the whole event.
+                // This is a fallback and might not be ideal for structured glog.
+                let fallback_message = format!("{:?}", event.fields());
+                // DEBUG PRINT
+                println!(
+                    "[Rust GlogSubscriber] Fallback message_str: {}",
+                    fallback_message
+                );
+                if let Ok(message_cstring) = CString::new(fallback_message) {
+                    // fallback_message is String
                     unsafe {
                         cb(
                             level,
@@ -163,9 +177,9 @@ impl Subscriber for GlogSubscriber {
                             message_cstring.as_ptr(),
                         );
                     }
-                 } else {
+                } else {
                     eprintln!("OpenDAL glog layer: fallback log message contained null byte.");
-                 }
+                }
             }
         }
     }
@@ -177,4 +191,4 @@ impl Subscriber for GlogSubscriber {
     fn exit(&self, _span: &tracing::span::Id) {
         // No-op
     }
-} 
+}

@@ -645,23 +645,6 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- *
- * Initializes a global logger for OpenDAL.
- *
- * This function should be called once at the beginning of the program.
- * It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
- * environment variable for log level configuration.
- *
- * # Example
- * ```c
- * // In your C code
- * opendal_init_logger();
- * // Now OpenDAL operations will output logs according to RUST_LOG
- * ```
- */
-void opendal_init_logger(void);
-
-/**
  * \brief Frees the opendal_error, ok to call on NULL
  */
 void opendal_error_free(struct opendal_error *ptr);
@@ -1505,6 +1488,23 @@ struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
  * \brief Frees the heap memory used by the opendal_writer.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
+
+/**
+ *
+ * Initializes a global logger for OpenDAL.
+ *
+ * This function should be called once at the beginning of the program.
+ * It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
+ * environment variable for log level configuration.
+ *
+ * # Example
+ * ```c
+ * // In your C code
+ * opendal_init_logger();
+ * // Now OpenDAL operations will output logs according to RUST_LOG
+ * ```
+ */
+void opendal_init_logger(void);
 
 /**
  * Initializes OpenDAL logging to forward logs to a C callback,

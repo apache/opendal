@@ -19,6 +19,7 @@ use std::ffi::{c_char, CString};
 use std::sync::{Mutex, OnceLock};
 use tracing::subscriber::set_global_default;
 use tracing::{Event, Level, Metadata, Subscriber};
+use tracing_subscriber::EnvFilter;
 
 // Define the C callback function pointer type.
 // Parameters:
@@ -35,6 +36,27 @@ static GLOG_CALLBACK: OnceLock<Mutex<opendal_glog_callback_t>> = OnceLock::new()
 
 fn get_glog_callback() -> &'static Mutex<opendal_glog_callback_t> {
     GLOG_CALLBACK.get_or_init(|| Mutex::new(None))
+}
+
+///
+/// Initializes a global logger for OpenDAL.
+///
+/// This function should be called once at the beginning of the program.
+/// It uses `tracing_subscriber` to set up a logger that respects the `RUST_LOG`
+/// environment variable for log level configuration.
+///
+/// # Example
+/// ```c
+/// // In your C code
+/// opendal_init_logger();
+/// // Now OpenDAL operations will output logs according to RUST_LOG
+/// ```
+#[no_mangle]
+pub extern "C" fn opendal_init_logger() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init()
+        .unwrap_or_else(|e| eprintln!("opendal_init_logger: failed to init logger: {}", e));
 }
 
 /// Initializes OpenDAL logging to forward logs to a C callback,

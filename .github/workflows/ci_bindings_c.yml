@@ -69,7 +69,7 @@ jobs:
       - name: Run logging_example.c with RUST_LOG
         working-directory: "bindings/c/build"
         run: |
-          export RUST_LOG=opendal_core=trace
+          export RUST_LOG=opendal=trace
           ./logging_example 2>&1 | tee output.txt
           cat output.txt
           grep "opendal::services" output.txt || (echo "RUST_LOG output not found" && exit 1)

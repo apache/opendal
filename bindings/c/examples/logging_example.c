@@ -52,7 +52,7 @@ int main() {
         fprintf(stderr, "Error checking path existence: %.*s\n", (int)result_exists.error->message.len, (char*)result_exists.error->message.data);
         opendal_error_free(result_exists.error);
     } else {
-        if (result_exists.is_exist) {
+        if (result_exists.exists) {
             printf("Path '%s' exists.\n", path);
         } else {
             printf("Path '%s' does not exist.\n", path);

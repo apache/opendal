@@ -111,7 +111,7 @@ jobs:
           OS: ${{ matrix.build.os }}
         run: |
           SERVICE_DASH="${SERVICE//_/-}"
-          cargo build --target $env:TARGET --release  --features "opendal/services-${SERVICE_DASH}"
+          cargo build --target $TARGET --release  --features "opendal/services-${SERVICE_DASH}"
           DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
           mkdir $DIR
           if [ ${OS} == 'ubuntu-latest' ]; then

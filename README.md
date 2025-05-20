@@ -2,6 +2,7 @@
 
 [![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
+[![](https://deepwiki.com/badge.svg)](https://deepwiki.com/apache/opendal)
 
 OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 

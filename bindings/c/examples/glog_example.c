@@ -90,7 +90,7 @@ int main() {
     // Example of writing a small file to see more logs
     const char* content = "Hello from OpenDAL C glog example!";
     opendal_bytes data_to_write = {
-        .data = (const uint8_t*)content,
+        .data = (uint8_t*)content,
         .len = strlen(content)
     };
     printf("Writing to path '%s' (This should be logged by glog adapter)\n", path);

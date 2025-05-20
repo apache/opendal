@@ -35,7 +35,7 @@ int main() {
     opendal_operator_options_free(options);
 
     if (result_op_new.error) {
-        fprintf(stderr, "Failed to create operator: %s\n", result_op_new.error->message);
+        fprintf(stderr, "Failed to create operator: %.*s\n", (int)result_op_new.error->message.len, (char*)result_op_new.error->message.data);
         opendal_error_free(result_op_new.error);
         return 1;
     }
@@ -46,13 +46,13 @@ int main() {
     // Perform an operation that should generate logs
     const char *path = "test_logging.txt";
     printf("Checking if path '%s' exists...\n", path);
-    opendal_result_is_exist result_is_exist = opendal_operator_is_exist(op, path);
+    opendal_result_exists result_exists = opendal_operator_exists(op, path);
 
-    if (result_is_exist.error) {
-        fprintf(stderr, "Error checking path existence: %s\n", result_is_exist.error->message);
-        opendal_error_free(result_is_exist.error);
+    if (result_exists.error) {
+        fprintf(stderr, "Error checking path existence: %.*s\n", (int)result_exists.error->message.len, (char*)result_exists.error->message.data);
+        opendal_error_free(result_exists.error);
     } else {
-        if (result_is_exist.is_exist) {
+        if (result_exists.is_exist) {
             printf("Path '%s' exists.\n", path);
         } else {
             printf("Path '%s' does not exist.\n", path);
@@ -62,13 +62,13 @@ int main() {
     // Example of writing a small file to see more logs
     const char* content = "Hello from OpenDAL C logging example!";
     opendal_bytes data_to_write = {
-        .data = (const uint8_t*)content,
+        .data = (uint8_t*)content,
         .len = strlen(content)
     };
     printf("Writing to path '%s'\n", path);
     opendal_error* write_err = opendal_operator_write(op, path, &data_to_write);
     if (write_err) {
-        fprintf(stderr, "Error writing to path: %s\n", write_err->message);
+        fprintf(stderr, "Error writing to path: %.*s\n", (int)write_err->message.len, (char*)write_err->message.data);
         opendal_error_free(write_err);
     } else {
         printf("Successfully wrote to '%s'\n", path);

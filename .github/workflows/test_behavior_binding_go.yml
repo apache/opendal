@@ -43,7 +43,7 @@ jobs:
           echo "build=$MATRIX" >> $GITHUB_OUTPUT
 
   test:
-    needs: [ set-build ]
+    needs: [set-build]
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
     strategy:
@@ -55,8 +55,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-            repository: "apache/opendal-go-services"
-            path: "tools"
+          repository: "apache/opendal-go-services"
+          path: "tools"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -120,7 +120,7 @@ jobs:
           OS: ${{ matrix.build.os }}
         run: |
           cargo build --target $TARGET --release
-          DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
+          DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET --features "opendal/services-${{ matrix.cases.service }}"
           mkdir $DIR
           if [ ${OS} == 'ubuntu-latest' ]; then
             SO=so
@@ -137,7 +137,7 @@ jobs:
           TARGET: ${{ matrix.build.target }}
           CC: ${{ matrix.build.cc }}
         run: |
-          cargo build --target $env:TARGET --release
+          cargo build --target $env:TARGET --release --features "opendal/services-${{ matrix.cases.service }}"
           $DIR="$env:GITHUB_WORKSPACE\libopendal_c_${env:VERSION}_${env:SERVICE}_${env:TARGET}"
           Rename-Item -Path "./target/$env:TARGET/release/opendal_c.dll" -NewName "libopendal_c.dll"
           New-Item -ItemType Directory -Force -Path $DIR
@@ -196,4 +196,3 @@ jobs:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
-

@@ -110,7 +110,8 @@ jobs:
           CC: ${{ matrix.build.cc }}
           OS: ${{ matrix.build.os }}
         run: |
-          cargo build --target $TARGET --release --features "opendal/services-${{ replace(matrix.cases.service, '_', '-') }}"
+          SERVICE_DASH="${SERVICE//_/-}"
+          cargo build --target $env:TARGET --release  --features "opendal/services-${SERVICE_DASH}"
           DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
           mkdir $DIR
           if [ ${OS} == 'ubuntu-latest' ]; then
@@ -128,7 +129,8 @@ jobs:
           TARGET: ${{ matrix.build.target }}
           CC: ${{ matrix.build.cc }}
         run: |
-          cargo build --target $env:TARGET --release  --features "opendal/services-${{ replace(matrix.cases.service, '_', '-') }}"
+          $service_dash = ${env:SERVICE} -replace '_', '-'
+          cargo build --target $env:TARGET --release  --features "opendal/services-$service_dash"
           $DIR="$env:GITHUB_WORKSPACE\libopendal_c_${env:VERSION}_${env:SERVICE}_${env:TARGET}"
           Rename-Item -Path "./target/$env:TARGET/release/opendal_c.dll" -NewName "libopendal_c.dll"
           New-Item -ItemType Directory -Force -Path $DIR

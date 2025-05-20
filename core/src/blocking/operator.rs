@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::operator_functions::*;
-use crate::raw::oio::BlockingDelete;
 use crate::raw::*;
+use crate::Operator as AsyncOperator;
 use crate::*;
 
 /// BlockingOperator is the entry for all public blocking APIs.
@@ -73,37 +72,11 @@ use crate::*;
 /// }
 /// ```
 #[derive(Clone, Debug)]
-pub struct BlockingOperator {
-    accessor: Accessor,
+pub struct Operator {
+    op: AsyncOperator,
 }
 
-impl BlockingOperator {
-    pub(super) fn inner(&self) -> &Accessor {
-        &self.accessor
-    }
-
-    /// create a new blocking operator from inner accessor.
-    ///
-    /// # Note
-    /// default batch limit is 1000.
-    pub(crate) fn from_inner(accessor: Accessor) -> Self {
-        Self { accessor }
-    }
-
-    /// Get current operator's limit
-    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
-    pub fn limit(&self) -> usize {
-        0
-    }
-
-    /// Specify the batch limit.
-    ///
-    /// Default: 1000
-    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
-    pub fn with_limit(&self, _: usize) -> Self {
-        self.clone()
-    }
-
+impl Operator {
     /// Get information of underlying accessor.
     ///
     /// # Examples
@@ -119,12 +92,12 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn info(&self) -> OperatorInfo {
-        OperatorInfo::new(self.accessor.info())
+        self.op.info()
     }
 }
 
 /// # Operator blocking API.
-impl BlockingOperator {
+impl Operator {
     /// Get given path's metadata.
     ///
     /// # Behavior
@@ -1132,11 +1105,5 @@ impl BlockingOperator {
             Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
             _ => Ok(()),
         }
-    }
-}
-
-impl From<BlockingOperator> for Operator {
-    fn from(v: BlockingOperator) -> Self {
-        Operator::from_inner(v.accessor)
     }
 }

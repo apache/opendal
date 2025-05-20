@@ -118,7 +118,7 @@ impl Subscriber for GlogSubscriber {
         if let Some(cb) = *glog_cb_guard {
             let metadata = event.metadata();
             let level = Self::glog_level_from_tracing_level(metadata.level());
-            let file = metadata.file().map(|f| CString::new(f).ok()).flatten();
+            let file = metadata.file().and_then(|f| CString::new(f).ok());
             let line = metadata.line().unwrap_or(0);
 
             // Create a visitor to extract the message
@@ -129,11 +129,9 @@ impl Subscriber for GlogSubscriber {
                     field: &tracing::field::Field,
                     value: &dyn std::fmt::Debug,
                 ) {
-                    if field.name() == "message" {
-                        if self.0.is_none() {
-                            // Take the first "message" field
-                            *self.0 = Some(format!("{:?}", value));
-                        }
+                    if field.name() == "message" && self.0.is_none() {
+                        // Take the first "message" field
+                        *self.0 = Some(format!("{:?}", value));
                     }
                 }
             }

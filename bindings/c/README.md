@@ -151,8 +151,6 @@ int main() {
 
 Refer to the `examples/glog_example.c` for a runnable example.
 
-**Note:** Currently, while the infrastructure for `glog` style callback logging is in place and `opendal_init_glog_logging` can be called, there is an outstanding issue where OpenDAL's internal logs may not be consistently routed through this callback. The `RUST_LOG` based method is more reliable for observing detailed internal logs at this time. The `LoggingLayer` is automatically applied to operators, which generates the necessary trace events.
-
 ## Prerequisites
 
 To build OpenDAL C binding, the following is all you need:

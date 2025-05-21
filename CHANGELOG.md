@@ -7,22 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
-## [v0.53.3] - 2025-05-14
+## [v0.53.3] - 2025-05-21
 
 ### Added
 * feat(java): add ReadOptions for read methods by @liamzwbao in https://github.com/apache/opendal/pull/6157
 * feat(core): support sharing one redb database between different Operators by @TD-Sky in https://github.com/apache/opendal/pull/6173
 * feat(bin/oli): support cp to dir by @asukaminato0721 in https://github.com/apache/opendal/pull/6140
+* feat(bin/oli): support tee by @asukaminato0721 in https://github.com/apache/opendal/pull/6194
+* feat: expose `Error::backtrace()` by @xxchan in https://github.com/apache/opendal/pull/6196
+* feat(bindings/c)!: Make features configurable via CMakeLists by @asukaminato0721 in https://github.com/apache/opendal/pull/6143
+* feat: ADLS Client Credential Authentication by @c-thiel in https://github.com/apache/opendal/pull/6205
 ### Changed
 * refactor(bindings/java): deprecate append in favor of write with append=true by @kingsword09 in https://github.com/apache/opendal/pull/6169
+* refactor(core): Put Backtrace in a box to reduce error size by @Xuanwo in https://github.com/apache/opendal/pull/6193
 ### Fixed
 * fix(bindings/go): update dependencies by @JupiterRider in https://github.com/apache/opendal/pull/6175
 * fix(integrations/object_store): fix double percent encoding by @Colerar in https://github.com/apache/opendal/pull/6166
 * fix(services/fs): Make fs services work on our MSRV by @Xuanwo in https://github.com/apache/opendal/pull/6183
+* fix(services/s3): Remove not needed check for batch delete by @Xuanwo in https://github.com/apache/opendal/pull/6206
+### Docs
+* fix: typo error in 0429_init_from_iter.md by @warjiang in https://github.com/apache/opendal/pull/6203
+* doc: case-police Ocaml to OCaml by @yihong0618 in https://github.com/apache/opendal/pull/6204
 ### CI
 * ci: uses taiki-e/install-action to replace cargo insatll by @xxchan in https://github.com/apache/opendal/pull/6168
 * ci(bindings/node): Add contents permissions for nodejs release by @Xuanwo in https://github.com/apache/opendal/pull/6182
 * ci(bindings/java): Enable zig build for java by @Xuanwo in https://github.com/apache/opendal/pull/6181
+* ci: Fix behavior tests for go bindings by @Xuanwo in https://github.com/apache/opendal/pull/6199
+### Chore
+* Bump opendal to v0.53.3 (Round 1) by @Xuanwo in https://github.com/apache/opendal/pull/6186
+* chore: remove useless labeler.yml by @koushiro in https://github.com/apache/opendal/pull/6192
 
 ## [v0.53.2] - 2025-05-09
 

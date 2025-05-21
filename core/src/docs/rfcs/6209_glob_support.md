@@ -15,13 +15,13 @@ Currently, users who want to filter objects based on patterns have to list all o
 
 # Guide-level explanation
 
-With glob support, users can easily match files based on patterns. The API would be available on the `Operator` struct, allowing users to get an iterator over entries that match the provided glob pattern.
+With glob support, users can easily match files based on patterns. The API would be available as an option on the `list_with` method, allowing users to get an iterator over entries that match the provided glob pattern.
 
 For example:
 
 ```rust
 // Get an iterator over all jpeg files in the media directory and its subdirectories
-let it = op.glob("media/**/*.jpg").await?;
+let it = op.list_with("media/").glob("**/*.jpg").await?;
 
 while let Some(entry) = it.next().await? {
    do_something(&entry);
@@ -41,92 +41,110 @@ Both blocking and non-blocking (async) versions of the API would be provided:
 
 ```rust
 // Async version
-pub async fn glob(&self, pattern: &str) -> Result<GlobStream>;
+async fn list_with(&self, path: &str) -> Lister {
+    // ...
+}
+
+impl Lister {
+    pub fn glob(self, pattern: &str) -> Result<impl Stream<Item = Result<Entry>>> {
+        // ...
+    }
+}
 
 // Blocking version
-pub fn glob_blocking(&self, pattern: &str) -> Result<GlobStreamBlocking>;
+fn list_blocking_with(&self, path: &str) -> BlockingLister {
+    // ...
+}
+
+impl BlockingLister {
+    pub fn glob(self, pattern: &str) -> Result<impl Iterator<Item = Result<Entry>>> {
+        // ...
+    }
+}
 ```
 
 # Reference-level explanation
 
 The implementation would involve:
 
-1. Adding a dependency on a glob pattern matching library like [globset](https://crates.io/crates/globset) or [glob](https://crates.io/crates/glob)
+1. Implementing a pattern matching logic for glob expressions. This can be a simplified version focusing on common use cases like `*`, `?`, and `**`.
 
-2. Adding new methods to the `Operator` struct:
-
-```rust
-impl Operator {
-    pub async fn glob(&self, pattern: &str) -> Result<GlobStream> {
-        let pattern = GlobPattern::new(pattern)?;
-        let lister = self.scan().await?;
-        
-        Ok(GlobStream::new(lister, pattern))
-    }
-    
-    pub fn glob_blocking(&self, pattern: &str) -> Result<GlobStreamBlocking> {
-        let pattern = GlobPattern::new(pattern)?;
-        let lister = self.scan_blocking()?;
-        
-        Ok(GlobStreamBlocking::new(lister, pattern))
-    }
-}
-```
-
-3. Creating `GlobStream` and `GlobStreamBlocking` types to wrap the existing lister types and filter entries based on the glob pattern:
+2. Modifying the `Lister` and `BlockingLister` (or their underlying streams/iterators) to accept a glob pattern and filter entries accordingly.
 
 ```rust
-pub struct GlobStream {
-    inner: ObjectStream,
-    pattern: GlobPattern,
-}
-
-impl Stream for GlobStream {
-    type Item = Result<Entry>;
-    
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        loop {
-            match ready!(self.project().inner.poll_next(cx)) {
-                Some(Ok(entry)) => {
-                    if self.pattern.matches(entry.path()) {
-                        return Poll::Ready(Some(Ok(entry)));
-                    }
-                }
-                Some(Err(e)) => return Poll::Ready(Some(Err(e))),
-                None => return Poll::Ready(None),
+// Example for async Lister
+impl Lister {
+    pub fn glob(self, glob_pattern: &str) -> Result<impl Stream<Item = Result<Entry>>> {
+        let pattern = GlobPattern::new(glob_pattern)?;
+        // self here is the existing Lister
+        // We need to adapt the underlying stream to filter based on `pattern`
+        // This might involve creating a new stream type that wraps the original one.
+        Ok(self.filter(move |entry: &Result<Entry>| {
+            match entry {
+                Ok(e) => pattern.matches(e.path()),
+                Err(_) => true, // Pass through errors
             }
-        }
+        }))
+    }
+}
+
+// Similar changes would apply to BlockingLister
+```
+
+The `GlobPattern` struct would encapsulate the parsed glob pattern and the matching logic.
+
+```rust
+struct GlobPattern {
+    // internal representation of the pattern
+}
+
+impl GlobPattern {
+    fn new(pattern: &str) -> Result<Self> {
+        // Parse the pattern string
+        // ...
+    }
+
+    fn matches(&self, path: &str) -> bool {
+        // Perform the matching logic
+        // ...
     }
 }
 ```
 
-The implementation would be built on top of the existing listing capabilities, so it would work across all services that support listing. The actual matching would happen client-side since most storage services don't natively support glob filtering.
+The implementation would be built on top of the existing listing capabilities. Pattern matching will primarily occur client-side. However, for services with native glob/pattern support (e.g., GCS `matchGlob`, Redis `SCAN` with `MATCH`), OpenDAL will delegate the pattern matching to the service where possible to improve efficiency.
 
 # Drawbacks
 
-- Adding glob support increases the API surface area slightly
-- The glob matching happens client-side, so all objects still need to be listed and transferred over the network before filtering
-- It may not be as efficient as server-side filtering for services that could support it natively
+- While the API surface change is minimized by integrating with `list_with`, it still introduces a new concept (glob patterns) for users to learn.
+- Implementing server-side delegation adds complexity, as OpenDAL needs to identify services with native support and translate glob patterns to their specific syntax.
+- For services without native glob support, client-side matching still requires listing all potentially relevant entries first, which might be inefficient for very large directories or complex patterns.
+- Ensuring consistent behavior between client-side and various server-side implementations of glob matching can be challenging.
 
 # Rationale and alternatives
 
-This design builds on top of existing listing functionality, making it relatively simple to implement while still providing a useful feature. It leverages existing Rust glob libraries rather than implementing pattern matching from scratch.
+This design integrates glob filtering into the existing `list_with` API, providing a natural extension to current functionality. We will implement our own pattern matching logic, focusing on commonly used glob syntax (e.g., `*`, `?`, `**`, `*.parquet`) to avoid the complexity of full-featured glob libraries designed for local file systems. This approach allows for a lean implementation tailored to object storage path matching.
+
+Where services offer native pattern matching capabilities, OpenDAL will delegate to them. This leverages server-side efficiencies. For other services, client-side filtering will be applied after listing entries.
 
 Alternatives considered:
 
 1. Not implementing this feature and letting users implement filtering manually
-   - This puts the burden on users and leads to repetitive code
-   - Users might implement inefficient or buggy filtering
+   - This puts the burden on users and leads to repetitive code.
+   - Users might implement inefficient or buggy filtering.
 
-2. Implementing server-side filtering for services that support it
-   - More complex and would require service-specific implementations
-   - Not all services support the same pattern syntax, leading to inconsistencies
+2. Relying entirely on an external glob library
+    - Most glob libraries include complex logic for local file systems (e.g., directory traversal, symlink handling) which is not needed for OpenDAL's path matching.
+    - This can introduce unnecessary dependencies and overhead.
 
-3. Adding a more general filtering API instead of specifically glob patterns
-   - Would be more flexible but also more complex
-   - Glob patterns are familiar to users and cover many common use cases
+3. Implementing server-side filtering *only* for services that support it, without a client-side fallback.
+   - This would lead to inconsistent feature availability across services.
+   - A client-side fallback ensures glob functionality is universally available.
 
-Not providing glob support means users continue to write verbose code for a common operation, reducing OpenDAL's ergonomics.
+4. Adding a more general filtering API instead of specifically glob patterns
+   - While potentially more flexible, this would be more complex to design and implement.
+   - Glob patterns are a well-understood and widely used standard for this type of path matching, covering the majority of use cases.
+
+Not providing a unified glob capability means users continue to write verbose code for a common operation, or face inconsistencies if trying to leverage service-specific features directly. OpenDAL aims to provide a consistent and ergonomic interface for such common tasks.
 
 # Prior art
 

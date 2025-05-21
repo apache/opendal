@@ -141,12 +141,9 @@ Most implementations provide similar syntax, though there are some variations. W
 
 # Unresolved questions
 
-- Should we support custom pattern matching options like case sensitivity?
-- Should we provide a way to limit recursion depth when using `**` patterns?
-- Should we provide additional methods for specific use cases like collecting all matches into a vector?
+None
 
 # Future possibilities
 
 - If services add native support for glob filtering, we could optimize by pushing the filtering to the server side
 - We could extend the API to support more advanced pattern matching like regex
-- We might add bulk operations that work on glob matches, like deleting all matches 

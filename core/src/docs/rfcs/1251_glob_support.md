@@ -1,7 +1,7 @@
 - Proposal Name: `glob_support`
-- Start Date: 2023-01-29
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#1251](https://github.com/apache/opendal/issues/1251)
+- Start Date: 2025-05-21
+- RFC PR: [apache/opendal#6209](https://github.com/apache/opendal/pull/6209)
+- Tracking Issue: [apache/opendal#6210](https://github.com/apache/opendal/issues/6210)
 
 # Summary
 

@@ -29,6 +29,7 @@ use reqsign::AzureStorageSigner;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
+use super::endpoint::DfsEndpoint;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
@@ -36,16 +37,6 @@ use super::writer::AzdlsWriters;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
-
-/// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
-/// Azure public cloud: https://accountname.dfs.core.windows.net
-/// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
-/// Azure China: https://accountname.dfs.core.chinacloudapi.cn
-const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
-    "dfs.core.windows.net",
-    "dfs.core.usgovcloudapi.net",
-    "dfs.core.chinacloudapi.cn",
-];
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
@@ -246,7 +237,7 @@ impl Builder for AzdlsBuilder {
                 .config
                 .account_name
                 .clone()
-                .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
+                .or_else(|| infer_account_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
             sas_token: self.config.sas_token,
             client_id: self.config.client_id.clone(),
@@ -417,42 +408,27 @@ impl Access for AzdlsBackend {
     }
 }
 
-fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let storage_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if KNOWN_AZDLS_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
-        storage_name.map(|s| s.to_string())
-    } else {
-        None
-    }
+fn infer_account_name_from_endpoint(value: &str) -> Option<String> {
+    DfsEndpoint::try_from(value)
+        .ok()
+        .map(|endpoint| endpoint.account_name().to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::infer_storage_name_from_endpoint;
+    use super::infer_account_name_from_endpoint;
 
     #[test]
-    fn test_infer_storage_name_from_endpoint() {
+    fn test_infer_account_name_from_endpoint() {
         let endpoint = "https://account.dfs.core.windows.net";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        let storage_name = infer_account_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
     }
 
     #[test]
     fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
         let endpoint = "https://account.dfs.core.windows.net/";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        let storage_name = infer_account_name_from_endpoint(endpoint);
         assert_eq!(storage_name, Some("account".to_string()));
     }
 }

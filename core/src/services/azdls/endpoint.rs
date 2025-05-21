@@ -130,6 +130,74 @@ impl Display for DfsEndpoint {
     }
 }
 
+impl TryFrom<&str> for DfsEndpoint {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        let (protocol, endpoint) = value.split_once("://").ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Missing protocol: {}", value),
+            )
+        })?;
+
+        if protocol != "http" && protocol != "https" {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Invalid protocol: {}", protocol),
+            ));
+        }
+
+        let (account_name, storage_endpoint) = endpoint.split_once('.').ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Invalid format: {}", value),
+            )
+        })?;
+
+        if account_name.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Empty account name: {}", value),
+            ));
+        }
+
+        let (storage, endpoint_suffix) = storage_endpoint.split_once('.').ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Invalid endpoint format: {}", value),
+            )
+        })?;
+
+        // ADLSv2 is backed by hierarchical namespaces built on top of blob storage.
+        // We therefore expect the "Distributed File System" storage endpoint.
+        if storage != Self::STORAGE {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("DfsEndpoint: Invalid storage {}", storage),
+            ));
+        }
+
+        let endpoint_suffix = endpoint_suffix.trim_end_matches('/').to_lowercase();
+
+        if !Self::KNOWN_SUFFIXES.contains(&endpoint_suffix.as_str()) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!(
+                    "DfsEndpoint: Unexpected endpoint suffix: {}",
+                    endpoint_suffix
+                ),
+            ));
+        }
+
+        Ok(DfsEndpoint {
+            protocol: protocol.to_string(),
+            account_name: account_name.to_string(),
+            suffix: endpoint_suffix,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::DfsEndpoint;
@@ -145,5 +213,66 @@ mod test {
         let expected = "https://accountname.dfs.core.windows.net";
         let result = endpoint.to_string();
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_dfsendpoint_try_from_str() {
+        let test_cases = vec![
+            (
+                "just a connection string",
+                "https://accountname.dfs.core.windows.net",
+                DfsEndpoint {
+                    protocol: "https".to_string(),
+                    account_name: "accountname".to_string(),
+                    suffix: "core.windows.net".to_string(),
+                },
+            ),
+            (
+                "plain text",
+                "http://accountname.dfs.core.windows.net",
+                DfsEndpoint {
+                    protocol: "http".to_string(),
+                    account_name: "accountname".to_string(),
+                    suffix: "core.windows.net".to_string(),
+                },
+            ),
+            (
+                "a different endpoint suffix",
+                "https://accountname.dfs.core.usgovcloudapi.net",
+                DfsEndpoint {
+                    protocol: "https".to_string(),
+                    account_name: "accountname".to_string(),
+                    suffix: "core.usgovcloudapi.net".to_string(),
+                },
+            ),
+        ];
+
+        for (name, input, expected) in test_cases {
+            let endpoint = super::DfsEndpoint::try_from(input).unwrap();
+            assert_eq!(endpoint, expected, "Test case: {}", name);
+        }
+    }
+
+    #[test]
+    fn test_dfsendpoint_try_from_str_fails() {
+        let test_cases = vec![
+            ("missing protocol", "accountname.dfs.core.windows.net"),
+            ("invalid protocol", "ftp://accountname.dfs.core.windows.net"),
+            ("missing account name", "https://.dfs.core.windows.net"),
+            ("missing storage", "https://accountname..core.windows.net"),
+            (
+                "invalid storage",
+                "https://accountname.blob.core.windows.net",
+            ),
+            (
+                "invalid format",
+                "https://no-account-storage-sep.core.windows.net",
+            ),
+        ];
+
+        for (name, input) in test_cases {
+            let result = super::DfsEndpoint::try_from(input);
+            assert!(result.is_err(), "Test case: {}", name);
+        }
     }
 }

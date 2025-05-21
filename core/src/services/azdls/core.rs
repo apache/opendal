@@ -68,6 +68,7 @@ impl AzdlsCore {
             .load()
             .await
             .map_err(new_request_credential_error)?;
+
         if let Some(cred) = cred {
             Ok(cred)
         } else {

@@ -59,6 +59,9 @@ impl DfsEndpoint {
         Ok(())
     }
 
+    // We only call account_name() _indirectly_ through `TryFrom`. The compiler
+    // doesn't recognize this and marks the method as dead code.
+    #[allow(dead_code)]
     pub(crate) fn account_name(&self) -> &str {
         &self.account_name
     }
@@ -199,7 +202,7 @@ impl TryFrom<&str> for DfsEndpoint {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::DfsEndpoint;
 
     #[test]

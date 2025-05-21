@@ -240,7 +240,7 @@ impl Debug for AzdlsConfig {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::services::AzdlsConfig;
 
     #[test]

@@ -39,13 +39,13 @@ impl DfsEndpoint {
     /// Azure public cloud: https://accountname.dfs.core.windows.net
     /// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
     /// Azure China: https://accountname.dfs.core.chinacloudapi.cn
-    const KNOWN_SUFFIXES: &[&str] = &[
+    const KNOWN_SUFFIXES: &'static [&'static str] = &[
         "core.windows.net",
         "core.usgovcloudapi.net",
         "core.chinacloudapi.cn",
     ];
 
-    const STORAGE: &str = "dfs";
+    const STORAGE: &'static str = "dfs";
 
     pub(crate) fn set_protocol(&mut self, protocol: &str) -> Result<()> {
         if protocol != "http" && protocol != "https" {

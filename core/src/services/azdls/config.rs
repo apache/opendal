@@ -63,8 +63,8 @@ pub struct AzdlsConfig {
 }
 
 impl AzdlsConfig {
-    const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &str = "devstoreaccount1";
-    const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &str =
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &'static str = "devstoreaccount1";
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &'static str =
         "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
 
     /// Create a new `AzdlsConfig` instance from an [Azure Storage connection string][1].

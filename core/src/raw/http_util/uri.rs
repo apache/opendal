@@ -73,9 +73,12 @@ pub fn query_pairs(query: &str) -> Vec<(String, String)> {
         .split('&')
         .filter_map(|pair| {
             let mut iter = pair.splitn(2, '=');
-            // TODO: should we silently ignore invalid pairs and filter them out without the user noticing?
-            // or should we return an error in the whole `query_pairs` function so the caller knows it failed?
+
             let key = iter.next()?;
+            if key.is_empty() {
+                return None;
+            }
+
             let value = iter.next().unwrap_or("");
             Some((key, value))
         })
@@ -201,6 +204,39 @@ mod tests {
 
         for (name, input, expected) in cases {
             let actual = percent_decode_path(input);
+
+            assert_eq!(actual, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_query_pairs() {
+        let cases = vec![
+            (
+                "single pair",
+                "key=value",
+                vec![("key".into(), "value".into())],
+            ),
+            (
+                "multiple pairs",
+                "key=value&key2=value2&key3=value3",
+                vec![
+                    ("key".into(), "value".into()),
+                    ("key2".into(), "value2".into()),
+                    ("key3".into(), "value3".into()),
+                ],
+            ),
+            ("empty value", "key=", vec![("key".into(), "".into())]),
+            ("empty input", "", vec![]),
+            (
+                "Unicode Characters",
+                "unicode%20param=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
+                vec![("unicode param".into(), "你好，世界！❤".into())],
+            ),
+        ];
+
+        for (name, input, expected) in cases {
+            let actual = query_pairs(input);
 
             assert_eq!(actual, expected, "{name}");
         }

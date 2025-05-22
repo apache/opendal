@@ -17,48 +17,36 @@
 
 use std::cell::LazyCell;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use http::Uri;
 
 use crate::services::*;
 use crate::*;
 
-// TODO: thread local or use LazyLock instead? this way the access is lock-free
-// TODO: should we expose the `GLOBAL_OPERATOR_REGISTRY` as public API at `crate::types::operator::GLOBAL_OPERATOR_REGISTRY`?
 thread_local! {
-    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(OperatorRegistry::new);
+    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(OperatorRegistry::initialized);
 }
 
-// In order to reduce boilerplate, we should return in this function a `Builder` instead of operator?.
-pub type OperatorFactory = fn(&str, HashMap<String, String>) -> Result<Operator>;
+/// TODO: document this
+pub type OperatorFactory = fn(&Uri, HashMap<String, String>) -> Result<Operator>;
 
-// TODO: the default implementation should return an empty registry? Or it should return the initialized
-// registry with all the services that are enabled? If so, should we include an `OperatorRegistry::empty` method
-// that allows users to create an empty registry?
-#[derive(Clone, Debug, Default)]
+/// TODO: document this
+#[derive(Clone, Debug)]
 pub struct OperatorRegistry {
-    registry: Arc<Mutex<HashMap<String, OperatorFactory>>>,
+    registry: HashMap<String, OperatorFactory>,
 }
 
 impl OperatorRegistry {
+    /// TODO: document this
     pub fn new() -> Self {
-        let mut registry = Self::default();
-        // TODO: is this correct? have a `Builder::enabled()` method that returns the set of enabled services builders?
-        // Similar to `Scheme::Enabled()`
-        // or have an `Scheme::associated_builder` that given a scheme returns the associated builder? The problem with this
-        // is that `Scheme` variants are not gate behind a feature gate and the associated builder is. As a workaround
+        Self {
+            registry: HashMap::new(),
+        }
+    }
+    /// TODO: document this
+    pub fn initialized() -> Self {
+        let mut registry = Self::new();
 
-        // TODO: it seems too error-prone to have this list manually updated, we should have a macro that generates this list?
-        // it could be something like:
-        //
-        // ```rust
-        // apply_for_all_services!{
-        //   $service::register_in_registry(&mut registry>();
-        // }
-        // ```
-        // and the apply_for_all_services macro would gate every statement behind the corresponding feature gate
-        // This seems to not be the place where we should have a "list of enabled services".
         #[cfg(feature = "services-aliyun-drive")]
         AliyunDrive::register_in_registry(&mut registry);
         #[cfg(feature = "services-atomicserver")]
@@ -179,21 +167,17 @@ impl OperatorRegistry {
         registry
     }
 
-    pub fn register(&mut self, scheme: &str, factory: OperatorFactory) {
-        // TODO: should we receive a `&str` or a `String`? we are cloning it anyway
-        self.registry
-            .lock()
-            .expect("poisoned lock")
-            .insert(scheme.to_string(), factory);
+    /// TODO: document this
+    pub fn register<T: Into<String>>(&mut self, scheme: T, factory: OperatorFactory) {
+        self.registry.insert(scheme.into(), factory);
     }
 
+    /// TODO: document this
     pub fn parse(
         &self,
         uri: &str,
         options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Operator> {
-        // TODO: we use the `url::Url` struct instead of `http:Uri`, because
-        // we needed it in `Configurator::from_uri` method.
         let parsed_uri = uri.parse::<Uri>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
                 .with_context("uri", uri)
@@ -204,8 +188,7 @@ impl OperatorRegistry {
             Error::new(ErrorKind::ConfigInvalid, "uri is missing scheme").with_context("uri", uri)
         })?;
 
-        let registry_lock = self.registry.lock().expect("poisoned lock");
-        let factory = registry_lock.get(scheme).ok_or_else(|| {
+        let factory = self.registry.get(scheme).ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "could not find any operator factory for the given scheme",
@@ -214,10 +197,8 @@ impl OperatorRegistry {
             .with_context("scheme", scheme)
         })?;
 
-        // TODO: `OperatorFactory` should receive `IntoIterator<Item = (String, String)>` instead of `HashMap<String, String>`?
-        // however, impl Traits in type aliases is unstable and also are not allowed in fn pointers
         let options = options.into_iter().collect();
 
-        factory(uri, options)
+        factory(&parsed_uri, options)
     }
 }

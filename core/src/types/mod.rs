@@ -55,7 +55,9 @@ pub use operator::operator_futures;
 pub use operator::BlockingOperator;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;
+pub use operator::OperatorFactory;
 pub use operator::OperatorInfo;
+pub use operator::OperatorRegistry;
 
 mod builder;
 pub use builder::Builder;

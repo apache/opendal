@@ -18,11 +18,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::registry::GLOBAL_OPERATOR_REGISTRY;
 use crate::layers::*;
 use crate::raw::*;
 use crate::*;
-// TODO: is this import path idiomatic to the project?
-use super::registry::GLOBAL_OPERATOR_REGISTRY;
 
 /// # Operator build API
 ///
@@ -100,7 +99,6 @@ impl Operator {
     /// TODO: document this.
     ///
     /// TODO: improve those examples
-    /// TODO: this test does not work. It always output Ok
     /// # Examples
     /// ```
     /// # use anyhow::Result;

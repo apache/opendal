@@ -149,25 +149,8 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     }
 
     /// TODO: document this.
-    fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
-        let parsed_uri = uri.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "uri is invalid")
-                .with_context("uri", uri)
-                .set_source(err)
-        })?;
-
-        // TODO: I have some doubts about this default implementation
-        // It was inspired from https://github.com/apache/opendal/blob/52c96bb8e8cb4d024ccab1f415c4756447c726dd/bin/ofs/src/main.rs#L60
-        // Parameters should be specified in uri's query param. Example: 'fs://?root=<directory>'
-        // this is very similar to https://github.com/apache/opendal/blob/52c96bb8e8cb4d024ccab1f415c4756447c726dd/bin/ofs/README.md?plain=1#L45
-        let query_pairs = parsed_uri.query().map(query_pairs).unwrap_or_default();
-
-        // TODO: should we log a warning if the query_pairs vector is empty?
-
-        // TODO: we are not interpreting the host or path params
-        // the `let op = Operator::from_uri("fs:///tmp/test", vec![])?;` statement from the RFC wont work.
-        // instead we should use `let op = Operator::from_uri("fs://?root=/tmp/test", vec![])?;` as done
-        // in `ofs`. The `fs` service should override this default implementation if it wants to use the host or path params?
+    fn from_uri(uri: &Uri, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
+        let query_pairs = uri.query().map(query_pairs).unwrap_or_default();
 
         let merged_options = query_pairs.into_iter().chain(options);
 

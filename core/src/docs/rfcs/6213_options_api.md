@@ -1,7 +1,7 @@
 - Proposal Name: `options_api`
 - Start Date: 2025-05-22
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#6213](https://github.com/apache/opendal/pull/6213)
+- Tracking Issue: [apache/opendal#6214](https://github.com/apache/opendal/issues/6214)
 
 # Summary
 

@@ -62,8 +62,8 @@ pub trait Builder: Default + 'static {
     /// Register this builder in the given registry.
     fn register_in_registry(registry: &mut OperatorRegistry) {
         let operator_factory: OperatorFactory = |uri, options| {
-            let builder = Self::Config::from_uri(uri, options)?.into_builder();
-            Ok(Operator::new(builder)?.finish())
+            let config = Self::Config::from_uri(uri, options)?;
+            Ok(Operator::from_config(config)?.finish())
         };
         registry.register(Self::SCHEME.into_static(), operator_factory)
     }

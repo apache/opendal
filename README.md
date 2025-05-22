@@ -2,6 +2,7 @@
 
 [![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
+[![](https://deepwiki.com/badge.svg)](https://deepwiki.com/apache/opendal)
 
 OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 
@@ -24,7 +25,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] | [![Java Binding Users Image]][Java Binding Users]   |
 | [Lua Binding]     | -                                                | -                                                                                 | - |
 | [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           | - |
-| [Ocaml Binding]   | -                                                | -                                                                                 | - |
+| [OCaml Binding]   | -                                                | -                                                                                 | - |
 | [PHP Binding]     | -                                                | -                                                                                 | - |
 | [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            | [![Python Binding Users Image]][Python Binding Users] |
 | [Ruby Binding]    | -                                                | -                                                                                 | - |
@@ -67,7 +68,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Node.js Binding Image]: https://img.shields.io/npm/v/opendal
 [Node.js Binding Link]: https://www.npmjs.com/package/opendal
 [Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
-[Ocaml Binding]: bindings/ocaml/README.md
+[OCaml Binding]: bindings/ocaml/README.md
 [PHP Binding]: bindings/php/README.md
 [Python Binding]: bindings/python/README.md
 [Python Binding Image]: https://img.shields.io/pypi/v/opendal

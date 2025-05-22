@@ -43,7 +43,7 @@ jobs:
           echo "build=$MATRIX" >> $GITHUB_OUTPUT
 
   test:
-    needs: [ set-build ]
+    needs: [set-build]
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
     strategy:
@@ -55,8 +55,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-            repository: "apache/opendal-go-services"
-            path: "tools"
+          repository: "apache/opendal-go-services"
+          path: "tools"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -91,15 +91,6 @@ jobs:
           cache-dependency-path: |
             bindings/go/go.sum
             bindings/go/tests/behavior_tests/go.sum
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-      - name: Setup Service
-        env:
-          OPENDAL_FEATURES: "layers-blocking,${{ matrix.cases.feature }}"
-        run: |
-          python -m pip install toml
-          python tools/.github/scripts/setup_features.py
       - name: Install dependencies (Linux)
         if: ${{ matrix.build.os == 'ubuntu-latest' }}
         run: sudo apt install zstd
@@ -119,7 +110,8 @@ jobs:
           CC: ${{ matrix.build.cc }}
           OS: ${{ matrix.build.os }}
         run: |
-          cargo build --target $TARGET --release
+          SERVICE_DASH="${SERVICE//_/-}"
+          cargo build --target $TARGET --release  --features "opendal/services-${SERVICE_DASH}"
           DIR=$GITHUB_WORKSPACE/libopendal_c_${VERSION}_${SERVICE}_$TARGET
           mkdir $DIR
           if [ ${OS} == 'ubuntu-latest' ]; then
@@ -137,7 +129,8 @@ jobs:
           TARGET: ${{ matrix.build.target }}
           CC: ${{ matrix.build.cc }}
         run: |
-          cargo build --target $env:TARGET --release
+          $service_dash = ${env:SERVICE} -replace '_', '-'
+          cargo build --target $env:TARGET --release  --features "opendal/services-$service_dash"
           $DIR="$env:GITHUB_WORKSPACE\libopendal_c_${env:VERSION}_${env:SERVICE}_${env:TARGET}"
           Rename-Item -Path "./target/$env:TARGET/release/opendal_c.dll" -NewName "libopendal_c.dll"
           New-Item -ItemType Directory -Force -Path $DIR
@@ -196,4 +189,3 @@ jobs:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
-

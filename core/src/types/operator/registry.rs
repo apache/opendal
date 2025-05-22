@@ -31,7 +31,7 @@ pub static GLOBAL_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> =
 pub type OperatorFactory = fn(&Uri, HashMap<String, String>) -> Result<Operator>;
 
 /// TODO: document this
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OperatorRegistry {
     registry: HashMap<String, OperatorFactory>,
 }

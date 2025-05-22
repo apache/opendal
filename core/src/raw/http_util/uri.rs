@@ -71,17 +71,7 @@ pub fn percent_decode_path(path: &str) -> String {
 pub fn query_pairs(query: &str) -> Vec<(String, String)> {
     query
         .split('&')
-        .filter_map(|pair| {
-            let mut iter = pair.splitn(2, '=');
-
-            let key = iter.next()?;
-            if key.is_empty() {
-                return None;
-            }
-
-            let value = iter.next().unwrap_or("");
-            Some((key, value))
-        })
+        .filter_map(|pair| pair.split_once('='))
         .map(|(key, value)| (percent_decode_path(key), percent_decode_path(value)))
         .collect()
 }
@@ -211,7 +201,8 @@ mod tests {
 
     #[test]
     fn test_query_pairs() {
-        let cases = vec![
+        let cases =
+            vec![
             (
                 "single pair",
                 "key=value",
@@ -226,13 +217,15 @@ mod tests {
                     ("key3".into(), "value3".into()),
                 ],
             ),
-            ("empty value", "key=", vec![("key".into(), "".into())]),
-            ("empty input", "", vec![]),
             (
                 "Unicode Characters",
                 "unicode%20param=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
                 vec![("unicode param".into(), "你好，世界！❤".into())],
             ),
+            ("empty value", "key=", vec![("key".into(), "".into())]),
+            ("no separator", "key", vec![]),
+            ("double separators","key=val1=val2", vec![("key".into(),"val1".into())]),
+            ("empty input", "", vec![]),
         ];
 
         for (name, input, expected) in cases {

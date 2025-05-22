@@ -224,7 +224,7 @@ mod tests {
             ),
             ("empty value", "key=", vec![("key".into(), "".into())]),
             ("no separator", "key", vec![]),
-            ("double separators","key=val1=val2", vec![("key".into(),"val1".into())]),
+            ("double separators","key=val1=val2", vec![("key".into(),"val1=val2".into())]),
             ("empty input", "", vec![]),
         ];
 

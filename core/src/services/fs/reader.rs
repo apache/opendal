@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Read;
 use std::sync::Arc;
 
 use tokio::io::AsyncReadExt;

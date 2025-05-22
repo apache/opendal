@@ -15,19 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
-use bytes::Buf;
-
-use crate::raw::*;
+use super::std_writer::StdWriter;
 use crate::*;
 
 /// BlockingWriter is designed to write data into given path in an blocking
 /// manner.
 pub struct BlockingWriter {
-    /// Keep a reference to write context in writer.
-    _ctx: Arc<WriteContext>,
-    inner: WriteGenerator<oio::BlockingWriter>,
+    handle: tokio::runtime::Handle,
+    inner: Writer,
 }
 
 impl BlockingWriter {
@@ -38,11 +33,8 @@ impl BlockingWriter {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
-        let ctx = Arc::new(ctx);
-        let inner = WriteGenerator::blocking_create(ctx.clone())?;
-
-        Ok(Self { _ctx: ctx, inner })
+    pub(crate) fn new(handle: tokio::runtime::Handle, inner: Writer) -> Self {
+        Self { handle, inner }
     }
 
     /// Write [`Buffer`] into writer.
@@ -53,10 +45,10 @@ impl BlockingWriter {
     ///
     /// ```
     /// use bytes::Bytes;
-    /// use opendal::BlockingOperator;
+    /// use opendal::blocking::Operator;
     /// use opendal::Result;
     ///
-    /// async fn test(op: BlockingOperator) -> Result<()> {
+    /// async fn test(op: blocking::Operator) -> Result<()> {
     ///     let mut w = op.writer("hello.txt")?;
     ///     // Buffer can be created from continues bytes.
     ///     w.write("hello, world")?;
@@ -69,12 +61,7 @@ impl BlockingWriter {
     /// }
     /// ```
     pub fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone())?;
-            bs.advance(n);
-        }
-        Ok(())
+        self.handle.block_on(self.inner.write(bs))
     }
 
     /// Close the writer and make sure all data have been committed.
@@ -84,11 +71,11 @@ impl BlockingWriter {
     /// Close should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
     pub fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
+        self.handle.block_on(self.inner.close())
     }
 
     /// Convert writer into [`StdWriter`] which implements [`std::io::Write`],
     pub fn into_std_write(self) -> StdWriter {
-        StdWriter::new(self.inner)
+        StdWriter::new(self.handle, self.inner)
     }
 }

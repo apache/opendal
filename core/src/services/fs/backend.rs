@@ -16,7 +16,6 @@
 // under the License.
 
 use std::io::SeekFrom;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 

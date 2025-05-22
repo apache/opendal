@@ -16,7 +16,19 @@
 // under the License.
 
 mod delete;
-mod operator;
-mod operator_functions;
+pub use delete::*;
+
+mod list;
+pub use list::*;
+
 mod read;
+pub use read::*;
+
 mod write;
+pub use write::*;
+
+mod operator;
+pub use operator::*;
+
+mod operator_functions;
+pub use operator_functions::*;

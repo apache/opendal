@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use tokio::task;
-
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::RedbConfig;

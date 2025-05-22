@@ -26,7 +26,7 @@
 //!
 //! # Quick Start
 //!
-//! OpenDAL's API entry points are [`Operator`] and [`BlockingOperator`]. All
+//! OpenDAL's API entry points are [`Operator`] and [`blocking::Operator`]. All
 //! public APIs are accessible through the operator. To utilize OpenDAL, you
 //! need to:
 //!
@@ -88,7 +88,7 @@
 //! ## Use operator
 //!
 //! The final step is to use the operator. OpenDAL supports both async [`Operator`]
-//! and blocking [`BlockingOperator`]. Please pick the one that fits your use case.
+//! and blocking [`blocking::Operator`]. Please pick the one that fits your use case.
 //!
 //! Every Operator API follows the same pattern, take `read` as an example:
 //!
@@ -173,10 +173,6 @@ mod tests {
     impl AssertSendSync for Writer {}
     impl AssertSendSync for Lister {}
     impl AssertSendSync for Operator {}
-    impl AssertSendSync for BlockingReader {}
-    impl AssertSendSync for BlockingWriter {}
-    impl AssertSendSync for BlockingLister {}
-    impl AssertSendSync for BlockingOperator {}
 
     /// This is used to make sure our public API implement Send + Sync
     #[test]

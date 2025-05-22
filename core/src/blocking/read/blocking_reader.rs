@@ -15,70 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::Bound;
-use std::ops::Range;
 use std::ops::RangeBounds;
-use std::sync::Arc;
 
 use bytes::BufMut;
 
-use crate::raw::*;
 use crate::*;
+
+use super::BufferIterator;
+use super::StdBytesIterator;
+use super::StdReader;
 
 /// BlockingReader is designed to read data from given path in an blocking
 /// manner.
 #[derive(Clone)]
 pub struct BlockingReader {
-    ctx: Arc<ReadContext>,
-
-    /// Total size of the reader.
-    size: Arc<AtomicContentLength>,
+    handle: tokio::runtime::Handle,
+    inner: Reader,
 }
 
 impl BlockingReader {
     /// Create a new blocking reader.
     ///
-    /// Create will use internal information to decide the most suitable
-    /// implementation for users.
-    ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn new(ctx: ReadContext) -> Self {
-        BlockingReader {
-            ctx: Arc::new(ctx),
-            size: Arc::new(AtomicContentLength::new()),
-        }
-    }
-
-    /// Parse users input range bounds into valid `Range<u64>`.
-    ///
-    /// To avoid duplicated stat call, we will cache the size of the reader.
-    fn parse_range(&self, range: impl RangeBounds<u64>) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
-            Bound::Excluded(v) => v + 1,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound() {
-            Bound::Included(v) => v + 1,
-            Bound::Excluded(v) => *v,
-            Bound::Unbounded => match self.size.load() {
-                Some(v) => v,
-                None => {
-                    let size = self
-                        .ctx
-                        .accessor()
-                        .blocking_stat(self.ctx.path(), OpStat::new())?
-                        .into_metadata()
-                        .content_length();
-                    self.size.store(size);
-                    size
-                }
-            },
-        };
-
-        Ok(start..end)
+    pub(crate) fn new(handle: tokio::runtime::Handle, inner: Reader) -> Self {
+        BlockingReader { handle, inner }
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -90,11 +51,7 @@ impl BlockingReader {
     ///
     /// - Buffer length smaller than range means we have reached the end of file.
     pub fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
-        let mut bufs = vec![];
-        for buf in self.clone().into_iterator(range)? {
-            bufs.push(buf?)
-        }
-        Ok(bufs.into_iter().flatten().collect())
+        self.handle.block_on(self.inner.read(range))
     }
 
     ///
@@ -105,36 +62,31 @@ impl BlockingReader {
     ///
     /// - Returning length smaller than range means we have reached the end of file.
     pub fn read_into(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize> {
-        let mut iter = self.clone().into_iterator(range)?;
-
-        let mut read = 0;
-        loop {
-            let Some(bs) = iter.next().transpose()? else {
-                return Ok(read);
-            };
-            read += bs.len();
-            buf.put(bs);
-        }
+        self.handle.block_on(self.inner.read_into(buf, range))
     }
 
     /// Create a buffer iterator to read specific range from given reader.
     fn into_iterator(self, range: impl RangeBounds<u64>) -> Result<BufferIterator> {
-        let range = self.parse_range(range)?;
-        Ok(BufferIterator::new(self.ctx, range))
+        let iter = self.handle.block_on(self.inner.into_bytes_stream(range))?;
+
+        Ok(BufferIterator::new(self.handle.clone(), iter))
     }
 
     /// Convert reader into [`StdReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
     pub fn into_std_read(self, range: impl RangeBounds<u64>) -> Result<StdReader> {
-        let range = self.parse_range(range)?;
-        Ok(StdReader::new(self.ctx, range))
+        let r = self
+            .handle
+            .block_on(self.inner.into_futures_async_read(range))?;
+
+        Ok(StdReader::new(self.handle, r))
     }
 
     /// Convert reader into [`StdBytesIterator`] which implements [`Iterator`].
     #[inline]
     pub fn into_bytes_iterator(self, range: impl RangeBounds<u64>) -> Result<StdBytesIterator> {
-        let range = self.parse_range(range)?;
-        Ok(StdBytesIterator::new(self.ctx, range))
+        let iter = self.handle.block_on(self.inner.into_bytes_stream(range))?;
+        Ok(StdBytesIterator::new(self.handle, iter))
     }
 }

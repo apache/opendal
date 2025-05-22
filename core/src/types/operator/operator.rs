@@ -22,7 +22,6 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use super::BlockingOperator;
 use crate::operator_futures::*;
 use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
@@ -219,13 +218,6 @@ impl Operator {
     /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
     pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
         self.accessor.info().update_http_client(f);
-    }
-
-    /// Create a new blocking operator.
-    ///
-    /// This operation is nearly no cost.
-    pub fn blocking(&self) -> BlockingOperator {
-        BlockingOperator::from_inner(self.accessor.clone())
     }
 }
 

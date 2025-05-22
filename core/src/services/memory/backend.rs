@@ -129,7 +129,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::adapters::typed_kv::{Adapter, Value};
 
     #[test]
     fn test_accessor_metadata_name() {

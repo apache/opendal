@@ -20,15 +20,15 @@ However, this approach has several drawbacks:
 Apart from the above drawbacks, we also find that the following facts:
 
 - Only a few services have native blocking support, such as `fs`, `memory` and `moka`.
-- Only a few users are using `BlockingOperator` (based on [search results from github](https://github.com/search?q=opendal%3A%3ABlockingOperator&type=code))
+- Only a few users are using `blocking::Operator` (based on [search results from github](https://github.com/search?q=opendal%3A%3Ablocking::Operator&type=code))
 
 So I propose to remove the native blocking support from OpenDAL and use `block_on` in the async runtime instead. This will simplify the codebase, reduce maintenance overhead, and provide a more consistent API for users.
 
 # Guide-level explanation
 
-I plan to move `BlockingOperator` to the `opendal::blocking` module, which will offer a blocking interface for users. The `BlockingOperator` will utilize `block_on` within an async runtime to execute asynchronous operations in a blocking way.
+I plan to move `blocking::Operator` to the `opendal::blocking` module, which will offer a blocking interface for users. The `blocking::Operator` will utilize `block_on` within an async runtime to execute asynchronous operations in a blocking way.
 
-- `opendal::BlockingOperator` will become `opendal::blocking::Operator`
+- `opendal::blocking::Operator` will become `opendal::blocking::Operator`
 - `opendal::BlockingReader` will become `opendal::blocking::Reader`
 - `opendal::BlockingWriter` will become `opendal::blocking::Writer`
 - `opendal::BlockingLister` will become `opendal::blocking::Lister`
@@ -81,7 +81,7 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
 }
 ```
 
-Due to this change, we will remove all blocking implementations in services and layers. All existing public APIs that start with `Blocking` will be moved into the `blocking` module. For example, `opendal::BlockingOperator` will be relocated to `opendal::blocking::Operator`.
+Due to this change, we will remove all blocking implementations in services and layers. All existing public APIs that start with `Blocking` will be moved into the `blocking` module. For example, `opendal::blocking::Operator` will be relocated to `opendal::blocking::Operator`.
 
 # Drawbacks
 

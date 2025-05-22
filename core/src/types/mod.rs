@@ -30,17 +30,10 @@ pub use metadata::Metadata;
 mod read;
 pub use read::*;
 
-mod blocking_read;
-pub use blocking_read::*;
-
 mod write;
 pub use write::*;
 
-mod blocking_write;
-pub use blocking_write::*;
-
 mod list;
-pub use list::BlockingLister;
 pub use list::Lister;
 
 mod delete;
@@ -50,9 +43,7 @@ mod execute;
 pub use execute::*;
 
 mod operator;
-pub use operator::operator_functions;
 pub use operator::operator_futures;
-pub use operator::BlockingOperator;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;
 pub use operator::OperatorInfo;

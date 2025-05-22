@@ -70,7 +70,7 @@ impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
 
 impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
     /// Change the operation's args.
-    fn map(mut self, f: impl FnOnce(I) -> I) -> Self {
+    pub(crate) fn map(mut self, f: impl FnOnce(I) -> I) -> Self {
         self.args = f(self.args);
         self
     }

@@ -17,7 +17,6 @@
 
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::thread;
 
 use governor::clock::Clock;
 use governor::clock::DefaultClock;

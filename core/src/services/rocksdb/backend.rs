@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
-use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;

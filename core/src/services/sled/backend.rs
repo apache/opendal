@@ -19,10 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use tokio::task;
-
 use crate::raw::adapters::kv;
-use crate::raw::adapters::kv::ScanStdIter;
 use crate::raw::*;
 use crate::services::SledConfig;
 use crate::Builder;

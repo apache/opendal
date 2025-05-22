@@ -15,36 +15,36 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-
-use bytes::Bytes;
-use futures::StreamExt;
-
-use crate::raw::*;
 use crate::*;
 
-/// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].
+/// BlockingLister is designed to list entries at given path in a blocking
+/// manner.
 ///
-/// Users can use this adapter in cases where they need to use [`Iterator`] trait.
+/// Users can construct Lister by [`blocking::Operator::lister`] or [`blocking::Operator::lister_with`].
 ///
-/// StdIterator also implements [`Send`] and [`Sync`].
-pub struct StdBytesIterator {
+/// - Lister implements `Iterator<Item = Result<Entry>>`.
+/// - Lister will return `None` if there is no more entries or error has been returned.
+pub struct BlockingLister {
     handle: tokio::runtime::Handle,
-    inner: FuturesBytesStream,
+    lister: Lister,
 }
 
-impl StdBytesIterator {
-    /// NOTE: don't allow users to create StdIterator directly.
-    #[inline]
-    pub(crate) fn new(handle: tokio::runtime::Handle, inner: FuturesBytesStream) -> Self {
-        StdBytesIterator { handle, inner }
+/// # Safety
+///
+/// BlockingLister will only be accessed by `&mut Self`
+unsafe impl Sync for BlockingLister {}
+
+impl BlockingLister {
+    /// Create a new lister.
+    pub(crate) fn create(handle: tokio::runtime::Handle, lister: Lister) -> Result<Self> {
+        Ok(Self { handle, lister })
     }
 }
 
-impl Iterator for StdBytesIterator {
-    type Item = io::Result<Bytes>;
+impl Iterator for BlockingLister {
+    type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.handle.block_on(self.inner.next())
+        self.handle.block_on(self.lister.next())
     }
 }

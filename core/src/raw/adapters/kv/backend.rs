@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::vec::IntoIter;
 
 use super::{Adapter, Scan};
 use crate::raw::oio::HierarchyLister;

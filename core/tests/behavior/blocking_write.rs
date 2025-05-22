@@ -39,7 +39,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
-    if cap.write && cap.write_can_append && cap.stat && cap.blocking {
+    if cap.write && cap.write_can_append && cap.stat {
         tests.extend(blocking_trials!(
             op,
             test_blocking_write_with_append,

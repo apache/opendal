@@ -15,15 +15,23 @@ Currently, users who want to filter objects based on patterns have to list all o
 
 # Guide-level explanation
 
-With glob support, users can easily match files based on patterns. The API would be available as an option on the `list_with` method, allowing users to get an iterator over entries that match the provided glob pattern.
+With glob support, users can easily match files based on patterns. The API would be available as an option on the `list_with` and `lister_with` methods, allowing users to filter entries that match the provided glob pattern.
 
 For example:
 
 ```rust
-// Get an iterator over all jpeg files in the media directory and its subdirectories
-let it = op.list_with("media/").glob("**/*.jpg").await?;
+// Get all jpeg files in the media directory and its subdirectories
+let entries: Vec<Entry> = op.list_with("media/").glob("**/*.jpg").await?;
 
-while let Some(entry) = it.next().await? {
+// Process entries
+for entry in entries {
+   do_something(&entry);
+}
+
+// Or use a lister for streaming access
+let mut lister = op.lister_with("media/").glob("**/*.jpg").await?;
+
+while let Some(entry) = lister.next().await? {
    do_something(&entry);
 }
 ```
@@ -37,27 +45,19 @@ The glob syntax would support common patterns like:
 - `[ab]` - Match either a or b
 - `[a-z]` - Match any character in range a-z
 
-Both blocking and non-blocking (async) versions of the API would be provided:
+The API would be integrated into the existing builder pattern:
 
 ```rust
-// Async version
-async fn list_with(&self, path: &str) -> Lister {
-    // ...
-}
-
+// For list_with
 impl Lister {
-    pub fn glob(self, pattern: &str) -> Result<impl Stream<Item = Result<Entry>>> {
+    pub fn glob(self, pattern: &str) -> Self {
         // ...
     }
 }
 
-// Blocking version
-fn list_blocking_with(&self, path: &str) -> BlockingLister {
-    // ...
-}
-
-impl BlockingLister {
-    pub fn glob(self, pattern: &str) -> Result<impl Iterator<Item = Result<Entry>>> {
+// For lister_with
+impl Lister {
+    pub fn glob(self, pattern: &str) -> Self {
         // ...
     }
 }
@@ -69,36 +69,29 @@ The implementation would involve:
 
 1. Implementing a pattern matching logic for glob expressions. This can be a simplified version focusing on common use cases like `*`, `?`, and `**`.
 
-2. Modifying the `Lister` and `BlockingLister` (or their underlying streams/iterators) to accept a glob pattern and filter entries accordingly.
+2. Modifying the `List` and `Lister` to accept a glob pattern and filter entries accordingly.
 
 ```rust
-// Example for async Lister
-impl Lister {
-    pub fn glob(self, glob_pattern: &str) -> Result<impl Stream<Item = Result<Entry>>> {
-        let pattern = GlobPattern::new(glob_pattern)?;
-        // self here is the existing Lister
-        // We need to adapt the underlying stream to filter based on `pattern`
-        // This might involve creating a new stream type that wraps the original one.
-        Ok(self.filter(move |entry: &Result<Entry>| {
-            match entry {
-                Ok(e) => pattern.matches(e.path()),
-                Err(_) => true, // Pass through errors
-            }
-        }))
+// Example for List
+impl List {
+    pub fn glob(mut self, pattern: &str) -> Self {
+        self.glob_pattern = Some(pattern.to_string());
+        self
     }
 }
 
-// Similar changes would apply to BlockingLister
+// Similar changes would apply to Lister
 ```
 
-The `GlobPattern` struct would encapsulate the parsed glob pattern and the matching logic.
+The `GlobMatcher` struct would be an internal implementation detail that encapsulates the parsed glob pattern and the matching logic.
 
 ```rust
-struct GlobPattern {
+// This is an internal implementation detail, not exposed in the public API
+struct GlobMatcher {
     // internal representation of the pattern
 }
 
-impl GlobPattern {
+impl GlobMatcher {
     fn new(pattern: &str) -> Result<Self> {
         // Parse the pattern string
         // ...
@@ -115,14 +108,14 @@ The implementation would be built on top of the existing listing capabilities. P
 
 # Drawbacks
 
-- While the API surface change is minimized by integrating with `list_with`, it still introduces a new concept (glob patterns) for users to learn.
+- While the API surface change is minimized by integrating with the existing builder pattern, it still introduces a new concept (glob patterns) for users to learn.
 - Implementing server-side delegation adds complexity, as OpenDAL needs to identify services with native support and translate glob patterns to their specific syntax.
 - For services without native glob support, client-side matching still requires listing all potentially relevant entries first, which might be inefficient for very large directories or complex patterns.
 - Ensuring consistent behavior between client-side and various server-side implementations of glob matching can be challenging.
 
 # Rationale and alternatives
 
-This design integrates glob filtering into the existing `list_with` API, providing a natural extension to current functionality. We will implement our own pattern matching logic, focusing on commonly used glob syntax (e.g., `*`, `?`, `**`, `*.parquet`) to avoid the complexity of full-featured glob libraries designed for local file systems. This approach allows for a lean implementation tailored to object storage path matching.
+This design integrates glob filtering into the existing builder pattern API, providing a natural extension to current functionality. We will implement our own pattern matching logic, focusing on commonly used glob syntax (e.g., `*`, `?`, `**`, `*.parquet`) to avoid the complexity of full-featured glob libraries designed for local file systems. This approach allows for a lean implementation tailored to object storage path matching.
 
 Where services offer native pattern matching capabilities, OpenDAL will delegate to them. This leverages server-side efficiencies. For other services, client-side filtering will be applied after listing entries.
 

@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::LazyCell;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use http::Uri;
 
 use crate::services::*;
 use crate::*;
 
-thread_local! {
-    pub static GLOBAL_OPERATOR_REGISTRY: LazyCell<OperatorRegistry> = LazyCell::new(OperatorRegistry::initialized);
-}
+/// TODO: document this
+pub static GLOBAL_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> =
+    LazyLock::new(OperatorRegistry::initialized);
 
 /// TODO: document this
 pub type OperatorFactory = fn(&Uri, HashMap<String, String>) -> Result<Operator>;

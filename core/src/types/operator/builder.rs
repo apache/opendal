@@ -113,7 +113,7 @@ impl Operator {
         uri: &str,
         options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self> {
-        GLOBAL_OPERATOR_REGISTRY.with(|registry| registry.parse(uri, options))
+        GLOBAL_OPERATOR_REGISTRY.parse(uri, options)
     }
 
     /// Create a new operator from given iterator in static dispatch.

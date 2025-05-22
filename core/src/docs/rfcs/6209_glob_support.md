@@ -45,23 +45,7 @@ The glob syntax would support common patterns like:
 - `[ab]` - Match either a or b
 - `[a-z]` - Match any character in range a-z
 
-The API would be integrated into the existing builder pattern:
-
-```rust
-// For list_with
-impl Lister {
-    pub fn glob(self, pattern: &str) -> Self {
-        // ...
-    }
-}
-
-// For lister_with
-impl Lister {
-    pub fn glob(self, pattern: &str) -> Self {
-        // ...
-    }
-}
-```
+The API would be integrated into the existing builder pattern.
 
 # Reference-level explanation
 
@@ -69,19 +53,7 @@ The implementation would involve:
 
 1. Implementing a pattern matching logic for glob expressions. This can be a simplified version focusing on common use cases like `*`, `?`, and `**`.
 
-2. Modifying the `List` and `Lister` to accept a glob pattern and filter entries accordingly.
-
-```rust
-// Example for List
-impl List {
-    pub fn glob(mut self, pattern: &str) -> Self {
-        self.glob_pattern = Some(pattern.to_string());
-        self
-    }
-}
-
-// Similar changes would apply to Lister
-```
+2. Modifying the `FunctionLister` and `FutureLister` to accept a glob pattern and filter entries accordingly.
 
 The `GlobMatcher` struct would be an internal implementation detail that encapsulates the parsed glob pattern and the matching logic.
 

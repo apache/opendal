@@ -139,6 +139,7 @@ mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
+#[cfg(feature = "blocking")]
 pub mod blocking;
 #[cfg(docsrs)]
 pub mod docs;

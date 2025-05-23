@@ -100,13 +100,9 @@ pub struct ChaosAccessor<A> {
 impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;
-    type BlockingReader = ChaosReader<A::BlockingReader>;
     type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = A::Lister;
-    type BlockingLister = A::BlockingLister;
     type Deleter = A::Deleter;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -119,34 +115,16 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
             .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
-    }
-
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
-    }
-
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner.delete().await
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
     }
 }
 
@@ -185,16 +163,6 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
             self.inner.read().await
-        } else {
-            Err(Self::unexpected_eof())
-        }
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        if self.i_feel_lucky() {
-            self.inner.read()
         } else {
             Err(Self::unexpected_eof())
         }

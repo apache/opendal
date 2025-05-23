@@ -185,10 +185,6 @@ impl Access for YandexDiskBackend {
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

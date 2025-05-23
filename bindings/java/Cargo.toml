@@ -153,7 +153,7 @@ anyhow = "1.0.71"
 jni = "0.21.1"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
-  "layers-blocking",
+  "blocking",
 ] }
 tokio = { version = "1.28.1", features = ["full"] }
 

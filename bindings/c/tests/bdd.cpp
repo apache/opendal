@@ -105,7 +105,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_result_writer_write w = opendal_writer_write(writer.writer, &data);
     EXPECT_EQ(w.error, nullptr);
     EXPECT_EQ(w.size, this->content.length());
-    opendal_error *close_err = opendal_writer_close(writer.writer);
+    opendal_error* close_err = opendal_writer_close(writer.writer);
     EXPECT_EQ(close_err, nullptr);
     opendal_writer_free(writer.writer);
 

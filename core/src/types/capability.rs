@@ -223,9 +223,6 @@ pub struct Capability {
 
     /// Indicate if the operator supports shared access.
     pub shared: bool,
-
-    /// Indicates if blocking operations are supported.
-    pub blocking: bool,
 }
 
 impl Debug for Capability {
@@ -246,9 +243,7 @@ impl Debug for Capability {
         if self.shared {
             f.write_str("| Shared")?;
         }
-        if self.blocking {
-            f.write_str("| Blocking")?;
-        }
+
         Ok(())
     }
 }

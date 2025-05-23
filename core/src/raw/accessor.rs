@@ -67,15 +67,6 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// Deleter is the associated deleter returned in `delete` operation.
     type Deleter: oio::Delete;
 
-    /// BlockingReader is the associated reader returned `blocking_read` operation.
-    type BlockingReader: oio::BlockingRead;
-    /// BlockingWriter is the associated writer returned `blocking_write` operation.
-    type BlockingWriter: oio::BlockingWrite;
-    /// BlockingLister is the associated lister returned `blocking_list` operation.
-    type BlockingLister: oio::BlockingList;
-    /// BlockingDeleter is the associated deleter returned `blocking_delete` operation.
-    type BlockingDeleter: oio::BlockingDelete;
-
     /// Invoke the `info` operation to get metadata of accessor.
     ///
     /// # Notes
@@ -266,120 +257,6 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         )))
     }
-
-    /// Invoke the `blocking_create` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::create_dir`]
-    ///
-    /// Require [`Capability::create_dir`] and [`Capability::blocking`]
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_stat` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::stat`]
-    ///
-    /// Require [`Capability::stat`] and [`Capability::blocking`]
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_read` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::read`]
-    ///
-    /// Require [`Capability::read`] and [`Capability::blocking`]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_write` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::write`]
-    ///
-    /// Require [`Capability::write`] and [`Capability::blocking`]
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_delete` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::delete`]
-    ///
-    /// Require [`Capability::write`] and [`Capability::blocking`]
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_list` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::list`]
-    ///
-    /// Require [`Capability::list`] and [`Capability::blocking`]
-    ///
-    /// # Behavior
-    ///
-    /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_copy` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::copy`]
-    ///
-    /// Require [`Capability::copy`] and [`Capability::blocking`]
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_rename` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::rename`]
-    ///
-    /// Require [`Capability::rename`] and [`Capability::blocking`]
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
 }
 
 /// `AccessDyn` is the dyn version of [`Access`] make it possible to use as
@@ -435,39 +312,15 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         path: &'a str,
         args: OpPresign,
     ) -> BoxedFuture<'a, Result<RpPresign>>;
-    /// Dyn version of [`Accessor::blocking_create_dir`]
-    fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir>;
-    /// Dyn version of [`Accessor::blocking_stat`]
-    fn blocking_stat_dyn(&self, path: &str, args: OpStat) -> Result<RpStat>;
-    /// Dyn version of [`Accessor::blocking_read`]
-    fn blocking_read_dyn(&self, path: &str, args: OpRead) -> Result<(RpRead, oio::BlockingReader)>;
-    /// Dyn version of [`Accessor::blocking_write`]
-    fn blocking_write_dyn(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::BlockingWriter)>;
-    /// Dyn version of [`Accessor::blocking_delete`]
-    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)>;
-    /// Dyn version of [`Accessor::blocking_list`]
-    fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)>;
-    /// Dyn version of [`Accessor::blocking_copy`]
-    fn blocking_copy_dyn(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy>;
-    /// Dyn version of [`Accessor::blocking_rename`]
-    fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename>;
 }
 
 impl<A: ?Sized> AccessDyn for A
 where
     A: Access<
         Reader = oio::Reader,
-        BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
-        BlockingWriter = oio::BlockingWriter,
         Lister = oio::Lister,
-        BlockingLister = oio::BlockingLister,
         Deleter = oio::Deleter,
-        BlockingDeleter = oio::BlockingDeleter,
     >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {
@@ -539,53 +392,13 @@ where
     ) -> BoxedFuture<'a, Result<RpPresign>> {
         Box::pin(self.presign(path, args))
     }
-
-    fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.blocking_create_dir(path, args)
-    }
-
-    fn blocking_stat_dyn(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.blocking_stat(path, args)
-    }
-
-    fn blocking_read_dyn(&self, path: &str, args: OpRead) -> Result<(RpRead, oio::BlockingReader)> {
-        self.blocking_read(path, args)
-    }
-
-    fn blocking_write_dyn(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::BlockingWriter)> {
-        self.blocking_write(path, args)
-    }
-
-    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)> {
-        self.blocking_delete()
-    }
-
-    fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)> {
-        self.blocking_list(path, args)
-    }
-
-    fn blocking_copy_dyn(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.blocking_rename(from, to, args)
-    }
 }
 
 impl Access for dyn AccessDyn {
     type Reader = oio::Reader;
-    type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
     type Deleter = oio::Deleter;
-    type BlockingWriter = oio::BlockingWriter;
     type Lister = oio::Lister;
-    type BlockingLister = oio::BlockingLister;
-    type BlockingDeleter = oio::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info_dyn()
@@ -626,38 +439,6 @@ impl Access for dyn AccessDyn {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.presign_dyn(path, args).await
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.blocking_create_dir_dyn(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.blocking_read_dyn(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.blocking_stat_dyn(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.blocking_write_dyn(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.blocking_delete_dyn()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.blocking_list_dyn(path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.blocking_copy_dyn(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.blocking_rename_dyn(from, to, args)
-    }
 }
 
 /// Dummy implementation of accessor.
@@ -666,10 +447,6 @@ impl Access for () {
     type Writer = ();
     type Lister = ();
     type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let ai = AccessorInfo::default();
@@ -691,10 +468,6 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     type Writer = T::Writer;
     type Lister = T::Lister;
     type Deleter = T::Deleter;
-    type BlockingReader = T::BlockingReader;
-    type BlockingWriter = T::BlockingWriter;
-    type BlockingLister = T::BlockingLister;
-    type BlockingDeleter = T::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.as_ref().info()
@@ -764,38 +537,6 @@ impl<T: Access + ?Sized> Access for Arc<T> {
         args: OpPresign,
     ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
         async move { self.as_ref().presign(path, args).await }
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.as_ref().blocking_create_dir(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().blocking_stat(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.as_ref().blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.as_ref().blocking_write(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.as_ref().blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.as_ref().blocking_list(path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.as_ref().blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.as_ref().blocking_rename(from, to, args)
     }
 }
 

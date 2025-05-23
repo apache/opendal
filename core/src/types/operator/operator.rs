@@ -22,7 +22,6 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use super::BlockingOperator;
 use crate::operator_futures::*;
 use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
@@ -220,13 +219,6 @@ impl Operator {
     pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
         self.accessor.info().update_http_client(f);
     }
-
-    /// Create a new blocking operator.
-    ///
-    /// This operation is nearly no cost.
-    pub fn blocking(&self) -> BlockingOperator {
-        BlockingOperator::from_inner(self.accessor.clone())
-    }
 }
 
 /// # Operator async API.
@@ -365,6 +357,7 @@ impl Operator {
         Self::stat_inner(self.accessor.clone(), path, opts).await
     }
 
+    #[inline]
     async fn stat_inner(
         acc: Accessor,
         path: String,
@@ -544,6 +537,7 @@ impl Operator {
         Self::read_inner(self.inner().clone(), path, opts).await
     }
 
+    #[inline]
     async fn read_inner(acc: Accessor, path: String, opts: options::ReadOptions) -> Result<Buffer> {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
@@ -631,6 +625,7 @@ impl Operator {
     /// Allow this unused async since we don't want
     /// to change our public API.
     #[allow(clippy::unused_async)]
+    #[inline]
     async fn reader_inner(
         acc: Accessor,
         path: String,
@@ -761,6 +756,7 @@ impl Operator {
         Self::write_inner(self.inner().clone(), path, bs.into(), opts).await
     }
 
+    #[inline]
     async fn write_inner(
         acc: Accessor,
         path: String,
@@ -876,6 +872,7 @@ impl Operator {
         Self::writer_inner(self.inner().clone(), path, opts).await
     }
 
+    #[inline]
     async fn writer_inner(
         acc: Accessor,
         path: String,
@@ -1425,7 +1422,7 @@ impl Operator {
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.list_with("path/to/dir/").version(true).await?;
+    /// let mut entries = op.list_with("path/to/dir/").versions(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1487,13 +1484,30 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpList::default(),
-            |inner, path, args| async move {
-                let lister = Lister::create(inner, &path, args).await?;
-
-                lister.try_collect().await
-            },
+            options::ListOptions::default(),
+            Self::list_inner,
         )
+    }
+
+    /// List entries that starts with given `path` in parent dir with more options.
+    ///
+    /// ## Options
+    ///
+    /// Visit [`options::ListOptions`] for all available options.
+    pub async fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
+        let path = normalize_path(path);
+        Self::list_inner(self.inner().clone(), path, opts).await
+    }
+
+    #[inline]
+    async fn list_inner(
+        acc: Accessor,
+        path: String,
+        opts: options::ListOptions,
+    ) -> Result<Vec<Entry>> {
+        let args = opts.into();
+        let lister = Lister::create(acc, &path, args).await?;
+        lister.try_collect().await
     }
 
     /// List entries that starts with given `path` in parent dir.
@@ -1591,7 +1605,7 @@ impl Operator {
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.lister_with("path/to/dir/").version(true).await?;
+    /// let mut entries = op.lister_with("path/to/dir/").versions(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1627,9 +1641,33 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpList::default(),
-            |inner, path, args| async move { Lister::create(inner, &path, args).await },
+            options::ListOptions::default(),
+            Self::lister_inner,
         )
+    }
+
+    /// List entries that starts with given `path` in parent dir with options.
+    ///
+    /// This function will create a new [`Lister`] to list entries. Users can stop listing via
+    /// dropping this [`Lister`].
+    ///
+    /// ## Options
+    ///
+    /// Visit [`options::ListOptions`] for all available options.
+    pub async fn lister_options(&self, path: &str, opts: options::ListOptions) -> Result<Lister> {
+        let path = normalize_path(path);
+        Self::lister_inner(self.inner().clone(), path, opts).await
+    }
+
+    #[inline]
+    async fn lister_inner(
+        acc: Accessor,
+        path: String,
+        opts: options::ListOptions,
+    ) -> Result<Lister> {
+        let args = opts.into();
+        let lister = Lister::create(acc, &path, args).await?;
+        Ok(lister)
     }
 }
 

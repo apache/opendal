@@ -23,7 +23,7 @@ use opendal as od;
 
 use super::ffi;
 
-pub struct Reader(pub od::StdReader);
+pub struct Reader(pub od::blocking::StdReader);
 
 impl Reader {
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

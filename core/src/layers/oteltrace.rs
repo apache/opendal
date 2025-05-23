@@ -67,13 +67,9 @@ pub struct OtelTraceAccessor<A> {
 impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     type Inner = A;
     type Reader = OtelTraceWrapper<A::Reader>;
-    type BlockingReader = OtelTraceWrapper<A::BlockingReader>;
     type Writer = OtelTraceWrapper<A::Writer>;
-    type BlockingWriter = OtelTraceWrapper<A::BlockingWriter>;
     type Lister = OtelTraceWrapper<A::Lister>;
-    type BlockingLister = OtelTraceWrapper<A::BlockingLister>;
     type Deleter = A::Deleter;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -167,82 +163,6 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let cx = TraceContext::current_with_span(span);
         self.inner().presign(path, args).with_context(cx).await
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let tracer = global::tracer("opendal");
-        tracer.in_span("blocking_create_dir", |cx| {
-            let span = cx.span(); // let mut span = cx.();
-            span.set_attribute(KeyValue::new("path", path.to_string()));
-            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-            self.inner().blocking_create_dir(path, args)
-        })
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_read");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_write");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let tracer = global::tracer("opendal");
-        tracer.in_span("blocking_copy", |cx| {
-            let span = cx.span();
-            span.set_attribute(KeyValue::new("from", from.to_string()));
-            span.set_attribute(KeyValue::new("to", to.to_string()));
-            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-            self.inner().blocking_copy(from, to, args)
-        })
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let tracer = global::tracer("opendal");
-        tracer.in_span("blocking_rename", |cx| {
-            let span = cx.span();
-            span.set_attribute(KeyValue::new("from", from.to_string()));
-            span.set_attribute(KeyValue::new("to", to.to_string()));
-            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-            self.inner().blocking_rename(from, to, args)
-        })
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let tracer = global::tracer("opendal");
-        tracer.in_span("blocking_stat", |cx| {
-            let span = cx.span();
-            span.set_attribute(KeyValue::new("path", path.to_string()));
-            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-            self.inner().blocking_stat(path, args)
-        })
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner().blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_list");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, it)| (rp, OtelTraceWrapper::new(span, it)))
-    }
 }
 
 pub struct OtelTraceWrapper<R> {
@@ -262,12 +182,6 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner.read()
-    }
-}
-
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner.write(bs)
@@ -282,24 +196,8 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner.write(bs)
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
-    }
-}
-
 impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().await
-    }
-}
-
-impl<R: oio::BlockingList> oio::BlockingList for OtelTraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next()
     }
 }

@@ -145,10 +145,6 @@ impl Access for HdfsNativeBackend {
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();

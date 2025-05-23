@@ -57,23 +57,28 @@ pub struct Operator {
     // 3. Majority of use cases are still blocking.
     //
     // In practice, we will not use operator directly because of the async support.
-    pub operator: ocore::Operator,
+    pub async_op: ocore::Operator,
     // The cached blocking operator coming from `Operator::blocking`.
     // Important to keep in sync after making changes to the `Operator`.
     //
     // We declare this `BlockingOperator` to state the intent of assumptions instead of
     // getting a `BlockingOperator` for an operation dynamically every time.
-    pub blocking: ocore::BlockingOperator,
+    pub blocking_op: ocore::blocking::Operator,
 }
 
 impl Operator {
     // Convenience helper to construct operator
     #[inline]
     pub(crate) fn from_operator(operator: ocore::Operator) -> Operator {
-        // doesn't change `operator`'s state, but creates a new pointer to the inner accessor
-        let blocking = operator.blocking();
+        let handle = RUNTIME.handle();
+        let _enter = handle.enter();
+        let blocking_op = ocore::blocking::Operator::new(operator.clone())
+            .expect("initiate blocking operator must succeed");
 
-        Operator { operator, blocking }
+        Operator {
+            async_op: operator,
+            blocking_op,
+        }
     }
 }
 
@@ -104,7 +109,7 @@ impl Operator {
     /// @return [String]
     fn read(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bytes::Bytes, Error> {
         let buffer = rb_self
-            .blocking
+            .blocking_op
             .read(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         Ok(buffer.to_bytes())
@@ -118,7 +123,7 @@ impl Operator {
     /// @return [nil]
     fn write(ruby: &Ruby, rb_self: &Self, path: String, bs: RString) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .write(&path, bs.to_bytes())
             .map(|_| ())
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
@@ -131,7 +136,7 @@ impl Operator {
     /// @return [Metadata]
     fn stat(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Metadata, Error> {
         rb_self
-            .blocking
+            .blocking_op
             .stat(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
             .map(Metadata::new)
@@ -142,7 +147,7 @@ impl Operator {
     /// Gets capabilities of the current operator
     /// @return [Capability]
     fn capability(&self) -> Result<Capability, Error> {
-        let capability = self.blocking.info().full_capability();
+        let capability = self.blocking_op.info().full_capability();
         Ok(Capability::new(capability))
     }
 
@@ -154,7 +159,7 @@ impl Operator {
     /// @return [nil]
     fn create_dir(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .create_dir(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -166,7 +171,7 @@ impl Operator {
     /// @return [nil]
     fn delete(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .delete(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -178,7 +183,7 @@ impl Operator {
     /// @return [Boolean]
     fn exists(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bool, Error> {
         rb_self
-            .blocking
+            .blocking_op
             .exists(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -191,7 +196,7 @@ impl Operator {
     /// @return [nil]
     fn rename(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .rename(&from, &to)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -203,7 +208,7 @@ impl Operator {
     /// @return [nil]
     fn remove_all(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .remove_all(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -216,7 +221,7 @@ impl Operator {
     /// @return [nil]
     fn copy(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .copy(&from, &to)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -229,7 +234,7 @@ impl Operator {
     /// @raise [ArgumentError] invalid mode, or when the mode is not unique
     /// @return [OpenDAL::IO]
     fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
-        let operator = rb_self.blocking.clone();
+        let operator = rb_self.blocking_op.clone();
         Io::new(ruby, operator, path, mode)
     }
 
@@ -250,22 +255,17 @@ impl Operator {
         )?;
         let (limit, start_after, recursive) = kwargs.optional;
 
-        let mut builder = rb_self.blocking.lister_with(&path);
-
-        if let Some(limit) = limit {
-            builder = builder.limit(limit);
-        }
-
-        if let Some(start_after) = start_after {
-            builder = builder.start_after(start_after.as_str());
-        }
-
-        if let Some(true) = recursive {
-            builder = builder.recursive(true);
-        }
-
-        let lister = builder
-            .call()
+        let lister = rb_self
+            .blocking_op
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    limit,
+                    start_after,
+                    recursive: recursive.unwrap_or(false),
+                    ..Default::default()
+                },
+            )
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
 
         Ok(Lister::new(lister))
@@ -276,7 +276,7 @@ impl Operator {
     /// Gets meta information of the underlying accessor.
     /// @return [OperatorInfo]
     fn info(&self) -> Result<OperatorInfo, Error> {
-        Ok(OperatorInfo(self.blocking.info()))
+        Ok(OperatorInfo(self.blocking_op.info()))
     }
 }
 

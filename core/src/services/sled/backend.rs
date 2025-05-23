@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use tokio::task;
-
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::SledConfig;
@@ -147,7 +145,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 list: true,
-                blocking: true,
                 shared: false,
                 ..Default::default()
             },
@@ -155,15 +152,6 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
         Ok(self
             .tree
             .get(path)
@@ -172,15 +160,6 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), value))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
         self.tree
             .insert(path, value.to_vec())
             .map_err(parse_error)?;
@@ -188,32 +167,12 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)?
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         self.tree.remove(path).map_err(parse_error)?;
 
         Ok(())
     }
 
     async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let cloned_self = self.clone();
-        let cloned_path = path.to_string();
-
-        let res = task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
-            .await
-            .map_err(new_task_join_error)??;
-
-        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
-    }
-
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let it = self.tree.scan_prefix(path).keys();
         let mut res = Vec::default();
 
@@ -227,7 +186,7 @@ impl kv::Adapter for Adapter {
             res.push(v);
         }
 
-        Ok(res)
+        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
     }
 }
 

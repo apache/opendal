@@ -31,7 +31,12 @@ pub fn operator(
     map: BTreeMap<String, String>,
 ) -> Result<ocaml::Pointer<Operator>, String> {
     let op = map_res_error(new_operator(scheme_str, map))?;
-    Ok(Operator(op.blocking()).into())
+
+    let handle = RUNTIME.handle();
+    let _enter = handle.enter();
+    let blocking_op = od::blocking::Operator::new(op.clone()).unwrap();
+
+    Ok(Operator(blocking_op).into())
 }
 
 #[ocaml::func]

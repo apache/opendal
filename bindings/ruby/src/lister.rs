@@ -84,7 +84,7 @@ impl Entry {
 ///
 /// `Lister` is thread-safe.
 #[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
-pub struct Lister(Arc<Mutex<ocore::BlockingLister>>);
+pub struct Lister(Arc<Mutex<ocore::blocking::Lister>>);
 
 impl Iterator for Lister {
     type Item = Entry;
@@ -104,7 +104,7 @@ impl Iterator for Lister {
 
 impl Lister {
     /// Creates a new blocking Lister.
-    pub fn new(inner: ocore::BlockingLister) -> Self {
+    pub fn new(inner: ocore::blocking::Lister) -> Self {
         Self(Arc::new(Mutex::new(inner)))
     }
 

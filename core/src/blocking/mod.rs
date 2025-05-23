@@ -15,14 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[allow(clippy::module_inception)]
-mod blocking_reader;
-pub use blocking_reader::BlockingReader;
+//! blocking module provides blocking APIs for OpenDAL.
 
-mod buffer_iterator;
-pub use buffer_iterator::BufferIterator;
+mod delete;
+pub use delete::*;
 
-mod std_bytes_iterator;
-pub use std_bytes_iterator::StdBytesIterator;
-mod std_reader;
-pub use std_reader::StdReader;
+mod list;
+pub use list::*;
+
+mod read;
+pub use read::*;
+
+mod write;
+pub use write::*;
+
+mod operator;
+pub use operator::*;

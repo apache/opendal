@@ -531,13 +531,9 @@ impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
 impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     type Inner = A;
     type Reader = MetricsWrapper<A::Reader, I>;
-    type BlockingReader = MetricsWrapper<A::BlockingReader, I>;
     type Writer = MetricsWrapper<A::Writer, I>;
-    type BlockingWriter = MetricsWrapper<A::BlockingWriter, I>;
     type Lister = MetricsWrapper<A::Lister, I>;
-    type BlockingLister = MetricsWrapper<A::BlockingLister, I>;
     type Deleter = MetricsWrapper<A::Deleter, I>;
-    type BlockingDeleter = MetricsWrapper<A::BlockingDeleter, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -786,215 +782,6 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             .observe(labels, MetricValue::OperationExecuting(-1));
         res
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::CreateDir.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let res = self
-            .inner()
-            .blocking_create_dir(path, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
-        self.interceptor
-            .observe(labels, MetricValue::OperationExecuting(-1));
-        res
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let (rp, reader) = self
-            .inner
-            .blocking_read(path, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationTtfbSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })?;
-
-        Ok((
-            rp,
-            MetricsWrapper::new(reader, self.interceptor.clone(), labels, start),
-        ))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let (rp, writer) = self.inner.blocking_write(path, args).inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        Ok((
-            rp,
-            MetricsWrapper::new(writer, self.interceptor.clone(), labels, start),
-        ))
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let res = self
-            .inner()
-            .blocking_copy(from, to, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
-        self.interceptor
-            .observe(labels, MetricValue::OperationExecuting(-1));
-        res
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let res = self
-            .inner()
-            .blocking_rename(from, to, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
-        self.interceptor
-            .observe(labels, MetricValue::OperationExecuting(-1));
-        res
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let res = self
-            .inner()
-            .blocking_stat(path, args)
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
-        self.interceptor
-            .observe(labels, MetricValue::OperationExecuting(-1));
-        res
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let (rp, deleter) = self.inner.blocking_delete().inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        Ok((
-            rp,
-            MetricsWrapper::new(deleter, self.interceptor.clone(), labels, start),
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
-
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-        let (rp, lister) = self.inner.blocking_list(path, args).inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        Ok((
-            rp,
-            MetricsWrapper::new(lister, self.interceptor.clone(), labels, start),
-        ))
-    }
 }
 
 pub struct MetricsWrapper<R, I: MetricsIntercept> {
@@ -1069,22 +856,6 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
     }
 }
 
-impl<R: oio::BlockingRead, I: MetricsIntercept> oio::BlockingRead for MetricsWrapper<R, I> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner
-            .read()
-            .inspect(|bs| {
-                self.size += bs.len() as u64;
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
-    }
-}
-
 impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();
@@ -1122,54 +893,11 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
     }
 }
 
-impl<R: oio::BlockingWrite, I: MetricsIntercept> oio::BlockingWrite for MetricsWrapper<R, I> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let size = bs.len();
-
-        self.inner
-            .write(bs)
-            .inspect(|_| {
-                self.size += size as u64;
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close().inspect_err(|err| {
-            self.interceptor.observe(
-                self.labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })
-    }
-}
-
 impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
             .await
-            .inspect(|_| {
-                self.size += 1;
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
-    }
-}
-
-impl<R: oio::BlockingList, I: MetricsIntercept> oio::BlockingList for MetricsWrapper<R, I> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner
-            .next()
             .inspect(|_| {
                 self.size += 1;
             })
@@ -1199,31 +927,6 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
 
     async fn flush(&mut self) -> Result<usize> {
         self.inner.flush().await.inspect_err(|err| {
-            self.interceptor.observe(
-                self.labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })
-    }
-}
-
-impl<R: oio::BlockingDelete, I: MetricsIntercept> oio::BlockingDelete for MetricsWrapper<R, I> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner
-            .delete(path, args)
-            .inspect(|_| {
-                self.size += 1;
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.inner.flush().inspect_err(|err| {
             self.interceptor.observe(
                 self.labels.clone().with_error(err.kind()),
                 MetricValue::OperationErrorsTotal,

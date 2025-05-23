@@ -16,8 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::BlockingRead;
-pub use api::BlockingReader;
 pub use api::Read;
 pub use api::ReadDyn;
 pub use api::Reader;

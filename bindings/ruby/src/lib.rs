@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::LazyLock;
+
 use magnus::exception;
 use magnus::function;
 use magnus::Error;
@@ -31,6 +33,13 @@ mod metadata;
 mod middlewares;
 mod operator;
 mod operator_info;
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
 
 pub fn format_magnus_error(err: ocore::Error) -> Error {
     Error::new(exception::runtime_error(), err.to_string())

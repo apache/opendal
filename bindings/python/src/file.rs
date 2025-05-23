@@ -41,17 +41,17 @@ use crate::*;
 pub struct File(FileState);
 
 enum FileState {
-    Reader(ocore::StdReader),
-    Writer(ocore::StdWriter),
+    Reader(ocore::blocking::StdReader),
+    Writer(ocore::blocking::StdWriter),
     Closed,
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::StdReader) -> Self {
+    pub fn new_reader(reader: ocore::blocking::StdReader) -> Self {
         Self(FileState::Reader(reader))
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
+    pub fn new_writer(writer: ocore::blocking::Writer) -> Self {
         Self(FileState::Writer(writer.into_std_write()))
     }
 }

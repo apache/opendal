@@ -5529,6 +5529,7 @@ dependencies = [
  "criterion",
  "opendal",
  "rand 0.8.5",
+ "tokio",
  "uuid",
 ]
 

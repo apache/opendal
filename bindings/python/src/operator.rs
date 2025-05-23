@@ -33,14 +33,19 @@ fn build_operator(
     scheme: ocore::Scheme,
     map: HashMap<String, String>,
 ) -> PyResult<ocore::Operator> {
-    let mut op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
-    if !op.info().full_capability().blocking {
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
-        let _guard = runtime.enter();
-        op = op
-            .layer(ocore::layers::BlockingLayer::create().expect("blocking layer must be created"));
-    }
+    let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
+    Ok(op)
+}
 
+fn build_blocking_operator(
+    scheme: ocore::Scheme,
+    map: HashMap<String, String>,
+) -> PyResult<ocore::blocking::Operator> {
+    let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
+
+    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let _guard = runtime.enter();
+    let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
 }
 
@@ -49,7 +54,7 @@ fn build_operator(
 /// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
 pub struct Operator {
-    core: ocore::BlockingOperator,
+    core: ocore::blocking::Operator,
     __scheme: ocore::Scheme,
     __map: HashMap<String, String>,
 }
@@ -73,7 +78,7 @@ impl Operator {
             .unwrap_or_default();
 
         Ok(Operator {
-            core: build_operator(scheme, map.clone())?.blocking(),
+            core: build_blocking_operator(scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
         })
@@ -82,8 +87,12 @@ impl Operator {
     /// Add new layers upon existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
+
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+        let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
         Ok(Self {
-            core: op.blocking(),
+            core: op,
             __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
@@ -121,28 +130,11 @@ impl Operator {
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        let mut kwargs = kwargs.unwrap_or_default();
-        let mut write = self
-            .core
-            .write_with(&path, bs)
-            .append(kwargs.append.unwrap_or(false));
-        if let Some(chunk) = kwargs.chunk {
-            write = write.chunk(chunk);
-        }
-        if let Some(content_type) = &kwargs.content_type {
-            write = write.content_type(content_type);
-        }
-        if let Some(content_disposition) = &kwargs.content_disposition {
-            write = write.content_disposition(content_disposition);
-        }
-        if let Some(cache_control) = &kwargs.cache_control {
-            write = write.cache_control(cache_control);
-        }
-        if let Some(user_metadata) = kwargs.user_metadata.take() {
-            write = write.user_metadata(user_metadata);
-        }
-
-        write.call().map(|_| ()).map_err(format_pyerr)
+        let kwargs = kwargs.unwrap_or_default();
+        self.core
+            .write_options(&path, bs, kwargs.into())
+            .map(|_| ())
+            .map_err(format_pyerr)
     }
 
     /// Get current path's metadata **without cache** directly.
@@ -215,11 +207,16 @@ impl Operator {
     #[pyo3(signature = (path, *, start_after=None))]
     pub fn list(&self, path: PathBuf, start_after: Option<String>) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
-        let mut builder = self.core.lister_with(&path);
-        if let Some(start_after) = start_after {
-            builder = builder.start_after(&start_after);
-        }
-        let l = builder.call().map_err(format_pyerr)?;
+        let l = self
+            .core
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    start_after,
+                    ..Default::default()
+                },
+            )
+            .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
@@ -228,9 +225,13 @@ impl Operator {
         let path = path.to_string_lossy().to_string();
         let l = self
             .core
-            .lister_with(&path)
-            .recursive(true)
-            .call()
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
@@ -629,8 +630,12 @@ impl AsyncOperator {
     }
 
     pub fn to_operator(&self) -> PyResult<Operator> {
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+        let op = ocore::blocking::Operator::new(self.core.clone()).map_err(format_pyerr)?;
+
         Ok(Operator {
-            core: self.core.clone().blocking(),
+            core: op,
             __scheme: self.__scheme,
             __map: self.__map.clone(),
         })

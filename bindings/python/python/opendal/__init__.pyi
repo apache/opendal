@@ -175,10 +175,7 @@ class Operator(_Base):
             target (str|Path): The target path.
         """
     def remove_all(self, path: PathBuf) -> None:
-        """Remove all objects at the given path.
-
-        Args:
-            path (str|Path): The path to the directory.
+        """Convert into an async operator
         """
     def to_async_operator(self) -> AsyncOperator: ...
 

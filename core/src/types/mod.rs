@@ -72,5 +72,7 @@ pub use scheme::Scheme;
 mod capability;
 pub use capability::Capability;
 
+pub mod options;
+
 mod context;
 pub(crate) use context::*;

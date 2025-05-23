@@ -22,7 +22,7 @@ import pytest
 
 
 @pytest.mark.need_capability(
-    "read", "write", "delete", "list", "blocking", "create_dir"
+    "read", "write", "delete", "list", "create_dir"
 )
 def test_sync_exists(service_name, operator, async_operator):
     content = os.urandom(1024)

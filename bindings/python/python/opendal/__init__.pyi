@@ -653,6 +653,3 @@ class Capability:
 
     shared: bool
     """If operator supports shared"""
-
-    blocking: bool
-    """If operator supports blocking"""

@@ -19,6 +19,7 @@ use std::ops::RangeBounds;
 
 use bytes::BufMut;
 
+use crate::Reader as AsyncReader;
 use crate::*;
 
 use super::BufferIterator;
@@ -28,18 +29,18 @@ use super::StdReader;
 /// BlockingReader is designed to read data from given path in an blocking
 /// manner.
 #[derive(Clone)]
-pub struct BlockingReader {
+pub struct Reader {
     handle: tokio::runtime::Handle,
-    inner: Reader,
+    inner: AsyncReader,
 }
 
-impl BlockingReader {
+impl Reader {
     /// Create a new blocking reader.
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn new(handle: tokio::runtime::Handle, inner: Reader) -> Self {
-        BlockingReader { handle, inner }
+    pub(crate) fn new(handle: tokio::runtime::Handle, inner: AsyncReader) -> Self {
+        Reader { handle, inner }
     }
 
     /// Read give range from reader into [`Buffer`].

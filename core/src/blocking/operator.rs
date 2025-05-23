@@ -375,7 +375,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader(&self, path: &str) -> Result<blocking::BlockingReader> {
+    pub fn reader(&self, path: &str) -> Result<blocking::Reader> {
         self.reader_options(path, options::ReaderOptions::default())
     }
 
@@ -399,9 +399,9 @@ impl Operator {
         &self,
         path: &str,
         opts: options::ReaderOptions,
-    ) -> Result<blocking::BlockingReader> {
+    ) -> Result<blocking::Reader> {
         let r = self.handle.block_on(self.op.reader_options(path, opts))?;
-        Ok(blocking::BlockingReader::new(self.handle.clone(), r))
+        Ok(blocking::Reader::new(self.handle.clone(), r))
     }
 
     /// Write bytes into given path.
@@ -482,7 +482,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn writer(&self, path: &str) -> Result<blocking::BlockingWriter> {
+    pub fn writer(&self, path: &str) -> Result<blocking::Writer> {
         self.writer_options(path, options::WriteOptions::default())
     }
 
@@ -506,9 +506,9 @@ impl Operator {
         &self,
         path: &str,
         opts: options::WriteOptions,
-    ) -> Result<blocking::BlockingWriter> {
+    ) -> Result<blocking::Writer> {
         let w = self.handle.block_on(self.op.writer_options(path, opts))?;
-        Ok(blocking::BlockingWriter::new(self.handle.clone(), w))
+        Ok(blocking::Writer::new(self.handle.clone(), w))
     }
 
     /// Copy a file from `from` to `to`.
@@ -634,8 +634,8 @@ impl Operator {
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
     /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
-    pub fn deleter(&self) -> Result<blocking::BlockingDeleter> {
-        blocking::BlockingDeleter::create(
+    pub fn deleter(&self) -> Result<blocking::Deleter> {
+        blocking::Deleter::create(
             self.handle.clone(),
             self.handle.block_on(self.op.deleter())?,
         )
@@ -788,7 +788,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister(&self, path: &str) -> Result<blocking::BlockingLister> {
+    pub fn lister(&self, path: &str) -> Result<blocking::Lister> {
         self.lister_options(path, options::ListOptions::default())
     }
 
@@ -859,9 +859,9 @@ impl Operator {
         &self,
         path: &str,
         opts: options::ListOptions,
-    ) -> Result<blocking::BlockingLister> {
+    ) -> Result<blocking::Lister> {
         let l = self.handle.block_on(self.op.lister_options(path, opts))?;
-        Ok(blocking::BlockingLister::new(self.handle.clone(), l))
+        Ok(blocking::Lister::new(self.handle.clone(), l))
     }
 
     /// Check if this operator can work correctly.

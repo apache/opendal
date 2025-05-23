@@ -15,18 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::Deleter as AsyncDeleter;
 use crate::*;
 
 /// BlockingDeleter is designed to continuously remove content from storage.
 ///
 /// It leverages batch deletion capabilities provided by storage services for efficient removal.
-pub struct BlockingDeleter {
+pub struct Deleter {
     handle: tokio::runtime::Handle,
-    inner: Deleter,
+    inner: AsyncDeleter,
 }
 
-impl BlockingDeleter {
-    pub(crate) fn create(handle: tokio::runtime::Handle, inner: Deleter) -> Result<Self> {
+impl Deleter {
+    pub(crate) fn create(handle: tokio::runtime::Handle, inner: AsyncDeleter) -> Result<Self> {
         Ok(Self { handle, inner })
     }
 

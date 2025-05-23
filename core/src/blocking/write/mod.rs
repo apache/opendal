@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod blocking_writer;
-pub use blocking_writer::BlockingWriter;
+mod writer;
+pub use writer::Writer;
 
 mod std_writer;
 pub use std_writer::StdWriter;

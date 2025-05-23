@@ -16,16 +16,17 @@
 // under the License.
 
 use super::std_writer::StdWriter;
+use crate::Writer as AsyncWriter;
 use crate::*;
 
 /// BlockingWriter is designed to write data into given path in an blocking
 /// manner.
-pub struct BlockingWriter {
+pub struct Writer {
     handle: tokio::runtime::Handle,
-    inner: Writer,
+    inner: AsyncWriter,
 }
 
-impl BlockingWriter {
+impl Writer {
     /// Create a new writer.
     ///
     /// Create will use internal information to decide the most suitable
@@ -33,7 +34,7 @@ impl BlockingWriter {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn new(handle: tokio::runtime::Handle, inner: Writer) -> Self {
+    pub(crate) fn new(handle: tokio::runtime::Handle, inner: AsyncWriter) -> Self {
         Self { handle, inner }
     }
 

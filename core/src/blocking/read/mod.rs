@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[allow(clippy::module_inception)]
-mod blocking_reader;
-pub use blocking_reader::BlockingReader;
+mod reader;
+pub use reader::Reader;
 
 mod buffer_iterator;
 pub use buffer_iterator::BufferIterator;

@@ -17,6 +17,7 @@
 
 use futures::StreamExt;
 
+use crate::Lister as AsyncLister;
 use crate::*;
 
 /// BlockingLister is designed to list entries at given path in a blocking
@@ -26,24 +27,24 @@ use crate::*;
 ///
 /// - Lister implements `Iterator<Item = Result<Entry>>`.
 /// - Lister will return `None` if there is no more entries or error has been returned.
-pub struct BlockingLister {
+pub struct Lister {
     handle: tokio::runtime::Handle,
-    lister: Lister,
+    lister: AsyncLister,
 }
 
 /// # Safety
 ///
 /// BlockingLister will only be accessed by `&mut Self`
-unsafe impl Sync for BlockingLister {}
+unsafe impl Sync for Lister {}
 
-impl BlockingLister {
+impl Lister {
     /// Create a new lister.
-    pub(crate) fn new(handle: tokio::runtime::Handle, lister: Lister) -> Self {
+    pub(crate) fn new(handle: tokio::runtime::Handle, lister: AsyncLister) -> Self {
         Self { handle, lister }
     }
 }
 
-impl Iterator for BlockingLister {
+impl Iterator for Lister {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {

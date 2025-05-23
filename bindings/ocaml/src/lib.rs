@@ -18,11 +18,19 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as od;
 
 mod operator;
 mod seek_from;
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
 
 pub fn new_operator(
     scheme_str: String,

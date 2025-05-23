@@ -128,9 +128,6 @@ pub struct opendal_capability {
 
     /// If operator supports shared.
     pub shared: bool,
-
-    /// If operator supports blocking.
-    pub blocking: bool,
 }
 
 impl opendal_operator_info {
@@ -255,7 +252,6 @@ impl From<core::Capability> for opendal_capability {
             presign_stat: value.presign_stat,
             presign_write: value.presign_write,
             shared: value.shared,
-            blocking: value.blocking,
         }
     }
 }

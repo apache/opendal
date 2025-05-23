@@ -33,7 +33,7 @@ doc = false
 [dependencies]
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
-    "blocking",
+  "blocking",
 
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",

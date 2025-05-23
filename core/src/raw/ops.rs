@@ -217,6 +217,18 @@ impl OpList {
     }
 }
 
+impl From<options::ListOptions> for OpList {
+    fn from(value: options::ListOptions) -> Self {
+        Self {
+            limit: value.limit,
+            start_after: value.start_after,
+            recursive: value.recursive,
+            versions: value.versions,
+            deleted: value.deleted,
+        }
+    }
+}
+
 /// Args for `presign` operation.
 ///
 /// The path must be normalized.

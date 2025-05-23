@@ -66,8 +66,8 @@ impl BlockingReader {
     }
 
     /// Create a buffer iterator to read specific range from given reader.
-    fn into_iterator(self, range: impl RangeBounds<u64>) -> Result<BufferIterator> {
-        let iter = self.handle.block_on(self.inner.into_bytes_stream(range))?;
+    pub fn into_iterator(self, range: impl RangeBounds<u64>) -> Result<BufferIterator> {
+        let iter = self.handle.block_on(self.inner.into_stream(range))?;
 
         Ok(BufferIterator::new(self.handle.clone(), iter))
     }

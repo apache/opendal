@@ -29,3 +29,4 @@ criterion = { version = "0.5", features = ["async", "async_tokio"] }
 opendal = { path = "../..", features = ["tests"] }
 rand = "0.8"
 uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["full"] }

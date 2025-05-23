@@ -20,7 +20,6 @@ use std::io;
 use bytes::Bytes;
 use futures::StreamExt;
 
-use crate::raw::*;
 use crate::*;
 
 /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].

@@ -19,7 +19,6 @@ use std::io::Write;
 
 use futures::AsyncWriteExt;
 
-use crate::raw::*;
 use crate::*;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].

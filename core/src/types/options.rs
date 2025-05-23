@@ -24,7 +24,6 @@ use chrono::{DateTime, Utc};
 use crate::raw::BytesRange;
 
 /// Options for delete operations.
-#[non_exhaustive]
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DeleteOptions {
     /// The version of the file to delete.
@@ -32,7 +31,7 @@ pub struct DeleteOptions {
 }
 
 /// Options for list operations.
-#[non_exhaustive]
+
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
     /// The limit passed to underlying service to specify the max results
@@ -69,7 +68,6 @@ pub struct ListOptions {
 }
 
 /// Options for read operations.
-#[non_exhaustive]
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReadOptions {
     /// Set `range` for this operation.
@@ -164,7 +162,6 @@ pub struct ReadOptions {
 }
 
 /// Options for reader operations.
-#[non_exhaustive]
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReaderOptions {
     /// Set `version` for this operation.
@@ -236,7 +233,6 @@ pub struct ReaderOptions {
 }
 
 /// Options for stat operations.
-#[non_exhaustive]
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct StatOptions {
     /// Set `version` for this operation.
@@ -290,7 +286,6 @@ pub struct StatOptions {
 }
 
 /// Options for write operations.
-#[non_exhaustive]
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct WriteOptions {
     /// Sets append mode for this operation.

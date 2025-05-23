@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::StreamExt;
+
 use crate::*;
 
 /// BlockingLister is designed to list entries at given path in a blocking
@@ -36,8 +38,8 @@ unsafe impl Sync for BlockingLister {}
 
 impl BlockingLister {
     /// Create a new lister.
-    pub(crate) fn create(handle: tokio::runtime::Handle, lister: Lister) -> Result<Self> {
-        Ok(Self { handle, lister })
+    pub(crate) fn new(handle: tokio::runtime::Handle, lister: Lister) -> Self {
+        Self { handle, lister }
     }
 }
 

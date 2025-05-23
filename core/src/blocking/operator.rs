@@ -15,12 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-
 use tokio::runtime::Handle;
 
-use super::operator_functions::*;
-use crate::raw::*;
 use crate::Operator as AsyncOperator;
 use crate::*;
 
@@ -211,7 +207,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn stat(&self, path: &str) -> Result<Metadata> {
-        self.stat_with(path).call()
+        self.stat_options(path, options::StatOptions::default())
     }
 
     /// Get given path's metadata with extra options.
@@ -270,8 +266,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn stat_with(&self, path: &str) -> FunctionStat<impl Future<Output = Result<Metadata>>> {
-        FunctionStat::new(self.handle.clone(), self.op.stat_with(path))
+    pub fn stat_options(&self, path: &str, opts: options::StatOptions) -> Result<Metadata> {
+        self.handle.block_on(self.op.stat_options(path, opts))
     }
 
     /// Check if this path exists or not.
@@ -343,7 +339,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn read(&self, path: &str) -> Result<Buffer> {
-        self.read_with(path).call()
+        self.read_options(path, options::ReadOptions::default())
     }
 
     /// Read the whole path into a bytes with extra options.
@@ -362,8 +358,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FunctionRead<impl Future<Output = Result<Buffer>>> {
-        FunctionRead::new(self.handle.clone(), self.op.read_with(path))
+    pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
+        self.handle.block_on(self.op.read_options(path, opts))
     }
 
     /// Create a new reader which can read the whole path.
@@ -380,7 +376,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn reader(&self, path: &str) -> Result<blocking::BlockingReader> {
-        self.reader_with(path).call()
+        self.reader_options(path, options::ReaderOptions::default())
     }
 
     /// Create a new reader with extra options
@@ -399,11 +395,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(
+    pub fn reader_options(
         &self,
         path: &str,
-    ) -> FunctionReader<impl Future<Output = Result<blocking::BlockingReader>>> {
-        FunctionReader::new(self.handle.clone(), self.reader_with(path))
+        opts: options::ReaderOptions,
+    ) -> Result<blocking::BlockingReader> {
+        let r = self.handle.block_on(self.op.reader_options(path, opts))?;
+        Ok(blocking::BlockingReader::new(self.handle.clone(), r))
     }
 
     /// Write bytes into given path.
@@ -427,7 +425,90 @@ impl Operator {
     /// # }
     /// ```
     pub fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<Metadata> {
-        self.write_with(path, bs).call()
+        self.write_options(path, bs, options::WriteOptions::default())
+    }
+
+    /// Write data with options.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::blocking::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # fn test(op: blocking::Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .write_with("hello.txt", bs)
+    ///     .content_type("text/plain")
+    ///     .call()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn write_options(
+        &self,
+        path: &str,
+        bs: impl Into<Buffer>,
+        opts: options::WriteOptions,
+    ) -> Result<Metadata> {
+        self.handle.block_on(self.op.write_options(path, bs, opts))
+    }
+
+    /// Write multiple bytes into given path.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use opendal::blocking::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # fn test(op: blocking::Operator) -> Result<()> {
+    /// let mut w = op.writer("path/to/file")?;
+    /// w.write(vec![0; 4096])?;
+    /// w.write(vec![1; 4096])?;
+    /// w.close()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn writer(&self, path: &str) -> Result<blocking::BlockingWriter> {
+        self.writer_options(path, options::WriteOptions::default())
+    }
+
+    /// Create a new writer with extra options
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::blocking::Operator;
+    /// use opendal::EntryMode;
+    /// # fn test(op: blocking::Operator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file").call()?;
+    /// w.write(vec![0; 4096])?;
+    /// w.write(vec![1; 4096])?;
+    /// w.close()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn writer_options(
+        &self,
+        path: &str,
+        opts: options::WriteOptions,
+    ) -> Result<blocking::BlockingWriter> {
+        let w = self.handle.block_on(self.op.writer_options(path, opts))?;
+        Ok(blocking::BlockingWriter::new(self.handle.clone(), w))
     }
 
     /// Copy a file from `from` to `to`.
@@ -477,86 +558,6 @@ impl Operator {
         self.handle.block_on(self.op.rename(from, to))
     }
 
-    /// Write data with options.
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let bs = b"hello, world!".to_vec();
-    /// let _ = op
-    ///     .write_with("hello.txt", bs)
-    ///     .content_type("text/plain")
-    ///     .call()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn write_with(
-        &self,
-        path: &str,
-        bs: impl Into<Buffer>,
-    ) -> FunctionWrite<impl Future<Output = Result<Metadata>>> {
-        FunctionWrite::new(self.handle.clone(), self.op.write_with(path, bs.into()))
-    }
-
-    /// Write multiple bytes into given path.
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use bytes::Bytes;
-    ///
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut w = op.writer("path/to/file")?;
-    /// w.write(vec![0; 4096])?;
-    /// w.write(vec![1; 4096])?;
-    /// w.close()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn writer(&self, path: &str) -> Result<blocking::BlockingWriter> {
-        self.writer_with(path).call()
-    }
-
-    /// Create a new writer with extra options
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut w = op.writer_with("path/to/file").call()?;
-    /// w.write(vec![0; 4096])?;
-    /// w.write(vec![1; 4096])?;
-    /// w.close()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn writer_with(
-        &self,
-        path: &str,
-    ) -> FunctionWriter<impl Future<Output = Result<blocking::BlockingWriter>>> {
-        FunctionWriter::new(self.handle.clone(), self.writer_with(path))
-    }
-
     /// Delete given path.
     ///
     /// # Notes
@@ -575,9 +576,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn delete(&self, path: &str) -> Result<()> {
-        self.delete_with(path).call()?;
-
-        Ok(())
+        self.delete_options(path, options::DeleteOptions::default())
     }
 
     /// Delete given path with options.
@@ -600,8 +599,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn delete_with(&self, path: &str) -> FunctionDelete<impl Future<Output = Result<()>>> {
-        FunctionDelete::new(self.handle.clone(), self.op.delete_with(path))
+    pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
+        self.handle.block_on(self.op.delete_options(path, opts))
     }
 
     /// Delete an infallible iterator of paths.
@@ -705,7 +704,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn list(&self, path: &str) -> Result<Vec<Entry>> {
-        self.list_with(path).call()
+        self.list_options(path, options::ListOptions::default())
     }
 
     /// List entries that starts with given `path` in parent dir. with options.
@@ -747,8 +746,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn list_with(&self, path: &str) -> FunctionList<impl Future<Output = Result<Vec<Entry>>>> {
-        FunctionList::new(self.handle.clone(), self.op.list_with(path))
+    pub fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
+        self.handle.block_on(self.op.list_options(path, opts))
     }
 
     /// List entries that starts with given `path` in parent dir.
@@ -790,7 +789,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn lister(&self, path: &str) -> Result<blocking::BlockingLister> {
-        self.lister_with(path).call()
+        self.lister_options(path, options::ListOptions::default())
     }
 
     /// List entries within a given directory as an iterator with options.
@@ -856,8 +855,13 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FunctionLister<impl Future<Output = Result<Lister>>> {
-        FunctionLister::new(self.handle.clone(), self.op.lister_with())
+    pub fn lister_options(
+        &self,
+        path: &str,
+        opts: options::ListOptions,
+    ) -> Result<blocking::BlockingLister> {
+        let l = self.handle.block_on(self.op.lister_options(path, opts))?;
+        Ok(blocking::BlockingLister::new(self.handle.clone(), l))
     }
 
     /// Check if this operator can work correctly.
@@ -882,5 +886,11 @@ impl Operator {
             Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
             _ => Ok(()),
         }
+    }
+}
+
+impl From<Operator> for AsyncOperator {
+    fn from(val: Operator) -> Self {
+        val.op
     }
 }

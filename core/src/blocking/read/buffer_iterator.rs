@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use futures::StreamExt;
+
 use crate::Buffer;
 use crate::*;
 

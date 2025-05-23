@@ -25,7 +25,6 @@ use futures::AsyncBufReadExt;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 
-use crate::raw::*;
 use crate::*;
 
 /// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
@@ -52,7 +51,7 @@ impl BufRead for StdReader {
     }
 
     fn consume(&mut self, amt: usize) {
-        self.r.consume(amt);
+        self.r.consume_unpin(amt);
     }
 }
 

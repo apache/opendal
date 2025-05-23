@@ -40,6 +40,7 @@ mlua = { version = "0.9", features = [
 ], default-features = false, optional = true }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
+  "blocking",
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",
@@ -57,3 +58,4 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
+tokio = { version = "1.28.1", features = ["full"] }

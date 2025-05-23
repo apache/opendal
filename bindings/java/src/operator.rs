@@ -89,10 +89,13 @@ fn intern_read(
     let offset = read_int64_field(env, &options, "offset")?;
     let length = read_int64_field(env, &options, "length")?;
 
-    let content = op.read_options(&path, options::ReadOptions {
-        range: offset_length_to_range(offset, length)?.into(),
-        ..Default::default()
-    })?;
+    let content = op.read_options(
+        &path,
+        options::ReadOptions {
+            range: offset_length_to_range(offset, length)?.into(),
+            ..Default::default()
+        },
+    )?;
 
     let result = bytes_to_jbytearray(env, content.to_bytes())?;
     Ok(result.into_raw())
@@ -131,14 +134,18 @@ fn intern_write(
     let cache_control = read_string_field(env, &options, "cacheControl")?;
     let user_metadata = read_map_field(env, &options, "userMetadata")?;
 
-    let _ = op.write_options(&path, content, options::WriteOptions {
-        append,
-        content_type,
-        content_disposition,
-        cache_control,
-        user_metadata,
-        ..Default::default()
-    })?;
+    let _ = op.write_options(
+        &path,
+        content,
+        options::WriteOptions {
+            append,
+            content_type,
+            content_disposition,
+            cache_control,
+            user_metadata,
+            ..Default::default()
+        },
+    )?;
     Ok(())
 }
 
@@ -307,10 +314,13 @@ fn intern_list(
     let path = jstring_to_string(env, &path)?;
     let recursive = read_bool_field(env, &options, "recursive")?;
 
-    let entries = op.list_options(&path, options::ListOptions {
-        recursive,
-        ..Default::default()
-    })?;
+    let entries = op.list_options(
+        &path,
+        options::ListOptions {
+            recursive,
+            ..Default::default()
+        },
+    )?;
 
     let jarray = env.new_object_array(
         entries.len() as jsize,

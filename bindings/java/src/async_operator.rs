@@ -28,10 +28,10 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
+use opendal::blocking;
 use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
-use opendal::blocking;
 
 use crate::convert::{
     bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field, read_map_field,
@@ -60,11 +60,7 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
     })
 }
 
-fn intern_constructor(
-    env: &mut JNIEnv,
-    scheme: JString,
-    map: JObject,
-) -> Result<jlong> {
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
@@ -321,7 +317,8 @@ fn intern_make_blocking_op(
     executor: *const Executor,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    let op = executor_or_default(env, executor)?.enter_with(move || blocking::Operator::new(op.clone()))?;
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 

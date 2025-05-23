@@ -1422,7 +1422,7 @@ impl Operator {
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.list_with("path/to/dir/").version(true).await?;
+    /// let mut entries = op.list_with("path/to/dir/").versions(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1605,7 +1605,7 @@ impl Operator {
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.lister_with("path/to/dir/").version(true).await?;
+    /// let mut entries = op.lister_with("path/to/dir/").versions(true).await?;
     /// # Ok(())
     /// # }
     /// ```

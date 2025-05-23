@@ -36,7 +36,6 @@ use crate::*;
 /// This is just for initialization. You must use `blocking::Operator` in blocking context.
 ///
 /// ```rust,no_run
-/// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::blocking;
 /// # use opendal::Operator;
@@ -62,7 +61,6 @@ use crate::*;
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run
-/// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::blocking;
 /// # use opendal::Operator;
@@ -96,7 +94,6 @@ use crate::*;
 ///
 /// ```rust,no_run
 /// # use std::sync::LazyLock;
-/// # use opendal::layers::BlockingLayer;
 /// # use opendal::services;
 /// # use opendal::blocking;
 /// # use opendal::Operator;
@@ -144,6 +141,7 @@ impl Operator {
     ///
     /// ```
     /// # use std::sync::Arc;
+    /// use opendal::blocking;
     /// # use anyhow::Result;
     /// use opendal::blocking::Operator;
     ///
@@ -194,6 +192,7 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// use opendal::ErrorKind;
     /// #
@@ -237,35 +236,6 @@ impl Operator {
     /// For services that not support `create_dir`, `stat("test/")` will return `NotFound` even
     /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
     /// we can do about this.
-    ///
-    /// # Examples
-    ///
-    /// ## Get metadata while `ETag` matches
-    ///
-    /// `stat_with` will
-    ///
-    /// - return `Ok(metadata)` if `ETag` matches
-    /// - return `Err(error)` and `error.kind() == ErrorKind::ConditionNotMatch` if file exists but
-    ///   `ETag` mismatch
-    /// - return `Err(err)` if other errors occur, for example, `NotFound`.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::blocking::Operator;
-    /// use opendal::ErrorKind;
-    /// #
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// if let Err(e) = op.stat_with("test").if_match("<etag>").call() {
-    ///     if e.kind() == ErrorKind::ConditionNotMatch {
-    ///         println!("file exists, but etag mismatch")
-    ///     }
-    ///     if e.kind() == ErrorKind::NotFound {
-    ///         println!("file not exist")
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn stat_options(&self, path: &str, opts: options::StatOptions) -> Result<Metadata> {
         self.handle.block_on(self.op.stat_options(path, opts))
     }
@@ -276,6 +246,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
+    /// use opendal::blocking;
     /// use opendal::blocking::Operator;
     /// fn test(op: blocking::Operator) -> Result<()> {
     ///     let _ = op.exists("test")?;
@@ -311,6 +282,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -331,6 +303,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -346,18 +319,6 @@ impl Operator {
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`blocking::Operator::reader`]
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let bs = op.read_with("path/to/file").range(0..10).call()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         self.handle.block_on(self.op.read_options(path, opts))
     }
@@ -368,6 +329,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -380,21 +342,6 @@ impl Operator {
     }
 
     /// Create a new reader with extra options
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let r = op
-    ///     .reader_with("path/to/file")
-    ///     .version("version_id")
-    ///     .call()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn reader_options(
         &self,
         path: &str,
@@ -414,6 +361,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -433,23 +381,6 @@ impl Operator {
     /// # Notes
     ///
     /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let bs = b"hello, world!".to_vec();
-    /// let _ = op
-    ///     .write_with("hello.txt", bs)
-    ///     .content_type("text/plain")
-    ///     .call()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn write_options(
         &self,
         path: &str,
@@ -469,6 +400,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
+    /// # use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -487,21 +419,6 @@ impl Operator {
     }
 
     /// Create a new writer with extra options
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut w = op.writer_with("path/to/file").call()?;
-    /// w.write(vec![0; 4096])?;
-    /// w.write(vec![1; 4096])?;
-    /// w.close()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn writer_options(
         &self,
         path: &str,
@@ -524,6 +441,7 @@ impl Operator {
     ///
     /// ```
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -547,6 +465,7 @@ impl Operator {
     ///
     /// ```
     /// # use opendal::Result;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -569,6 +488,7 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.delete("path/to/file")?;
@@ -584,21 +504,6 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::blocking::Operator;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let _ = op
-    ///     .delete_with("path/to/file")
-    ///     .version("example_version")
-    ///     .call()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
         self.handle.block_on(self.op.delete_options(path, opts))
     }
@@ -652,6 +557,7 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.remove_all("path/to/dir")?;
@@ -669,7 +575,7 @@ impl Operator {
     /// ## Recursively List
     ///
     /// This function only read the children of the given directory. To read
-    /// all entries recursively, use `blocking::Operator::list_with("path").recursive(true)`
+    /// all entries recursively, use `blocking::Operator::list_options("path", opts)`
     /// instead.
     ///
     /// ## Streaming List
@@ -685,6 +591,7 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
+    /// use opendal::blocking;
     /// use opendal::blocking::Operator;
     /// use opendal::EntryMode;
     /// #  fn test(op: blocking::Operator) -> Result<()> {
@@ -719,33 +626,6 @@ impl Operator {
     ///
     /// In order to avoid this, you can use [`blocking::Operator::lister`] to list entries in
     /// a streaming way.
-    ///
-    /// # Examples
-    ///
-    /// ## List entries with prefix
-    ///
-    /// This function can also be used to list entries in recursive way.
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut entries = op.list_with("prefix/").recursive(true).call()?;
-    /// for entry in entries {
-    ///     match entry.metadata().mode() {
-    ///         EntryMode::FILE => {
-    ///             println!("Handling file")
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
         self.handle.block_on(self.op.list_options(path, opts))
     }
@@ -769,6 +649,7 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
+    /// use opendal::blocking;
     /// use opendal::blocking::Operator;
     /// use opendal::EntryMode;
     /// # fn test(op: blocking::Operator) -> Result<()> {
@@ -797,64 +678,6 @@ impl Operator {
     /// This function will create a new handle to list entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
-    ///
-    /// # Examples
-    ///
-    /// ## List current dir
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut ds = op
-    ///     .lister_with("path/to/dir/")
-    ///     .limit(10)
-    ///     .start_after("start")
-    ///     .call()?;
-    /// for entry in ds {
-    ///     let entry = entry?;
-    ///     match entry.metadata().mode() {
-    ///         EntryMode::FILE => {
-    ///             println!("Handling file {}", entry.path())
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## List all files recursively
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
-    /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// let mut ds = op.lister_with("path/to/dir/").recursive(true).call()?;
-    /// for entry in ds {
-    ///     let entry = entry?;
-    ///     match entry.metadata().mode() {
-    ///         EntryMode::FILE => {
-    ///             println!("Handling file {}", entry.path())
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir {}", entry.path())
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn lister_options(
         &self,
         path: &str,
@@ -871,6 +694,7 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
+    /// use opendal::blocking;
     /// use opendal::blocking::Operator;
     /// use opendal::ErrorKind;
     ///

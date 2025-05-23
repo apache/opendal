@@ -49,10 +49,11 @@ impl Writer {
     ///
     /// ```
     /// use bytes::Bytes;
+    /// use opendal::blocking;
     /// use opendal::blocking::Operator;
     /// use opendal::Result;
     ///
-    /// async fn test(op: blocking::Operator) -> Result<()> {
+    /// fn test(op: blocking::Operator) -> Result<()> {
     ///     let mut w = op.writer("hello.txt")?;
     ///     // Buffer can be created from continues bytes.
     ///     w.write("hello, world")?;

@@ -282,101 +282,7 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// ## `if_match`
-    ///
-    /// Set `if_match` for this `stat` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` matches the given `ETag`.
-    ///
-    /// If file exists, and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    ///
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.stat_with("path/to/file").if_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_none_match`
-    ///
-    /// Set `if_none_match` for this `stat` request.
-    ///
-    /// This feature can be used to check if the file's `ETag` doesn't match the given `ETag`.
-    ///
-    /// If file exists, and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    ///
-    /// # async fn test(op: Operator, etag: &str) -> Result<()> {
-    /// let mut metadata = op.stat_with("path/to/file").if_none_match(etag).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_modified_since`
-    ///
-    /// set `if_modified_since` for this `stat` request.
-    ///
-    /// This feature can be used to check if the file has been modified since the given time.
-    ///
-    /// If file exists, and it's not modified after the given time, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// use chrono::Utc;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut metadata = op.stat_with("path/to/file").if_modified_since(Utc::now()).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `if_unmodified_since`
-    ///
-    /// set `if_unmodified_since` for this `stat` request.
-    ///
-    /// This feature can be used to check if the file has NOT been modified since the given time.
-    ///
-    /// If file exists, and it's modified after the given time, an error with kind [`ErrorKind::ConditionNotMatch`]
-    /// will be returned.
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
-    /// use chrono::Utc;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut metadata = op.stat_with("path/to/file").if_unmodified_since(Utc::now()).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## `version`
-    ///
-    /// Set `version` for this `stat` request.
-    ///
-    /// This feature can be used to retrieve the metadata of a specific version of the given path
-    ///
-    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    ///
-    /// # async fn test(op: Operator, version: &str) -> Result<()> {
-    /// let mut metadata = op.stat_with("path/to/file").version(version).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Check [`options::StatOptions`] for all available options.
     ///
     /// # Examples
     ///
@@ -437,16 +343,27 @@ impl Operator {
     /// we can do about this.
     pub fn stat_with(&self, path: &str) -> FutureStat<impl Future<Output = Result<Metadata>>> {
         let path = normalize_path(path);
-
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpStat::default(),
-            |inner, path, args| async move {
-                let rp = inner.stat(&path, args).await?;
-                Ok(rp.into_metadata())
-            },
+            options::StatOptions::default(),
+            Self::stat_inner,
         )
+    }
+
+    /// Get given path's metadata with extra options.
+    pub async fn stat_options(&self, path: &str, opts: options::StatOptions) -> Result<Metadata> {
+        let path = normalize_path(path);
+        Self::stat_inner(self.accessor.clone(), path, opts).await
+    }
+
+    async fn stat_inner(
+        acc: Accessor,
+        path: String,
+        opts: options::StatOptions,
+    ) -> Result<Metadata> {
+        let rp = acc.stat(&path, opts.into()).await?;
+        Ok(rp.into_metadata())
     }
 
     /// Check if this path exists or not.
@@ -586,16 +503,7 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// Visit [`FutureRead`] for all available options.
-    ///
-    /// - [`range`](./operator_futures/type.FutureRead.html#method.version): Set `range` for the read.
-    /// - [`concurrent`](./operator_futures/type.FutureRead.html#method.concurrent): Set `concurrent` for the read.
-    /// - [`chunk`](./operator_futures/type.FutureRead.html#method.chunk): Set `chunk` for the read.
-    /// - [`version`](./operator_futures/type.FutureRead.html#method.version): Set `version` for the read.
-    /// - [`if_match`](./operator_futures/type.FutureRead.html#method.if_match): Set `if-match` for the read.
-    /// - [`if_none_match`](./operator_futures/type.FutureRead.html#method.if_none_match): Set `if-none-match` for the read.
-    /// - [`if_modified_since`](./operator_futures/type.FutureRead.html#method.if_modified_since): Set `if-modified-since` for the read.
-    /// - [`if_unmodified_since`](./operator_futures/type.FutureRead.html#method.if_unmodified_since): Set `if-unmodified-since` for the read.
+    /// Visit [`options::ReadOptions`] for all available options.
     ///
     /// # Examples
     ///
@@ -617,24 +525,33 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), OpReader::default()),
-            |inner, path, (args, options)| async move {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                            .with_operation("read")
-                            .with_context("service", inner.info().scheme())
-                            .with_context("path", &path),
-                    );
-                }
-
-                let range = args.range();
-                let context = ReadContext::new(inner, path, args, options);
-                let r = Reader::new(context);
-                let buf = r.read(range.to_range()).await?;
-                Ok(buf)
-            },
+            options::ReadOptions::default(),
+            Self::read_inner,
         )
+    }
+
+    /// Read the whole path into a bytes with extra options.
+    pub async fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
+        let path = normalize_path(path);
+        Self::read_inner(self.inner().clone(), path, opts).await
+    }
+
+    async fn read_inner(acc: Accessor, path: String, opts: options::ReadOptions) -> Result<Buffer> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                    .with_operation("read")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+
+        let (args, opts) = opts.into();
+        let range = args.range();
+        let context = ReadContext::new(acc, path, args, opts);
+        let r = Reader::new(context);
+        let buf = r.read(range.to_range()).await?;
+        Ok(buf)
     }
 
     /// Create a new reader which can read the whole path.
@@ -673,16 +590,7 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// Visit [`FutureReader`] for all available options.
-    ///
-    /// - [`version`](./operator_futures/type.FutureReader.html#method.version): Set `version` for the reader.
-    /// - [`concurrent`](./operator_futures/type.FutureReader.html#method.concurrent): Set `concurrent` for the reader.
-    /// - [`chunk`](./operator_futures/type.FutureReader.html#method.chunk): Set `chunk` for the reader.
-    /// - [`gap`](./operator_futures/type.FutureReader.html#method.gap): Set `gap` for the reader.
-    /// - [`if_match`](./operator_futures/type.FutureReader.html#method.if_match): Set `if-match` for the reader.
-    /// - [`if_none_match`](./operator_futures/type.FutureReader.html#method.if_none_match): Set `if-none-match` for the reader.
-    /// - [`if_modified_since`](./operator_futures/type.FutureReader.html#method.if_modified_since): Set `if-modified-since` for the reader.
-    /// - [`if_unmodified_since`](./operator_futures/type.FutureReader.html#method.if_unmodified_since): Set `if-unmodified-since` for the reader.
+    /// Visit [`options::ReaderOptions`] for all available options.
     ///
     /// # Examples
     ///
@@ -701,21 +609,37 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), OpReader::default()),
-            |inner, path, (args, options)| async move {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                            .with_operation("Operator::reader")
-                            .with_context("service", inner.info().scheme())
-                            .with_context("path", path),
-                    );
-                }
-
-                let context = ReadContext::new(inner, path, args, options);
-                Ok(Reader::new(context))
-            },
+            options::ReaderOptions::default(),
+            Self::reader_inner,
         )
+    }
+
+    /// Create a new reader with extra options
+    pub async fn reader_options(&self, path: &str, opts: options::ReaderOptions) -> Result<Reader> {
+        let path = normalize_path(path);
+        Self::reader_inner(self.inner().clone(), path, opts).await
+    }
+
+    /// Allow this unused async since we don't want
+    /// to change our public API.
+    #[allow(clippy::unused_async)]
+    async fn reader_inner(
+        acc: Accessor,
+        path: String,
+        options: options::ReaderOptions,
+    ) -> Result<Reader> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                    .with_operation("Operator::reader")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("path", path),
+            );
+        }
+
+        let (args, opts) = options.into();
+        let context = ReadContext::new(acc, path, args, opts);
+        Ok(Reader::new(context))
     }
 
     /// Write bytes into path.
@@ -755,6 +679,213 @@ impl Operator {
     pub async fn write(&self, path: &str, bs: impl Into<Buffer>) -> Result<Metadata> {
         let bs = bs.into();
         self.write_with(path, bs).await
+    }
+
+    /// Write data with extra options.
+    ///
+    /// # Notes
+    ///
+    /// ## Streaming Write
+    ///
+    /// This method performs a single bulk write operation for all bytes. For finer-grained
+    /// memory control or lazy writing, consider using [`Operator::writer_with`] instead.
+    ///
+    /// ## Multipart Uploads
+    ///
+    /// OpenDAL handles multipart uploads through the [`Writer`] abstraction, managing all
+    /// the upload details automatically. You can customize the upload behavior by configuring
+    /// `chunk` size and `concurrent` operations via [`Operator::writer_with`].
+    ///
+    /// # Options
+    ///
+    /// Visit [`FutureWrite`] for all available options.
+    ///
+    /// - [`append`](./operator_futures/type.FutureWrite.html#method.append): Sets append mode for this write request.
+    /// - [`chunk`](./operator_futures/type.FutureWrite.html#method.chunk): Sets chunk size for buffered writes.
+    /// - [`concurrent`](./operator_futures/type.FutureWrite.html#method.concurrent): Sets concurrent write operations for this writer.
+    /// - [`cache_control`](./operator_futures/type.FutureWrite.html#method.cache_control): Sets cache control for this write request.
+    /// - [`content_type`](./operator_futures/type.FutureWrite.html#method.content_type): Sets content type for this write request.
+    /// - [`content_disposition`](./operator_futures/type.FutureWrite.html#method.content_disposition): Sets content disposition for this write request.
+    /// - [`content_encoding`](./operator_futures/type.FutureWrite.html#method.content_encoding): Sets content encoding for this write request.
+    /// - [`if_match`](./operator_futures/type.FutureWrite.html#method.if_match): Sets if-match for this write request.
+    /// - [`if_none_match`](./operator_futures/type.FutureWrite.html#method.if_none_match): Sets if-none-match for this write request.
+    /// - [`if_not_exist`](./operator_futures/type.FutureWrite.html#method.if_not_exist): Sets if-not-exist for this write request.
+    /// - [`user_metadata`](./operator_futures/type.FutureWrite.html#method.user_metadata): Sets user metadata for this write request.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op.write_with("path/to/file", vec![0; 4096])
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn write_with(
+        &self,
+        path: &str,
+        bs: impl Into<Buffer>,
+    ) -> FutureWrite<impl Future<Output = Result<Metadata>>> {
+        let path = normalize_path(path);
+        let bs = bs.into();
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (options::WriteOptions::default(), bs),
+            |inner, path, (opts, bs)| Self::write_inner(inner, path, bs, opts),
+        )
+    }
+
+    /// Write data with extra options.
+    pub async fn write_options(
+        &self,
+        path: &str,
+        bs: impl Into<Buffer>,
+        opts: options::WriteOptions,
+    ) -> Result<Metadata> {
+        let path = normalize_path(path);
+        Self::write_inner(self.inner().clone(), path, bs.into(), opts).await
+    }
+
+    async fn write_inner(
+        acc: Accessor,
+        path: String,
+        bs: Buffer,
+        opts: options::WriteOptions,
+    ) -> Result<Metadata> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                    .with_operation("Operator::write")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+
+        let (args, opts) = opts.into();
+        let context = WriteContext::new(acc, path, args, opts);
+        let mut w = Writer::new(context).await?;
+        w.write(bs).await?;
+        w.close().await
+    }
+
+    /// Create a writer for streaming data to the given path.
+    ///
+    /// # Notes
+    ///
+    /// ## Writer Features
+    ///
+    /// The writer provides several powerful capabilities:
+    /// - Streaming writes for continuous data transfer
+    /// - Automatic multipart upload handling
+    /// - Memory-efficient chunk-based writing
+    ///
+    /// ## Extra Options
+    ///
+    /// [`Operator::writer`] is a simplified version of [`Operator::writer_with`] without additional options.
+    /// For advanced features like `content_type` and `cache_control`, use [`Operator::writer_with`] instead.
+    ///
+    /// ## Chunk Size Handling
+    ///
+    /// Storage services often have specific requirements for chunk sizes:
+    /// - Services like `s3` may return `EntityTooSmall` errors for undersized chunks
+    /// - Using small chunks in cloud storage services can lead to increased costs
+    ///
+    /// OpenDAL automatically determines optimal chunk sizes based on the service's
+    /// [Capability](crate::types::Capability). However, you can override this by explicitly
+    /// setting the `chunk` parameter.
+    ///
+    /// For improved performance, consider setting an appropriate chunk size using
+    /// [`Operator::writer_with`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer("path/to/file").await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn writer(&self, path: &str) -> Result<Writer> {
+        self.writer_with(path).await
+    }
+
+    /// Create a writer for streaming data to the given path with more options.
+    ///
+    /// ## Options
+    ///
+    /// Visit [`options::WriteOptions`] for all available options.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file")
+    ///     .chunk(4*1024*1024)
+    ///     .concurrent(8)
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn writer_with(&self, path: &str) -> FutureWriter<impl Future<Output = Result<Writer>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            options::WriteOptions::default(),
+            Self::writer_inner,
+        )
+    }
+
+    /// Create a writer for streaming data to the given path with more options.
+    ///
+    /// ## Options
+    ///
+    /// Visit [`options::WriteOptions`] for all available options.
+    pub async fn writer_options(&self, path: &str, opts: options::WriteOptions) -> Result<Writer> {
+        let path = normalize_path(path);
+        Self::writer_inner(self.inner().clone(), path, opts).await
+    }
+
+    async fn writer_inner(
+        acc: Accessor,
+        path: String,
+        opts: options::WriteOptions,
+    ) -> Result<Writer> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                    .with_operation("Operator::writer")
+                    .with_context("service", acc.info().scheme().into_static())
+                    .with_context("path", &path),
+            );
+        }
+
+        let (args, opts) = opts.into();
+        let context = WriteContext::new(acc, path, args, opts);
+        let w = Writer::new(context).await?;
+        Ok(w)
     }
 
     /// Copy a file from `from` to `to`.
@@ -872,189 +1003,6 @@ impl Operator {
         Ok(())
     }
 
-    /// Create a writer for streaming data to the given path.
-    ///
-    /// # Notes
-    ///
-    /// ## Writer Features
-    ///
-    /// The writer provides several powerful capabilities:
-    /// - Streaming writes for continuous data transfer
-    /// - Automatic multipart upload handling
-    /// - Memory-efficient chunk-based writing
-    ///
-    /// ## Extra Options
-    ///
-    /// [`Operator::writer`] is a simplified version of [`Operator::writer_with`] without additional options.
-    /// For advanced features like `content_type` and `cache_control`, use [`Operator::writer_with`] instead.
-    ///
-    /// ## Chunk Size Handling
-    ///
-    /// Storage services often have specific requirements for chunk sizes:
-    /// - Services like `s3` may return `EntityTooSmall` errors for undersized chunks
-    /// - Using small chunks in cloud storage services can lead to increased costs
-    ///
-    /// OpenDAL automatically determines optimal chunk sizes based on the service's
-    /// [Capability](crate::types::Capability). However, you can override this by explicitly
-    /// setting the `chunk` parameter.
-    ///
-    /// For improved performance, consider setting an appropriate chunk size using
-    /// [`Operator::writer_with`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op.writer("path/to/file").await?;
-    /// w.write(vec![0; 4096]).await?;
-    /// w.write(vec![1; 4096]).await?;
-    /// w.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn writer(&self, path: &str) -> Result<Writer> {
-        self.writer_with(path).await
-    }
-
-    /// Create a writer for streaming data to the given path with more options.
-    ///
-    /// ## Options
-    ///
-    /// Visit [`FutureWriter`] for all available options.
-    ///
-    /// - [`append`](./operator_futures/type.FutureWriter.html#method.append): Sets append mode for this write request.
-    /// - [`chunk`](./operator_futures/type.FutureWriter.html#method.chunk): Sets chunk size for buffered writes.
-    /// - [`concurrent`](./operator_futures/type.FutureWriter.html#method.concurrent): Sets concurrent write operations for this writer.
-    /// - [`cache_control`](./operator_futures/type.FutureWriter.html#method.cache_control): Sets cache control for this write request.
-    /// - [`content_type`](./operator_futures/type.FutureWriter.html#method.content_type): Sets content type for this write request.
-    /// - [`content_disposition`](./operator_futures/type.FutureWriter.html#method.content_disposition): Sets content disposition for this write request.
-    /// - [`content_encoding`](./operator_futures/type.FutureWriter.html#method.content_encoding): Sets content encoding for this write request.
-    /// - [`if_match`](./operator_futures/type.FutureWriter.html#method.if_match): Sets if-match for this write request.
-    /// - [`if_none_match`](./operator_futures/type.FutureWriter.html#method.if_none_match): Sets if-none-match for this write request.
-    /// - [`if_not_exist`](./operator_futures/type.FutureWriter.html#method.if_not_exist): Sets if-not-exist for this write request.
-    /// - [`user_metadata`](./operator_futures/type.FutureWriter.html#method.user_metadata): Sets user metadata for this write request.
-    ///
-    /// ## Examples
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op.writer_with("path/to/file")
-    ///     .chunk(4*1024*1024)
-    ///     .concurrent(8)
-    ///     .await?;
-    /// w.write(vec![0; 4096]).await?;
-    /// w.write(vec![1; 4096]).await?;
-    /// w.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn writer_with(&self, path: &str) -> FutureWriter<impl Future<Output = Result<Writer>>> {
-        let path = normalize_path(path);
-
-        OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            (OpWrite::default(), OpWriter::default()),
-            |inner, path, (args, options)| async move {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                            .with_operation("Operator::writer")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path),
-                    );
-                }
-
-                let context = WriteContext::new(inner, path, args, options);
-                let w = Writer::new(context).await?;
-                Ok(w)
-            },
-        )
-    }
-
-    /// Write data with extra options.
-    ///
-    /// # Notes
-    ///
-    /// ## Streaming Write
-    ///
-    /// This method performs a single bulk write operation for all bytes. For finer-grained
-    /// memory control or lazy writing, consider using [`Operator::writer_with`] instead.
-    ///
-    /// ## Multipart Uploads
-    ///
-    /// OpenDAL handles multipart uploads through the [`Writer`] abstraction, managing all
-    /// the upload details automatically. You can customize the upload behavior by configuring
-    /// `chunk` size and `concurrent` operations via [`Operator::writer_with`].
-    ///
-    /// # Options
-    ///
-    /// Visit [`FutureWrite`] for all available options.
-    ///
-    /// - [`append`](./operator_futures/type.FutureWrite.html#method.append): Sets append mode for this write request.
-    /// - [`chunk`](./operator_futures/type.FutureWrite.html#method.chunk): Sets chunk size for buffered writes.
-    /// - [`concurrent`](./operator_futures/type.FutureWrite.html#method.concurrent): Sets concurrent write operations for this writer.
-    /// - [`cache_control`](./operator_futures/type.FutureWrite.html#method.cache_control): Sets cache control for this write request.
-    /// - [`content_type`](./operator_futures/type.FutureWrite.html#method.content_type): Sets content type for this write request.
-    /// - [`content_disposition`](./operator_futures/type.FutureWrite.html#method.content_disposition): Sets content disposition for this write request.
-    /// - [`content_encoding`](./operator_futures/type.FutureWrite.html#method.content_encoding): Sets content encoding for this write request.
-    /// - [`if_match`](./operator_futures/type.FutureWrite.html#method.if_match): Sets if-match for this write request.
-    /// - [`if_none_match`](./operator_futures/type.FutureWrite.html#method.if_none_match): Sets if-none-match for this write request.
-    /// - [`if_not_exist`](./operator_futures/type.FutureWrite.html#method.if_not_exist): Sets if-not-exist for this write request.
-    /// - [`user_metadata`](./operator_futures/type.FutureWrite.html#method.user_metadata): Sets user metadata for this write request.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let _ = op.write_with("path/to/file", vec![0; 4096])
-    ///     .if_not_exists(true)
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn write_with(
-        &self,
-        path: &str,
-        bs: impl Into<Buffer>,
-    ) -> FutureWrite<impl Future<Output = Result<Metadata>>> {
-        let path = normalize_path(path);
-        let bs = bs.into();
-
-        OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            (OpWrite::default(), OpWriter::default(), bs),
-            |inner, path, (args, options, bs)| async move {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                            .with_operation("Operator::write_with")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path),
-                    );
-                }
-
-                let context = WriteContext::new(inner, path, args, options);
-                let mut w = Writer::new(context).await?;
-                w.write(bs).await?;
-                w.close().await
-            },
-        )
-    }
-
     /// Delete the given path.
     ///
     /// # Notes
@@ -1120,14 +1068,27 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            OpDelete::default(),
-            |inner, path, args| async move {
-                let (_, mut deleter) = inner.delete_dyn().await?;
-                deleter.delete_dyn(&path, args)?;
-                deleter.flush_dyn().await?;
-                Ok(())
-            },
+            options::DeleteOptions::default(),
+            Self::delete_inner,
         )
+    }
+
+    /// Delete the given path with extra options.
+    ///
+    /// ## Options
+    ///
+    /// Visit [`options::DeleteOptions`] for all available options.
+    pub async fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
+        let path = normalize_path(path);
+        Self::delete_inner(self.inner().clone(), path, opts).await
+    }
+
+    async fn delete_inner(acc: Accessor, path: String, opts: options::DeleteOptions) -> Result<()> {
+        let (_, mut deleter) = acc.delete_dyn().await?;
+        let args = opts.into();
+        deleter.delete_dyn(&path, args)?;
+        deleter.flush_dyn().await?;
+        Ok(())
     }
 
     /// Delete an infallible iterator of paths.

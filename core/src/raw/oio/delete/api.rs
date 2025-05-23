@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{BoxedFuture, MaybeSend, OpDelete};
-use crate::*;
 use std::future::Future;
 use std::ops::DerefMut;
+
+use crate::raw::BoxedFuture;
+use crate::raw::MaybeSend;
+use crate::raw::OpDelete;
+use crate::*;
 
 /// Deleter is a type erased [`Delete`]
 pub type Deleter = Box<dyn DeleteDyn>;

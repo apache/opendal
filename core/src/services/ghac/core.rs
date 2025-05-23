@@ -16,16 +16,27 @@
 // under the License.
 
 use std::env;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use ::ghac::v1 as ghac_types;
-use bytes::{Buf, Bytes};
-use http::header::{self, ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
-use http::{Request, Response, StatusCode, Uri};
+use bytes::Buf;
+use bytes::Bytes;
+use http::header::ACCEPT;
+use http::header::AUTHORIZATION;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
+use http::header::CONTENT_TYPE;
+use http::header::{self};
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use http::Uri;
 use prost::Message;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
 use crate::raw::*;

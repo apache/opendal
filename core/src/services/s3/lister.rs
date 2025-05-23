@@ -17,6 +17,9 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+use quick_xml::de;
+
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::PageContext;
@@ -25,8 +28,6 @@ use crate::EntryMode;
 use crate::Error;
 use crate::Metadata;
 use crate::Result;
-use bytes::Buf;
-use quick_xml::de;
 
 pub type S3Listers = ThreeWays<
     oio::PageLister<S3ListerV1>,

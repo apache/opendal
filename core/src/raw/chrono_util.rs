@@ -42,8 +42,8 @@ pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
 ///
 /// ```
 /// use chrono::Datelike;
-/// use opendal::Error;
 /// use opendal::raw::parse_datetime_from_rfc3339;
+/// use opendal::Error;
 ///
 /// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09+09:00")?;
 /// assert_eq!(date_time.date_naive().day(), 28);

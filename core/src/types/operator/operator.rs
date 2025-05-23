@@ -91,27 +91,54 @@ use crate::*;
 ///
 /// Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
 ///
-/// - [`Operator::read`]: Basic operation that reads entire content into memory
-/// - [`Operator::read_with`]: Enhanced read operation with additional options (range, if_match, if_none_match)
-/// - [`Operator::reader`]: Creates a lazy reader for on-demand data streaming
-/// - [`Operator::reader_with`]: Creates a configurable reader with conditional options (if_match, if_none_match)
+/// - [`Operator::read`]: Executes a read operation.
+/// - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
+/// - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
+/// - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
+/// - [`Operator::reader_with`]: Creates a reader with advanced options using the builder pattern.
+/// - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
 ///
 /// The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
-/// into `futures::AsyncRead` for broader ecosystem compatibility.
+/// into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 ///
-/// ```
-/// # use anyhow::Result;
-/// use opendal::layers::RetryLayer;
-/// use opendal::services::Memory;
+/// ```no_run
+/// use opendal::layers::LoggingLayer;
+/// use opendal::options;
+/// use opendal::services;
 /// use opendal::Operator;
-/// async fn test() -> Result<()> {
-///     let op: Operator = Operator::new(Memory::default())?.finish();
+/// use opendal::Result;
 ///
-///     // OpenDAL will retry failed operations now.
-///     let op = op.layer(RetryLayer::default());
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Pick a builder and configure it.
+///     let mut builder = services::S3::default().bucket("test");
 ///
-///     // Read all data into memory.
-///     let data = op.read("path/to/file").await?;
+///     // Init an operator
+///     let op = Operator::new(builder)?
+///         // Init with logging layer enabled.
+///         .layer(LoggingLayer::default())
+///         .finish();
+///
+///     // Fetch this file's metadata
+///     let meta = op.stat("hello.txt").await?;
+///     let length = meta.content_length();
+///
+///     // Read data from `hello.txt` with options.
+///     let bs = op
+///         .read_with("hello.txt")
+///         .range(0..8 * 1024 * 1024)
+///         .chunk(1024 * 1024)
+///         .concurrent(4)
+///         .await?;
+///
+///     // The same to:
+///     let bs = op
+///         .read_options("hello.txt", options::ReadOptions {
+///             range: (0..8 * 1024 * 1024).into(),
+///             chunk: Some(1024 * 1024),
+///             concurrent: 4,
+///         })
+///         .await?;
 ///
 ///     Ok(())
 /// }
@@ -137,33 +164,6 @@ impl Operator {
     /// Convert operator into inner accessor.
     pub fn into_inner(self) -> Accessor {
         self.accessor
-    }
-
-    /// Get current operator's limit.
-    /// Limit is usually the maximum size of data that operator will handle in one operation.
-    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
-    pub fn limit(&self) -> usize {
-        0
-    }
-
-    /// Specify the batch limit.
-    ///
-    /// Default: 1000
-    #[deprecated(note = "limit is no-op for now", since = "0.52.0")]
-    pub fn with_limit(&self, _: usize) -> Self {
-        self.clone()
-    }
-
-    /// Get the default executor.
-    #[deprecated(note = "use Operator::executor instead", since = "0.53.0")]
-    pub fn default_executor(&self) -> Option<Executor> {
-        None
-    }
-
-    /// Specify the default executor.
-    #[deprecated(note = "use Operator::update_executor instead", since = "0.53.0")]
-    pub fn with_default_executor(&self, _: Executor) -> Self {
-        self.clone()
     }
 
     /// Get information of underlying accessor.
@@ -723,7 +723,8 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let _ = op.write_with("path/to/file", vec![0; 4096])
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
     ///     .if_not_exists(true)
     ///     .await?;
     /// # Ok(())
@@ -841,8 +842,9 @@ impl Operator {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op.writer_with("path/to/file")
-    ///     .chunk(4*1024*1024)
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .chunk(4 * 1024 * 1024)
     ///     .concurrent(8)
     ///     .await?;
     /// w.write(vec![0; 4096]).await?;
@@ -1053,7 +1055,7 @@ impl Operator {
     /// op.delete_with("path/to/file").version(version).await?;
     /// # Ok(())
     /// # }
-    ///```
+    /// ```
     ///
     /// # Examples
     ///

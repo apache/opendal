@@ -21,8 +21,9 @@ use std::sync::Arc;
 
 use super::backend::VercelArtifactsBackend;
 use super::core::VercelArtifactsCore;
+use crate::raw::Access;
+use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
-use crate::raw::{Access, AccessorInfo};
 use crate::services::VercelArtifactsConfig;
 use crate::Scheme;
 use crate::*;

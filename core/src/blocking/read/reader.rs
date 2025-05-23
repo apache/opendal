@@ -19,12 +19,11 @@ use std::ops::RangeBounds;
 
 use bytes::BufMut;
 
-use crate::Reader as AsyncReader;
-use crate::*;
-
 use super::BufferIterator;
 use super::StdBytesIterator;
 use super::StdReader;
+use crate::Reader as AsyncReader;
+use crate::*;
 
 /// BlockingReader is designed to read data from given path in an blocking
 /// manner.

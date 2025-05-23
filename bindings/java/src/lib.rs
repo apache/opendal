@@ -130,7 +130,6 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.presign_stat as jboolean),
             JValue::Bool(cap.presign_write as jboolean),
             JValue::Bool(cap.shared as jboolean),
-            JValue::Bool(cap.blocking as jboolean),
         ],
     )?;
     Ok(capability)

@@ -31,7 +31,7 @@ use super::StdReader;
 #[derive(Clone)]
 pub struct Reader {
     handle: tokio::runtime::Handle,
-    inner: AsyncReader,
+    inner: Option<AsyncReader>,
 }
 
 impl Reader {
@@ -40,7 +40,10 @@ impl Reader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn new(handle: tokio::runtime::Handle, inner: AsyncReader) -> Self {
-        Reader { handle, inner }
+        Reader {
+            handle,
+            inner: Some(inner),
+        }
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -52,7 +55,11 @@ impl Reader {
     ///
     /// - Buffer length smaller than range means we have reached the end of file.
     pub fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
-        self.handle.block_on(self.inner.read(range))
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
+        self.handle.block_on(inner.read(range))
     }
 
     ///
@@ -63,12 +70,20 @@ impl Reader {
     ///
     /// - Returning length smaller than range means we have reached the end of file.
     pub fn read_into(&self, buf: &mut impl BufMut, range: impl RangeBounds<u64>) -> Result<usize> {
-        self.handle.block_on(self.inner.read_into(buf, range))
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
+        self.handle.block_on(inner.read_into(buf, range))
     }
 
     /// Create a buffer iterator to read specific range from given reader.
-    pub fn into_iterator(self, range: impl RangeBounds<u64>) -> Result<BufferIterator> {
-        let iter = self.handle.block_on(self.inner.into_stream(range))?;
+    pub fn into_iterator(mut self, range: impl RangeBounds<u64>) -> Result<BufferIterator> {
+        let inner = self
+            .inner
+            .take()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
+        let iter = self.handle.block_on(inner.into_stream(range))?;
 
         Ok(BufferIterator::new(self.handle.clone(), iter))
     }
@@ -76,18 +91,35 @@ impl Reader {
     /// Convert reader into [`StdReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     #[inline]
-    pub fn into_std_read(self, range: impl RangeBounds<u64>) -> Result<StdReader> {
-        let r = self
-            .handle
-            .block_on(self.inner.into_futures_async_read(range))?;
+    pub fn into_std_read(mut self, range: impl RangeBounds<u64>) -> Result<StdReader> {
+        let inner = self
+            .inner
+            .take()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
 
-        Ok(StdReader::new(self.handle, r))
+        let r = self.handle.block_on(inner.into_futures_async_read(range))?;
+
+        Ok(StdReader::new(self.handle.clone(), r))
     }
 
     /// Convert reader into [`StdBytesIterator`] which implements [`Iterator`].
     #[inline]
-    pub fn into_bytes_iterator(self, range: impl RangeBounds<u64>) -> Result<StdBytesIterator> {
-        let iter = self.handle.block_on(self.inner.into_bytes_stream(range))?;
-        Ok(StdBytesIterator::new(self.handle, iter))
+    pub fn into_bytes_iterator(mut self, range: impl RangeBounds<u64>) -> Result<StdBytesIterator> {
+        let inner = self
+            .inner
+            .take()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
+
+        let iter = self.handle.block_on(inner.into_bytes_stream(range))?;
+        Ok(StdBytesIterator::new(self.handle.clone(), iter))
+    }
+}
+
+/// Make sure the inner reader is dropped in async context.
+impl Drop for Reader {
+    fn drop(&mut self) {
+        if let Some(v) = self.inner.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

@@ -31,7 +31,7 @@ use crate::*;
 /// by the implementation of Drop. Use the method `close` if these errors must be manually handled.
 pub struct StdWriter {
     handle: tokio::runtime::Handle,
-    w: FuturesAsyncWriter,
+    w: Option<FuturesAsyncWriter>,
 }
 
 impl StdWriter {
@@ -40,22 +40,43 @@ impl StdWriter {
     pub(crate) fn new(handle: tokio::runtime::Handle, w: Writer) -> Self {
         StdWriter {
             handle,
-            w: w.into_futures_async_write(),
+            w: Some(w.into_futures_async_write()),
         }
     }
 
     /// Close the internal writer and make sure all data have been stored.
     pub fn close(&mut self) -> std::io::Result<()> {
-        self.handle.block_on(self.w.close())
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
+        };
+
+        self.handle.block_on(w.close())
     }
 }
 
 impl Write for StdWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.handle.block_on(self.w.write(buf))
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
+        };
+
+        self.handle.block_on(w.write(buf))
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.handle.block_on(self.w.flush())
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
+        };
+
+        self.handle.block_on(w.flush())
+    }
+}
+
+/// Make sure the inner writer is dropped in async context.
+impl Drop for StdWriter {
+    fn drop(&mut self) {
+        if let Some(v) = self.w.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

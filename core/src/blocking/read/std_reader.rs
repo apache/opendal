@@ -34,37 +34,62 @@ use crate::*;
 /// StdReader also implements [`Send`] and [`Sync`].
 pub struct StdReader {
     handle: tokio::runtime::Handle,
-    r: FuturesAsyncReader,
+    r: Option<FuturesAsyncReader>,
 }
 
 impl StdReader {
     /// NOTE: don't allow users to create StdReader directly.
     #[inline]
     pub(super) fn new(handle: tokio::runtime::Handle, r: FuturesAsyncReader) -> Self {
-        Self { handle, r }
+        Self { handle, r: Some(r) }
     }
 }
 
 impl BufRead for StdReader {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        self.handle.block_on(self.r.fill_buf())
+        let Some(r) = self.r.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader has been dropped").into());
+        };
+
+        self.handle.block_on(r.fill_buf())
     }
 
     fn consume(&mut self, amt: usize) {
-        self.r.consume_unpin(amt);
+        let Some(r) = self.r.as_mut() else {
+            return;
+        };
+
+        r.consume_unpin(amt);
     }
 }
 
 impl Read for StdReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.handle.block_on(self.r.read(buf))
+        let Some(r) = self.r.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader has been dropped").into());
+        };
+
+        self.handle.block_on(r.read(buf))
     }
 }
 
 impl Seek for StdReader {
     #[inline]
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.handle.block_on(self.r.seek(pos))
+        let Some(r) = self.r.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "reader has been dropped").into());
+        };
+
+        self.handle.block_on(r.seek(pos))
+    }
+}
+
+/// Make sure the inner reader is dropped in async context.
+impl Drop for StdReader {
+    fn drop(&mut self) {
+        if let Some(v) = self.r.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

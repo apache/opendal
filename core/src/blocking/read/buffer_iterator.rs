@@ -27,14 +27,17 @@ use crate::*;
 /// We can support chunked reader for concurrent read in the future.
 pub struct BufferIterator {
     handle: tokio::runtime::Handle,
-    inner: BufferStream,
+    inner: Option<BufferStream>,
 }
 
 impl BufferIterator {
     /// Create a new buffer iterator.
     #[inline]
     pub(crate) fn new(handle: tokio::runtime::Handle, inner: BufferStream) -> Self {
-        Self { handle, inner }
+        Self {
+            handle,
+            inner: Some(inner),
+        }
     }
 }
 
@@ -42,6 +45,22 @@ impl Iterator for BufferIterator {
     type Item = Result<Buffer>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.handle.block_on(self.inner.next())
+        let Some(inner) = self.inner.as_mut() else {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "reader has been dropped",
+            )));
+        };
+
+        self.handle.block_on(inner.next())
+    }
+}
+
+/// Make sure the inner reader is dropped in async context.
+impl Drop for BufferIterator {
+    fn drop(&mut self) {
+        if let Some(v) = self.inner.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

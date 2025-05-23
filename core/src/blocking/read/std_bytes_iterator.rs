@@ -29,14 +29,17 @@ use crate::*;
 /// StdIterator also implements [`Send`] and [`Sync`].
 pub struct StdBytesIterator {
     handle: tokio::runtime::Handle,
-    inner: FuturesBytesStream,
+    inner: Option<FuturesBytesStream>,
 }
 
 impl StdBytesIterator {
     /// NOTE: don't allow users to create StdIterator directly.
     #[inline]
     pub(crate) fn new(handle: tokio::runtime::Handle, inner: FuturesBytesStream) -> Self {
-        StdBytesIterator { handle, inner }
+        StdBytesIterator {
+            handle,
+            inner: Some(inner),
+        }
     }
 }
 
@@ -44,6 +47,23 @@ impl Iterator for StdBytesIterator {
     type Item = io::Result<Bytes>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.handle.block_on(self.inner.next())
+        let Some(inner) = self.inner.as_mut() else {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "reader has been dropped",
+            )
+            .into()));
+        };
+
+        self.handle.block_on(inner.next())
+    }
+}
+
+/// Make sure the inner reader is dropped in async context.
+impl Drop for StdBytesIterator {
+    fn drop(&mut self) {
+        if let Some(v) = self.inner.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

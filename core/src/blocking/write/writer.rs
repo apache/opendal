@@ -23,7 +23,7 @@ use crate::*;
 /// manner.
 pub struct Writer {
     handle: tokio::runtime::Handle,
-    inner: AsyncWriter,
+    inner: Option<AsyncWriter>,
 }
 
 impl Writer {
@@ -35,7 +35,10 @@ impl Writer {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn new(handle: tokio::runtime::Handle, inner: AsyncWriter) -> Self {
-        Self { handle, inner }
+        Self {
+            handle,
+            inner: Some(inner),
+        }
     }
 
     /// Write [`Buffer`] into writer.
@@ -62,7 +65,11 @@ impl Writer {
     /// }
     /// ```
     pub fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        self.handle.block_on(self.inner.write(bs))
+        let Some(inner) = self.inner.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped"));
+        };
+
+        self.handle.block_on(inner.write(bs))
     }
 
     /// Close the writer and make sure all data have been committed.
@@ -72,11 +79,30 @@ impl Writer {
     /// Close should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
     pub fn close(&mut self) -> Result<Metadata> {
-        self.handle.block_on(self.inner.close())
+        let Some(inner) = self.inner.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped"));
+        };
+
+        self.handle.block_on(inner.close())
     }
 
     /// Convert writer into [`StdWriter`] which implements [`std::io::Write`],
-    pub fn into_std_write(self) -> StdWriter {
-        StdWriter::new(self.handle, self.inner)
+    pub fn into_std_write(mut self) -> StdWriter {
+        let inner = self
+            .inner
+            .take()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "writer has been dropped"))
+            .expect("writer has been dropped");
+
+        StdWriter::new(self.handle.clone(), inner)
+    }
+}
+
+/// Make sure the inner writer is dropped in async context.
+impl Drop for Writer {
+    fn drop(&mut self) {
+        if let Some(v) = self.inner.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

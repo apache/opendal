@@ -29,7 +29,7 @@ use crate::*;
 /// - Lister will return `None` if there is no more entries or error has been returned.
 pub struct Lister {
     handle: tokio::runtime::Handle,
-    lister: AsyncLister,
+    lister: Option<AsyncLister>,
 }
 
 /// # Safety
@@ -40,7 +40,10 @@ unsafe impl Sync for Lister {}
 impl Lister {
     /// Create a new lister.
     pub(crate) fn new(handle: tokio::runtime::Handle, lister: AsyncLister) -> Self {
-        Self { handle, lister }
+        Self {
+            handle,
+            lister: Some(lister),
+        }
     }
 }
 
@@ -48,6 +51,21 @@ impl Iterator for Lister {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.handle.block_on(self.lister.next())
+        let Some(lister) = self.lister.as_mut() else {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "lister has been dropped",
+            )));
+        };
+
+        self.handle.block_on(lister.next())
+    }
+}
+
+impl Drop for Lister {
+    fn drop(&mut self) {
+        if let Some(v) = self.lister.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
     }
 }

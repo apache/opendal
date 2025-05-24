@@ -242,10 +242,6 @@ impl Access for SeafileBackend {
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

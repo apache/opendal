@@ -22,24 +22,24 @@ use super::*;
 
 /// \brief The result type returned by opendal's writer operation.
 /// \note The opendal_writer actually owns a pointer to
-/// an opendal::BlockingWriter, which is inside the Rust core code.
+/// an opendal::blocking::Writer, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_writer {
-    /// The pointer to the opendal::BlockingWriter in the Rust code.
+    /// The pointer to the opendal::blocking::Writer in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_writer {
-    fn deref_mut(&mut self) -> &mut core::BlockingWriter {
+    fn deref_mut(&mut self) -> &mut core::blocking::Writer {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::BlockingWriter) }
+        unsafe { &mut *(self.inner as *mut core::blocking::Writer) }
     }
 }
 
 impl opendal_writer {
-    pub(crate) fn new(writer: core::BlockingWriter) -> Self {
+    pub(crate) fn new(writer: core::blocking::Writer) -> Self {
         Self {
             inner: Box::into_raw(Box::new(writer)) as _,
         }
@@ -85,7 +85,7 @@ impl opendal_writer {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::BlockingWriter));
+            drop(Box::from_raw((*ptr).inner as *mut core::blocking::Writer));
             drop(Box::from_raw(ptr));
         }
     }

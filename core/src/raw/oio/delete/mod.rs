@@ -16,8 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::BlockingDelete;
-pub use api::BlockingDeleter;
 pub use api::Delete;
 pub use api::DeleteDyn;
 pub use api::Deleter;
@@ -28,6 +26,5 @@ pub use batch_delete::BatchDeleteResult;
 pub use batch_delete::BatchDeleter;
 
 mod one_shot_delete;
-pub use one_shot_delete::BlockingOneShotDelete;
 pub use one_shot_delete::OneShotDelete;
 pub use one_shot_delete::OneShotDeleter;

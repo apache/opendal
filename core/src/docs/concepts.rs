@@ -22,10 +22,10 @@
 //! There are two core concepts in OpenDAL:
 //!
 //! - [`Builder`]: Builder accepts a series of parameters to set up an instance of underlying services.
-//! You can adjust the behaviour of underlying services with these parameters.
+//!   You can adjust the behaviour of underlying services with these parameters.
 //! - [`Operator`]: Developer can access underlying storage services with manipulating one Operator.
-//! The Operator is a delegate for underlying implementation detail, and provides one unified access interface,
-//! including `read`, `write`, `list` and so on.
+//!   The Operator is a delegate for underlying implementation detail, and provides one unified access interface,
+//!   including `read`, `write`, `list` and so on.
 //!
 //! If you are interested in internal implementation details, please have a look at [`internals`][super::internals].
 //!

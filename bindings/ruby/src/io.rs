@@ -53,8 +53,8 @@ use crate::*;
 pub struct Io(RefCell<FileState>);
 
 enum FileState {
-    Reader(ocore::StdReader, bool), // bool indicates binary mode
-    Writer(ocore::StdWriter, bool), // bool indicates binary mode
+    Reader(ocore::blocking::StdReader, bool), // bool indicates binary mode
+    Writer(ocore::blocking::StdWriter, bool), // bool indicates binary mode
     Closed,
 }
 
@@ -68,7 +68,7 @@ impl Io {
     /// See [`Operator::open`] for more information.
     pub fn new(
         ruby: &Ruby,
-        operator: ocore::BlockingOperator,
+        operator: ocore::blocking::Operator,
         path: String,
         mode: String,
     ) -> Result<Self, Error> {

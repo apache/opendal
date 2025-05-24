@@ -40,15 +40,15 @@ pub struct opendal_reader {
 }
 
 impl opendal_reader {
-    fn deref_mut(&mut self) -> &mut core::StdReader {
+    fn deref_mut(&mut self) -> &mut core::blocking::StdReader {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::StdReader) }
+        unsafe { &mut *(self.inner as *mut core::blocking::StdReader) }
     }
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::StdReader) -> Self {
+    pub(crate) fn new(reader: core::blocking::StdReader) -> Self {
         Self {
             inner: Box::into_raw(Box::new(reader)) as _,
         }
@@ -119,7 +119,9 @@ impl opendal_reader {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::StdReader));
+            drop(Box::from_raw(
+                (*ptr).inner as *mut core::blocking::StdReader,
+            ));
             drop(Box::from_raw(ptr));
         }
     }

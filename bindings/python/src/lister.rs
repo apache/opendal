@@ -26,11 +26,11 @@ use tokio::sync::Mutex;
 use crate::*;
 
 #[pyclass(unsendable, module = "opendal")]
-pub struct BlockingLister(ocore::BlockingLister);
+pub struct BlockingLister(ocore::blocking::Lister);
 
 impl BlockingLister {
     /// Create a new blocking lister.
-    pub fn new(inner: ocore::BlockingLister) -> Self {
+    pub fn new(inner: ocore::blocking::Lister) -> Self {
         Self(inner)
     }
 }

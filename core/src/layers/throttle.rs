@@ -17,7 +17,6 @@
 
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::thread;
 
 use governor::clock::Clock;
 use governor::clock::DefaultClock;
@@ -117,10 +116,6 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Writer = ThrottleWrapper<A::Writer>;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
-    type BlockingReader = ThrottleWrapper<A::BlockingReader>;
-    type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
-    type BlockingLister = A::BlockingLister;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -151,30 +146,6 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let limiter = self.rate_limiter.clone();
-
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, ThrottleWrapper::new(r, limiter)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let limiter = self.rate_limiter.clone();
-
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
-    }
 }
 
 pub struct ThrottleWrapper<R> {
@@ -194,12 +165,6 @@ impl<R> ThrottleWrapper<R> {
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner.read()
     }
 }
 
@@ -235,33 +200,5 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
-    }
-}
-
-impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
-
-        loop {
-            match self.limiter.check_n(buf_length) {
-                Ok(res) => match res {
-                    Ok(_) => return self.inner.write(bs),
-                    // the query is valid but the Decider can not accommodate them.
-                    Err(not_until) => {
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        thread::sleep(wait_time);
-                    }
-                },
-                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                Err(_) => return Err(Error::new(
-                    ErrorKind::RateLimited,
-                    "InsufficientCapacity due to burst size being smaller than the request size",
-                )),
-            }
-        }
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
     }
 }

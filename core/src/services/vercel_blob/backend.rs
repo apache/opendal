@@ -183,10 +183,6 @@ impl Access for VercelBlobBackend {
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
     type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

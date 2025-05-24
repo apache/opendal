@@ -37,15 +37,11 @@ import org.junit.jupiter.api.TestInstance;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class BlockingListTest extends BehaviorTestBase {
+
     @BeforeAll
     public void precondition() {
         final Capability capability = op().info.fullCapability;
-        assumeTrue(capability.read
-                && capability.write
-                && capability.copy
-                && capability.blocking
-                && capability.list
-                && capability.createDir);
+        assumeTrue(capability.read && capability.write && capability.copy && capability.list && capability.createDir);
     }
 
     @Test

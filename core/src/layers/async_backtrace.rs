@@ -60,13 +60,9 @@ pub struct AsyncBacktraceAccessor<A: Access> {
 impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type Inner = A;
     type Reader = AsyncBacktraceWrapper<A::Reader>;
-    type BlockingReader = AsyncBacktraceWrapper<A::BlockingReader>;
     type Writer = AsyncBacktraceWrapper<A::Writer>;
-    type BlockingWriter = AsyncBacktraceWrapper<A::BlockingWriter>;
     type Lister = AsyncBacktraceWrapper<A::Lister>;
-    type BlockingLister = AsyncBacktraceWrapper<A::BlockingLister>;
     type Deleter = AsyncBacktraceWrapper<A::Deleter>;
-    type BlockingDeleter = AsyncBacktraceWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -123,30 +119,6 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner
-            .blocking_delete()
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
-    }
 }
 
 pub struct AsyncBacktraceWrapper<R> {
@@ -163,12 +135,6 @@ impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
-    }
-}
-
-impl<R: oio::BlockingRead> oio::BlockingRead for AsyncBacktraceWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner.read()
     }
 }
 
@@ -189,26 +155,10 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for AsyncBacktraceWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner.write(bs)
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close()
-    }
-}
-
 impl<R: oio::List> oio::List for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().await
-    }
-}
-
-impl<R: oio::BlockingList> oio::BlockingList for AsyncBacktraceWrapper<R> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next()
     }
 }
 
@@ -220,15 +170,5 @@ impl<R: oio::Delete> oio::Delete for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn flush(&mut self) -> Result<usize> {
         self.inner.flush().await
-    }
-}
-
-impl<R: oio::BlockingDelete> oio::BlockingDelete for AsyncBacktraceWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.inner.flush()
     }
 }

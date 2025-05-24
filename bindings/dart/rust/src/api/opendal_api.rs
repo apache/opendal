@@ -21,57 +21,76 @@ use ::opendal as od;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::LazyLock;
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
 
 #[frb(opaque)]
-pub struct Operator(opendal::Operator);
+pub struct Operator {
+    async_op: opendal::Operator,
+    blocking_op: opendal::blocking::Operator,
+}
 
 impl Operator {
     #[frb(sync)]
     pub fn new(scheme_str: String, map: HashMap<String, String>) -> Operator {
         let scheme: od::Scheme = od::Scheme::from_str(&scheme_str).unwrap();
-        Self(od::Operator::via_iter(scheme, map).unwrap())
+        let async_op = od::Operator::via_iter(scheme, map).unwrap();
+        let handle = RUNTIME.handle();
+        let _enter = handle.enter();
+        let blocking_op = opendal::blocking::Operator::new(async_op.clone()).unwrap();
+
+        Self {
+            async_op,
+            blocking_op,
+        }
     }
     pub async fn stat(&self, path: String) -> Metadata {
-        let meta = self.0.stat(&path).await.unwrap();
+        let meta = self.async_op.stat(&path).await.unwrap();
 
         Metadata(meta)
     }
     #[frb(sync)]
     pub fn stat_sync(&self, path: String) -> Metadata {
-        let meta = self.0.blocking().stat(&path).unwrap();
+        let meta = self.blocking_op.stat(&path).unwrap();
 
         Metadata(meta)
     }
     pub async fn check(&self) {
-        self.0.check().await.unwrap()
+        self.async_op.check().await.unwrap()
     }
     pub async fn exists(&self, path: String) -> bool {
-        self.0.exists(&path).await.unwrap()
+        self.async_op.exists(&path).await.unwrap()
     }
     pub async fn delete(&self, path: String) {
-        self.0.delete(&path).await.unwrap()
+        self.async_op.delete(&path).await.unwrap()
     }
     #[frb(sync)]
     pub fn delete_sync(&self, path: String) -> () {
-        self.0.blocking().delete(&path).unwrap()
+        self.blocking_op.delete(&path).unwrap()
     }
     #[frb(sync)]
     pub fn exists_sync(&self, path: String) -> bool {
-        self.0.blocking().exists(&path).unwrap()
+        self.blocking_op.exists(&path).unwrap()
     }
     pub async fn create_dir(&self, path: String) {
-        self.0.create_dir(&path).await.unwrap()
+        self.async_op.create_dir(&path).await.unwrap()
     }
     #[frb(sync)]
     pub fn create_dir_sync(&self, path: String) -> () {
-        self.0.blocking().create_dir(&path).unwrap()
+        self.blocking_op.create_dir(&path).unwrap()
     }
     pub async fn rename(&self, from: String, to: String) {
-        self.0.rename(&from, &to).await.unwrap()
+        self.async_op.rename(&from, &to).await.unwrap()
     }
     #[frb(sync)]
     pub fn rename_sync(&self, from: String, to: String) -> () {
-        self.0.blocking().rename(&from, &to).unwrap()
+        self.blocking_op.rename(&from, &to).unwrap()
     }
 }
 

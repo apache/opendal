@@ -19,7 +19,7 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use crate::raw::*;
+use crate::{options, raw::*};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -62,6 +62,14 @@ impl OpDelete {
     /// Get the version of this delete operation.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+}
+
+impl From<options::DeleteOptions> for OpDelete {
+    fn from(value: options::DeleteOptions) -> Self {
+        Self {
+            version: value.version,
+        }
     }
 }
 
@@ -206,6 +214,18 @@ impl OpList {
     /// Get the deleted of this list operation
     pub fn deleted(&self) -> bool {
         self.deleted
+    }
+}
+
+impl From<options::ListOptions> for OpList {
+    fn from(value: options::ListOptions) -> Self {
+        Self {
+            limit: value.limit,
+            start_after: value.start_after,
+            recursive: value.recursive,
+            versions: value.versions,
+            deleted: value.deleted,
+        }
     }
 }
 
@@ -469,6 +489,54 @@ impl OpReader {
     }
 }
 
+impl From<options::ReadOptions> for (OpRead, OpReader) {
+    fn from(value: options::ReadOptions) -> Self {
+        (
+            OpRead {
+                range: value.range,
+                if_match: value.if_match,
+                if_none_match: value.if_none_match,
+                if_modified_since: value.if_modified_since,
+                if_unmodified_since: value.if_unmodified_since,
+                override_content_type: value.override_content_type,
+                override_cache_control: value.override_cache_control,
+                override_content_disposition: value.override_content_disposition,
+                version: value.version,
+            },
+            OpReader {
+                // Ensure concurrent is at least 1
+                concurrent: value.concurrent.max(1),
+                chunk: value.chunk,
+                gap: value.gap,
+            },
+        )
+    }
+}
+
+impl From<options::ReaderOptions> for (OpRead, OpReader) {
+    fn from(value: options::ReaderOptions) -> Self {
+        (
+            OpRead {
+                range: BytesRange::default(),
+                if_match: value.if_match,
+                if_none_match: value.if_none_match,
+                if_modified_since: value.if_modified_since,
+                if_unmodified_since: value.if_unmodified_since,
+                override_content_type: None,
+                override_cache_control: None,
+                override_content_disposition: None,
+                version: value.version,
+            },
+            OpReader {
+                // Ensure concurrent is at least 1
+                concurrent: value.concurrent.max(1),
+                chunk: value.chunk,
+                gap: value.gap,
+            },
+        )
+    }
+}
+
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
@@ -575,6 +643,21 @@ impl OpStat {
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+}
+
+impl From<options::StatOptions> for OpStat {
+    fn from(value: options::StatOptions) -> Self {
+        Self {
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_modified_since: value.if_modified_since,
+            if_unmodified_since: value.if_unmodified_since,
+            override_content_type: value.override_content_type,
+            override_cache_control: value.override_cache_control,
+            override_content_disposition: value.override_content_disposition,
+            version: value.version,
+        }
     }
 }
 
@@ -751,6 +834,27 @@ impl OpWriter {
     pub fn with_chunk(mut self, chunk: usize) -> Self {
         self.chunk = Some(chunk);
         self
+    }
+}
+
+impl From<options::WriteOptions> for (OpWrite, OpWriter) {
+    fn from(value: options::WriteOptions) -> Self {
+        (
+            OpWrite {
+                append: value.append,
+                // Ensure concurrent is at least 1
+                concurrent: value.concurrent.max(1),
+                content_type: value.content_type,
+                content_disposition: value.content_disposition,
+                content_encoding: value.content_encoding,
+                cache_control: value.cache_control,
+                if_match: value.if_match,
+                if_none_match: value.if_none_match,
+                if_not_exists: value.if_not_exists,
+                user_metadata: value.user_metadata,
+            },
+            OpWriter { chunk: value.chunk },
+        )
     }
 }
 

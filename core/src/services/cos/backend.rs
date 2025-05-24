@@ -318,10 +318,6 @@ impl Access for CosBackend {
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

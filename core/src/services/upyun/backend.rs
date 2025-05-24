@@ -237,10 +237,6 @@ impl Access for UpyunBackend {
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

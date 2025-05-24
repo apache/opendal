@@ -109,10 +109,6 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
-    type BlockingReader = A::BlockingReader;
-    type BlockingWriter = A::BlockingWriter;
-    type BlockingLister = A::BlockingLister;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.0
@@ -141,29 +137,6 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner().list(path, args).await
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner().blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner()
-            .blocking_write(path, opwrite_with_mime(path, args))
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner()
-            .blocking_stat(path, args)
-            .map(|rp| rpstat_with_mime(path, rp))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner().blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner().blocking_list(path, args)
     }
 }
 
@@ -218,40 +191,6 @@ mod tests {
             .try_collect()
             .await
             .unwrap();
-        assert_eq!(entries[0].content_type(), Some(HTML));
-        assert_eq!(entries[1].content_type(), None);
-        assert_eq!(entries[2].content_type(), Some(CUSTOM));
-    }
-
-    #[test]
-    fn test_blocking() {
-        let op = Operator::new(Memory::default())
-            .unwrap()
-            .layer(MimeGuessLayer::default())
-            .finish()
-            .blocking();
-
-        op.write("test0.html", DATA).unwrap();
-        assert_eq!(op.stat("test0.html").unwrap().content_type(), Some(HTML));
-
-        op.write("test1.asdfghjkl", DATA).unwrap();
-        assert_eq!(op.stat("test1.asdfghjkl").unwrap().content_type(), None);
-
-        op.write_with("test2.html", DATA)
-            .content_type(CUSTOM)
-            .call()
-            .unwrap();
-        assert_eq!(op.stat("test2.html").unwrap().content_type(), Some(CUSTOM));
-
-        let entries: Vec<Metadata> = op
-            .lister_with("")
-            .call()
-            .unwrap()
-            .map(|entry| {
-                let op = op.clone();
-                op.stat(entry.unwrap().path()).unwrap()
-            })
-            .collect();
         assert_eq!(entries[0].content_type(), Some(HTML));
         assert_eq!(entries[1].content_type(), None);
         assert_eq!(entries[2].content_type(), Some(CUSTOM));

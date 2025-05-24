@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-azdls")]
+mod backend;
+#[cfg(feature = "services-azdls")]
 mod core;
 #[cfg(feature = "services-azdls")]
 mod delete;
@@ -27,9 +29,8 @@ mod lister;
 mod writer;
 
 #[cfg(feature = "services-azdls")]
-mod backend;
-#[cfg(feature = "services-azdls")]
 pub use backend::AzdlsBuilder as Azdls;
 
 mod config;
+mod endpoint;
 pub use config::AzdlsConfig;

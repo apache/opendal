@@ -68,7 +68,7 @@ pub fn percent_decode_path(path: &str) -> String {
 /// It also does percent decoding for both key and value.
 ///
 /// Note that `?` is not allowed in the query string, and it will be treated as a part of the first key if included.
-pub fn query_pairs(query: &str) -> Vec<(String, String)> {
+pub(crate) fn query_pairs(query: &str) -> Vec<(String, String)> {
     query
         .split('&')
         .filter_map(|pair| pair.split_once('='))

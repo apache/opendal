@@ -147,10 +147,6 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Writer = A::Writer;
     type Lister = ImmutableDir;
     type Deleter = A::Deleter;
-    type BlockingReader = A::BlockingReader;
-    type BlockingWriter = A::BlockingWriter;
-    type BlockingLister = ImmutableDir;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -182,33 +178,6 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner.delete().await
     }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let mut path = path;
-        if path == "/" {
-            path = ""
-        }
-
-        let idx = if args.recursive() {
-            self.children_flat(path)
-        } else {
-            self.children_hierarchy(path)
-        };
-
-        Ok((RpList::default(), ImmutableDir::new(idx)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
-    }
 }
 
 pub struct ImmutableDir {
@@ -237,12 +206,6 @@ impl ImmutableDir {
 
 impl oio::List for ImmutableDir {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner_next())
-    }
-}
-
-impl oio::BlockingList for ImmutableDir {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
         Ok(self.inner_next())
     }
 }

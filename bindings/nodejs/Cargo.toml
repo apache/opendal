@@ -159,7 +159,7 @@ napi = { version = "2.11.3", default-features = false, features = [
 napi-derive = "2.14.6"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
-  "layers-blocking",
+  "blocking",
 ] }
 tokio = "1"
 

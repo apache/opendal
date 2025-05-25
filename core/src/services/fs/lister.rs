@@ -79,39 +79,3 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
         Ok(Some(entry))
     }
 }
-
-impl oio::BlockingList for FsLister<std::fs::ReadDir> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        // since list should return path itself, we return it first
-        if let Some(path) = self.current_path.take() {
-            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
-            return Ok(Some(e));
-        }
-
-        let de = match self.rd.next() {
-            Some(de) => de.map_err(new_std_io_error)?,
-            None => return Ok(None),
-        };
-
-        let entry_path = de.path();
-        let rel_path = normalize_path(
-            &entry_path
-                .strip_prefix(&self.root)
-                .expect("cannot fail because the prefix is iterated")
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
-
-        let ft = de.file_type().map_err(new_std_io_error)?;
-        let entry = if ft.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
-        } else if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
-        } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
-        };
-
-        Ok(Some(entry))
-    }
-}

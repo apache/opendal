@@ -55,10 +55,6 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     type Writer = oio::Writer;
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
-    type BlockingReader = oio::BlockingReader;
-    type BlockingWriter = oio::BlockingWriter;
-    type BlockingLister = oio::BlockingLister;
-    type BlockingDeleter = oio::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -90,29 +86,5 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
             .list(path, args)
             .await
             .map(|(rp, p)| (rp, Box::new(p) as oio::Lister))
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner
-            .blocking_delete()
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingDeleter))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingLister))
     }
 }

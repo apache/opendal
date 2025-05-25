@@ -1034,10 +1034,6 @@ impl Access for S3Backend {
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -1055,7 +1051,7 @@ impl Access for S3Backend {
 
                 let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
+                    meta = meta.with_user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {

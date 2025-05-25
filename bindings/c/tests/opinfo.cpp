@@ -63,7 +63,6 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
     opendal_capability full_cap = opendal_operator_info_get_full_capability(this->info);
     opendal_capability native_cap = opendal_operator_info_get_native_capability(this->info);
 
-    EXPECT_TRUE(full_cap.blocking);
     EXPECT_TRUE(full_cap.read);
     EXPECT_TRUE(full_cap.stat);
     EXPECT_TRUE(full_cap.write);
@@ -73,7 +72,6 @@ TEST_F(OpendalOperatorInfoTest, CapabilityTest)
     EXPECT_TRUE(full_cap.list);
     EXPECT_TRUE(full_cap.list_with_recursive);
 
-    EXPECT_TRUE(native_cap.blocking);
     EXPECT_TRUE(native_cap.read);
     EXPECT_TRUE(native_cap.stat);
     EXPECT_TRUE(native_cap.write);

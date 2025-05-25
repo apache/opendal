@@ -16,8 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::BlockingList;
-pub use api::BlockingLister;
 pub use api::List;
 pub use api::Lister;
 

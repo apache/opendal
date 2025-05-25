@@ -65,14 +65,8 @@ impl oio::BatchDelete for S3Deleter {
 
         let bs = resp.into_body();
 
-        let mut result: DeleteObjectsResult =
+        let result: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-        // If no object is deleted, return directly.
-        if result.deleted.is_empty() {
-            let err = result.error.remove(0);
-            return Err(parse_delete_objects_result_error(err));
-        }
 
         let mut batched_result = BatchDeleteResult {
             succeeded: Vec::with_capacity(result.deleted.len()),

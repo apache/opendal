@@ -23,11 +23,19 @@ mod types;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use anyhow::Result;
 use lister::Lister;
 use opendal as od;
 use reader::Reader;
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
 
 #[cxx::bridge(namespace = "opendal::ffi")]
 mod ffi {
@@ -104,7 +112,7 @@ mod ffi {
     }
 }
 
-pub struct Operator(od::BlockingOperator);
+pub struct Operator(od::blocking::Operator);
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Operator> {
     let scheme = od::Scheme::from_str(scheme)?;
@@ -114,9 +122,14 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Op
         .map(|value| (value.key, value.value))
         .collect();
 
-    let op = Box::into_raw(Box::new(Operator(
-        od::Operator::via_iter(scheme, map)?.blocking(),
-    )));
+    let runtime =
+        tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
+    let _guard = runtime.enter();
+
+    let op = od::Operator::via_iter(scheme, map)?;
+    let op = od::blocking::Operator::new(op)?;
+
+    let op = Box::into_raw(Box::new(Operator(op)));
 
     Ok(op)
 }

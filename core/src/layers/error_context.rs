@@ -66,13 +66,9 @@ impl<A: Access> Debug for ErrorContextAccessor<A> {
 impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = ErrorContextWrapper<A::Reader>;
-    type BlockingReader = ErrorContextWrapper<A::BlockingReader>;
     type Writer = ErrorContextWrapper<A::Writer>;
-    type BlockingWriter = ErrorContextWrapper<A::BlockingWriter>;
     type Lister = ErrorContextWrapper<A::Lister>;
-    type BlockingLister = ErrorContextWrapper<A::BlockingLister>;
     type Deleter = ErrorContextWrapper<A::Deleter>;
-    type BlockingDeleter = ErrorContextWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -189,106 +185,6 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
                 .with_context("path", path)
         })
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner.blocking_create_dir(path, args).map_err(|err| {
-            err.with_operation(Operation::CreateDir)
-                .with_context("service", self.info.scheme())
-                .with_context("path", path)
-        })
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let range = args.range();
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, os)| {
-                (
-                    rp,
-                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os)
-                        .with_range(range),
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Read)
-                    .with_context("service", self.info.scheme())
-                    .with_context("path", path)
-                    .with_context("range", range.to_string())
-            })
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, os)| {
-                (
-                    rp,
-                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os),
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Write)
-                    .with_context("service", self.info.scheme())
-                    .with_context("path", path)
-            })
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.blocking_copy(from, to, args).map_err(|err| {
-            err.with_operation(Operation::Copy)
-                .with_context("service", self.info.scheme())
-                .with_context("from", from)
-                .with_context("to", to)
-        })
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner.blocking_rename(from, to, args).map_err(|err| {
-            err.with_operation(Operation::Rename)
-                .with_context("service", self.info.scheme())
-                .with_context("from", from)
-                .with_context("to", to)
-        })
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.blocking_stat(path, args).map_err(|err| {
-            err.with_operation(Operation::Stat)
-                .with_context("service", self.info.scheme())
-                .with_context("path", path)
-        })
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner
-            .blocking_delete()
-            .map(|(rp, w)| {
-                (
-                    rp,
-                    ErrorContextWrapper::new(self.info.scheme(), "".to_string(), w),
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Delete)
-                    .with_context("service", self.info.scheme())
-            })
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, os)| {
-                (
-                    rp,
-                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), os),
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::List)
-                    .with_context("service", self.info.scheme())
-                    .with_context("path", path)
-            })
-    }
 }
 
 pub struct ErrorContextWrapper<T> {
@@ -321,23 +217,6 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
         self.inner
             .read()
             .await
-            .inspect(|bs| {
-                self.processed += bs.len() as u64;
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Read)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-                    .with_context("range", self.range.to_string())
-                    .with_context("read", self.processed.to_string())
-            })
-    }
-}
-
-impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.inner
-            .read()
             .inspect(|bs| {
                 self.processed += bs.len() as u64;
             })
@@ -388,54 +267,11 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
     }
 }
 
-impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let size = bs.len();
-        self.inner
-            .write(bs)
-            .map(|_| {
-                self.processed += size as u64;
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Write)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-                    .with_context("size", size.to_string())
-                    .with_context("written", self.processed.to_string())
-            })
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        self.inner.close().map_err(|err| {
-            err.with_operation(Operation::Write)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context("written", self.processed.to_string())
-        })
-    }
-}
-
 impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner
             .next()
             .await
-            .inspect(|bs| {
-                self.processed += bs.is_some() as u64;
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::List)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-                    .with_context("listed", self.processed.to_string())
-            })
-    }
-}
-
-impl<T: oio::BlockingList> oio::BlockingList for ErrorContextWrapper<T> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner
-            .next()
             .inspect(|bs| {
                 self.processed += bs.is_some() as u64;
             })
@@ -462,30 +298,6 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
         self.inner
             .flush()
             .await
-            .inspect(|&n| {
-                self.processed += n as u64;
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Delete)
-                    .with_context("service", self.scheme)
-                    .with_context("deleted", self.processed.to_string())
-            })
-    }
-}
-
-impl<T: oio::BlockingDelete> oio::BlockingDelete for ErrorContextWrapper<T> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).map_err(|err| {
-            err.with_operation(Operation::Delete)
-                .with_context("service", self.scheme)
-                .with_context("path", path)
-                .with_context("deleted", self.processed.to_string())
-        })
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.inner
-            .flush()
             .inspect(|&n| {
                 self.processed += n as u64;
             })

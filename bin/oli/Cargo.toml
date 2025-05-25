@@ -64,9 +64,9 @@ uuid = { version = "1.12" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }
-tempfile = { version = "3.14" }
-insta-cmd = { version = "0.6" }
-insta = { version = "1.43", features = ["filters"] }
-walkdir = "2.5.0"
 comfy-table = "7"
+insta = { version = "1.43", features = ["filters"] }
+insta-cmd = { version = "0.6" }
 regex = "1"
+tempfile = { version = "3.14" }
+walkdir = "2.5.0"

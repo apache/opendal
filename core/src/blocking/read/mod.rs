@@ -15,8 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod blocking_writer;
-pub use blocking_writer::BlockingWriter;
+mod reader;
+pub use reader::Reader;
 
-mod std_writer;
-pub use std_writer::StdWriter;
+mod buffer_iterator;
+pub use buffer_iterator::BufferIterator;
+
+mod std_bytes_iterator;
+pub use std_bytes_iterator::StdBytesIterator;
+mod std_reader;
+pub use std_reader::StdReader;

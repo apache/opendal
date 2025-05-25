@@ -99,7 +99,7 @@ op.list("dir/").await?;
 op.scan("dir/").await?;
 ```
 
-We will include the `BlockingOperator` for enhanced ease of use while performing blocking operations.
+We will include the `blocking::Operator` for enhanced ease of use while performing blocking operations.
 
 ```rust
 # this is a cheap call without allocation

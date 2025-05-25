@@ -16,6 +16,8 @@
 // under the License.
 
 use criterion::Criterion;
+use opendal::blocking;
+use opendal::options;
 use opendal::services;
 use opendal::Operator;
 use rand::prelude::*;
@@ -29,7 +31,11 @@ fn main() {
 
 fn bench_vs_fs(c: &mut Criterion) {
     let cfg = services::Fs::default().root("/tmp/opendal/");
-    let op = Operator::new(cfg).unwrap().finish().blocking();
+    let op = Operator::new(cfg).unwrap().finish();
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let _guard = runtime.enter();
+    let op = blocking::Operator::new(op).unwrap();
 
     let mut group = c.benchmark_group("read");
     group.throughput(criterion::Throughput::Bytes(16 * 1024 * 1024));
@@ -50,9 +56,13 @@ fn bench_vs_fs(c: &mut Criterion) {
         let path = prepare();
         b.iter(|| {
             let _ = op
-                .read_with(&path)
-                .range(0..16 * 1024 * 1024)
-                .call()
+                .read_options(
+                    &path,
+                    options::ReadOptions {
+                        range: (0..16 * 1024 * 1024).into(),
+                        ..Default::default()
+                    },
+                )
                 .unwrap();
         });
     });

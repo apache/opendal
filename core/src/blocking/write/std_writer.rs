@@ -17,7 +17,8 @@
 
 use std::io::Write;
 
-use crate::raw::*;
+use futures::AsyncWriteExt;
+
 use crate::*;
 
 /// StdWriter is the adapter of [`std::io::Write`] for [`BlockingWriter`].
@@ -29,79 +30,53 @@ use crate::*;
 /// Files are automatically closed when they go out of scope. Errors detected on closing are ignored
 /// by the implementation of Drop. Use the method `close` if these errors must be manually handled.
 pub struct StdWriter {
-    w: Option<WriteGenerator<oio::BlockingWriter>>,
-    buf: oio::FlexBuf,
+    handle: tokio::runtime::Handle,
+    w: Option<FuturesAsyncWriter>,
 }
 
 impl StdWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::BlockingWriter>) -> Self {
+    pub(crate) fn new(handle: tokio::runtime::Handle, w: Writer) -> Self {
         StdWriter {
-            w: Some(w),
-            buf: oio::FlexBuf::new(256 * 1024),
+            handle,
+            w: Some(w.into_futures_async_write()),
         }
     }
 
     /// Close the internal writer and make sure all data have been stored.
     pub fn close(&mut self) -> std::io::Result<()> {
-        // Make sure all cache has been flushed.
-        self.flush()?;
-
-        let Some(w) = &mut self.w else {
-            return Err(std::io::Error::other("writer has been closed"));
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
         };
 
-        w.close().map_err(std::io::Error::other)?;
-
-        // Drop writer after close succeed;
-        self.w = None;
-
-        Ok(())
+        self.handle.block_on(w.close())
     }
 }
 
 impl Write for StdWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let Some(w) = &mut self.w else {
-            return Err(std::io::Error::other("writer has been closed"));
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
         };
 
-        loop {
-            let n = self.buf.put(buf);
-            if n > 0 {
-                return Ok(n);
-            }
-
-            let bs = self.buf.get().expect("frozen buffer must be valid");
-            let n = w.write(Buffer::from(bs)).map_err(std::io::Error::other)?;
-            self.buf.advance(n);
-        }
+        self.handle.block_on(w.write(buf))
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        let Some(w) = &mut self.w else {
-            return Err(std::io::Error::other("writer has been closed"));
+        let Some(w) = self.w.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped").into());
         };
 
-        loop {
-            // Make sure buf has been frozen.
-            self.buf.freeze();
-            let Some(bs) = self.buf.get() else {
-                return Ok(());
-            };
-
-            w.write(Buffer::from(bs)).map_err(std::io::Error::other)?;
-            self.buf.clean();
-        }
+        self.handle.block_on(w.flush())
     }
 }
 
+/// Make sure the inner writer is dropped in async context.
 impl Drop for StdWriter {
     fn drop(&mut self) {
-        if let Some(mut w) = self.w.take() {
-            // Ignore error happens in close.
-            let _ = w.close();
+        if let Some(v) = self.w.take() {
+            self.handle.block_on(async move { drop(v) });
         }
     }
 }

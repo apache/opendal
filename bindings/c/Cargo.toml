@@ -36,7 +36,7 @@ cbindgen = "0.26.0"
 [dependencies]
 bytes = "1.4.0"
 # this crate won't be published, we always use the local version
-opendal = { version = ">=0", path = "../../core", features = ["layers-blocking"] }
+opendal = { version = ">=0", path = "../../core", features = ["blocking"] }
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

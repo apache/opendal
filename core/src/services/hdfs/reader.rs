@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Read;
-
 use bytes::BytesMut;
 use futures::AsyncReadExt;
 use hdrs::AsyncFile;
-use hdrs::File;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
@@ -68,39 +65,6 @@ impl oio::Read for HdfsReader<AsyncFile> {
             .f
             .read(read_buf.initialize_unfilled())
             .await
-            .map_err(new_std_io_error)?;
-        read_buf.advance(n);
-        self.read += n;
-
-        // Safety: We make sure that bs contains `n` more bytes.
-        let filled = read_buf.filled().len();
-        unsafe { self.buf.set_len(filled) }
-
-        let frozen = self.buf.split().freeze();
-        Ok(Buffer::from(frozen))
-    }
-}
-
-impl oio::BlockingRead for HdfsReader<File> {
-    fn read(&mut self) -> Result<Buffer> {
-        if self.read >= self.size {
-            return Ok(Buffer::new());
-        }
-
-        let size = (self.size - self.read).min(self.buf_size);
-        self.buf.reserve(size);
-
-        let buf = &mut self.buf.spare_capacity_mut()[..size];
-        let mut read_buf: ReadBuf = ReadBuf::uninit(buf);
-
-        // SAFETY: Read at most `limit` bytes into `read_buf`.
-        unsafe {
-            read_buf.assume_init(size);
-        }
-
-        let n = self
-            .f
-            .read(read_buf.initialize_unfilled())
             .map_err(new_std_io_error)?;
         read_buf.advance(n);
         self.read += n;

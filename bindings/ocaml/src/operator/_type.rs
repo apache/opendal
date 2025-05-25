@@ -20,11 +20,11 @@
 use super::*;
 
 #[ocaml::sig]
-pub struct Operator(pub(crate) od::BlockingOperator);
+pub struct Operator(pub(crate) od::blocking::Operator);
 ocaml::custom!(Operator);
 
 #[ocaml::sig]
-pub struct Reader(pub(crate) od::BlockingReader);
+pub struct Reader(pub(crate) od::blocking::Reader);
 ocaml::custom!(Reader);
 
 #[ocaml::sig]

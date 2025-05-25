@@ -213,14 +213,14 @@ typedef struct opendal_metadata {
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator actually owns a pointer to
- * an opendal::BlockingOperator, which is inside the Rust core code.
+ * an opendal::blocking::Operator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
  */
 typedef struct opendal_operator {
   /**
-   * The pointer to the opendal::BlockingOperator in the Rust code.
+   * The pointer to the opendal::blocking::Operator in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -320,11 +320,11 @@ typedef struct opendal_result_operator_reader {
 /**
  * \brief The result type returned by opendal's writer operation.
  * \note The opendal_writer actually owns a pointer to
- * an opendal::BlockingWriter, which is inside the Rust core code.
+ * an opendal::blocking::Writer, which is inside the Rust core code.
  */
 typedef struct opendal_writer {
   /**
-   * The pointer to the opendal::BlockingWriter in the Rust code.
+   * The pointer to the opendal::blocking::Writer in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -581,10 +581,6 @@ typedef struct opendal_capability {
    * If operator supports shared.
    */
   bool shared;
-  /**
-   * If operator supports blocking.
-   */
-  bool blocking;
 } opendal_capability;
 
 /**

@@ -32,32 +32,6 @@ pub struct FsCore {
 }
 
 impl FsCore {
-    // Synchronously build write path and ensure the parent dirs created
-    pub fn blocking_ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = parent.join(path);
-
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", p.to_string_lossy())
-            })?
-            .to_path_buf();
-
-        std::fs::create_dir_all(parent).map_err(new_std_io_error)?;
-
-        Ok(p)
-    }
-
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
         let p = parent.join(path);

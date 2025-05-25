@@ -137,10 +137,6 @@ impl Access for CompfsBackend {
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = OneShotDeleter<CompfsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

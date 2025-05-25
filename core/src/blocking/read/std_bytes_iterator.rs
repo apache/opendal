@@ -16,14 +16,10 @@
 // under the License.
 
 use std::io;
-use std::ops::Range;
-use std::sync::Arc;
 
 use bytes::Bytes;
+use futures::StreamExt;
 
-use crate::raw::*;
-use crate::Buffer;
-use crate::BufferIterator;
 use crate::*;
 
 /// StdIterator is the adapter of [`Iterator`] for [`BlockingReader`][crate::BlockingReader].
@@ -32,19 +28,17 @@ use crate::*;
 ///
 /// StdIterator also implements [`Send`] and [`Sync`].
 pub struct StdBytesIterator {
-    iter: BufferIterator,
-    buf: Buffer,
+    handle: tokio::runtime::Handle,
+    inner: Option<FuturesBytesStream>,
 }
 
 impl StdBytesIterator {
     /// NOTE: don't allow users to create StdIterator directly.
     #[inline]
-    pub(crate) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        let iter = BufferIterator::new(ctx, range);
-
+    pub(crate) fn new(handle: tokio::runtime::Handle, inner: FuturesBytesStream) -> Self {
         StdBytesIterator {
-            iter,
-            buf: Buffer::new(),
+            handle,
+            inner: Some(inner),
         }
     }
 }
@@ -53,17 +47,23 @@ impl Iterator for StdBytesIterator {
     type Item = io::Result<Bytes>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            // Consume current buffer
-            if let Some(bs) = Iterator::next(&mut self.buf) {
-                return Some(Ok(bs));
-            }
+        let Some(inner) = self.inner.as_mut() else {
+            return Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "reader has been dropped",
+            )
+            .into()));
+        };
 
-            self.buf = match self.iter.next() {
-                Some(Ok(buf)) => buf,
-                Some(Err(err)) => return Some(Err(format_std_io_error(err))),
-                None => return None,
-            };
+        self.handle.block_on(inner.next())
+    }
+}
+
+/// Make sure the inner reader is dropped in async context.
+impl Drop for StdBytesIterator {
+    fn drop(&mut self) {
+        if let Some(v) = self.inner.take() {
+            self.handle.block_on(async move { drop(v) });
         }
     }
 }

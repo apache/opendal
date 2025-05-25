@@ -60,15 +60,6 @@ impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
     }
 }
 
-impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead> oio::BlockingRead for TwoWays<ONE, TWO> {
-    fn read(&mut self) -> Result<Buffer> {
-        match self {
-            Self::One(v) => v.read(),
-            Self::Two(v) => v.read(),
-        }
-    }
-}
-
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         match self {
@@ -119,18 +110,6 @@ impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<O
             ThreeWays::One(v) => v.read().await,
             ThreeWays::Two(v) => v.read().await,
             ThreeWays::Three(v) => v.read().await,
-        }
-    }
-}
-
-impl<ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead> oio::BlockingRead
-    for ThreeWays<ONE, TWO, THREE>
-{
-    fn read(&mut self) -> Result<Buffer> {
-        match self {
-            Self::One(v) => v.read(),
-            Self::Two(v) => v.read(),
-            Self::Three(v) => v.read(),
         }
     }
 }
@@ -204,23 +183,6 @@ where
     }
 }
 
-impl<ONE, TWO, THREE, FOUR> oio::BlockingRead for FourWays<ONE, TWO, THREE, FOUR>
-where
-    ONE: oio::BlockingRead,
-    TWO: oio::BlockingRead,
-    THREE: oio::BlockingRead,
-    FOUR: oio::BlockingRead,
-{
-    fn read(&mut self) -> Result<Buffer> {
-        match self {
-            Self::One(v) => v.read(),
-            Self::Two(v) => v.read(),
-            Self::Three(v) => v.read(),
-            Self::Four(v) => v.read(),
-        }
-    }
-}
-
 impl<ONE, TWO, THREE, FOUR> oio::List for FourWays<ONE, TWO, THREE, FOUR>
 where
     ONE: oio::List,
@@ -234,23 +196,6 @@ where
             Self::Two(v) => v.next().await,
             Self::Three(v) => v.next().await,
             Self::Four(v) => v.next().await,
-        }
-    }
-}
-
-impl<ONE, TWO, THREE, FOUR> oio::BlockingList for FourWays<ONE, TWO, THREE, FOUR>
-where
-    ONE: oio::BlockingList,
-    TWO: oio::BlockingList,
-    THREE: oio::BlockingList,
-    FOUR: oio::BlockingList,
-{
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        match self {
-            Self::One(v) => v.next(),
-            Self::Two(v) => v.next(),
-            Self::Three(v) => v.next(),
-            Self::Four(v) => v.next(),
         }
     }
 }

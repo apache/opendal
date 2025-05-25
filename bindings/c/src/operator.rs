@@ -98,7 +98,6 @@ fn build_operator(
     Ok(op)
 }
 
-
 /// \brief Construct an operator based on `scheme` and `options`
 ///
 /// Uses an array of key-value pairs to initialize the operator based on provided `scheme`

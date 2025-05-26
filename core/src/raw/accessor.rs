@@ -942,8 +942,9 @@ impl AccessorInfo {
     ///
     /// For example:
     ///
-    /// - name for `s3` => bucket name
-    /// - name for `azblob` => container name
+    /// - `s3` => bucket name
+    /// - `azblob` => container name
+    /// - `azdfs` => filesystem name
     ///
     /// # Panic Safety
     ///

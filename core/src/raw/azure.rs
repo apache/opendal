@@ -42,11 +42,22 @@ pub(crate) fn azure_config_from_connection_string(
 ) -> Result<AzureStorageConfig> {
     let key_values = parse_connection_string(conn_str)?;
 
-    let mut config = AzureStorageConfig::default();
+    if let Some(development_config) = collect_development_config(&key_values, &storage)? {
+        return Ok(AzureStorageConfig {
+            account_name: Some(development_config.account_name),
+            account_key: Some(development_config.account_key),
+            endpoint: Some(development_config.endpoint),
+            ..Default::default()
+        });
+    }
 
-    config.account_name = key_values.get("AccountName").cloned();
-    config.endpoint = parse_endpoint(&key_values, storage)?;
-    if let Some(creds) = parse_credentials(&key_values) {
+    let mut config = AzureStorageConfig {
+        account_name: key_values.get("AccountName").cloned(),
+        endpoint: collect_endpoint(&key_values, &storage)?,
+        ..Default::default()
+    };
+
+    if let Some(creds) = collect_credentials(&key_values) {
         set_credentials(&mut config, creds);
     };
 
@@ -108,27 +119,89 @@ fn parse_connection_string(conn_str: &str) -> Result<HashMap<String, String>> {
         .collect()
 }
 
-// TODO: Add support for Azurite values
+fn collect_development_config(
+    key_values: &HashMap<String, String>,
+    storage: &AzureStorageService,
+) -> Result<Option<DevelopmentStorageConfig>> {
+    // Azurite defaults.
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &'static str = "devstoreaccount1";
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &'static str =
+        "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
+
+    const AZURITE_DEFAULT_BLOB_URI: &'static str = "http://127.0.0.1:10000";
+
+    let use_development_storage = key_values.get("UseDevelopmentStorage");
+    if use_development_storage.is_none() || use_development_storage.unwrap() != "true" {
+        return Ok(None); // Not using development storage
+    }
+
+    let account_name = key_values
+        .get("AccountName")
+        .cloned()
+        .unwrap_or(AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME.to_string());
+    let account_key = key_values
+        .get("AccountKey")
+        .cloned()
+        .unwrap_or(AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY.to_string());
+    let development_proxy_uri = key_values
+        .get("DevelopmentStorageProxyUri")
+        .cloned()
+        .map_or_else(|| {
+            match storage {
+                AzureStorageService::Blob => Ok(AZURITE_DEFAULT_BLOB_URI.to_string()),
+                AzureStorageService::Adls =>
+                    // `UseDevelopmentStorage` was set without `DevelopmentStorageProxyUri`.
+                    //
+                    // At time of this writing, Azurite doesn't yet support ADLS (see
+                    // https://github.com/Azure/Azurite/issues/553 for tracking).
+                    //
+                    // This implementation tries to be forward-compatible for when
+                    // Azurite starts to support ADLSv2.
+                    // More specifically, we can re-use defaults for account name and key,
+                    // but the endpoint is dependent on the storage implementation. So,
+                    // when support arrives, users will need to pass
+                    // `DevelopmentStorageProxyUri` explicitly.
+                    Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "Adls: UseDevelopmentStorage isn't supported without DevelopmentStorageProxyUri",
+                    )),
+            }
+        }, |v| Ok(v.trim_end_matches('/').to_string()))?;
+
+    Ok(Some(DevelopmentStorageConfig {
+        endpoint: format!("{development_proxy_uri}/{account_name}"),
+        account_name,
+        account_key,
+    }))
+}
+
+/// Helper struct to hold development storage aka Azurite configuration.
+struct DevelopmentStorageConfig {
+    account_name: String,
+    account_key: String,
+    endpoint: String,
+}
+
 /// Parses an endpoint from the key-value pairs if possible.
 ///
 /// Users are still able to later supplement configuration with an endpoint,
 /// so endpoint-related fields aren't enforced.
-fn parse_endpoint(
+fn collect_endpoint(
     key_values: &HashMap<String, String>,
-    storage: AzureStorageService,
+    storage: &AzureStorageService,
 ) -> Result<Option<String>> {
     match storage {
         AzureStorageService::Blob => {
             if let Some(blob_endpoint) = key_values.get("BlobEndpoint") {
                 Ok(Some(blob_endpoint.clone()))
-            } else if let Some(blob_endpoint) = endpoint_from_parts(key_values, "blob")? {
+            } else if let Some(blob_endpoint) = collect_endpoint_from_parts(key_values, "blob")? {
                 Ok(Some(blob_endpoint.clone()))
             } else {
                 Ok(None)
             }
         }
         AzureStorageService::Adls => {
-            if let Some(dfs_endpoint) = endpoint_from_parts(key_values, "dfs")? {
+            if let Some(dfs_endpoint) = collect_endpoint_from_parts(key_values, "dfs")? {
                 Ok(Some(dfs_endpoint.clone()))
             } else {
                 Ok(None)
@@ -137,7 +210,7 @@ fn parse_endpoint(
     }
 }
 
-fn parse_credentials(key_values: &HashMap<String, String>) -> Option<AzureStorageCredential> {
+fn collect_credentials(key_values: &HashMap<String, String>) -> Option<AzureStorageCredential> {
     if let Some(sas_token) = key_values.get("SharedAccessSignature") {
         Some(AzureStorageCredential::SharedAccessSignature(
             sas_token.clone(),
@@ -173,7 +246,7 @@ fn set_credentials(config: &mut AzureStorageConfig, creds: AzureStorageCredentia
     }
 }
 
-fn endpoint_from_parts(
+fn collect_endpoint_from_parts(
     key_values: &HashMap<String, String>,
     storage_endpoint_name: &str,
 ) -> Result<Option<String>> {
@@ -268,24 +341,48 @@ mod tests {
                     ..Default::default()
                 }),
             ),
-            (
-                "unknown key is ignored",
+            ("development storage",
+                (AzureStorageService::Blob, "UseDevelopmentStorage=true",),
+                Some(AzureStorageConfig{
+                    account_name: Some("devstoreaccount1".to_string()),
+                    account_key: Some("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==".to_string()),
+                    endpoint: Some("http://127.0.0.1:10000/devstoreaccount1".to_string()),
+                    ..Default::default()
+                }),
+            ),
+            ("development storage with custom account values",
+                (AzureStorageService::Blob, "UseDevelopmentStorage=true;AccountName=myAccount;AccountKey=myKey"),
+                Some(AzureStorageConfig {
+                    endpoint: Some("http://127.0.0.1:10000/myAccount".to_string()),
+                    account_name: Some("myAccount".to_string()),
+                    account_key: Some("myKey".to_string()),
+                    ..Default::default()
+                }),
+            ),
+            ("development storage with custom uri",
+                (AzureStorageService::Blob, "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:12345"),
+                Some(AzureStorageConfig {
+                    endpoint: Some("http://127.0.0.1:12345/devstoreaccount1".to_string()),
+                    account_name: Some("devstoreaccount1".to_string()),
+                    account_key: Some("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==".to_string()),
+                    ..Default::default()
+                }),
+            ),
+            ("unknown key is ignored",
                 (AzureStorageService::Blob, "SomeUnknownKey=123;BlobEndpoint=https://testaccount.blob.core.windows.net/"),
                 Some(AzureStorageConfig{
                     endpoint: Some("https://testaccount.blob.core.windows.net/".to_string()),
                     ..Default::default()
                 }),
             ),
-            (
-                "leading and trailing `;`",
+            ("leading and trailing `;`",
                 (AzureStorageService::Blob, ";AccountName=testaccount;"),
                 Some(AzureStorageConfig {
                     account_name: Some("testaccount".to_string()),
                     ..Default::default()
                 }),
             ),
-            (
-                "line breaks",
+            ("line breaks",
                 (AzureStorageService::Blob, r#"
                     AccountName=testaccount;
                     AccountKey=testkey;
@@ -298,17 +395,18 @@ mod tests {
                     ..Default::default()
                 }),
             ),
-            (
-                "missing equals",
+            ("missing equals",
                 (AzureStorageService::Blob, "AccountNameexample;AccountKey=example;EndpointSuffix=core.windows.net;DefaultEndpointsProtocol=https",),
                 None, // This should fail due to missing '='
             ),
-            (
-                "with invalid protocol",
+            ("with invalid protocol",
                 (AzureStorageService::Blob, "DefaultEndpointsProtocol=ftp;AccountName=example;EndpointSuffix=core.windows.net",),
                 None, // This should fail due to invalid protocol
             ),
-
+            ("azdls development storage without proxy uri",
+                (AzureStorageService::Adls, "UseDevelopmentStorage=true"),
+                None, // This should fail because Azurite doesn't support ADLSv2
+            ),
         ];
 
         for (name, (storage, conn_str), expected) in test_cases {

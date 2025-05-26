@@ -338,7 +338,6 @@ mod tests {
                 (AzureStorageService::File, "FileEndpoint=https://testaccount.file.core.windows.net"),
                 Some(AzureStorageConfig{
                     endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
-                    account_name: Some("testaccount".to_string()),
                     ..Default::default()
                 })
             ),

@@ -419,9 +419,9 @@ mod tests {
                 (AzureStorageService::Blob, "DefaultEndpointsProtocol=ftp;AccountName=example;EndpointSuffix=core.windows.net",),
                 None, // This should fail due to invalid protocol
             ),
-            ("azdls development storage without proxy uri",
+            ("azdls development storage",
                 (AzureStorageService::Adls, "UseDevelopmentStorage=true"),
-                None, // This should fail because Azurite doesn't support ADLSv2
+                Some(AzureStorageConfig::default()), // Azurite doesn't support ADLSv2, so we ignore this case
             ),
         ];
 

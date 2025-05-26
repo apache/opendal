@@ -43,16 +43,6 @@ use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
 
-/// Known endpoint suffix Azure Storage Blob services resource URI syntax.
-/// Azure public cloud: https://accountname.blob.core.windows.net
-/// Azure US Government: https://accountname.blob.core.usgovcloudapi.net
-/// Azure China: https://accountname.blob.core.chinacloudapi.cn
-const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
-    "blob.core.windows.net",
-    "blob.core.usgovcloudapi.net",
-    "blob.core.chinacloudapi.cn",
-];
-
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl Configurator for AzblobConfig {
@@ -383,7 +373,7 @@ impl Builder for AzblobBuilder {
             .config
             .account_name
             .clone()
-            .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str()))
+            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()))
         {
             config_loader.account_name = Some(v);
         }
@@ -512,27 +502,6 @@ impl Builder for AzblobBuilder {
                 signer,
             }),
         })
-    }
-}
-
-fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let storage_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if KNOWN_AZBLOB_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
-        storage_name.map(|s| s.to_string())
-    } else {
-        None
     }
 }
 
@@ -671,22 +640,7 @@ impl Access for AzblobBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::infer_storage_name_from_endpoint;
     use super::AzblobBuilder;
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint() {
-        let endpoint = "https://account.blob.core.windows.net";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
-        let endpoint = "https://account.blob.core.windows.net/";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
-    }
 
     #[test]
     fn test_builder_from_connection_string() {

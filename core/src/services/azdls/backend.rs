@@ -237,7 +237,7 @@ impl Builder for AzdlsBuilder {
                 .config
                 .account_name
                 .clone()
-                .or_else(|| infer_account_name_from_endpoint(endpoint.as_str())),
+                .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
             sas_token: self.config.sas_token,
             client_id: self.config.client_id.clone(),
@@ -405,30 +405,5 @@ impl Access for AzdlsBackend {
             StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-fn infer_account_name_from_endpoint(value: &str) -> Option<String> {
-    DfsEndpoint::try_from(value)
-        .ok()
-        .map(|endpoint| endpoint.account_name().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::infer_account_name_from_endpoint;
-
-    #[test]
-    fn test_infer_account_name_from_endpoint() {
-        let endpoint = "https://account.dfs.core.windows.net";
-        let storage_name = infer_account_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
-        let endpoint = "https://account.dfs.core.windows.net/";
-        let storage_name = infer_account_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
     }
 }

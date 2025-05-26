@@ -15,17 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Error;
-use crate::ErrorKind;
-
 use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
 use redis::AsyncCommands;
 use redis::Client;
+use redis::Cmd;
+use redis::Pipeline;
 use redis::RedisError;
-use redis::{Cmd, Pipeline, RedisFuture, Value};
+use redis::RedisFuture;
+use redis::Value;
+
+use crate::Error;
+use crate::ErrorKind;
 
 #[derive(Clone)]
 pub enum RedisConnection {

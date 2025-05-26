@@ -361,11 +361,11 @@ impl Operator {
     ///
     /// ```no_run
     /// # use opendal::Result;
-    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
+    /// use opendal::blocking;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.write("path/to/file", vec![0; 4096])?;

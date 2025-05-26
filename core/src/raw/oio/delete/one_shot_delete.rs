@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
+
 use crate::raw::*;
 use crate::*;
-use std::future::Future;
 
 /// OneShotDelete is used to implement [`oio::Delete`] based on one shot operation.
 ///

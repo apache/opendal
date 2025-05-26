@@ -28,7 +28,8 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::{constants, ObsCore};
+use super::core::constants;
+use super::core::ObsCore;
 use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;

@@ -15,14 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use suppaftp::types::Response;
+use suppaftp::FtpError;
+use suppaftp::Status;
+
 use super::core::FtpCore;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
-use suppaftp::types::Response;
-use suppaftp::FtpError;
-use suppaftp::Status;
 
 pub struct FtpDeleter {
     core: Arc<FtpCore>,

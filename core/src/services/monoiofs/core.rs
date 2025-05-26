@@ -17,7 +17,8 @@
 
 use std::mem;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use flume::Receiver;

@@ -19,12 +19,14 @@
 //!
 //! By using futures, users can add more options for operation.
 
-use chrono::{DateTime, Utc};
-use futures::Future;
 use std::collections::HashMap;
 use std::future::IntoFuture;
 use std::ops::RangeBounds;
 use std::time::Duration;
+
+use chrono::DateTime;
+use chrono::Utc;
+use futures::Future;
 
 use crate::raw::*;
 use crate::*;
@@ -373,9 +375,9 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::Operator;
     /// use chrono::DateTime;
     /// use chrono::Utc;
+    /// use opendal::Operator;
     /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_modified_since(time).await?;
     /// # Ok(())
@@ -395,11 +397,14 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::Operator;
     /// use chrono::DateTime;
     /// use chrono::Utc;
+    /// use opendal::Operator;
     /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
-    /// let mut metadata = op.read_with("path/to/file").if_unmodified_since(time).await?;
+    /// let mut metadata = op
+    ///     .read_with("path/to/file")
+    ///     .if_unmodified_since(time)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -505,7 +510,7 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// let r = op
     ///     .reader_with("path/to/file")
     ///     .chunk(4 * 1024 * 1024)
-    ///     .gap(1024 * 1024)  // 1MiB gap
+    ///     .gap(1024 * 1024) // 1MiB gap
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -564,11 +569,14 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::Operator;
     /// use chrono::DateTime;
     /// use chrono::Utc;
+    /// use opendal::Operator;
     /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
-    /// let mut r = op.reader_with("path/to/file").if_modified_since(time).await?;
+    /// let mut r = op
+    ///     .reader_with("path/to/file")
+    ///     .if_modified_since(time)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -586,11 +594,14 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::Operator;
     /// use chrono::DateTime;
     /// use chrono::Utc;
+    /// use opendal::Operator;
     /// # async fn test(op: Operator, time: DateTime<Utc>) -> Result<()> {
-    /// let mut r = op.reader_with("path/to/file").if_unmodified_since(time).await?;
+    /// let mut r = op
+    ///     .reader_with("path/to/file")
+    ///     .if_unmodified_since(time)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -620,7 +631,10 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let _ = op.write_with("path/to/file", vec![0; 4096]).append(true).await?;
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .append(true)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -671,7 +685,11 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// // Enable concurrent writes with 8 parallel operations at 128B chunk.
-    /// let _ = op.write_with("path/to/file", vec![0; 4096]).chunk(128).concurrent(8).await?;
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .chunk(128)
+    ///     .concurrent(8)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1187,10 +1205,7 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op
-    ///     .writer_with("path/to/file")
-    ///     .if_not_exists(true)
-    ///     .await?;
+    /// let mut w = op.writer_with("path/to/file").if_not_exists(true).await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;

@@ -22,10 +22,12 @@ use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use constants::X_AMZ_META_PREFIX;
+use constants::X_AMZ_VERSION_ID;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -38,19 +40,20 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
-use std::sync::LazyLock;
 
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
-use super::lister::{S3ListerV1, S3ListerV2, S3Listers, S3ObjectVersionsLister};
+use super::lister::S3ListerV1;
+use super::lister::S3ListerV2;
+use super::lister::S3Listers;
+use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
 use crate::*;
-use constants::X_AMZ_VERSION_ID;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {

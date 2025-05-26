@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dashmap::DashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+use dashmap::DashMap;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;

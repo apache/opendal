@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -27,10 +32,6 @@ use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use std::collections::VecDeque;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;

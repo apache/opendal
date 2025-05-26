@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::str::FromStr;
+use std::sync::Arc;
+
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::core::AzblobCore;
 use crate::services::writer::AzblobWriter;
 use crate::*;
-use std::str::FromStr;
-use std::sync::Arc;
 
 pub type GhacWriter = TwoWays<GhacWriterV1, GhacWriterV2>;
 

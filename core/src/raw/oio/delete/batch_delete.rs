@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
 use std::collections::HashSet;
 use std::future::Future;
+
+use crate::raw::*;
+use crate::*;
 
 /// BatchDelete is used to implement [`oio::Delete`] based on batch delete operation.
 ///

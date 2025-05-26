@@ -430,31 +430,6 @@ impl AsyncFile {
         })
     }
 
-    pub fn write_from<'p>(
-        &'p mut self,
-        py: Python<'p>,
-        from: PyRef<'p, Self>,
-    ) -> PyResult<Bound<'p, PyAny>> {
-        let writer_state = self.0.clone();
-        let reader_state = from.0.clone();
-
-        future_into_py(py, async move {
-            let mut writer_guard = writer_state.lock().await;
-            let mut reader_guard = reader_state.lock().await;
-
-            match (reader_guard.deref_mut(), writer_guard.deref_mut()) {
-                (AsyncFileState::Reader(fr), AsyncFileState::Writer(fw)) => {
-                    futures::io::copy(fr, fw)
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))
-                }
-                _ => {
-                     Err(PyIOError::new_err("I/O operation failed: Either the destination file is not writable or the source is not readable."))
-                }
-            }
-        })
-    }
-
     /// Change the stream position to the given byte offset.
     /// offset is interpreted relative to the position indicated by `whence`.
     /// The default value for whence is `SEEK_SET`. Values for `whence` are:

@@ -47,7 +47,7 @@ impl ReadOptions {
         (start_bound, end_bound)
     }
 
-    pub async fn create_reader(&self, op: &Operator, path: String) -> PyResult<ocore::Reader> {
+    pub async fn create_reader(&self, op: &ocore::Operator, path: String) -> PyResult<ocore::Reader> {
         let mut fr = op.reader_with(&path);
 
         if let Some(version) = &self.version {

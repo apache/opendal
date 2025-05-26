@@ -53,8 +53,8 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PresignedRequest>()?;
     m.add_class::<Capability>()?;
 
-    m.add_class::<WriterOptions>()?;
-    m.add_class::<ReaderOptions>()?;
+    m.add_class::<WriteOptions>()?;
+    m.add_class::<ReadOptions>()?;
 
     // Layer module
     let layers_module = PyModule::new(py, "layers")?;

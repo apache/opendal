@@ -190,39 +190,6 @@ async def test_async_writer_options(service_name, operator, async_operator):
     with pytest.raises(ConditionNotMatch):
         await async_operator.open(filename, "wb", if_not_exists=True)
 
-@pytest.mark.asyncio
-@pytest.mark.need_capability("write", "delete")
-async def test_async_writer_from(service_name, operator, async_operator):
-    size = randint(1, 1024)
-    filename_read = f"test_file_{str(uuid4())}.txt"
-    content = os.urandom(size)
-    f = await async_operator.open(filename_read, "wb")
-    written_bytes = await f.write(content)
-    assert written_bytes == size
-    await f.close()
-    filename_write = f"test_file_{str(uuid4())}.txt"
-
-    async with (
-            await async_operator.open(filename_read, "rb") as reader,
-            await async_operator.open(filename_write, "wb") as writer,
-        ):
-            await writer.write_from(reader)
-
-    reader = await async_operator.open(filename_write, "rb")
-    read_content = await reader.read()
-    assert read_content is not None
-    assert read_content == content
-    await reader.close()
-
-    async with (
-            await async_operator.open(filename_read, "wb") as reader,
-            await async_operator.open(filename_write, "wb") as writer,
-        ):
-            with pytest.raises(OSError):
-                await writer.write_from(reader)
-
-    await async_operator.delete(filename_read)
-    await async_operator.delete(filename_write)
 
 @pytest.mark.need_capability("write", "delete")
 def test_sync_writer(service_name, operator, async_operator):

@@ -128,7 +128,7 @@ impl Operator {
 
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriterOptions>) -> PyResult<()> {
+    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         let kwargs = kwargs.unwrap_or_default();
         self.core
@@ -335,12 +335,12 @@ impl AsyncOperator {
         let path = path.to_string_lossy().to_string();
 
         let reader_opts = kwargs
-            .map(|v| v.extract::<ReaderOptions>())
+            .map(|v| v.extract::<ReadOptions>())
             .transpose()?
             .unwrap_or_default();
 
         let writer_opts = kwargs
-            .map(|v| v.extract::<WriterOptions>())
+            .map(|v| v.extract::<WriteOptions>())
             .transpose()?
             .unwrap_or_default();
 
@@ -382,7 +382,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: PathBuf,
         bs: &Bound<PyBytes>,
-        kwargs: Option<WriterOptions>,
+        kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let mut kwargs = kwargs.unwrap_or_default();
         let this = self.core.clone();

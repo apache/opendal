@@ -269,6 +269,10 @@ pub mod rfc_5871_read_returns_metadata {}
 #[doc = include_str!("6189_remove_native_blocking.md")]
 pub mod rfc_6189_remove_native_blocking {}
 
+/// Glob support
+#[doc = include_str!("6209_glob_support.md")]
+pub mod rfc_6209_glob_support {}
+
 /// Options API
 #[doc = include_str!("6213_options_api.md")]
 pub mod rfc_6213_options_api {}

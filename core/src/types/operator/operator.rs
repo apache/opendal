@@ -624,7 +624,7 @@ impl Operator {
     /// use opendal::options;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
-    ///     .reader_options("path/to/file", options::ReadOptions {
+    ///     .reader_options("path/to/file", options::ReaderOptions {
     ///         version: Some("version_id".to_string()),
     ///         ..Default::default()
     ///     })
@@ -1170,9 +1170,9 @@ impl Operator {
     /// use opendal::options;
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
-    /// op.delete_with("path/to/file", options::DeleteOptions {
+    /// op.delete_options("path/to/file", options::DeleteOptions {
     ///     version: Some(version.to_string()),
-    ///     ..Defeault::default()
+    ///     ..Default::default()
     /// })
     /// .await?;
     /// # Ok(())

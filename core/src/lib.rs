@@ -92,6 +92,7 @@
 //!
 //! Every Operator API follows a consistent pattern. For example, consider the `read` operation:
 //!
+//! - [`Operator::read`]: Executes a read operation.
 //! - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
 //! - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
 //! - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
@@ -99,7 +100,7 @@
 //! - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
 //!
 //! The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
-//! into `futures::AsyncRead` for broader ecosystem compatibility.
+//! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 //!
 //! ```no_run
 //! use opendal::layers::LoggingLayer;
@@ -137,6 +138,7 @@
 //!             range: (0..8 * 1024 * 1024).into(),
 //!             chunk: Some(1024 * 1024),
 //!             concurrent: 4,
+//!             ..Default::default()
 //!         })
 //!         .await?;
 //!

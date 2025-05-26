@@ -61,6 +61,7 @@ tests = [
   "dep:dotenvy",
   "layers-blocking",
   "services-azblob",
+  "services-azdls",
   "services-fs",
   "services-http",
   "services-memory",

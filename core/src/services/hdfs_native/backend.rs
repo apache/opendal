@@ -15,6 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
+use hdfs_native::HdfsError;
+use hdfs_native::WriteOptions;
+use log::debug;
+
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
@@ -23,12 +31,6 @@ use super::writer::HdfsNativeWriter;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
-use hdfs_native::HdfsError;
-use hdfs_native::WriteOptions;
-use log::debug;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
@@ -145,10 +147,6 @@ impl Access for HdfsNativeBackend {
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();

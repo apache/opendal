@@ -16,8 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::BlockingWrite;
-pub use api::BlockingWriter;
 pub use api::Write;
 pub use api::Writer;
 

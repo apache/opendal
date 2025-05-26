@@ -23,7 +23,8 @@ use http::StatusCode;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::{OneDriveItem, OneDriveUploadSessionCreationResponseBody};
+use super::graph_model::OneDriveItem;
+use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 use crate::raw::*;
 use crate::*;
 

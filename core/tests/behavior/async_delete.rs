@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
 use anyhow::Result;
 use futures::TryStreamExt;
 use log::warn;
-use opendal::raw::{Access, OpDelete};
+use opendal::raw::Access;
+use opendal::raw::OpDelete;
+
+use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();

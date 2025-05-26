@@ -32,17 +32,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{Error, ErrorKind, Result};
 use std::fmt::Debug;
 
-use web_sys::{
-    window, File, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions,
-    FileSystemWritableFileStream,
-};
-
-use wasm_bindgen::{JsCast, JsValue};
-
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::window;
+use web_sys::File;
+use web_sys::FileSystemDirectoryHandle;
+use web_sys::FileSystemFileHandle;
+use web_sys::FileSystemGetFileOptions;
+use web_sys::FileSystemWritableFileStream;
+
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 fn parse_js_error(msg: JsValue) -> Error {
     Error::new(

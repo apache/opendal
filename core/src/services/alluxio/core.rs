@@ -15,15 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;

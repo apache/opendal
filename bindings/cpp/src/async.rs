@@ -88,7 +88,7 @@ unsafe impl Send for ffi::OperatorPtr {}
 
 unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
     RustFutureRead::fallible(async move {
-        Ok((*op)
+        Ok(op
             .0
             .read(&path)
             .await
@@ -99,11 +99,9 @@ unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
 
 unsafe fn operator_write(op: ffi::OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        Ok((*op)
-            .0
-            .write(&path, bs)
+        op.0.write(&path, bs)
             .await
             .map(|_| ())
-            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?)
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }

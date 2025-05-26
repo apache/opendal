@@ -16,17 +16,18 @@
 // under the License.
 
 use std::fmt::Debug;
-
 #[cfg(feature = "tests")]
 use std::time::Duration;
 use std::vec;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::engine::Engine as _;
-use bb8::{PooledConnection, RunError};
-use rust_nebula::{
-    graph::GraphQuery, HostAddress, SingleConnSessionConf, SingleConnSessionManager,
-};
+use bb8::PooledConnection;
+use bb8::RunError;
+use rust_nebula::graph::GraphQuery;
+use rust_nebula::HostAddress;
+use rust_nebula::SingleConnSessionConf;
+use rust_nebula::SingleConnSessionManager;
 use snowflaked::sync::Generator;
 use tokio::sync::OnceCell;
 

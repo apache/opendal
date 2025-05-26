@@ -56,7 +56,7 @@ where
         )
     })?;
 
-    let layered = operator.operator.clone().layer(guard.clone());
+    let layered = operator.async_op.clone().layer(guard.clone());
 
     Ok(Operator::from_operator(layered))
 }

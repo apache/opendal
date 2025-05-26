@@ -62,17 +62,3 @@ where
         }
     }
 }
-
-impl<L> oio::BlockingList for PrefixLister<L>
-where
-    L: oio::BlockingList,
-{
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        loop {
-            match self.lister.next() {
-                Ok(Some(e)) if !e.path().starts_with(&self.prefix) => continue,
-                v => return v,
-            }
-        }
-    }
-}

@@ -95,7 +95,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 delete: true,
-                blocking: true,
                 shared: false,
                 ..Default::default()
             },
@@ -109,11 +108,6 @@ impl kv::Adapter for Adapter {
         Ok(Some(Buffer::from(result)))
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
-        let result = cacache::read_sync(&self.datadir, path).map_err(parse_error)?;
-        Ok(Some(Buffer::from(result)))
-    }
-
     async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         cacache::write(&self.datadir, path, value.to_vec())
             .await
@@ -121,21 +115,10 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        cacache::write_sync(&self.datadir, path, value.to_vec()).map_err(parse_error)?;
-        Ok(())
-    }
-
     async fn delete(&self, path: &str) -> Result<()> {
         cacache::remove(&self.datadir, path)
             .await
             .map_err(parse_error)?;
-
-        Ok(())
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
-        cacache::remove_sync(&self.datadir, path).map_err(parse_error)?;
 
         Ok(())
     }

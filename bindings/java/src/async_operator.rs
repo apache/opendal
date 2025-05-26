@@ -28,7 +28,7 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
-use opendal::layers::BlockingLayer;
+use opendal::blocking;
 use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
@@ -51,29 +51,19 @@ use crate::Result;
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
     mut env: JNIEnv,
     _: JClass,
-    executor: *const Executor,
     scheme: JString,
     map: JObject,
 ) -> jlong {
-    intern_constructor(&mut env, executor, scheme, map).unwrap_or_else(|e| {
+    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_constructor(
-    env: &mut JNIEnv,
-    executor: *const Executor,
-    scheme: JString,
-    map: JObject,
-) -> Result<jlong> {
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_iter(scheme, map)?;
-    if !op.info().full_capability().blocking {
-        let layer = executor_or_default(env, executor)?.enter_with(BlockingLayer::create)?;
-        op = op.layer(layer);
-    }
+    let op = Operator::via_iter(scheme, map)?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -310,12 +300,26 @@ fn intern_delete(
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp(
-    _: JNIEnv,
+    mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
+    executor: *const Executor,
 ) -> jlong {
+    intern_make_blocking_op(&mut env, op, executor).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_make_blocking_op(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    executor: *const Executor,
+) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    Box::into_raw(Box::new(op.blocking())) as jlong
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
+    Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
 /// # Safety

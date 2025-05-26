@@ -20,8 +20,7 @@ use jni::objects::JClass;
 use jni::objects::JString;
 use jni::sys::jlong;
 use jni::JNIEnv;
-use opendal::BlockingOperator;
-use opendal::BlockingWriter;
+use opendal::blocking;
 
 use crate::convert::jstring_to_string;
 
@@ -32,7 +31,7 @@ use crate::convert::jstring_to_string;
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_constructWriter(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) -> jlong {
     intern_construct_write(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -43,7 +42,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
 
 fn intern_construct_write(
     env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    op: &mut blocking::Operator,
     path: JString,
 ) -> crate::Result<jlong> {
     let path = jstring_to_string(env, &path)?;
@@ -58,7 +57,7 @@ fn intern_construct_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_disposeWriter(
     mut env: JNIEnv,
     _: JClass,
-    writer: *mut BlockingWriter,
+    writer: *mut blocking::Writer,
 ) {
     let mut writer = Box::from_raw(writer);
     intern_dispose_write(&mut writer).unwrap_or_else(|e| {
@@ -66,7 +65,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_dispo
     })
 }
 
-fn intern_dispose_write(writer: &mut BlockingWriter) -> crate::Result<()> {
+fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
     writer.close()?;
     Ok(())
 }
@@ -78,7 +77,7 @@ fn intern_dispose_write(writer: &mut BlockingWriter) -> crate::Result<()> {
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeBytes(
     mut env: JNIEnv,
     _: JClass,
-    writer: *mut BlockingWriter,
+    writer: *mut blocking::Writer,
     content: JByteArray,
 ) {
     intern_write_bytes(&mut env, &mut *writer, content).unwrap_or_else(|e| {
@@ -88,7 +87,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_write
 
 fn intern_write_bytes(
     env: &mut JNIEnv,
-    writer: &mut BlockingWriter,
+    writer: &mut blocking::Writer,
     content: JByteArray,
 ) -> crate::Result<()> {
     let content = env.convert_byte_array(content)?;

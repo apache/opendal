@@ -220,13 +220,9 @@ impl<A: Access> TimeoutAccessor<A> {
 impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
-    type BlockingReader = A::BlockingReader;
     type Writer = TimeoutWrapper<A::Writer>;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = TimeoutWrapper<A::Lister>;
-    type BlockingLister = A::BlockingLister;
     type Deleter = TimeoutWrapper<A::Deleter>;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -279,22 +275,6 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.timeout(Operation::Presign, self.inner.presign(path, args))
             .await
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
     }
 }
 
@@ -410,11 +390,7 @@ mod tests {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
-        type BlockingReader = ();
-        type BlockingWriter = ();
-        type BlockingLister = ();
         type Deleter = ();
-        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();

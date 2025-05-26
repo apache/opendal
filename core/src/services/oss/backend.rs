@@ -30,7 +30,9 @@ use reqsign::AliyunOssSigner;
 use super::core::*;
 use super::delete::OssDeleter;
 use super::error::parse_error;
-use super::lister::{OssLister, OssListers, OssObjectVersionsLister};
+use super::lister::OssLister;
+use super::lister::OssListers;
+use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
 use crate::raw::*;
@@ -522,10 +524,6 @@ impl Access for OssBackend {
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

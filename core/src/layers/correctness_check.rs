@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -80,10 +81,6 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = CheckWrapper<A::Deleter>;
-    type BlockingReader = A::BlockingReader;
-    type BlockingWriter = A::BlockingWriter;
-    type BlockingLister = A::BlockingLister;
-    type BlockingDeleter = CheckWrapper<A::BlockingDeleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -216,70 +213,6 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let capability = self.info.full_capability();
-        if !capability.read_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Read,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.info.full_capability();
-        if args.append() && !capability.write_can_append {
-            return Err(new_unsupported_error(
-                &self.info,
-                Operation::Write,
-                "append",
-            ));
-        }
-        if args.if_not_exists() && !capability.write_with_if_not_exists {
-            return Err(new_unsupported_error(
-                &self.info,
-                Operation::Write,
-                "if_not_exists",
-            ));
-        }
-        if args.if_none_match().is_some() && !capability.write_with_if_none_match {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Write,
-                "if_none_match",
-            ));
-        }
-
-        self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
-        if !capability.stat_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Stat,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_stat(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete().map(|(rp, deleter)| {
-            let deleter = CheckWrapper::new(deleter, self.info.clone());
-            (rp, deleter)
-        })
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
-    }
 }
 
 pub struct CheckWrapper<T> {
@@ -316,22 +249,14 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
     }
 }
 
-impl<T: oio::BlockingDelete> oio::BlockingDelete for CheckWrapper<T> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.check_delete(&args)?;
-        self.inner.delete(path, args)
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.inner.flush()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::raw::oio;
-    use crate::{Capability, EntryMode, Metadata, Operator};
+    use crate::Capability;
+    use crate::EntryMode;
+    use crate::Metadata;
+    use crate::Operator;
 
     #[derive(Debug)]
     struct MockService {
@@ -343,10 +268,6 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
-        type BlockingReader = oio::BlockingReader;
-        type BlockingWriter = oio::BlockingWriter;
-        type BlockingLister = oio::BlockingLister;
-        type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();

@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{Access, AccessorInfo};
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use crate::raw::Access;
+use crate::raw::AccessorInfo;
 
 /// OPFS Service backend
 #[derive(Default, Debug, Clone)]

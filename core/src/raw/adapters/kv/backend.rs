@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use super::{Adapter, Scan};
+use super::Adapter;
+use super::Scan;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;

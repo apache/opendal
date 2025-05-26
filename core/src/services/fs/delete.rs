@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use super::core::*;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 
 pub struct FsDeleter {
     core: Arc<FsCore>,

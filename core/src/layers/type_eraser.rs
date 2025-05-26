@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+use crate::raw::*;
+use crate::*;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///

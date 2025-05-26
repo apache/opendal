@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 
 pub struct MonoiofsDeleter {
     core: Arc<MonoiofsCore>,

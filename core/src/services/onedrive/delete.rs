@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use http::StatusCode;
+
 use super::core::OneDriveCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
-use http::StatusCode;
-use std::sync::Arc;
 
 /// Delete operation
 /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online

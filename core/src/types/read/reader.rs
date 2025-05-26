@@ -211,10 +211,11 @@ impl Reader {
     /// ```
     /// use std::io;
     ///
-    /// use futures::TryStreamExt;
-    /// use opendal::{Buffer, Operator};
-    /// use opendal::Result;
     /// use bytes::Bytes;
+    /// use futures::TryStreamExt;
+    /// use opendal::Buffer;
+    /// use opendal::Operator;
+    /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op
@@ -239,10 +240,11 @@ impl Reader {
     ///
     /// ```
     /// use std::io;
-    /// use bytes::Bytes;
     ///
+    /// use bytes::Bytes;
     /// use futures::TryStreamExt;
-    /// use opendal::{Buffer, Operator};
+    /// use opendal::Buffer;
+    /// use opendal::Operator;
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {

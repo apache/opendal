@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use crate::layers::correctness_check::new_unsupported_error;
 use crate::raw::*;
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
 
 /// Add an extra capability check layer for every operation
 ///
@@ -141,7 +143,9 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Capability, ErrorKind, Operator};
+    use crate::Capability;
+    use crate::ErrorKind;
+    use crate::Operator;
 
     #[derive(Debug)]
     struct MockService {

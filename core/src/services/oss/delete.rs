@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use bytes::Buf;
+use http::StatusCode;
+
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use http::StatusCode;
-use std::collections::HashSet;
-use std::sync::Arc;
 
 pub struct OssDeleter {
     core: Arc<OssCore>,

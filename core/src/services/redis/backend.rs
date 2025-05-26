@@ -15,20 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::path::PathBuf;
+use std::time::Duration;
+
 use bb8::RunError;
 use bytes::Bytes;
 use http::Uri;
 use redis::cluster::ClusterClient;
 use redis::cluster::ClusterClientBuilder;
+use redis::AsyncCommands;
+use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
-use redis::{AsyncCommands, Client};
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::path::PathBuf;
-use std::time::Duration;
 use tokio::sync::OnceCell;
 
 use super::core::*;

@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use compio::buf::IoBuf;
-use compio::dispatcher::Dispatcher;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use compio::buf::IoBuf;
+use compio::dispatcher::Dispatcher;
 
 use crate::raw::*;
 use crate::*;

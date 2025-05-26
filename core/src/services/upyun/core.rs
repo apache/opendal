@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use base64::Engine;
 use hmac::Hmac;
 use hmac::Mac;
@@ -25,9 +29,6 @@ use http::Response;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 
 use self::constants::*;
 use crate::raw::*;

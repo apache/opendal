@@ -18,12 +18,13 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::*;
 use anyhow::Result;
 use http::StatusCode;
 use log::warn;
 use reqwest::Url;
 use tokio::time::sleep;
+
+use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();

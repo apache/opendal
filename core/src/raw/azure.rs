@@ -124,11 +124,11 @@ fn collect_development_config(
     storage: &AzureStorageService,
 ) -> Result<Option<DevelopmentStorageConfig>> {
     // Azurite defaults.
-    const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &'static str = "devstoreaccount1";
-    const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &'static str =
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &str = "devstoreaccount1";
+    const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &str =
         "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
 
-    const AZURITE_DEFAULT_BLOB_URI: &'static str = "http://127.0.0.1:10000";
+    const AZURITE_DEFAULT_BLOB_URI: &str = "http://127.0.0.1:10000";
 
     let use_development_storage = key_values.get("UseDevelopmentStorage");
     if use_development_storage.is_none() || use_development_storage.unwrap() != "true" {
@@ -283,7 +283,7 @@ mod tests {
     };
 
     #[test]
-    fn test_azure_connection_config_from_connection_string() {
+    fn test_azure_config_from_connection_string() {
         let test_cases = vec![
             ("minimal fields",
                 (AzureStorageService::Blob, "BlobEndpoint=https://testaccount.blob.core.windows.net/"),
@@ -421,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn test_infer_account_name_from_endpoint() {
+    fn test_azure_account_name_from_endpoint() {
         let test_cases = vec![
             ("https://account.blob.core.windows.net", Some("account")),
             (

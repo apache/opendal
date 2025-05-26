@@ -29,7 +29,6 @@ use reqsign::AzureStorageSigner;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
-use super::endpoint::DfsEndpoint;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
@@ -37,6 +36,22 @@ use super::writer::AzdlsWriters;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
+
+impl From<AzureStorageConfig> for AzdlsConfig {
+    fn from(config: AzureStorageConfig) -> Self {
+        AzdlsConfig {
+            endpoint: config.endpoint,
+            account_name: config.account_name,
+            account_key: config.account_key,
+            client_secret: config.client_secret,
+            tenant_id: config.tenant_id,
+            client_id: config.client_id,
+            sas_token: config.sas_token,
+            authority_host: config.authority_host,
+            ..Default::default()
+        }
+    }
+}
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
@@ -202,6 +217,32 @@ impl AzdlsBuilder {
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
+    }
+
+    /// Create a new `AzdlsBuilder` instance from an [Azure Storage connection string][1].
+    ///
+    /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+    ///
+    /// # Example
+    /// ```
+    /// use opendal::services::Azdls;
+    ///
+    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    ///
+    /// let mut config = Azdls::from_connection_string(&conn_str)
+    ///     .unwrap()
+    ///     // Add additional configuration if needed
+    ///     .client_id("myClientId")
+    ///     .client_secret("myClientSecret")
+    ///     .tenant_id("myTenantId")
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn from_connection_string(conn_str: &str) -> Result<Self> {
+        let config =
+            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::Adls)?;
+
+        Ok(AzdlsConfig::from(config).into_builder())
     }
 }
 

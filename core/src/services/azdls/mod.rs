@@ -32,5 +32,4 @@ mod writer;
 pub use backend::AzdlsBuilder as Azdls;
 
 mod config;
-mod endpoint;
 pub use config::AzdlsConfig;

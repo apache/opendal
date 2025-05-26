@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use core::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use core::fmt::Debug;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -100,7 +100,6 @@ impl WebhdfsBuilder {
 
     /// Set the username of this backend,
     /// used for authentication
-    ///
     pub fn user_name(mut self, user_name: &str) -> Self {
         if !user_name.is_empty() {
             self.config.user_name = Some(user_name.to_string());

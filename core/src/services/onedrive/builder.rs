@@ -24,7 +24,6 @@ use chrono::Utc;
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
-
 use tokio::sync::Mutex;
 
 use super::backend::OnedriveBackend;

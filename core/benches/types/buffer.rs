@@ -17,7 +17,8 @@
 
 use bytes::Buf;
 use bytes::Bytes;
-use divan::{black_box, Bencher};
+use divan::black_box;
+use divan::Bencher;
 use opendal::Buffer;
 
 mod chunk {

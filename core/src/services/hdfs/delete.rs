@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io;
+use std::sync::Arc;
+
 use super::backend::HdfsBackend;
 use crate::raw::*;
 use crate::*;
-use std::io;
-use std::sync::Arc;
 
 pub struct HdfsDeleter {
     core: Arc<HdfsBackend>,

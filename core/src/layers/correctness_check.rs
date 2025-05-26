@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -252,7 +253,10 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
 mod tests {
     use super::*;
     use crate::raw::oio;
-    use crate::{Capability, EntryMode, Metadata, Operator};
+    use crate::Capability;
+    use crate::EntryMode;
+    use crate::Metadata;
+    use crate::Operator;
 
     #[derive(Debug)]
     struct MockService {

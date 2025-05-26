@@ -17,15 +17,17 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+use constants::X_AMZ_OBJECT_SIZE;
+use constants::X_AMZ_VERSION_ID;
+use http::StatusCode;
+
 use super::core::*;
 use super::error::from_s3_error;
 use super::error::parse_error;
 use super::error::S3Error;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use constants::{X_AMZ_OBJECT_SIZE, X_AMZ_VERSION_ID};
-use http::StatusCode;
 
 pub type S3Writers = TwoWays<oio::MultipartWriter<S3Writer>, oio::AppendWriter<S3Writer>>;
 

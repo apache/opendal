@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::FlatLister;
-use crate::raw::oio::PrefixLister;
-use crate::raw::*;
-use crate::*;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+use crate::raw::oio::FlatLister;
+use crate::raw::oio::PrefixLister;
+use crate::raw::*;
+use crate::*;
 
 /// Complete underlying services features so that users can use them in
 /// the same way.
@@ -51,7 +52,6 @@ use std::sync::Arc;
 ///
 /// - If support `list_with_recursive`, return directly.
 /// - if not, wrap with [`FlatLister`].
-///
 pub struct CompleteLayer;
 
 impl<A: Access> Layer<A> for CompleteLayer {

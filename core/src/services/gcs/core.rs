@@ -20,11 +20,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
+use constants::*;
 use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -42,12 +45,10 @@ use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde::Serialize;
-use std::sync::LazyLock;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
 use crate::*;
-use constants::*;
 
 pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";

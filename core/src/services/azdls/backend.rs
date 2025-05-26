@@ -225,6 +225,7 @@ impl AzdlsBuilder {
     ///
     /// # Example
     /// ```
+    /// use opendal::Builder;
     /// use opendal::services::Azdls;
     ///
     /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
@@ -232,6 +233,7 @@ impl AzdlsBuilder {
     /// let mut config = Azdls::from_connection_string(&conn_str)
     ///     .unwrap()
     ///     // Add additional configuration if needed
+    ///     .filesystem("myFilesystem")
     ///     .client_id("myClientId")
     ///     .client_secret("myClientSecret")
     ///     .tenant_id("myTenantId")

@@ -39,6 +39,19 @@ use crate::*;
 /// Default endpoint of Azure File services.
 const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
+impl From<AzureStorageConfig> for AzfileConfig {
+    fn from(config: AzureStorageConfig) -> Self {
+        AzfileConfig {
+            account_name: config.account_name,
+            account_key: config.account_key,
+            sas_token: config.sas_token,
+            endpoint: None, // endpoint is not part of AzureStorageConfig
+            root: None,     // root is not part of AzureStorageConfig
+            share_name: String::new(),
+        }
+    }
+}
+
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
 
@@ -142,6 +155,31 @@ impl AzfileBuilder {
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
+    }
+
+    /// Create a new `AfileBuilder` instance from an [Azure Storage connection string][1].
+    ///
+    /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+    ///
+    /// # Example
+    /// ```
+    /// use opendal::Builder;
+    /// use opendal::services::Azfile;
+    ///
+    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    ///
+    /// let mut config = Azfile::from_connection_string(&conn_str)
+    ///     .unwrap()
+    ///     // Add additional configuration if needed
+    ///     .share_name("myShare")
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn from_connection_string(conn_str: &str) -> Result<Self> {
+        let config =
+            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::File)?;
+
+        Ok(AzfileConfig::from(config).into_builder())
     }
 }
 

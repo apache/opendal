@@ -42,13 +42,16 @@ pub(crate) fn azure_config_from_connection_string(
 ) -> Result<AzureStorageConfig> {
     let key_values = parse_connection_string(conn_str)?;
 
-    if let Some(development_config) = collect_development_config(&key_values, &storage)? {
-        return Ok(AzureStorageConfig {
-            account_name: Some(development_config.account_name),
-            account_key: Some(development_config.account_key),
-            endpoint: Some(development_config.endpoint),
-            ..Default::default()
-        });
+    if storage == AzureStorageService::Blob {
+        // Try to read development storage configuration.
+        if let Some(development_config) = collect_blob_development_config(&key_values, &storage) {
+            return Ok(AzureStorageConfig {
+                account_name: Some(development_config.account_name),
+                account_key: Some(development_config.account_key),
+                endpoint: Some(development_config.endpoint),
+                ..Default::default()
+            });
+        }
     }
 
     let mut config = AzureStorageConfig {
@@ -66,9 +69,13 @@ pub(crate) fn azure_config_from_connection_string(
 
 /// The service that a connection string refers to. The type influences
 /// interpretation of endpoint-related fields during parsing.
+#[derive(PartialEq)]
 pub(crate) enum AzureStorageService {
     /// Azure Blob Storage.
     Blob,
+
+    /// Azure File Storage.
+    File,
 
     /// Azure Data Lake Storage Gen2.
     /// Backed by Blob Storage but exposed through a different endpoint (`dfs`).
@@ -119,10 +126,15 @@ fn parse_connection_string(conn_str: &str) -> Result<HashMap<String, String>> {
         .collect()
 }
 
-fn collect_development_config(
+fn collect_blob_development_config(
     key_values: &HashMap<String, String>,
     storage: &AzureStorageService,
-) -> Result<Option<DevelopmentStorageConfig>> {
+) -> Option<DevelopmentStorageConfig> {
+    debug_assert!(
+        storage == &AzureStorageService::Blob,
+        "Azurite Development Storage only supports Blob Storage"
+    );
+
     // Azurite defaults.
     const AZURITE_DEFAULT_STORAGE_ACCOUNT_NAME: &str = "devstoreaccount1";
     const AZURITE_DEFAULT_STORAGE_ACCOUNT_KEY: &str =
@@ -132,7 +144,7 @@ fn collect_development_config(
 
     let use_development_storage = key_values.get("UseDevelopmentStorage");
     if use_development_storage.is_none() || use_development_storage.unwrap() != "true" {
-        return Ok(None); // Not using development storage
+        return None; // Not using development storage
     }
 
     let account_name = key_values
@@ -146,33 +158,13 @@ fn collect_development_config(
     let development_proxy_uri = key_values
         .get("DevelopmentStorageProxyUri")
         .cloned()
-        .map_or_else(|| {
-            match storage {
-                AzureStorageService::Blob => Ok(AZURITE_DEFAULT_BLOB_URI.to_string()),
-                AzureStorageService::Adls =>
-                    // `UseDevelopmentStorage` was set without `DevelopmentStorageProxyUri`.
-                    //
-                    // At time of this writing, Azurite doesn't yet support ADLS (see
-                    // https://github.com/Azure/Azurite/issues/553 for tracking).
-                    //
-                    // This implementation tries to be forward-compatible for when
-                    // Azurite starts to support ADLSv2.
-                    // More specifically, we can re-use defaults for account name and key,
-                    // but the endpoint is dependent on the storage implementation. So,
-                    // when support arrives, users will need to pass
-                    // `DevelopmentStorageProxyUri` explicitly.
-                    Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "Adls: UseDevelopmentStorage isn't supported without DevelopmentStorageProxyUri",
-                    )),
-            }
-        }, |v| Ok(v.trim_end_matches('/').to_string()))?;
+        .unwrap_or(AZURITE_DEFAULT_BLOB_URI.to_string());
 
-    Ok(Some(DevelopmentStorageConfig {
+    Some(DevelopmentStorageConfig {
         endpoint: format!("{development_proxy_uri}/{account_name}"),
         account_name,
         account_key,
-    }))
+    })
 }
 
 /// Helper struct to hold development storage aka Azurite configuration.
@@ -191,16 +183,11 @@ fn collect_endpoint(
     storage: &AzureStorageService,
 ) -> Result<Option<String>> {
     match storage {
-        AzureStorageService::Blob => {
-            if let Some(blob_endpoint) = key_values.get("BlobEndpoint") {
-                Ok(Some(blob_endpoint.clone()))
-            } else if let Some(blob_endpoint) = collect_endpoint_from_parts(key_values, "blob")? {
-                Ok(Some(blob_endpoint.clone()))
-            } else {
-                Ok(None)
-            }
-        }
+        AzureStorageService::Blob => collect_or_build_endpoint(key_values, "BlobEndpoint", "blob"),
+        AzureStorageService::File => collect_or_build_endpoint(key_values, "FileEndpoint", "file"),
         AzureStorageService::Adls => {
+            // ADLS doesn't have a dedicated endpoint field and we can only
+            // build it from parts.
             if let Some(dfs_endpoint) = collect_endpoint_from_parts(key_values, "dfs")? {
                 Ok(Some(dfs_endpoint.clone()))
             } else {
@@ -243,6 +230,20 @@ fn set_credentials(config: &mut AzureStorageConfig, creds: AzureStorageCredentia
         AzureStorageCredential::BearerToken(_, _) => {
             // Bearer tokens shouldn't be passed via connection strings.
         }
+    }
+}
+
+fn collect_or_build_endpoint(
+    key_values: &HashMap<String, String>,
+    endpoint_key: &str,
+    service_name: &str,
+) -> Result<Option<String>> {
+    if let Some(endpoint) = key_values.get(endpoint_key) {
+        Ok(Some(endpoint.clone()))
+    } else if let Some(built_endpoint) = collect_endpoint_from_parts(key_values, service_name)? {
+        Ok(Some(built_endpoint.clone()))
+    } else {
+        Ok(None)
     }
 }
 
@@ -330,6 +331,22 @@ mod tests {
                 Some(AzureStorageConfig{
                     account_name: Some("testaccount".to_string()),
                     endpoint: Some("https://testaccount.dfs.core.windows.net".to_string()),
+                    ..Default::default()
+                }),
+            ),
+            ("file endpoint from field",
+                (AzureStorageService::File, "FileEndpoint=https://testaccount.file.core.windows.net"),
+                Some(AzureStorageConfig{
+                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
+                    account_name: Some("testaccount".to_string()),
+                    ..Default::default()
+                })
+            ),
+            ("file endpoint from parts",
+                (AzureStorageService::File, "AccountName=testaccount;EndpointSuffix=core.windows.net"),
+                Some(AzureStorageConfig{
+                    account_name: Some("testaccount".to_string()),
+                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
                     ..Default::default()
                 }),
             ),

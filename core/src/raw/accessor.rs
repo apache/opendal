@@ -686,6 +686,7 @@ impl AccessorInfo {
     /// - `s3` => bucket name
     /// - `azblob` => container name
     /// - `azdfs` => filesystem name
+    /// - `azfile` => share name
     ///
     /// # Panic Safety
     ///

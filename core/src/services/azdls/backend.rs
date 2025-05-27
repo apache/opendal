@@ -295,11 +295,6 @@ impl Builder for AzdlsBuilder {
                             #[cfg(feature = "azdls-list-with-start-after")]
                             list_with_start_after: true,
 
-                            presign: self.config.sas_token.is_some(),
-                            presign_stat: self.config.sas_token.is_some(),
-                            presign_read: self.config.sas_token.is_some(),
-                            presign_write: self.config.sas_token.is_some(),
-
                             shared: true,
 
                             ..Default::default()

@@ -70,7 +70,6 @@ pub struct RedisConnectionManager {
     pub cluster_client: Option<ClusterClient>,
 }
 
-#[async_trait::async_trait]
 impl bb8::ManageConnection for RedisConnectionManager {
     type Connection = RedisConnection;
     type Error = Error;

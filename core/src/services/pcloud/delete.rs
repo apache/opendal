@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::*;
-use super::error::{parse_error, PcloudError};
-use crate::raw::*;
-use crate::*;
+use std::sync::Arc;
+
 use bytes::Buf;
 use http::StatusCode;
-use std::sync::Arc;
+
+use super::core::*;
+use super::error::parse_error;
+use super::error::PcloudError;
+use crate::raw::*;
+use crate::*;
 
 pub struct PcloudDeleter {
     core: Arc<PcloudCore>,

@@ -529,10 +529,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if KNOWN_AZBLOB_ENDPOINT_SUFFIX
-        .iter()
-        .any(|s| *s == endpoint_suffix.as_str())
-    {
+    if KNOWN_AZBLOB_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
         storage_name.map(|s| s.to_string())
     } else {
         None
@@ -550,10 +547,6 @@ impl Access for AzblobBackend {
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -574,7 +567,7 @@ impl Access for AzblobBackend {
 
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
+                    meta = meta.with_user_metadata(user_meta);
                 }
 
                 Ok(RpStat::new(meta))

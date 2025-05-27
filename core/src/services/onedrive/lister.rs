@@ -21,7 +21,9 @@ use bytes::Buf;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use super::graph_model::{GraphApiOneDriveListResponse, ItemType, GENERAL_SELECT_PARAM};
+use super::graph_model::GraphApiOneDriveListResponse;
+use super::graph_model::ItemType;
+use super::graph_model::GENERAL_SELECT_PARAM;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;

@@ -113,20 +113,4 @@ impl ReadChecker {
             }
         }
     }
-
-    /// Check will check the correctness of the read process via given actions.
-    ///
-    /// Check will panic if any check failed.
-    pub fn blocking_check(&mut self, r: BlockingReader, actions: &[ReadAction]) {
-        for action in actions {
-            match *action {
-                ReadAction::Read(offset, size) => {
-                    let bs = r
-                        .read(offset as u64..(offset + size) as u64)
-                        .expect("read must success");
-                    self.check_read(offset, size, bs.to_bytes().as_ref());
-                }
-            }
-        }
-    }
 }

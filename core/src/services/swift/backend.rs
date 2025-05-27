@@ -211,10 +211,6 @@ impl Access for SwiftBackend {
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::OneShotDeleter<SwfitDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -229,7 +225,7 @@ impl Access for SwiftBackend {
                 let mut meta = parse_into_metadata(path, headers)?;
                 let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
+                    meta = meta.with_user_metadata(user_meta);
                 }
 
                 Ok(RpStat::new(meta))

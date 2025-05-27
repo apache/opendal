@@ -102,9 +102,6 @@ pub struct Capability {
 
     /// If operator supports shared.
     pub shared: bool,
-
-    /// If operator supports blocking.
-    pub blocking: bool,
 }
 
 impl Capability {
@@ -144,7 +141,6 @@ impl Capability {
             presign_write: capability.presign_write,
             presign_delete: capability.presign_delete,
             shared: capability.shared,
-            blocking: capability.blocking,
         }
     }
 }

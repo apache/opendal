@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.80"
-version = "0.53.1"
+version = "0.53.3"
 
 [lints.clippy]
 unused_async = "warn"
@@ -49,6 +49,9 @@ version = "0.53.0"
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
 
+# Enable opendal's blocking support.
+blocking = ["internal-tokio-rt"]
+
 # Build test utils or not.
 #
 # These features are used to control whether to build opendal's test utils.
@@ -59,7 +62,6 @@ tests = [
   "dep:rand",
   "dep:sha2",
   "dep:dotenvy",
-  "layers-blocking",
   "services-azblob",
   "services-fs",
   "services-http",
@@ -102,7 +104,6 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 # Enable dtrace support.
-layers-blocking = ["internal-tokio-rt"]
 layers-dtrace = ["dep:probe"]
 
 services-aliyun-drive = []

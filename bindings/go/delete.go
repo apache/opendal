@@ -52,7 +52,7 @@ var withOperatorDelete = withFFI(ffiOpts{
 	sym:    symOperatorDelete,
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)) operatorDelete {
+}, func(ctx context.Context, ffiCall ffiCall) operatorDelete {
 	return func(op *opendalOperator, path string) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {

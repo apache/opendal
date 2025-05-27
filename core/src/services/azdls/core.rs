@@ -15,9 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::{CONTENT_DISPOSITION, IF_NONE_MATCH};
+use http::header::IF_NONE_MATCH;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -26,15 +32,10 @@ use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
-use crate::raw::*;
-use crate::*;
 
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 use super::lister::generate_continuation_from_start_after;
 

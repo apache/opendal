@@ -28,13 +28,15 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
-use opendal::layers::BlockingLayer;
-use opendal::raw::PresignedRequest;
+use opendal::blocking;
 use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::convert::{jmap_to_hashmap, read_map_field, read_string_field};
+use crate::convert::{
+    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field, read_map_field,
+    read_string_field,
+};
 use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
@@ -49,29 +51,19 @@ use crate::Result;
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
     mut env: JNIEnv,
     _: JClass,
-    executor: *const Executor,
     scheme: JString,
     map: JObject,
 ) -> jlong {
-    intern_constructor(&mut env, executor, scheme, map).unwrap_or_else(|e| {
+    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_constructor(
-    env: &mut JNIEnv,
-    executor: *const Executor,
-    scheme: JString,
-    map: JObject,
-) -> Result<jlong> {
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_iter(scheme, map)?;
-    if !op.info().full_capability().blocking {
-        let layer = executor_or_default(env, executor)?.enter_with(BlockingLayer::create)?;
-        op = op.layer(layer);
-    }
+    let op = Operator::via_iter(scheme, map)?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -182,50 +174,6 @@ fn intern_write(
 ///
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_append(
-    mut env: JNIEnv,
-    _: JClass,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> jlong {
-    intern_append(&mut env, op, executor, path, content).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
-    })
-}
-
-fn intern_append(
-    env: &mut JNIEnv,
-    op: *mut Operator,
-    executor: *const Executor,
-    path: JString,
-    content: JByteArray,
-) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
-
-    let path = jstring_to_string(env, &path)?;
-    let content = env.convert_byte_array(content)?;
-
-    executor_or_default(env, executor)?.spawn(async move {
-        let result = op
-            .write_with(&path, content)
-            .append(true)
-            .await
-            .map(|_| JValueOwned::Void)
-            .map_err(Into::into);
-        complete_future(id, result)
-    });
-
-    Ok(id)
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator is ready.
-#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat(
     mut env: JNIEnv,
     _: JClass,
@@ -251,17 +199,13 @@ fn intern_stat(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_stat(op, path).await;
+        let metadata = op.stat(&path).await.map_err(Into::into);
+        let mut env = unsafe { get_current_env() };
+        let result = metadata.and_then(|metadata| make_metadata(&mut env, metadata));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_stat<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let metadata = op.stat(&path).await?;
-    let mut env = unsafe { get_current_env() };
-    make_metadata(&mut env, metadata)
 }
 
 /// # Safety
@@ -274,8 +218,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    read_options: JObject,
 ) -> jlong {
-    intern_read(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_read(&mut env, op, executor, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -286,26 +231,28 @@ fn intern_read(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
+    let offset = read_int64_field(env, &options, "offset")?;
+    let length = read_int64_field(env, &options, "length")?;
+
+    let mut read_op = op.read_with(&path);
+    read_op = read_op.range(offset_length_to_range(offset, length)?);
+
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_read(op, path).await;
-        complete_future(id, result.map(JValueOwned::Object))
+        let result = read_op.await.map_err(Into::into);
+
+        let mut env = unsafe { get_current_env() };
+        let result = result.and_then(|bs| bytes_to_jbytearray(&mut env, bs.to_bytes()));
+        complete_future(id, result.map(|bs| JValueOwned::Object(bs.into())))
     });
 
     Ok(id)
-}
-
-async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
-    let content = op.read(&path).await?.to_bytes();
-
-    let env = unsafe { get_current_env() };
-    let result = env.byte_array_from_slice(&content)?;
-    Ok(result.into())
 }
 
 /// # Safety
@@ -353,12 +300,26 @@ fn intern_delete(
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp(
-    _: JNIEnv,
+    mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
+    executor: *const Executor,
 ) -> jlong {
+    intern_make_blocking_op(&mut env, op, executor).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_make_blocking_op(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    executor: *const Executor,
+) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    Box::into_raw(Box::new(op.blocking())) as jlong
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
+    Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
 /// # Safety
@@ -640,7 +601,7 @@ fn intern_presign_read(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_read(op, path, expire).await;
+        let result = op.presign_read(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
@@ -648,15 +609,6 @@ fn intern_presign_read(
 
     Ok(id)
 }
-
-async fn do_presign_read(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_read(&path, expire).await?)
-}
-
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
@@ -689,21 +641,13 @@ fn intern_presign_write(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_write(op, path, expire).await;
+        let result = op.presign_write(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_presign_write(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_write(&path, expire).await?)
 }
 
 /// # Safety
@@ -738,21 +682,13 @@ fn intern_presign_stat(
     let expire = Duration::from_nanos(expire as u64);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = do_presign_stat(op, path, expire).await;
+        let result = op.presign_stat(&path, expire).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|req| make_presigned_request(&mut env, req));
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
-}
-
-async fn do_presign_stat(
-    op: &mut Operator,
-    path: String,
-    expire: Duration,
-) -> Result<PresignedRequest> {
-    Ok(op.presign_stat(&path, expire).await?)
 }
 
 fn make_object<'local>(

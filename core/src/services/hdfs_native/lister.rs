@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use hdfs_native::client::ListStatusIterator;
+
 use crate::raw::build_rel_path;
 use crate::raw::oio;
 use crate::raw::parse_datetime_from_from_timestamp_millis;
@@ -22,7 +24,6 @@ use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use hdfs_native::client::ListStatusIterator;
 
 pub struct HdfsNativeLister {
     root: String,

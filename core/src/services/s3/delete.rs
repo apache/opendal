@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use bytes::Buf;
+use http::StatusCode;
+
 use super::core::*;
-use super::error::{parse_error, parse_s3_error_code};
+use super::error::parse_error;
+use super::error::parse_s3_error_code;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use http::StatusCode;
-use std::sync::Arc;
 
 pub struct S3Deleter {
     core: Arc<S3Core>,
@@ -65,14 +68,8 @@ impl oio::BatchDelete for S3Deleter {
 
         let bs = resp.into_body();
 
-        let mut result: DeleteObjectsResult =
+        let result: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-        // If no object is deleted, return directly.
-        if result.deleted.is_empty() {
-            let err = result.error.remove(0);
-            return Err(parse_delete_objects_result_error(err));
-        }
 
         let mut batched_result = BatchDeleteResult {
             succeeded: Vec::with_capacity(result.deleted.len()),

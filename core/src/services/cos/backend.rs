@@ -29,7 +29,9 @@ use reqsign::TencentCosSigner;
 use super::core::*;
 use super::delete::CosDeleter;
 use super::error::parse_error;
-use super::lister::{CosLister, CosListers, CosObjectVersionsLister};
+use super::lister::CosLister;
+use super::lister::CosListers;
+use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
 use crate::raw::oio::PageLister;
@@ -318,10 +320,6 @@ impl Access for CosBackend {
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -339,7 +337,7 @@ impl Access for CosBackend {
 
                 let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
                 if !user_meta.is_empty() {
-                    meta.with_user_metadata(user_meta);
+                    meta = meta.with_user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {

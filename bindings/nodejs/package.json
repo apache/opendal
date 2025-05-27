@@ -1,7 +1,7 @@
 {
   "name": "opendal",
   "author": "Apache OpenDAL <dev@opendal.apache.org>",
-  "version": "0.48.1",
+  "version": "0.48.3",
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
@@ -73,7 +73,7 @@
     "test": "vitest",
     "bench": "node -r dotenv/config ./benchmark/node.js dotenv_config_path=./.env",
     "bench:deno": "deno bench ./benchmark/deno.ts --reload=npm:opendal --allow-read --allow-ffi --allow-net --allow-env",
-    "prepublishOnly": "napi prepublish -t npm"
+    "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
   },
   "prettier": {
     "overrides": [

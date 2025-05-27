@@ -139,10 +139,62 @@ impl AzdlsBuilder {
         self
     }
 
-    /// Set sas_token of this backend.
+    /// Set client_secret of this backend.
+    ///
+    /// - If client_secret is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - required for client_credentials authentication
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        if !client_secret.is_empty() {
+            self.config.client_secret = Some(client_secret.to_string());
+        }
+
+        self
+    }
+
+    /// Set tenant_id of this backend.
+    ///
+    /// - If tenant_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - required for client_credentials authentication
+    pub fn tenant_id(mut self, tenant_id: &str) -> Self {
+        if !tenant_id.is_empty() {
+            self.config.tenant_id = Some(tenant_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set client_id of this backend.
+    ///
+    /// - If client_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - required for client_credentials authentication
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        if !client_id.is_empty() {
+            self.config.client_id = Some(client_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set the sas_token of this backend.
     pub fn sas_token(mut self, sas_token: &str) -> Self {
         if !sas_token.is_empty() {
             self.config.sas_token = Some(sas_token.to_string());
+        }
+
+        self
+    }
+
+    /// Set authority_host of this backend.
+    ///
+    /// - If authority_host is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - default value: `https://login.microsoftonline.com`
+    pub fn authority_host(mut self, authority_host: &str) -> Self {
+        if !authority_host.is_empty() {
+            self.config.authority_host = Some(authority_host.to_string());
         }
 
         self
@@ -182,7 +234,7 @@ impl Builder for AzdlsBuilder {
         debug!("backend use filesystem {}", &filesystem);
 
         let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
+            Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azdls)),
@@ -196,7 +248,11 @@ impl Builder for AzdlsBuilder {
                 .clone()
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token.clone(),
+            sas_token: self.config.sas_token,
+            client_id: self.config.client_id.clone(),
+            client_secret: self.config.client_secret.clone(),
+            tenant_id: self.config.tenant_id.clone(),
+            authority_host: self.config.authority_host.clone(),
             ..Default::default()
         };
 
@@ -278,10 +334,6 @@ impl Access for AzdlsBackend {
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -382,10 +434,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if KNOWN_AZDLS_ENDPOINT_SUFFIX
-        .iter()
-        .any(|s| *s == endpoint_suffix.as_str())
-    {
+    if KNOWN_AZDLS_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
         storage_name.map(|s| s.to_string())
     } else {
         None

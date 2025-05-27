@@ -15,7 +15,7 @@ To init OpenDAL operators, users have to init an accessor first.
 let root = &env::var("OPENDAL_S3_ROOT").unwrap_or_else(|_| "/".to_string());
 let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
 
-let mut builder = opedal::services::s3::Backend::build();
+let mut builder = opendal::services::s3::Backend::build();
 builder.root(&root);
 builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
 builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());

@@ -90,10 +90,6 @@ impl typed_kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        self.blocking_get(path)
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         match self.inner.lock().unwrap().get(path) {
             None => Ok(None),
             Some(bs) => Ok(Some(bs.to_owned())),
@@ -101,30 +97,18 @@ impl typed_kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.blocking_set(path, value)
-    }
-
-    fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
         self.inner.lock().unwrap().insert(path.to_string(), value);
 
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         self.inner.lock().unwrap().remove(path);
 
         Ok(())
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        self.blocking_scan(path)
-    }
-
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let inner = self.inner.lock().unwrap();
 
         if path.is_empty() {
@@ -145,7 +129,6 @@ impl typed_kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::adapters::typed_kv::{Adapter, Value};
 
     #[test]
     fn test_accessor_metadata_name() {
@@ -154,26 +137,5 @@ mod tests {
 
         let b2 = MemoryBuilder::default().build().unwrap();
         assert_ne!(b1.info().name(), b2.info().name())
-    }
-
-    #[test]
-    fn test_blocking_scan() {
-        let adapter = super::Adapter {
-            inner: Arc::new(Mutex::new(BTreeMap::default())),
-        };
-
-        adapter.blocking_set("aaa/bbb/", Value::new_dir()).unwrap();
-        adapter.blocking_set("aab/bbb/", Value::new_dir()).unwrap();
-        adapter.blocking_set("aab/ccc/", Value::new_dir()).unwrap();
-        adapter
-            .blocking_set(&format!("aab{}aaa/", std::char::MAX), Value::new_dir())
-            .unwrap();
-        adapter.blocking_set("aac/bbb/", Value::new_dir()).unwrap();
-
-        let data = adapter.blocking_scan("aab").unwrap();
-        assert_eq!(data.len(), 3);
-        for path in data {
-            assert!(path.starts_with("aab"));
-        }
     }
 }

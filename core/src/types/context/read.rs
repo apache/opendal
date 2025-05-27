@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::{Bound, Range, RangeBounds};
+use std::ops::Bound;
+use std::ops::Range;
+use std::ops::RangeBounds;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -166,17 +168,6 @@ impl ReadGenerator {
         let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         Ok(Some(r))
     }
-
-    /// Generate next blocking reader.
-    pub fn next_blocking_reader(&mut self) -> Result<Option<oio::BlockingReader>> {
-        let Some(range) = self.next_range() else {
-            return Ok(None);
-        };
-
-        let args = self.ctx.args.clone().with_range(range);
-        let (_, r) = self.ctx.acc.blocking_read(&self.ctx.path, args)?;
-        Ok(Some(r))
-    }
 }
 
 #[cfg(test)]
@@ -235,31 +226,6 @@ mod tests {
         }
 
         pretty_assertions::assert_eq!(readers.len(), 1);
-        Ok(())
-    }
-
-    #[test]
-    fn test_next_blocking_reader() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
-        op.blocking().write(
-            "test",
-            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
-        )?;
-
-        let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_chunk(3),
-        ));
-        let mut generator = ReadGenerator::new(ctx, 0, Some(10));
-        let mut readers = vec![];
-        while let Some(r) = generator.next_blocking_reader()? {
-            readers.push(r);
-        }
-
-        pretty_assertions::assert_eq!(readers.len(), 4);
         Ok(())
     }
 }

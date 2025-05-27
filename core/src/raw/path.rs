@@ -211,6 +211,7 @@ pub fn get_parent(path: &str) -> &str {
 }
 
 /// Validate given path is match with given EntryMode.
+#[inline]
 pub fn validate_path(path: &str, mode: EntryMode) -> bool {
     debug_assert!(!path.is_empty(), "input path should not be empty");
 

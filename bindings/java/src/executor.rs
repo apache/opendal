@@ -118,7 +118,7 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
         .worker_threads(cores)
         .thread_name_fn(move || {
             let id = counter.fetch_add(1, Ordering::SeqCst);
-            format!("opendal-tokio-worker-{}", id)
+            format!("opendal-tokio-worker-{id}")
         })
         .on_thread_start(move || {
             ENV.with(|cell| {

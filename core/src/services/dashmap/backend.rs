@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dashmap::DashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+use dashmap::DashMap;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::Access;
@@ -99,10 +100,6 @@ impl typed_kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        self.blocking_get(path)
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         match self.inner.get(path) {
             None => Ok(None),
             Some(bs) => Ok(Some(bs.value().to_owned())),
@@ -110,30 +107,18 @@ impl typed_kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.blocking_set(path, value)
-    }
-
-    fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
         self.inner.insert(path.to_string(), value);
 
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         self.inner.remove(path);
 
         Ok(())
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        self.blocking_scan(path)
-    }
-
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
         let keys = self.inner.iter().map(|kv| kv.key().to_string());
         if path.is_empty() {
             Ok(keys.collect())

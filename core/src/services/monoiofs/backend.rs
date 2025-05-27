@@ -106,10 +106,6 @@ impl Access for MonoiofsBackend {
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

@@ -19,7 +19,8 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::{AzdlsCore, FILE};
+use super::core::AzdlsCore;
+use super::core::FILE;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

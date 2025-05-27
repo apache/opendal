@@ -161,8 +161,7 @@ impl OtelMetricsLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder()
-    ///     .register(&meter))
+    ///     .layer(OtelMetricsLayer::builder().register(&meter))
     ///     .finish();
     ///
     /// Ok(())

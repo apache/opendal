@@ -20,6 +20,8 @@ use std::io::{Read, Seek, SeekFrom};
 
 use ::opendal as core;
 
+use crate::result::opendal_result_reader_seek;
+
 use super::*;
 
 pub const OPENDAL_SEEK_SET: i32 = 0;
@@ -38,15 +40,15 @@ pub struct opendal_reader {
 }
 
 impl opendal_reader {
-    fn deref_mut(&mut self) -> &mut core::StdReader {
+    fn deref_mut(&mut self) -> &mut core::blocking::StdReader {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::StdReader) }
+        unsafe { &mut *(self.inner as *mut core::blocking::StdReader) }
     }
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::StdReader) -> Self {
+    pub(crate) fn new(reader: core::blocking::StdReader) -> Self {
         Self {
             inner: Box::into_raw(Box::new(reader)) as _,
         }
@@ -82,25 +84,34 @@ impl opendal_reader {
         &mut self,
         offset: i64,
         whence: i32,
-    ) -> *mut opendal_error {
+    ) -> opendal_result_reader_seek {
         let pos = match whence {
             _x @ OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
             _x @ OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
             _x @ OPENDAL_SEEK_END => SeekFrom::End(offset),
             _ => {
-                return opendal_error::new(core::Error::new(
-                    core::ErrorKind::Unexpected,
-                    "undefined whence",
-                ))
+                return opendal_result_reader_seek {
+                    pos: 0,
+                    error: opendal_error::new(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        "undefined whence",
+                    )),
+                }
             }
         };
 
         match self.deref_mut().seek(pos) {
-            Ok(_) => std::ptr::null_mut(),
-            Err(e) => opendal_error::new(
-                core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
-                    .set_source(e),
-            ),
+            Ok(pos) => opendal_result_reader_seek {
+                pos,
+                error: std::ptr::null_mut(),
+            },
+            Err(e) => opendal_result_reader_seek {
+                pos: 0,
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
+                        .set_source(e),
+                ),
+            },
         }
     }
 
@@ -108,7 +119,9 @@ impl opendal_reader {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::StdReader));
+            drop(Box::from_raw(
+                (*ptr).inner as *mut core::blocking::StdReader,
+            ));
             drop(Box::from_raw(ptr));
         }
     }

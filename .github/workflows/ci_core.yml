@@ -90,7 +90,11 @@ jobs:
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Check
         working-directory: core
-        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: |
+          cargo update zerofrom --precise 0.1.5
+          cargo update idna_adapter --precise 1.2.0
+          cargo update litemap --precise 0.7.4
+          cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}

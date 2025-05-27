@@ -24,6 +24,7 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::task::Context;
 use std::task::Poll;
 
@@ -35,7 +36,6 @@ use http::Response;
 use http_body::Frame;
 use http_body::SizeHint;
 use raw::oio::Read;
-use std::sync::LazyLock;
 
 use super::parse_content_encoding;
 use super::parse_content_length;

@@ -33,9 +33,29 @@ pub struct AzdlsConfig {
     /// Account name of this backend.
     pub account_name: Option<String>,
     /// Account key of this backend.
+    /// - required for shared_key authentication
     pub account_key: Option<String>,
-    /// SAS token of this backend.
+    /// client_secret
+    /// The client secret of the service principal.
+    /// - required for client_credentials authentication
+    pub client_secret: Option<String>,
+    /// tenant_id
+    /// The tenant id of the service principal.
+    /// - required for client_credentials authentication
+    pub tenant_id: Option<String>,
+    /// client_id
+    /// The client id of the service principal.
+    /// - required for client_credentials authentication
+    pub client_id: Option<String>,
+    /// sas_token
+    /// The shared access signature token.
+    /// - required for sas authentication
     pub sas_token: Option<String>,
+    /// authority_host
+    /// The authority host of the service principal.
+    /// - required for client_credentials authentication
+    /// - default value: `https://login.microsoftonline.com`
+    pub authority_host: Option<String>,
 }
 
 impl Debug for AzdlsConfig {
@@ -52,10 +72,18 @@ impl Debug for AzdlsConfig {
         if self.account_key.is_some() {
             ds.field("account_key", &"<redacted>");
         }
+        if self.client_secret.is_some() {
+            ds.field("client_secret", &"<redacted>");
+        }
+        if self.tenant_id.is_some() {
+            ds.field("tenant_id", &"<redacted>");
+        }
+        if self.client_id.is_some() {
+            ds.field("client_id", &"<redacted>");
+        }
         if self.sas_token.is_some() {
             ds.field("sas_token", &"<redacted>");
         }
-
         ds.finish()
     }
 }

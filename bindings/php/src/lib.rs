@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as od;
 use ext_php_rs::binary::Binary;
@@ -26,8 +27,15 @@ use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
 
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
+
 #[php_class(name = "OpenDAL\\Operator")]
-pub struct Operator(od::BlockingOperator);
+pub struct Operator(od::blocking::Operator);
 
 #[php_impl(rename_methods = "none")]
 impl Operator {
@@ -35,7 +43,11 @@ impl Operator {
         let scheme = od::Scheme::from_str(&scheme_str).map_err(format_php_err)?;
         let op = od::Operator::via_iter(scheme, config).map_err(format_php_err)?;
 
-        Ok(Operator(op.blocking()))
+        let handle = RUNTIME.handle();
+        let _enter = handle.enter();
+        let op = od::blocking::Operator::new(op).map_err(format_php_err)?;
+
+        Ok(Operator(op))
     }
 
     /// Write string into given path.

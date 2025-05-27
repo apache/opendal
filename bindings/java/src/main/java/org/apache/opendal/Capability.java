@@ -23,6 +23,7 @@ import lombok.Data;
 
 @Data
 public class Capability {
+
     /**
      * If operator supports stat.
      */
@@ -196,11 +197,6 @@ public class Capability {
      */
     public final boolean shared;
 
-    /**
-     * If operator supports blocking.
-     */
-    public final boolean blocking;
-
     public Capability(
             boolean stat,
             boolean statWithIfMatch,
@@ -235,7 +231,6 @@ public class Capability {
             boolean presignRead,
             boolean presignStat,
             boolean presignWrite,
-            boolean blocking,
             boolean shared) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
@@ -270,7 +265,6 @@ public class Capability {
         this.presignRead = presignRead;
         this.presignStat = presignStat;
         this.presignWrite = presignWrite;
-        this.blocking = blocking;
         this.shared = shared;
     }
 }

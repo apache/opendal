@@ -83,8 +83,9 @@ jobs:
           cp -r chromedriver-linux64 /tmp/chrome/chromedriver
 
       - name: Setup wasm-pack
-        run: |
-          cargo install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
 
       - name: Setup MinIO Server
         shell: bash

@@ -24,6 +24,3 @@ pub use deleter::Deleter;
 
 mod futures_delete_sink;
 pub use futures_delete_sink::FuturesDeleteSink;
-
-mod blocking_deleter;
-pub use blocking_deleter::BlockingDeleter;

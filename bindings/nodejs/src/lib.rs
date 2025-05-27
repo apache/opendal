@@ -31,7 +31,10 @@ use napi::bindgen_prelude::*;
 mod capability;
 
 #[napi]
-pub struct Operator(opendal::Operator);
+pub struct Operator {
+    async_op: opendal::Operator,
+    blocking_op: opendal::blocking::Operator,
+}
 
 #[napi]
 impl Operator {
@@ -49,25 +52,27 @@ impl Operator {
             .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
-        let mut op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
+        let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
 
-        if !op.info().full_capability().blocking {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let _guard = handle.enter();
-                op = op.layer(
-                    opendal::layers::BlockingLayer::create()
-                        .expect("blocking layer must be created"),
-                );
-            }
-        }
+        let blocking_op = {
+            let handle = tokio::runtime::Handle::current();
+            let _guard = handle.enter();
 
-        Ok(Operator(op))
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
+        };
+
+        Ok(Operator {
+            async_op,
+            blocking_op,
+        })
     }
 
     /// Get current operator(service)'s full capability.
     #[napi]
     pub fn capability(&self) -> Result<capability::Capability> {
-        Ok(capability::Capability::new(self.0.info().full_capability()))
+        Ok(capability::Capability::new(
+            self.async_op.info().full_capability(),
+        ))
     }
 
     /// Get current path's metadata **without cache** directly.
@@ -89,7 +94,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn stat(&self, path: String) -> Result<Metadata> {
-        let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
+        let meta = self.async_op.stat(&path).await.map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
@@ -105,7 +110,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn stat_sync(&self, path: String) -> Result<Metadata> {
-        let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
+        let meta = self.blocking_op.stat(&path).map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
@@ -120,7 +125,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn check(&self) -> Result<()> {
-        self.0.check().await.map_err(format_napi_error)
+        self.async_op.check().await.map_err(format_napi_error)
     }
 
     /// Check the op synchronously.
@@ -131,7 +136,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn check_sync(&self) -> Result<()> {
-        self.0.blocking().check().map_err(format_napi_error)
+        self.blocking_op.check().map_err(format_napi_error)
     }
 
     /// Check if this path exists or not.
@@ -142,7 +147,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn exists(&self, path: String) -> Result<bool> {
-        self.0.exists(&path).await.map_err(format_napi_error)
+        self.async_op.exists(&path).await.map_err(format_napi_error)
     }
 
     /// Check if this path exists or not synchronously.
@@ -153,7 +158,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn exists_sync(&self, path: String) -> Result<bool> {
-        self.0.blocking().exists(&path).map_err(format_napi_error)
+        self.blocking_op.exists(&path).map_err(format_napi_error)
     }
 
     /// Create dir with a given path.
@@ -164,7 +169,10 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn create_dir(&self, path: String) -> Result<()> {
-        self.0.create_dir(&path).await.map_err(format_napi_error)
+        self.async_op
+            .create_dir(&path)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Create dir with a given path synchronously.
@@ -175,8 +183,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn create_dir_sync(&self, path: String) -> Result<()> {
-        self.0
-            .blocking()
+        self.blocking_op
             .create_dir(&path)
             .map_err(format_napi_error)
     }
@@ -190,7 +197,7 @@ impl Operator {
     #[napi]
     pub async fn read(&self, path: String) -> Result<Buffer> {
         let res = self
-            .0
+            .async_op
             .read(&path)
             .await
             .map_err(format_napi_error)?
@@ -203,7 +210,11 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub async fn reader(&self, path: String) -> Result<Reader> {
-        let r = self.0.reader(&path).await.map_err(format_napi_error)?;
+        let r = self
+            .async_op
+            .reader(&path)
+            .await
+            .map_err(format_napi_error)?;
         Ok(Reader {
             inner: r
                 .into_futures_async_read(..)
@@ -221,8 +232,7 @@ impl Operator {
     #[napi]
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self
-            .0
-            .blocking()
+            .blocking_op
             .read(&path)
             .map_err(format_napi_error)?
             .to_vec();
@@ -234,7 +244,7 @@ impl Operator {
     /// It could be used to read large file in a streaming way.
     #[napi]
     pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
-        let r = self.0.blocking().reader(&path).map_err(format_napi_error)?;
+        let r = self.blocking_op.reader(&path).map_err(format_napi_error)?;
         Ok(BlockingReader {
             inner: r.into_std_read(..).map_err(format_napi_error)?,
         })
@@ -262,7 +272,7 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let mut writer = self.0.write_with(&path, c);
+        let mut writer = self.async_op.write_with(&path, c);
         if let Some(options) = options {
             if let Some(append) = options.append {
                 writer = writer.append(append);
@@ -288,27 +298,14 @@ impl Operator {
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String, options: Option<WriterOptions>) -> Result<Writer> {
-        let mut writer = self.0.writer_with(&path);
-        if let Some(options) = options {
-            if let Some(append) = options.append {
-                writer = writer.append(append);
-            }
-            if let Some(chunk) = options.chunk {
-                writer = writer.chunk(chunk.get_u64().1 as usize);
-            }
-            if let Some(ref content_type) = options.content_type {
-                writer = writer.content_type(content_type);
-            }
-            if let Some(ref content_disposition) = options.content_disposition {
-                writer = writer.content_disposition(content_disposition);
-            }
-            if let Some(ref cache_control) = options.cache_control {
-                writer = writer.cache_control(cache_control);
-            }
-        }
-        let w = writer.await.map_err(format_napi_error)?;
-        Ok(Writer(w))
+    pub async fn writer(&self, path: String, options: Option<WriteOptions>) -> Result<Writer> {
+        let options = options.unwrap_or_default();
+        let writer = self
+            .async_op
+            .writer_options(&path, options.into())
+            .await
+            .map_err(format_napi_error)?;
+        Ok(Writer(writer))
     }
 
     /// Write multiple bytes into a path synchronously.
@@ -318,28 +315,14 @@ impl Operator {
     pub fn writer_sync(
         &self,
         path: String,
-        options: Option<WriterOptions>,
+        options: Option<WriteOptions>,
     ) -> Result<BlockingWriter> {
-        let mut writer = self.0.blocking().writer_with(&path);
-        if let Some(options) = options {
-            if let Some(append) = options.append {
-                writer = writer.append(append);
-            }
-            if let Some(chunk) = options.chunk {
-                writer = writer.chunk(chunk.get_u64().1 as usize);
-            }
-            if let Some(ref content_type) = options.content_type {
-                writer = writer.content_type(content_type);
-            }
-            if let Some(ref content_disposition) = options.content_disposition {
-                writer = writer.content_disposition(content_disposition);
-            }
-            if let Some(ref cache_control) = options.cache_control {
-                writer = writer.cache_control(cache_control);
-            }
-        }
-        let w = writer.call().map_err(format_napi_error)?;
-        Ok(BlockingWriter(w))
+        let options = options.unwrap_or_default();
+        let writer = self
+            .blocking_op
+            .writer_options(&path, options.into())
+            .map_err(format_napi_error)?;
+        Ok(BlockingWriter(writer))
     }
 
     //noinspection DuplicatedCode
@@ -364,25 +347,11 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let mut writer = self.0.blocking().write_with(&path, c);
-        if let Some(options) = options {
-            if let Some(append) = options.append {
-                writer = writer.append(append);
-            }
-            if let Some(chunk) = options.chunk {
-                writer = writer.chunk(chunk.get_u64().1 as usize);
-            }
-            if let Some(ref content_type) = options.content_type {
-                writer = writer.content_type(content_type);
-            }
-            if let Some(ref content_disposition) = options.content_disposition {
-                writer = writer.content_disposition(content_disposition);
-            }
-            if let Some(ref cache_control) = options.cache_control {
-                writer = writer.cache_control(cache_control);
-            }
-        }
-        writer.call().map(|_| ()).map_err(format_napi_error)
+        let options = options.unwrap_or_default();
+        self.blocking_op
+            .write_options(&path, c, options.into())
+            .map_err(format_napi_error)?;
+        Ok(())
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -393,7 +362,10 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn copy(&self, from: String, to: String) -> Result<()> {
-        self.0.copy(&from, &to).await.map_err(format_napi_error)
+        self.async_op
+            .copy(&from, &to)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Copy file according to given `from` and `to` path synchronously.
@@ -404,10 +376,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn copy_sync(&self, from: String, to: String) -> Result<()> {
-        self.0
-            .blocking()
-            .copy(&from, &to)
-            .map_err(format_napi_error)
+        self.blocking_op.copy(&from, &to).map_err(format_napi_error)
     }
 
     /// Rename file according to given `from` and `to` path.
@@ -420,7 +389,10 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn rename(&self, from: String, to: String) -> Result<()> {
-        self.0.rename(&from, &to).await.map_err(format_napi_error)
+        self.async_op
+            .rename(&from, &to)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Rename file according to given `from` and `to` path synchronously.
@@ -433,8 +405,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn rename_sync(&self, from: String, to: String) -> Result<()> {
-        self.0
-            .blocking()
+        self.blocking_op
             .rename(&from, &to)
             .map_err(format_napi_error)
     }
@@ -450,7 +421,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn delete(&self, path: String) -> Result<()> {
-        self.0.delete(&path).await.map_err(format_napi_error)
+        self.async_op.delete(&path).await.map_err(format_napi_error)
     }
 
     /// Delete the given path synchronously.
@@ -461,7 +432,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn delete_sync(&self, path: String) -> Result<()> {
-        self.0.blocking().delete(&path).map_err(format_napi_error)
+        self.blocking_op.delete(&path).map_err(format_napi_error)
     }
 
     /// Remove given paths.
@@ -475,7 +446,10 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
-        self.0.delete_iter(paths).await.map_err(format_napi_error)
+        self.async_op
+            .delete_iter(paths)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -489,7 +463,10 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
-        self.0.remove_all(&path).await.map_err(format_napi_error)
+        self.async_op
+            .remove_all(&path)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// List the given path.
@@ -525,7 +502,7 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let mut l = self.0.list_with(&path);
+        let mut l = self.async_op.list_with(&path);
         if let Some(options) = options {
             if let Some(limit) = options.limit {
                 l = l.limit(limit as usize);
@@ -575,21 +552,13 @@ impl Operator {
     /// ```
     #[napi]
     pub fn list_sync(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let mut l = self.0.blocking().list_with(&path);
-        if let Some(options) = options {
-            if let Some(limit) = options.limit {
-                l = l.limit(limit as usize);
-            }
-            if let Some(recursive) = options.recursive {
-                l = l.recursive(recursive);
-            }
-        }
+        let options = options.unwrap_or_default();
+        let l = self
+            .blocking_op
+            .list_options(&path, options.into())
+            .map_err(format_napi_error)?;
 
-        Ok(l.call()
-            .map_err(format_napi_error)?
-            .iter()
-            .map(|e| Entry(e.to_owned()))
-            .collect())
+        Ok(l.into_iter().map(Entry).collect())
     }
 
     /// Get a presigned request for read.
@@ -608,7 +577,7 @@ impl Operator {
     #[napi]
     pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
-            .0
+            .async_op
             .presign_read(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
@@ -631,7 +600,7 @@ impl Operator {
     #[napi]
     pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
-            .0
+            .async_op
             .presign_write(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
@@ -654,7 +623,7 @@ impl Operator {
     #[napi]
     pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
-            .0
+            .async_op
             .presign_stat(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
@@ -733,16 +702,27 @@ impl Metadata {
 }
 
 #[napi(object)]
+#[derive(Default)]
 pub struct ListOptions {
     pub limit: Option<u32>,
     pub recursive: Option<bool>,
+}
+
+impl From<ListOptions> for opendal::options::ListOptions {
+    fn from(value: ListOptions) -> Self {
+        Self {
+            limit: value.limit.map(|v| v as usize),
+            recursive: value.recursive.unwrap_or_default(),
+            ..Default::default()
+        }
+    }
 }
 
 /// BlockingReader is designed to read data from a given path in a blocking
 /// manner.
 #[napi]
 pub struct BlockingReader {
-    inner: opendal::StdReader,
+    inner: opendal::blocking::StdReader,
 }
 
 #[napi]
@@ -780,7 +760,7 @@ impl Reader {
 /// BlockingWriter is designed to write data into a given path in a blocking
 /// manner.
 #[napi]
-pub struct BlockingWriter(opendal::BlockingWriter);
+pub struct BlockingWriter(opendal::blocking::Writer);
 
 #[napi]
 impl BlockingWriter {
@@ -902,36 +882,17 @@ pub struct WriteOptions {
     pub cache_control: Option<String>,
 }
 
-#[napi(object)]
-#[derive(Default)]
-pub struct WriterOptions {
-    /// Append bytes into a path.
-    ///
-    /// ### Notes
-    ///
-    /// - It always appends content to the end of the file.
-    /// - It will create file if the path does not exist.
-    pub append: Option<bool>,
-
-    /// Set the chunk of op.
-    ///
-    /// If chunk is set, the data will be chunked by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// A service could have their own minimum chunk size while perform write
-    /// operations like multipart uploads. So the chunk size may be larger than
-    /// the given buffer size.
-    pub chunk: Option<BigInt>,
-
-    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
-    pub content_type: Option<String>,
-
-    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
-    pub content_disposition: Option<String>,
-
-    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
-    pub cache_control: Option<String>,
+impl From<WriteOptions> for opendal::options::WriteOptions {
+    fn from(value: WriteOptions) -> Self {
+        Self {
+            append: value.append.unwrap_or_default(),
+            chunk: value.chunk.map(|v| v.get_u64().1 as usize),
+            content_type: value.content_type,
+            content_disposition: value.content_disposition,
+            cache_control: value.cache_control,
+            ..Default::default()
+        }
+    }
 }
 
 /// Lister is designed to list entries at a given path in an asynchronous
@@ -961,7 +922,7 @@ impl Lister {
 /// BlockingLister is designed to list entries at a given path in a blocking
 /// manner.
 #[napi]
-pub struct BlockingLister(opendal::BlockingLister);
+pub struct BlockingLister(opendal::blocking::Lister);
 
 /// Method `next` can be confused for the standard trait method `std::iter::Iterator::next`.
 /// But in JavaScript, it is also customary to use the next method directly to get the next element.
@@ -1031,7 +992,19 @@ impl Operator {
     /// Add a layer to this operator.
     #[napi]
     pub fn layer(&self, layer: External<Layer>) -> Result<Self> {
-        Ok(Self(layer.inner.layer(self.0.clone())))
+        let async_op = layer.inner.layer(self.async_op.clone());
+
+        let blocking_op = {
+            let handle = tokio::runtime::Handle::current();
+            let _guard = handle.enter();
+
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
+        };
+
+        Ok(Self {
+            async_op,
+            blocking_op,
+        })
     }
 }
 

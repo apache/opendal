@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.80"
-version = "0.41.19"
+version = "0.41.21"
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -64,4 +64,9 @@ uuid = { version = "1.12" }
 
 [dev-dependencies]
 assert_cmd = { version = "2.0" }
+comfy-table = "7"
+insta = { version = "1.43", features = ["filters"] }
+insta-cmd = { version = "0.6" }
+regex = "1"
 tempfile = { version = "3.14" }
+walkdir = "2.5.0"

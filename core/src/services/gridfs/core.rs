@@ -15,19 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{
-    raw::{adapters::kv, new_std_io_error},
-    Buffer, Capability, Error, ErrorKind, Result, Scheme,
-};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
-use mongodb::{
-    bson::doc,
-    gridfs::GridFsBucket,
-    options::{ClientOptions, GridFsBucketOptions},
-};
-use std::fmt::{Debug, Formatter};
+use mongodb::bson::doc;
+use mongodb::gridfs::GridFsBucket;
+use mongodb::options::ClientOptions;
+use mongodb::options::GridFsBucketOptions;
 use tokio::sync::OnceCell;
+
+use crate::raw::adapters::kv;
+use crate::raw::new_std_io_error;
+use crate::Buffer;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
+use crate::Scheme;
 
 #[derive(Clone)]
 pub struct GridFsCore {

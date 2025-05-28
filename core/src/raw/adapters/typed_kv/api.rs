@@ -67,30 +67,6 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
         )
         .with_operation("typed_kv::Adapter::scan")))
     }
-
-    /// Copy a key to another key.
-    fn copy(&self, from: &str, to: &str) -> impl Future<Output = Result<()>> + MaybeSend {
-        let _ = from;
-        let _ = to;
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "typed_kv adapter doesn't support this operation",
-        )
-        .with_operation("typed_kv::Adapter::copy")))
-    }
-
-    /// Rename a key to another key.
-    fn rename(&self, from: &str, to: &str) -> impl Future<Output = Result<()>> + MaybeSend {
-        let _ = from;
-        let _ = to;
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "typed_kv adapter doesn't support this operation",
-        )
-        .with_operation("typed_kv::Adapter::rename")))
-    }
 }
 
 /// Value is the typed value stored in adapter.

@@ -347,10 +347,8 @@ impl AzdlsCore {
 
         let continuation_value = if !continuation.is_empty() {
             Some(percent_encode_path(continuation))
-        } else if let Some(start_after) = start_after {
-            Some(generate_continuation_from_start_after(start_after))
         } else {
-            None
+            start_after.map(generate_continuation_from_start_after)
         };
         if let Some(c) = continuation_value {
             url = url.push("continuation", &c);

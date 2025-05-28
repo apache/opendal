@@ -85,8 +85,6 @@ impl typed_kv::Adapter for Adapter {
                 delete: true,
                 scan: true,
                 shared: false,
-                copy: true,
-                rename: true,
             },
         )
     }

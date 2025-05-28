@@ -61,7 +61,7 @@ TEST_F(AsyncOpendalTest, BasicTest) {
 TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
   const auto dir_path = "test_async_dir/";
   const auto file_path = "test_async_dir/test_file.txt";
-  const std::vector<uint8_t> file_content = {1, 2, 3, 4, 5};
+  std::vector<uint8_t> file_content = {1, 2, 3, 4, 5};
 
   // Create directory and check existence
   cppcoro::sync_wait(op->create_dir(dir_path));
@@ -82,8 +82,11 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
   cppcoro::sync_wait(op->copy(file_path, copied_file_path));
   auto copied_file_exists = cppcoro::sync_wait(op->exists(copied_file_path));
   EXPECT_TRUE(copied_file_exists);
-  auto copied_content = cppcoro::sync_wait(op->read(copied_file_path));
-  EXPECT_EQ(file_content, copied_content);
+  auto copied_content_rust_vec = cppcoro::sync_wait(op->read(copied_file_path));
+  EXPECT_EQ(file_content.size(), copied_content_rust_vec.size());
+  for (size_t i = 0; i < file_content.size(); ++i) {
+    EXPECT_EQ(file_content[i], copied_content_rust_vec[i]);
+  }
 
   // Rename file and check old path non-existence and new path existence
   const auto renamed_file_path = "test_async_dir/renamed_file.txt";
@@ -92,8 +95,11 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
   EXPECT_FALSE(old_copied_exists);
   auto renamed_file_exists = cppcoro::sync_wait(op->exists(renamed_file_path));
   EXPECT_TRUE(renamed_file_exists);
-  auto renamed_content = cppcoro::sync_wait(op->read(renamed_file_path));
-  EXPECT_EQ(file_content, renamed_content);
+  auto renamed_content_rust_vec = cppcoro::sync_wait(op->read(renamed_file_path));
+  EXPECT_EQ(file_content.size(), renamed_content_rust_vec.size());
+  for (size_t i = 0; i < file_content.size(); ++i) {
+    EXPECT_EQ(file_content[i], renamed_content_rust_vec[i]);
+  }
 
   // Delete the renamed file and check non-existence
   cppcoro::sync_wait(op->delete_path(renamed_file_path));

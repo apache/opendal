@@ -50,6 +50,24 @@ class Operator {
   using ListFuture = opendal::ffi::async::RustFutureList;
   ListFuture list(std::string_view path);
 
+  using ExistsFuture = opendal::ffi::async::RustFutureBool;
+  ExistsFuture exists(std::string_view path);
+
+  using CreateDirFuture = opendal::ffi::async::RustFutureWrite;
+  CreateDirFuture create_dir(std::string_view path);
+
+  using CopyFuture = opendal::ffi::async::RustFutureWrite;
+  CopyFuture copy(std::string_view from, std::string_view to);
+
+  using RenameFuture = opendal::ffi::async::RustFutureWrite;
+  RenameFuture rename(std::string_view from, std::string_view to);
+
+  using DeleteFuture = opendal::ffi::async::RustFutureWrite;
+  DeleteFuture delete_path(std::string_view path);
+
+  using RemoveAllFuture = opendal::ffi::async::RustFutureWrite;
+  RemoveAllFuture remove_all(std::string_view path);
+
  private:
   rust::Box<opendal::ffi::async::Operator> operator_;
 };

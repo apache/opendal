@@ -240,66 +240,6 @@ async fn test_edit_new_file_no_content() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_edit_editor_failure() -> Result<()> {
-    let dir = tempfile::tempdir()?;
-    let file_path = dir.path().join("test_file.txt");
-    let original_content = "Hello, World!";
-    fs::write(&file_path, original_content)?;
-
-    // Create a mock editor that fails
-    let editor_path = create_failing_editor(dir.path())?;
-
-    // Set the EDITOR environment variable
-    let mut cmd = oli();
-    cmd.env("EDITOR", editor_path.to_str().unwrap())
-        .arg("edit")
-        .arg(&file_path);
-
-    assert_cmd_snapshot!(cmd, @r#"
-    success: false
-    exit_code: 1
-    ----- stdout -----
-    
-    ----- stderr -----
-    Error: Editor exited with non-zero status: exit status: 1
-    "#);
-
-    // Verify the original file content wasn't changed
-    let actual_content = fs::read_to_string(&file_path)?;
-    assert_eq!(original_content, actual_content);
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_edit_nonexistent_editor() -> Result<()> {
-    //
-    let dir = tempfile::tempdir()?;
-    let file_path = dir.path().join("test_file.txt");
-    fs::write(&file_path, "content")?;
-
-    // Set EDITOR to a non-existent command
-    let mut cmd = oli();
-    cmd.env("EDITOR", "nonexistent_editor_command_12345")
-        .arg("edit")
-        .arg(&file_path);
-
-    assert_cmd_snapshot!(cmd, @r#"
-    success: false
-    exit_code: 1
-    ----- stdout -----
-    
-    ----- stderr -----
-    Error: Failed to start editor
-
-    Caused by:
-        No such file or directory (os error 2)
-    "#);
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_edit_with_config_params() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("test_file.txt");

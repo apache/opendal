@@ -80,15 +80,14 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
 
     // Copy file and check existence and content
     const auto copied_file_path = "test_async_dir/copied_file.txt";
-    // co_await op->copy(file_path, copied_file_path);
-    // auto copied_file_exists = co_await op->exists(copied_file_path);
-    // EXPECT_TRUE(copied_file_exists);
-    // auto copied_content_rust_vec = co_await op->read(copied_file_path);
-    // EXPECT_EQ(file_content.size(), copied_content_rust_vec.size());
-    // for (size_t i = 0; i < file_content.size(); ++i) {
-    //   EXPECT_EQ(file_content[i], copied_content_rust_vec[i]);
-    // }
-    co_await op->write(copied_file_path, file_content);
+    co_await op->copy(file_path, copied_file_path);
+    auto copied_file_exists = co_await op->exists(copied_file_path);
+    EXPECT_TRUE(copied_file_exists);
+    auto copied_content_rust_vec = co_await op->read(copied_file_path);
+    EXPECT_EQ(file_content.size(), copied_content_rust_vec.size());
+    for (size_t i = 0; i < file_content.size(); ++i) {
+      EXPECT_EQ(file_content[i], copied_content_rust_vec[i]);
+    }
 
     // Rename file and check old path non-existence and new path existence
     const auto renamed_file_path = "test_async_dir/renamed_file.txt";

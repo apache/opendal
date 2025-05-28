@@ -152,3 +152,223 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
     co_return;
   }());
 }
+
+TEST_F(AsyncOpendalTest, AsyncReaderTest) {
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    const auto file_path = "test_async_reader.txt";
+    
+    // Create test data - larger to test range reads
+    std::vector<uint8_t> test_data;
+    for (int i = 0; i < 1000; ++i) {
+      test_data.push_back(static_cast<uint8_t>(i % 256));
+    }
+    
+    // Write the test file
+    co_await op->write(file_path, test_data);
+    
+    // Test: Create async reader
+    auto reader_id = co_await op->reader(file_path);
+    opendal::async::Reader reader(reader_id);
+    
+    // Test: Read full file in one go
+    auto full_data = co_await reader.read(0, test_data.size());
+    EXPECT_EQ(full_data.size(), test_data.size());
+    for (size_t i = 0; i < test_data.size(); ++i) {
+      EXPECT_EQ(full_data[i], test_data[i]);
+    }
+    
+    // Test: Read in chunks
+    const size_t chunk_size = 100;
+    std::vector<uint8_t> chunked_data;
+    
+    for (size_t offset = 0; offset < test_data.size(); offset += chunk_size) {
+      size_t read_size = std::min(chunk_size, test_data.size() - offset);
+      auto chunk = co_await reader.read(offset, read_size);
+      
+      EXPECT_EQ(chunk.size(), read_size);
+      chunked_data.insert(chunked_data.end(), chunk.begin(), chunk.end());
+    }
+    
+    // Verify chunked read matches original data
+    EXPECT_EQ(chunked_data.size(), test_data.size());
+    for (size_t i = 0; i < test_data.size(); ++i) {
+      EXPECT_EQ(chunked_data[i], test_data[i]);
+    }
+    
+    // Test: Read specific range
+    auto range_data = co_await reader.read(100, 50);
+    EXPECT_EQ(range_data.size(), 50);
+    for (size_t i = 0; i < 50; ++i) {
+      EXPECT_EQ(range_data[i], test_data[100 + i]);
+    }
+    
+    // Test: Read from end of file
+    auto end_data = co_await reader.read(test_data.size() - 10, 10);
+    EXPECT_EQ(end_data.size(), 10);
+    for (size_t i = 0; i < 10; ++i) {
+      EXPECT_EQ(end_data[i], test_data[test_data.size() - 10 + i]);
+    }
+    
+    // Test: Move semantics
+    auto reader_id2 = co_await op->reader(file_path);
+    opendal::async::Reader reader2(reader_id2);
+    opendal::async::Reader moved_reader = std::move(reader2);
+    
+    auto moved_data = co_await moved_reader.read(0, 100);
+    EXPECT_EQ(moved_data.size(), 100);
+    for (size_t i = 0; i < 100; ++i) {
+      EXPECT_EQ(moved_data[i], test_data[i]);
+    }
+    
+    // Clean up
+    co_await op->delete_path(file_path);
+    co_return;
+  }());
+}
+
+TEST_F(AsyncOpendalTest, AsyncListerTest) {
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    const auto base_dir = "test_async_lister/";
+    const auto file1_path = "test_async_lister/file1.txt";
+    const auto file2_path = "test_async_lister/file2.txt";
+    const auto file3_path = "test_async_lister/file3.txt";
+    const auto subdir_path = "test_async_lister/subdir/";
+    const auto subdir_file_path = "test_async_lister/subdir/nested_file.txt";
+    
+    auto test_data = std::vector<uint8_t>{1, 2, 3, 4, 5};
+    
+    // Set up test directory structure
+    co_await op->create_dir(base_dir);
+    co_await op->write(file1_path, test_data);
+    co_await op->write(file2_path, test_data);
+    co_await op->write(file3_path, test_data);
+    co_await op->create_dir(subdir_path);
+    co_await op->write(subdir_file_path, test_data);
+    
+    // Test: Create async lister
+    auto lister_id = co_await op->lister(base_dir);
+    auto lister = opendal::async::Lister(lister_id);
+    
+    // Test: Iterate through all entries
+    auto found_entries = std::vector<std::string>{};
+    while (true) {
+      auto entry_path = co_await lister.next();
+      if (entry_path.empty()) {
+        break; // End of iteration
+      }
+      found_entries.push_back(std::string(entry_path));
+    }
+    
+    // Verify we found the expected entries
+    EXPECT_EQ(found_entries.size(), 5); // At least 4 entries (3 files + 1 subdir)
+    
+    bool found_file1 = false;
+    bool found_file2 = false;
+    bool found_file3 = false;
+    bool found_subdir = false;
+    for (const auto& entry : found_entries) {
+      if (std::string(entry).ends_with("file1.txt")) found_file1 = true;
+      if (std::string(entry).ends_with("file2.txt")) found_file2 = true;
+      if (std::string(entry).ends_with("file3.txt")) found_file3 = true;
+      if (std::string(entry).ends_with("subdir/")) found_subdir = true;
+    }
+    
+    EXPECT_TRUE(found_file1);
+    EXPECT_TRUE(found_file2);
+    EXPECT_TRUE(found_file3);
+    EXPECT_TRUE(found_subdir);
+    
+    // Test: Empty directory listing
+    const auto empty_dir = "test_async_lister_empty/";
+    co_await op->create_dir(empty_dir);
+    
+    auto empty_lister_id = co_await op->lister(empty_dir);
+    auto empty_lister = opendal::async::Lister(empty_lister_id);
+    
+    auto first_entry = co_await empty_lister.next();    
+    // Test: Move semantics
+    auto lister_id2 = co_await op->lister(base_dir);
+    auto lister2 = opendal::async::Lister(lister_id2);
+    opendal::async::Lister moved_lister = std::move(lister2);
+    
+    // Should be able to use moved lister
+    auto moved_entry = co_await moved_lister.next();
+    EXPECT_FALSE(moved_entry.empty()); // Should find at least one entry
+    
+    // Clean up
+    co_await op->remove_all(base_dir);
+    co_await op->remove_all(empty_dir);
+    co_return;
+  }());
+}
+
+TEST_F(AsyncOpendalTest, AsyncListerErrorHandlingTest) {
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    // Test: Listing non-existent directory
+    auto lister_id = co_await op->lister("non_existent_directory/");
+    auto lister = opendal::async::Lister(lister_id);
+    auto entry = co_await lister.next();
+    EXPECT_TRUE(entry.empty());
+    
+    co_return;
+  }());
+}
+
+TEST_F(AsyncOpendalTest, AsyncReaderListerIntegrationTest) {
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    const auto base_dir = "test_integration/";
+    const auto large_file = "test_integration/large_file.bin";
+    
+    // Create a larger file for more realistic testing
+    std::vector<uint8_t> large_data;
+    large_data.reserve(10000);
+    for (int i = 0; i < 10000; ++i) {
+      large_data.push_back(static_cast<uint8_t>(i % 256));
+    }
+    
+    // Set up test environment
+    co_await op->create_dir(base_dir);
+    co_await op->write(large_file, large_data);
+    
+    // Test: Use lister to find the file, then reader to read it
+    auto lister_id = co_await op->lister(base_dir);
+    auto lister = opendal::async::Lister(lister_id);
+    
+    std::string found_file;
+    while (true) {
+      auto entry = co_await lister.next();
+      if (entry.empty()) break;
+      
+      if (std::string(entry).ends_with("large_file.bin")) {
+        found_file = std::string(entry);
+        break;
+      }
+    }
+    
+    EXPECT_FALSE(found_file.empty());
+    
+    // Now read the found file using async reader
+    auto reader_id = co_await op->reader(large_file);
+    auto reader = opendal::async::Reader(reader_id);
+    
+    // Read in multiple chunks to test streaming
+    const size_t chunk_size = 1000;
+    auto reconstructed_data = std::vector<uint8_t>{};
+    
+    for (size_t offset = 0; offset < large_data.size(); offset += chunk_size) {
+      size_t read_size = std::min(chunk_size, large_data.size() - offset);
+      auto chunk = co_await reader.read(offset, read_size);
+      reconstructed_data.insert(reconstructed_data.end(), chunk.begin(), chunk.end());
+    }
+    
+    // Verify the data integrity
+    EXPECT_EQ(reconstructed_data.size(), large_data.size());
+    for (size_t i = 0; i < large_data.size(); ++i) {
+      EXPECT_EQ(reconstructed_data[i], large_data[i]);
+    }
+    
+    // Clean up
+    co_await op->remove_all(base_dir);
+    co_return;
+  }());
+}

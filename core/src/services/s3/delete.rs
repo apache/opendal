@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use bytes::Buf;
+use http::StatusCode;
+
 use super::core::*;
-use super::error::{parse_error, parse_s3_error_code};
+use super::error::parse_error;
+use super::error::parse_s3_error_code;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use http::StatusCode;
-use std::sync::Arc;
 
 pub struct S3Deleter {
     core: Arc<S3Core>,

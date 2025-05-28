@@ -78,8 +78,8 @@ use crate::*;
 ///     }
 ///
 ///     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-///        self.inner.delete().await
-///        }
+///         self.inner.delete().await
+///     }
 /// }
 ///
 /// /// The public struct that exposed to users.

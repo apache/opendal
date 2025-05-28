@@ -19,7 +19,8 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
+use chrono::Utc;
 
 use crate::raw::BytesRange;
 

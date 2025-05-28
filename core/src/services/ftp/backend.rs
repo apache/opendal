@@ -21,7 +21,6 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use super::core::FtpCore;
 use http::Uri;
 use log::debug;
 use services::ftp::core::Manager;
@@ -32,6 +31,7 @@ use suppaftp::Status;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
+use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;

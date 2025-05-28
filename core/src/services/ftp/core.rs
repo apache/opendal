@@ -15,21 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::err::parse_error;
-use crate::raw::AccessorInfo;
-use crate::*;
+use std::sync::Arc;
+
 use bb8::Pool;
 use bb8::PooledConnection;
 use bb8::RunError;
 use futures_rustls::TlsConnector;
 use raw::Operation;
-use std::sync::Arc;
 use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
+use suppaftp::AsyncRustlsConnector;
+use suppaftp::AsyncRustlsFtpStream;
+use suppaftp::FtpError;
+use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
-use suppaftp::{AsyncRustlsConnector, AsyncRustlsFtpStream};
-use suppaftp::{FtpError, ImplAsyncFtpStream};
 use tokio::sync::OnceCell;
+
+use super::err::parse_error;
+use crate::raw::AccessorInfo;
+use crate::*;
 
 pub struct FtpCore {
     pub info: Arc<AccessorInfo>,

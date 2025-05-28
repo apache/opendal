@@ -142,11 +142,12 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 
 #[cfg(test)]
 mod tests {
+    use futures::TryStreamExt;
+
     use super::*;
     use crate::services::Memory;
     use crate::Metadata;
     use crate::Operator;
-    use futures::TryStreamExt;
 
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";

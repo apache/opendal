@@ -195,7 +195,8 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::{Buffer, Operator};
+    /// use opendal::Buffer;
+    /// use opendal::Operator;
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
@@ -215,7 +216,8 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::{Buffer, Operator};
+    /// use opendal::Buffer;
+    /// use opendal::Operator;
     /// use opendal::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {

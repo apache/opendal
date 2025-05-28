@@ -22,6 +22,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 #[cxx::bridge(namespace = "opendal::ffi::async")]
 mod ffi {
@@ -37,8 +39,18 @@ mod ffi {
         op: *const Operator,
     }
 
+    pub struct ReaderPtr {
+        id: usize,
+    }
+
+    pub struct ListerPtr {
+        id: usize,
+    }
+
     extern "Rust" {
         type Operator;
+        type Reader;
+        type Lister;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
@@ -50,6 +62,14 @@ mod ffi {
         unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
         unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
         unsafe fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
+        unsafe fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
+        unsafe fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
+
+        unsafe fn reader_read(reader: ReaderPtr, start: u64, len: u64) -> RustFutureRead;
+        unsafe fn lister_next(lister: ListerPtr) -> RustFutureEntryOption;
+
+        unsafe fn delete_reader(reader: *mut Reader);
+        unsafe fn delete_lister(lister: *mut Lister);
     }
 
     extern "C++" {
@@ -57,6 +77,9 @@ mod ffi {
         type RustFutureWrite = super::RustFutureWrite;
         type RustFutureList = super::RustFutureList;
         type RustFutureBool = super::RustFutureBool;
+        type RustFutureReaderId = super::RustFutureReaderId;
+        type RustFutureListerId = super::RustFutureListerId;
+        type RustFutureEntryOption = super::RustFutureEntryOption;
     }
 }
 
@@ -80,7 +103,54 @@ unsafe impl Future for RustFutureBool {
     type Output = bool;
 }
 
+#[cxx_async::bridge(namespace = opendal::ffi::async)]
+unsafe impl Future for RustFutureReaderId {
+    type Output = usize;
+}
+
+#[cxx_async::bridge(namespace = opendal::ffi::async)]
+unsafe impl Future for RustFutureListerId {
+    type Output = usize;
+}
+
+#[cxx_async::bridge(namespace = opendal::ffi::async)]
+unsafe impl Future for RustFutureEntryOption {
+    type Output = String;
+}
+
 pub struct Operator(od::Operator);
+pub struct Reader {
+    reader: Arc<Mutex<od::Reader>>,
+    id: usize,
+}
+pub struct Lister {
+    lister: Arc<Mutex<od::Lister>>,
+    id: usize,
+}
+
+// Global storage for readers and listers to avoid Send issues with raw pointers
+static READER_STORAGE: OnceLock<Arc<Mutex<HashMap<usize, Arc<Mutex<od::Reader>>>>>> =
+    OnceLock::new();
+static READER_COUNTER: OnceLock<Arc<Mutex<usize>>> = OnceLock::new();
+static LISTER_STORAGE: OnceLock<Arc<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>>> =
+    OnceLock::new();
+static LISTER_COUNTER: OnceLock<Arc<Mutex<usize>>> = OnceLock::new();
+
+fn get_reader_storage() -> &'static Arc<Mutex<HashMap<usize, Arc<Mutex<od::Reader>>>>> {
+    READER_STORAGE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+}
+
+fn get_reader_counter() -> &'static Arc<Mutex<usize>> {
+    READER_COUNTER.get_or_init(|| Arc::new(Mutex::new(0)))
+}
+
+fn get_lister_storage() -> &'static Arc<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> {
+    LISTER_STORAGE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+}
+
+fn get_lister_counter() -> &'static Arc<Mutex<usize>> {
+    LISTER_COUNTER.get_or_init(|| Arc::new(Mutex::new(0)))
+}
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
@@ -104,6 +174,8 @@ impl Deref for ffi::OperatorPtr {
 }
 
 unsafe impl Send for ffi::OperatorPtr {}
+unsafe impl Send for ffi::ReaderPtr {}
+unsafe impl Send for ffi::ListerPtr {}
 
 unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
     RustFutureRead::fallible(async move {
@@ -181,4 +253,104 @@ unsafe fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureW
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
+}
+
+unsafe fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReaderId {
+    RustFutureReaderId::fallible(async move {
+        let reader =
+            op.0.reader(&path)
+                .await
+                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+
+        // Store the reader in global storage and return an ID
+        let reader_arc = Arc::new(Mutex::new(reader));
+        let mut counter = get_reader_counter().lock().await;
+        *counter += 1;
+        let id = *counter;
+
+        let mut storage = get_reader_storage().lock().await;
+        storage.insert(id, reader_arc);
+
+        Ok(id)
+    })
+}
+
+unsafe fn operator_lister(op: ffi::OperatorPtr, path: String) -> RustFutureListerId {
+    RustFutureListerId::fallible(async move {
+        let lister =
+            op.0.lister(&path)
+                .await
+                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+
+        // Store the lister in global storage and return an ID
+        let lister_arc = Arc::new(Mutex::new(lister));
+        let mut counter = get_lister_counter().lock().await;
+        *counter += 1;
+        let id = *counter;
+
+        let mut storage = get_lister_storage().lock().await;
+        storage.insert(id, lister_arc);
+
+        Ok(id)
+    })
+}
+
+unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutureRead {
+    RustFutureRead::fallible(async move {
+        let storage = get_reader_storage().lock().await;
+        let reader_arc = storage
+            .get(&reader.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?
+            .clone();
+        drop(storage);
+
+        let reader_guard = reader_arc.lock().await;
+        let buffer = reader_guard
+            .read(start..(start + len))
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        Ok(buffer.to_vec())
+    })
+}
+
+unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
+    RustFutureEntryOption::fallible(async move {
+        use futures::TryStreamExt;
+
+        let storage = get_lister_storage().lock().await;
+        let lister_arc = storage
+            .get(&lister.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid lister ID".into()))?
+            .clone();
+        drop(storage);
+
+        let mut lister_guard = lister_arc.lock().await;
+        match lister_guard.try_next().await {
+            Ok(Some(entry)) => Ok(entry.path().to_string()),
+            Ok(None) => Ok(String::new()), // Empty string indicates end of iteration
+            Err(e) => Err(CxxAsyncException::new(e.to_string().into_boxed_str())),
+        }
+    })
+}
+
+unsafe fn delete_reader(reader: *mut Reader) {
+    if !reader.is_null() {
+        let reader_box = Box::from_raw(reader);
+        // Remove from storage
+        tokio::spawn(async move {
+            let mut storage = get_reader_storage().lock().await;
+            storage.remove(&reader_box.id);
+        });
+    }
+}
+
+unsafe fn delete_lister(lister: *mut Lister) {
+    if !lister.is_null() {
+        let lister_box = Box::from_raw(lister);
+        // Remove from storage
+        tokio::spawn(async move {
+            let mut storage = get_lister_storage().lock().await;
+            storage.remove(&lister_box.id);
+        });
+    }
 }

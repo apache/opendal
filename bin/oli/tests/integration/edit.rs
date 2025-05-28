@@ -86,26 +86,6 @@ fn create_replacing_editor(dir: &std::path::Path, new_content: &str) -> Result<s
     Ok(editor_path)
 }
 
-/// Test helper that creates a mock editor script that fails
-fn create_failing_editor(dir: &std::path::Path) -> Result<std::path::PathBuf> {
-    let editor_path = dir.join("failing_editor.sh");
-    fs::write(
-        &editor_path,
-        "#!/bin/bash\n# Mock editor that exits with failure\nexit 1\n",
-    )?;
-
-    // Make the script executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&editor_path)?.permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&editor_path, perms)?;
-    }
-
-    Ok(editor_path)
-}
-
 #[tokio::test]
 async fn test_edit_existing_file_no_changes() -> Result<()> {
     let dir = tempfile::tempdir()?;

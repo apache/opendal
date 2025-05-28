@@ -28,7 +28,7 @@ fn create_no_change_editor(dir: &std::path::Path) -> Result<std::path::PathBuf> 
         &editor_path,
         "#!/bin/bash\n# Mock editor that exits successfully without modifying the file\nexit 0\n",
     )?;
-    
+
     // Make the script executable
     #[cfg(unix)]
     {
@@ -37,19 +37,22 @@ fn create_no_change_editor(dir: &std::path::Path) -> Result<std::path::PathBuf> 
         perms.set_mode(0o755);
         fs::set_permissions(&editor_path, perms)?;
     }
-    
+
     Ok(editor_path)
 }
 
 /// Test helper that creates a mock editor script that adds content to files
-fn create_modifying_editor(dir: &std::path::Path, content_to_add: &str) -> Result<std::path::PathBuf> {
+fn create_modifying_editor(
+    dir: &std::path::Path,
+    content_to_add: &str,
+) -> Result<std::path::PathBuf> {
     let editor_path = dir.join("modifying_editor.sh");
     let script_content = format!(
         "#!/bin/bash\n# Mock editor that adds content to the file\necho '{}' >> \"$1\"\nexit 0\n",
         content_to_add
     );
     fs::write(&editor_path, script_content)?;
-    
+
     // Make the script executable
     #[cfg(unix)]
     {
@@ -58,7 +61,7 @@ fn create_modifying_editor(dir: &std::path::Path, content_to_add: &str) -> Resul
         perms.set_mode(0o755);
         fs::set_permissions(&editor_path, perms)?;
     }
-    
+
     Ok(editor_path)
 }
 
@@ -70,7 +73,7 @@ fn create_replacing_editor(dir: &std::path::Path, new_content: &str) -> Result<s
         new_content
     );
     fs::write(&editor_path, script_content)?;
-    
+
     // Make the script executable
     #[cfg(unix)]
     {
@@ -79,7 +82,7 @@ fn create_replacing_editor(dir: &std::path::Path, new_content: &str) -> Result<s
         perms.set_mode(0o755);
         fs::set_permissions(&editor_path, perms)?;
     }
-    
+
     Ok(editor_path)
 }
 
@@ -90,7 +93,7 @@ fn create_failing_editor(dir: &std::path::Path) -> Result<std::path::PathBuf> {
         &editor_path,
         "#!/bin/bash\n# Mock editor that exits with failure\nexit 1\n",
     )?;
-    
+
     // Make the script executable
     #[cfg(unix)]
     {
@@ -99,7 +102,7 @@ fn create_failing_editor(dir: &std::path::Path) -> Result<std::path::PathBuf> {
         perms.set_mode(0o755);
         fs::set_permissions(&editor_path, perms)?;
     }
-    
+
     Ok(editor_path)
 }
 
@@ -109,16 +112,16 @@ async fn test_edit_existing_file_no_changes() -> Result<()> {
     let file_path = dir.path().join("test_file.txt");
     let original_content = "Hello, World!";
     fs::write(&file_path, original_content)?;
-    
+
     // Create a mock editor that doesn't change the file
     let editor_path = create_no_change_editor(dir.path())?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: true
     exit_code: 0
@@ -127,11 +130,11 @@ async fn test_edit_existing_file_no_changes() -> Result<()> {
 
     ----- stderr -----
     "#);
-    
+
     // Verify the file content wasn't changed
     let actual_content = fs::read_to_string(&file_path)?;
     assert_eq!(original_content, actual_content);
-    
+
     Ok(())
 }
 
@@ -141,17 +144,17 @@ async fn test_edit_existing_file_with_changes() -> Result<()> {
     let file_path = dir.path().join("test_file.txt");
     let original_content = "Hello, World!";
     fs::write(&file_path, original_content)?;
-    
+
     // Create a mock editor that adds content
     let added_content = "Added line";
     let editor_path = create_modifying_editor(dir.path(), added_content)?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: true
     exit_code: 0
@@ -160,12 +163,12 @@ async fn test_edit_existing_file_with_changes() -> Result<()> {
 
     ----- stderr -----
     "#);
-    
+
     // Verify the file content was changed
     let actual_content = fs::read_to_string(&file_path)?;
     assert!(actual_content.contains(original_content));
     assert!(actual_content.contains(added_content));
-    
+
     Ok(())
 }
 
@@ -173,20 +176,20 @@ async fn test_edit_existing_file_with_changes() -> Result<()> {
 async fn test_edit_new_file() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("new_file.txt");
-    
+
     // Ensure the file doesn't exist
     assert!(!file_path.exists());
-    
+
     // Create a mock editor that adds content to the new file
     let new_content = "This is a new file";
     let editor_path = create_replacing_editor(dir.path(), new_content)?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: true
     exit_code: 0
@@ -195,12 +198,12 @@ async fn test_edit_new_file() -> Result<()> {
 
     ----- stderr -----
     "#);
-    
+
     // Verify the file was created with the expected content
     assert!(file_path.exists());
     let actual_content = fs::read_to_string(&file_path)?;
     assert_eq!(new_content.trim(), actual_content.trim());
-    
+
     Ok(())
 }
 
@@ -208,19 +211,19 @@ async fn test_edit_new_file() -> Result<()> {
 async fn test_edit_new_file_no_content() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("empty_new_file.txt");
-    
+
     // Ensure the file doesn't exist
     assert!(!file_path.exists());
-    
+
     // Create a mock editor that doesn't add any content (leaves file empty)
     let editor_path = create_no_change_editor(dir.path())?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: true
     exit_code: 0
@@ -229,10 +232,10 @@ async fn test_edit_new_file_no_content() -> Result<()> {
 
     ----- stderr -----
     "#);
-    
+
     // Since the file would be empty and we detect no changes, it shouldn't be uploaded
     // The local file might exist but the remote shouldn't be created
-    
+
     Ok(())
 }
 
@@ -242,16 +245,16 @@ async fn test_edit_editor_failure() -> Result<()> {
     let file_path = dir.path().join("test_file.txt");
     let original_content = "Hello, World!";
     fs::write(&file_path, original_content)?;
-    
+
     // Create a mock editor that fails
     let editor_path = create_failing_editor(dir.path())?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: false
     exit_code: 1
@@ -260,11 +263,11 @@ async fn test_edit_editor_failure() -> Result<()> {
     ----- stderr -----
     Error: Editor exited with non-zero status: exit status: 1
     "#);
-    
+
     // Verify the original file content wasn't changed
     let actual_content = fs::read_to_string(&file_path)?;
     assert_eq!(original_content, actual_content);
-    
+
     Ok(())
 }
 
@@ -273,19 +276,17 @@ async fn test_edit_without_editor_env() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("test_file.txt");
     fs::write(&file_path, "content")?;
-    
+
     // Don't set EDITOR environment variable, should default to vim
     // This will likely fail in a test environment, but we can test the behavior
     let mut cmd = oli();
-    cmd.env_remove("EDITOR")
-       .arg("edit")
-       .arg(&file_path);
-    
+    cmd.env_remove("EDITOR").arg("edit").arg(&file_path);
+
     // This test will typically fail because vim isn't available in test environment
     // or because it can't open in non-interactive mode
     let output = cmd.output().unwrap();
     assert!(!output.status.success());
-    
+
     Ok(())
 }
 
@@ -294,13 +295,13 @@ async fn test_edit_nonexistent_editor() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("test_file.txt");
     fs::write(&file_path, "content")?;
-    
+
     // Set EDITOR to a non-existent command
     let mut cmd = oli();
     cmd.env("EDITOR", "nonexistent_editor_command_12345")
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: false
     exit_code: 1
@@ -312,7 +313,7 @@ async fn test_edit_nonexistent_editor() -> Result<()> {
     Caused by:
         No such file or directory (os error 2)
     "#);
-    
+
     Ok(())
 }
 
@@ -322,23 +323,23 @@ async fn test_edit_with_config_params() -> Result<()> {
     let file_path = dir.path().join("test_file.txt");
     let original_content = "Hello with config!";
     fs::write(&file_path, original_content)?;
-    
+
     // Create a mock editor that doesn't change the file
     let editor_path = create_no_change_editor(dir.path())?;
-    
+
     // Test with config parameter (though we're using local fs, so config might not apply)
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg("--config")
-       .arg("nonexistent_config.toml")  // This should be handled gracefully
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg("--config")
+        .arg("nonexistent_config.toml") // This should be handled gracefully
+        .arg(&file_path);
+
     // The command might succeed or fail depending on config handling
     // Let's just run it to see the behavior
     let _output = cmd.output().unwrap();
     // We don't assert success/failure here as it depends on config implementation
-    
+
     Ok(())
 }
 
@@ -348,17 +349,17 @@ async fn test_edit_file_content_replacement() -> Result<()> {
     let file_path = dir.path().join("replace_test.txt");
     let original_content = "Original content that should be replaced";
     fs::write(&file_path, original_content)?;
-    
+
     // Create a mock editor that completely replaces the content
     let new_content = "Completely new content";
     let editor_path = create_replacing_editor(dir.path(), new_content)?;
-    
+
     // Set the EDITOR environment variable
     let mut cmd = oli();
     cmd.env("EDITOR", editor_path.to_str().unwrap())
-       .arg("edit")
-       .arg(&file_path);
-    
+        .arg("edit")
+        .arg(&file_path);
+
     assert_cmd_snapshot!(cmd, @r#"
     success: true
     exit_code: 0
@@ -367,11 +368,11 @@ async fn test_edit_file_content_replacement() -> Result<()> {
 
     ----- stderr -----
     "#);
-    
+
     // Verify the file content was completely replaced
     let actual_content = fs::read_to_string(&file_path)?;
     assert_eq!(new_content.trim(), actual_content.trim());
     assert!(!actual_content.contains("Original content"));
-    
+
     Ok(())
-} 
+}

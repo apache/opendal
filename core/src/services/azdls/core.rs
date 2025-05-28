@@ -388,7 +388,7 @@ impl AzdlsCore {
     }
 }
 
-// See this workaround implemenation in the azure hadoop implementation:
+// See this workaround implementation in the azure hadoop implementation:
 // https://github.com/apache/hadoop/blob/66adc68b62058a63598172cb14bf514287f6584a/hadoop-tools/hadoop-azure/src/main/java/org/apache/hadoop/fs/azurebfs/AzureBlobFileSystemStore.java#L1306
 fn generate_continuation_from_start_after(start_after: &str) -> String {
     let crc = compute_crc64(format!("{}#$0", start_after).as_bytes());

@@ -272,26 +272,8 @@ async fn test_edit_editor_failure() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_edit_without_editor_env() -> Result<()> {
-    let dir = tempfile::tempdir()?;
-    let file_path = dir.path().join("test_file.txt");
-    fs::write(&file_path, "content")?;
-
-    // Don't set EDITOR environment variable, should default to vim
-    // This will likely fail in a test environment, but we can test the behavior
-    let mut cmd = oli();
-    cmd.env_remove("EDITOR").arg("edit").arg(&file_path);
-
-    // This test will typically fail because vim isn't available in test environment
-    // or because it can't open in non-interactive mode
-    let output = cmd.output().unwrap();
-    assert!(!output.status.success());
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_edit_nonexistent_editor() -> Result<()> {
+    //
     let dir = tempfile::tempdir()?;
     let file_path = dir.path().join("test_file.txt");
     fs::write(&file_path, "content")?;

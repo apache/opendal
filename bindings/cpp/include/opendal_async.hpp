@@ -47,6 +47,9 @@ class Operator {
   using WriteFuture = opendal::ffi::async::RustFutureWrite;
   WriteFuture write(std::string_view path, std::span<uint8_t> data);
 
+  using ListFuture = opendal::ffi::async::RustFutureList;
+  ListFuture list(std::string_view path);
+
  private:
   rust::Box<opendal::ffi::async::Operator> operator_;
 };

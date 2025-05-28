@@ -58,3 +58,8 @@ Operator::WriteFuture Operator::write(std::string_view path,
   return opendal::ffi::async::operator_write(
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path), vec);
 }
+
+Operator::ListFuture Operator::list(std::string_view path) {
+  return opendal::ffi::async::operator_list(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}

@@ -25,3 +25,4 @@
 CXXASYNC_DEFINE_FUTURE(rust::Vec<uint8_t>, opendal, ffi, async, RustFutureRead);
 CXXASYNC_DEFINE_FUTURE(void, opendal, ffi, async, RustFutureWrite);
 CXXASYNC_DEFINE_FUTURE(rust::Vec<rust::String>, opendal, ffi, async, RustFutureList);
+CXXASYNC_DEFINE_FUTURE(bool, opendal, ffi, async, RustFutureBool);

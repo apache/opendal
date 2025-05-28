@@ -44,12 +44,19 @@ mod ffi {
         unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
         unsafe fn operator_write(op: OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite;
         unsafe fn operator_list(op: OperatorPtr, path: String) -> RustFutureList;
+        unsafe fn operator_exists(op: OperatorPtr, path: String) -> RustFutureBool;
+        unsafe fn operator_create_dir(op: OperatorPtr, path: String) -> RustFutureWrite;
+        unsafe fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
+        unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
+        unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
+        unsafe fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
     }
 
     extern "C++" {
         type RustFutureRead = super::RustFutureRead;
         type RustFutureWrite = super::RustFutureWrite;
         type RustFutureList = super::RustFutureList;
+        type RustFutureBool = super::RustFutureBool;
     }
 }
 
@@ -66,6 +73,11 @@ unsafe impl Future for RustFutureWrite {
 #[cxx_async::bridge(namespace = opendal::ffi::async)]
 unsafe impl Future for RustFutureList {
     type Output = Vec<String>;
+}
+
+#[cxx_async::bridge(namespace = opendal::ffi::async)]
+unsafe impl Future for RustFutureBool {
+    type Output = bool;
 }
 
 pub struct Operator(od::Operator);
@@ -121,5 +133,53 @@ unsafe fn operator_list(op: ffi::OperatorPtr, path: String) -> RustFutureList {
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(entries.into_iter().map(|e| e.path().to_string()).collect())
+    })
+}
+
+unsafe fn operator_exists(op: ffi::OperatorPtr, path: String) -> RustFutureBool {
+    RustFutureBool::fallible(async move {
+        op.0.exists(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
+    })
+}
+
+unsafe fn operator_create_dir(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        op.0.create_dir(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
+    })
+}
+
+unsafe fn operator_copy(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        op.0.copy(&from, &to)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
+    })
+}
+
+unsafe fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        op.0.rename(&from, &to)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
+    })
+}
+
+unsafe fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        op.0.delete(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
+    })
+}
+
+unsafe fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+    RustFutureWrite::fallible(async move {
+        op.0.remove_all(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }

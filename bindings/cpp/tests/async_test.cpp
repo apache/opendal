@@ -57,3 +57,90 @@ TEST_F(AsyncOpendalTest, BasicTest) {
     co_return;
   }());
 }
+
+TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
+  const auto dir_path = "test_async_dir/";
+  const auto file_path = "test_async_dir/test_file.txt";
+  const std::vector<uint8_t> file_content = {1, 2, 3, 4, 5};
+
+  // Create directory and check existence
+  cppcoro::sync_wait(op->create_dir(dir_path));
+  auto dir_exists = cppcoro::sync_wait(op->exists(dir_path));
+  EXPECT_TRUE(dir_exists);
+
+  // Check non-existent file
+  auto non_existent_exists = cppcoro::sync_wait(op->exists("non_existent_file"));
+  EXPECT_FALSE(non_existent_exists);
+
+  // Write a file and check its existence
+  cppcoro::sync_wait(op->write(file_path, file_content));
+  auto file_exists = cppcoro::sync_wait(op->exists(file_path));
+  EXPECT_TRUE(file_exists);
+
+  // Copy file and check existence and content
+  const auto copied_file_path = "test_async_dir/copied_file.txt";
+  cppcoro::sync_wait(op->copy(file_path, copied_file_path));
+  auto copied_file_exists = cppcoro::sync_wait(op->exists(copied_file_path));
+  EXPECT_TRUE(copied_file_exists);
+  auto copied_content = cppcoro::sync_wait(op->read(copied_file_path));
+  EXPECT_EQ(file_content, copied_content);
+
+  // Rename file and check old path non-existence and new path existence
+  const auto renamed_file_path = "test_async_dir/renamed_file.txt";
+  cppcoro::sync_wait(op->rename(copied_file_path, renamed_file_path));
+  auto old_copied_exists = cppcoro::sync_wait(op->exists(copied_file_path));
+  EXPECT_FALSE(old_copied_exists);
+  auto renamed_file_exists = cppcoro::sync_wait(op->exists(renamed_file_path));
+  EXPECT_TRUE(renamed_file_exists);
+  auto renamed_content = cppcoro::sync_wait(op->read(renamed_file_path));
+  EXPECT_EQ(file_content, renamed_content);
+
+  // Delete the renamed file and check non-existence
+  cppcoro::sync_wait(op->delete_path(renamed_file_path));
+  auto deleted_exists = cppcoro::sync_wait(op->exists(renamed_file_path));
+  EXPECT_FALSE(deleted_exists);
+
+  // Create another file in the directory
+  const auto another_file_path = "test_async_dir/another_file.txt";
+  cppcoro::sync_wait(op->write(another_file_path, file_content));
+  auto another_file_exists = cppcoro::sync_wait(op->exists(another_file_path));
+  EXPECT_TRUE(another_file_exists);
+
+  // Remove the entire directory and check non-existence of the directory and its contents
+  cppcoro::sync_wait(op->remove_all(dir_path));
+  auto dir_after_remove_exists = cppcoro::sync_wait(op->exists(dir_path));
+  EXPECT_FALSE(dir_after_remove_exists);
+  auto file_in_removed_dir_exists = cppcoro::sync_wait(op->exists(file_path)); // Original file path
+  EXPECT_FALSE(file_in_removed_dir_exists);
+  auto another_file_in_removed_dir_exists = cppcoro::sync_wait(op->exists(another_file_path));
+  EXPECT_FALSE(another_file_in_removed_dir_exists);
+
+  // Test listing after cleaning up
+  const auto list_dir_path = "test_list_dir/";
+  const auto list_file1_path = "test_list_dir/file1.txt";
+  const auto list_file2_path = "test_list_dir/file2.txt";
+  const auto list_subdir_path = "test_list_dir/subdir/";
+
+  cppcoro::sync_wait(op->create_dir(list_dir_path));
+  cppcoro::sync_wait(op->write(list_file1_path, file_content));
+  cppcoro::sync_wait(op->write(list_file2_path, file_content));
+  cppcoro::sync_wait(op->create_dir(list_subdir_path));
+
+  auto listed_entries = cppcoro::sync_wait(op->list(list_dir_path));
+  EXPECT_EQ(listed_entries.size(), 3); // file1.txt, file2.txt, subdir/
+
+  bool found_file1 = false;
+  bool found_file2 = false;
+  bool found_subdir = false;
+  for (const auto& entry : listed_entries) {
+    if (entry == "file1.txt") found_file1 = true;
+    if (entry == "file2.txt") found_file2 = true;
+    if (entry == "subdir/") found_subdir = true;
+  }
+  EXPECT_TRUE(found_file1);
+  EXPECT_TRUE(found_file2);
+  EXPECT_TRUE(found_subdir);
+
+  // Clean up list test directory
+  cppcoro::sync_wait(op->remove_all(list_dir_path));
+}

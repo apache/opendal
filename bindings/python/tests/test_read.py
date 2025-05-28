@@ -162,7 +162,7 @@ async def test_async_reader(service_name, operator, async_operator):
     range_end = randint(range_start, len(content) - 1)
 
     async with await async_operator.open(
-        filename, "rb", range_start=range_start, range_end=range_end
+        filename, "rb", offset=range_start, size=range_end
     ) as reader:
         assert await reader.readable()
         assert not await reader.writable()

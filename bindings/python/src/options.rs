@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::format_pyerr;
 use dict_derive::FromPyObject;
 use opendal as ocore;
-use pyo3::prelude::PyResult;
 use pyo3::pyclass;
 use std::collections::HashMap;
 
@@ -31,40 +29,22 @@ pub struct ReadOptions {
     pub concurrent: Option<usize>,
     pub chunk: Option<usize>,
     pub gap: Option<usize>,
-    pub range_start: Option<usize>,
-    pub range_end: Option<usize>,
+    pub offset: Option<usize>,
+    pub size: Option<usize>,
+    pub if_match: Option<String>,
+    pub if_none_match: Option<String>,
 }
 
 impl ReadOptions {
     pub fn make_range(&self) -> (RangeBound<u64>, RangeBound<u64>) {
         let start_bound = self
-            .range_start
+            .offset
             .map_or(RangeBound::Unbounded, |s| RangeBound::Included(s as u64));
         let end_bound = self
-            .range_end
+            .size
             .map_or(RangeBound::Unbounded, |e| RangeBound::Excluded(e as u64));
 
         (start_bound, end_bound)
-    }
-
-    pub async fn create_reader(&self, op: &ocore::Operator, path: String) -> PyResult<ocore::Reader> {
-        let mut fr = op.reader_with(&path);
-
-        if let Some(version) = &self.version {
-            fr = fr.version(version);
-        };
-        if let Some(concurrent) = self.concurrent {
-            fr = fr.concurrent(concurrent);
-        };
-        if let Some(chunk) = self.chunk {
-            fr = fr.chunk(chunk);
-        };
-        if let Some(gap) = self.gap {
-            fr = fr.gap(gap);
-        };
-
-        let reader = fr.await.map_err(format_pyerr)?;
-        Ok(reader)
     }
 }
 
@@ -78,44 +58,39 @@ pub struct WriteOptions {
     pub content_type: Option<String>,
     pub content_disposition: Option<String>,
     pub content_encoding: Option<String>,
+    pub if_match: Option<String>,
+    pub if_none_match: Option<String>,
     pub if_not_exists: Option<bool>,
     pub user_metadata: Option<HashMap<String, String>>,
 }
 
-impl WriteOptions {
-    pub async fn create_writer(&self, op: &ocore::Operator, path: String) -> PyResult<ocore::Writer> {
-        let mut fw = op.writer_with(&path);
+impl From<ReadOptions> for ocore::options::ReadOptions {
+    fn from(opts: ReadOptions) -> Self {
+        let r = opts.make_range();
+        Self {
+            range: r.into(),
+            version: opts.version,
+            if_match: opts.if_match,
+            if_none_match: opts.if_none_match,
+            concurrent: opts.concurrent.unwrap_or(1),
+            chunk: opts.chunk,
+            gap: opts.gap,
+            ..Default::default()
+        }
+    }
+}
 
-        if let Some(append) = self.append {
-            fw = fw.append(append);
-        };
-        if let Some(chunk) = self.chunk {
-            fw = fw.chunk(chunk);
-        };
-        if let Some(concurrent) = self.concurrent {
-            fw = fw.concurrent(concurrent);
-        };
-        if let Some(cache_control) = &self.cache_control {
-            fw = fw.cache_control(cache_control);
-        };
-        if let Some(content_type) = &self.content_type {
-            fw = fw.content_type(content_type);
-        };
-        if let Some(content_disposition) = &self.content_disposition {
-            fw = fw.content_disposition(content_disposition);
-        };
-        if let Some(content_encoding) = &self.content_encoding {
-            fw = fw.content_encoding(content_encoding);
-        };
-        if let Some(if_not_exists) = self.if_not_exists {
-            fw = fw.if_not_exists(if_not_exists);
-        };
-        if let Some(user_metadata) = &self.user_metadata {
-            fw = fw.user_metadata(user_metadata.clone());
-        };
-
-        let writer = fw.await.map_err(format_pyerr)?;
-        Ok(writer)
+impl From<ReadOptions> for ocore::options::ReaderOptions {
+    fn from(opts: ReadOptions) -> Self {
+        Self {
+            version: opts.version,
+            if_match: opts.if_match,
+            if_none_match: opts.if_none_match,
+            concurrent: opts.concurrent.unwrap_or(1),
+            chunk: opts.chunk,
+            gap: opts.gap,
+            ..Default::default()
+        }
     }
 }
 
@@ -123,12 +98,16 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
     fn from(opts: WriteOptions) -> Self {
         Self {
             append: opts.append.unwrap_or(false),
+            concurrent: opts.concurrent.unwrap_or(1),
             chunk: opts.chunk,
             content_type: opts.content_type,
             content_disposition: opts.content_disposition,
             cache_control: opts.cache_control,
+            content_encoding: opts.content_encoding,
             user_metadata: opts.user_metadata,
-            ..Default::default()
+            if_match: opts.if_match,
+            if_none_match: opts.if_none_match,
+            if_not_exists: opts.if_not_exists.unwrap_or(false),
         }
     }
 }

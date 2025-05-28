@@ -84,7 +84,7 @@ impl Operator {
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
@@ -120,13 +120,25 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy().to_string();
-        let buffer = self.core.read(&path).map_err(format_pyerr)?.to_vec();
+        let kwargs = kwargs.unwrap_or_default();
+        let buffer = self
+            .core
+            .read_options(&path, kwargs.into())
+            .map_err(format_pyerr)?
+            .to_vec();
+
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Write bytes into given path.
+    /// Write bytes into a given path.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
@@ -137,7 +149,7 @@ impl Operator {
             .map_err(format_pyerr)
     }
 
-    /// Get current path's metadata **without cache** directly.
+    /// Get the current path's metadata **without cache** directly.
     pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
         self.core
@@ -146,7 +158,7 @@ impl Operator {
             .map(Metadata::new)
     }
 
-    /// Copy source to target.
+    /// Copy the source to the target.
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
@@ -160,19 +172,19 @@ impl Operator {
         self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
-    /// Remove all file
+    /// Remove all files
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.remove_all(&path).map_err(format_pyerr)
     }
 
-    /// Create a dir at given path.
+    /// Create a dir at the given path.
     ///
     /// # Notes
     ///
     /// To indicate that a path is a directory, it is compulsory to include
     /// a trailing / in the path. Failure to do so may result in
-    /// `NotADirectory` error being returned by OpenDAL.
+    ///  a ` NotADirectory ` error being returned by OpenDAL.
     ///
     /// # Behavior
     ///
@@ -193,7 +205,7 @@ impl Operator {
         self.core.delete(&path).map_err(format_pyerr)
     }
 
-    /// Check given path is exists.
+    /// Checks if the given path exists.
     ///
     /// # Notes
     ///
@@ -220,7 +232,7 @@ impl Operator {
         Ok(BlockingLister::new(l))
     }
 
-    /// List dir in flat way.
+    /// List dir in a flat way.
     pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
         let l = self
@@ -312,7 +324,7 @@ impl AsyncOperator {
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
@@ -346,8 +358,11 @@ impl AsyncOperator {
 
         future_into_py(py, async move {
             if mode == "rb" {
-                let reader = reader_opts.create_reader(&this, path).await?;
                 let range = reader_opts.make_range();
+                let reader = this
+                    .reader_options(&path, reader_opts.into())
+                    .await
+                    .map_err(format_pyerr)?;
 
                 let r = reader
                     .into_futures_async_read(range)
@@ -355,8 +370,12 @@ impl AsyncOperator {
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
-                let w = writer_opts.create_writer(&this, path).await?;
-                Ok(AsyncFile::new_writer(w.into_futures_async_write()))
+                let writer = this
+                    .writer_options(&path, writer_opts.into())
+                    .await
+                    .map_err(format_pyerr)?;
+                let w = writer.into_futures_async_write();
+                Ok(AsyncFile::new_writer(w))
             } else {
                 Err(Unsupported::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"

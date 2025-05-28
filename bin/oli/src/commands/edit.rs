@@ -51,7 +51,7 @@ impl EditCmd {
         let (op, path) = cfg.parse_location(&self.target)?;
 
         // Create a temporary file
-        let mut temp_file = NamedTempFile::new().context("Failed to create temporary file")?;
+        let temp_file = NamedTempFile::new().context("Failed to create temporary file")?;
 
         let temp_path = temp_file.path().to_path_buf();
 

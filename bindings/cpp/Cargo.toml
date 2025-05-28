@@ -34,6 +34,7 @@ anyhow = "1.0"
 chrono = "0.4"
 cxx = "1.0"
 cxx-async = { version = "0.1.2", optional = true }
+futures = "0.3"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",

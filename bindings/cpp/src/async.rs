@@ -127,11 +127,10 @@ unsafe fn operator_write(op: ffi::OperatorPtr, path: String, bs: Vec<u8>) -> Rus
 
 unsafe fn operator_list(op: ffi::OperatorPtr, path: String) -> RustFutureList {
     RustFutureList::fallible(async move {
-        let entries = op
-            .0
-            .list(&path)
-            .await
-            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let entries =
+            op.0.list(&path)
+                .await
+                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(entries.into_iter().map(|e| e.path().to_string()).collect())
     })
 }

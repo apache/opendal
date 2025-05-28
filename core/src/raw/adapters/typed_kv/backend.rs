@@ -74,6 +74,14 @@ where
                     cap.shared = true;
                 }
 
+                if kv_cap.copy {
+                    cap.copy = true;
+                }
+
+                if kv_cap.rename {
+                    cap.rename = true;
+                }
+
                 am.set_native_capability(cap);
 
                 am.into()

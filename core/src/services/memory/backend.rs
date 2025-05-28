@@ -126,34 +126,6 @@ impl typed_kv::Adapter for Adapter {
         }
         Ok(keys)
     }
-
-    async fn copy(&self, from: &str, to: &str) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        if let Some(value) = inner.get(from) {
-            inner.insert(to.to_string(), value.clone());
-            Ok(())
-        } else {
-            Err(
-                Error::new(ErrorKind::NotFound, "source path not found for copy")
-                    .with_context("service", Scheme::Memory)
-                    .with_context("source_path", from.to_string()),
-            )
-        }
-    }
-
-    async fn rename(&self, from: &str, to: &str) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        if let Some(value) = inner.remove(from) {
-            inner.insert(to.to_string(), value);
-            Ok(())
-        } else {
-            Err(
-                Error::new(ErrorKind::NotFound, "source path not found for rename")
-                    .with_context("service", Scheme::Memory)
-                    .with_context("source_path", from.to_string()),
-            )
-        }
-    }
 }
 
 #[cfg(test)]

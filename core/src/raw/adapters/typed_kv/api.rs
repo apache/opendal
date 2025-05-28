@@ -111,10 +111,6 @@ pub struct Capability {
     pub scan: bool,
     /// If typed_kv operator supports shared access.
     pub shared: bool,
-    /// If typed_kv operator supports copy natively.
-    pub copy: bool,
-    /// If typed_kv operator supports rename natively.
-    pub rename: bool,
 }
 
 impl Debug for Capability {
@@ -135,12 +131,6 @@ impl Debug for Capability {
         }
         if self.shared {
             s.push("Shared");
-        }
-        if self.copy {
-            s.push("Copy");
-        }
-        if self.rename {
-            s.push("Rename");
         }
 
         write!(f, "{{ {} }}", s.join(" | "))

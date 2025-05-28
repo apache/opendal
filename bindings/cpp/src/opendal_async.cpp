@@ -63,3 +63,35 @@ Operator::ListFuture Operator::list(std::string_view path) {
   return opendal::ffi::async::operator_list(
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
+
+Operator::ExistsFuture Operator::exists(std::string_view path) {
+  return opendal::ffi::async::operator_exists(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}
+
+Operator::CreateDirFuture Operator::create_dir(std::string_view path) {
+  return opendal::ffi::async::operator_create_dir(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}
+
+Operator::CopyFuture Operator::copy(std::string_view from, std::string_view to) {
+  return opendal::ffi::async::operator_copy(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
+      RUST_STRING(to));
+}
+
+Operator::RenameFuture Operator::rename(std::string_view from, std::string_view to) {
+  return opendal::ffi::async::operator_rename(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
+      RUST_STRING(to));
+}
+
+Operator::DeleteFuture Operator::delete_path(std::string_view path) {
+  return opendal::ffi::async::operator_delete(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}
+
+Operator::RemoveAllFuture Operator::remove_all(std::string_view path) {
+  return opendal::ffi::async::operator_remove_all(
+      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+}

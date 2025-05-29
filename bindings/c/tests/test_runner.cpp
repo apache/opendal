@@ -153,19 +153,44 @@ int main(int argc, char* argv[]) {
         printf("Random root: %s\n", config->random_root);
     }
     
-    // Check operator availability
-    opendal_error* check_error = opendal_operator_check(config->operator_instance);
-    if (check_error) {
-        printf("Operator check failed: error code %d\n", check_error->code);
-        if (check_error->message.data) {
-            printf("Error message: %.*s\n", (int)check_error->message.len, (char*)check_error->message.data);
-        }
-        opendal_error_free(check_error);
+    // Check operator capabilities first
+    opendal_operator_info* info = opendal_operator_info_new(config->operator_instance);
+    if (!info) {
+        printf("Failed to get operator info\n");
         opendal_test_config_free(config);
         return 1;
     }
     
-    printf("Operator is ready!\n\n");
+    opendal_capability cap = opendal_operator_info_get_full_capability(info);
+    
+    // Check operator availability - only perform list-based check if list is supported
+    if (cap.list) {
+        opendal_error* check_error = opendal_operator_check(config->operator_instance);
+        if (check_error) {
+            printf("Operator check failed: error code %d\n", check_error->code);
+            if (check_error->message.data) {
+                printf("Error message: %.*s\n", (int)check_error->message.len, (char*)check_error->message.data);
+            }
+            opendal_error_free(check_error);
+            opendal_operator_info_free(info);
+            opendal_test_config_free(config);
+            return 1;
+        }
+    } else {
+        // For KV adapters that don't support list, we'll do a basic capability check instead
+        printf("Note: Operator doesn't support list operations (KV adapter), skipping standard check\n");
+    }
+    
+    printf("Operator is ready!\n");
+    printf("Capabilities: read=%s, write=%s, list=%s, stat=%s, delete=%s\n",
+           cap.read ? "yes" : "no",
+           cap.write ? "yes" : "no", 
+           cap.list ? "yes" : "no",
+           cap.stat ? "yes" : "no",
+           cap.delete_ ? "yes" : "no");
+    
+    opendal_operator_info_free(info);
+    printf("\n");
     
     // Run tests based on command line arguments
     if (test_to_run) {

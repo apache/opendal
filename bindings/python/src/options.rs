@@ -122,3 +122,25 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
         }
     }
 }
+
+#[pyclass(module = "opendal")]
+#[derive(FromPyObject, Default, Debug)]
+pub struct ListOptions {
+    pub limit: Option<usize>,
+    pub start_after: Option<String>,
+    pub recursive: Option<bool>,
+    pub versions: Option<bool>,
+    pub deleted: Option<bool>,
+}
+
+impl From<ListOptions> for ocore::options::ListOptions {
+    fn from(opts: ListOptions) -> Self {
+        Self {
+            limit: opts.limit,
+            start_after: opts.start_after,
+            recursive: opts.recursive.unwrap_or(false),
+            versions: opts.versions.unwrap_or(false),
+            deleted: opts.deleted.unwrap_or(false),
+        }
+    }
+}

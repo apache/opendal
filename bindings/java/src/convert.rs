@@ -76,6 +76,10 @@ pub(crate) fn read_int64_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str)
     Ok(env.get_field(obj, field, "J")?.j()?)
 }
 
+pub(crate) fn read_int_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<i32> {
+    Ok(env.get_field(obj, field, "I")?.i()?)
+}
+
 pub(crate) fn read_string_field(
     env: &mut JNIEnv<'_>,
     obj: &JObject,

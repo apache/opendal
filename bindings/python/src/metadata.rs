@@ -17,6 +17,7 @@
 
 use chrono::prelude::*;
 use pyo3::prelude::*;
+use std::collections::HashMap;
 
 use crate::*;
 
@@ -31,10 +32,16 @@ impl Entry {
 
 #[pymethods]
 impl Entry {
-    /// Path of entry. Path is relative to operator's root.
+    /// Path of entry. Path is relative to the operator's root.
     #[getter]
     pub fn path(&self) -> &str {
         self.0.path()
+    }
+
+    /// Metadata of entry.
+    #[getter]
+    pub fn metadata(&self) -> Metadata {
+        Metadata::new(self.0.metadata().clone())
     }
 
     fn __str__(&self) -> &str {
@@ -42,7 +49,11 @@ impl Entry {
     }
 
     fn __repr__(&self) -> String {
-        format!("Entry({:?})", self.0.path())
+        format!(
+            "Entry(path={:?}, metadata={})",
+            self.path(),
+            self.metadata().__repr__()
+        )
     }
 }
 
@@ -80,16 +91,34 @@ impl Metadata {
         self.0.content_type()
     }
 
+    /// Content Type of this entry.
+    #[getter]
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.0.content_encoding()
+    }
+
     /// ETag of this entry.
     #[getter]
     pub fn etag(&self) -> Option<&str> {
         self.0.etag()
     }
 
-    /// mode represent this entry's mode.
+    /// mode represents this entry's mode.
     #[getter]
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
+    }
+
+    /// Returns `true` if this metadata is for a file.
+    #[getter]
+    pub fn is_file(&self) -> bool {
+        self.mode().is_file()
+    }
+
+    /// Returns `true` if this metadata is for a directory.
+    #[getter]
+    pub fn is_dir(&self) -> bool {
+        self.mode().is_dir()
     }
 
     /// Last modified time
@@ -97,20 +126,37 @@ impl Metadata {
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
         self.0.last_modified()
     }
-    pub fn __repr__(&self) -> String {
-        let last_modified_str = match self.0.last_modified() {
-            Some(dt) => dt.format("%Y-%m-%dT%H:%M:%S").to_string(),
-            None => "None".to_string(),
-        };
 
-        format!(
-            "Metadata(mode={}, content_length={}, content_type={}, last_modified={}, etag={})",
-            self.0.mode(),
-            self.0.content_length(),
-            self.0.content_type().unwrap_or("None"),
-            last_modified_str,
-            self.0.etag().unwrap_or("None"),
-        )
+    /// Version of this entry, if available.
+    #[getter]
+    pub fn version(&self) -> Option<&str> {
+        self.0.version()
+    }
+
+    /// User defined metadata of this entry
+    #[getter]
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.0.user_metadata()
+    }
+
+    pub fn __repr__(&self) -> String {
+        let mut parts = vec![];
+
+        parts.push(format!("mode={}", self.0.mode()));
+        parts.push(format!(
+            "content_disposition={:?}",
+            self.0.content_disposition()
+        ));
+        parts.push(format!("content_length={}", self.0.content_length()));
+        parts.push(format!("content_md5={:?}", self.0.content_md5()));
+        parts.push(format!("content_type={:?}", self.0.content_type()));
+        parts.push(format!("content_encoding={:?}", self.0.content_encoding()));
+        parts.push(format!("etag={:?}", self.0.etag()));
+        parts.push(format!("last_modified={:?}", self.0.last_modified()));
+        parts.push(format!("version={:?}", self.0.version()));
+        parts.push(format!("user_metadata={:?}", self.0.user_metadata()));
+
+        format!("Metadata({})", parts.join(", "))
     }
 }
 

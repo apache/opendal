@@ -76,7 +76,7 @@ jobs:
 
       - name: Build OpenDAL C library for test framework
         working-directory: "bindings/c"
-        run: cargo build
+        run: cargo build --features="opendal/services-memory"
 
       - name: Build test framework
         working-directory: "bindings/c/tests"

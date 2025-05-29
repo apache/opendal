@@ -62,7 +62,7 @@ jobs:
 
       - name: Build OpenDAL C library
         working-directory: "bindings/c"
-        run: cargo build
+        run: cargo build --features="${{ inputs.feature }}"
 
       - name: Test Core
         uses: ./.github/actions/test_behavior_binding_c

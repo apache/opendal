@@ -36,9 +36,6 @@ use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
 
-/// Default endpoint of Azure File services.
-const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
-
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzfileConfig {
@@ -205,7 +202,7 @@ impl Builder for AzfileBuilder {
             .config
             .account_name
             .clone()
-            .or_else(|| infer_account_name_from_endpoint(endpoint.as_str()));
+            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()));
 
         let account_name = match account_name_option {
             Some(account_name) => Ok(account_name),
@@ -275,27 +272,6 @@ impl Builder for AzfileBuilder {
                 share_name: self.config.share_name.clone(),
             }),
         })
-    }
-}
-
-fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let account_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT_SUFFIX {
-        account_name.map(|s| s.to_string())
-    } else {
-        None
     }
 }
 
@@ -405,31 +381,6 @@ impl Access for AzfileBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint() {
-        let cases = vec![
-            (
-                "test infer account name from endpoint",
-                "https://account.file.core.windows.net",
-                "account",
-            ),
-            (
-                "test infer account name from endpoint with trailing slash",
-                "https://account.file.core.windows.net/",
-                "account",
-            ),
-        ];
-        for (desc, endpoint, expected) in cases {
-            let account_name = infer_account_name_from_endpoint(endpoint);
-            assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
         }
     }
 }

@@ -43,6 +43,37 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
     }
 
     @Test
+    void testWriteWithChunk() {
+        assumeTrue(asyncOp().info.fullCapability.writeCanMulti);
+
+        final String path = UUID.randomUUID().toString();
+        final byte[] content = generateBytes(5 * 1024 * 1024);
+
+        WriteOptions options = WriteOptions.builder().chunk(1024 * 1024L).build();
+
+        asyncOp().write(path, content, options).join();
+
+        byte[] result = asyncOp().read(path).join();
+        assertThat(result).isEqualTo(content);
+    }
+
+    @Test
+    void testWriteWithConcurrentChunk() {
+        assumeTrue(asyncOp().info.fullCapability.writeCanMulti);
+
+        final String path = UUID.randomUUID().toString();
+        final byte[] content = generateBytes(5 * 1024 * 1024);
+
+        WriteOptions options =
+                WriteOptions.builder().chunk(1024 * 1024L).concurrent(4).build();
+
+        asyncOp().write(path, content, options).join();
+
+        byte[] result = asyncOp().read(path).join();
+        assertThat(result).isEqualTo(content);
+    }
+
+    @Test
     void testWriteWithCacheControl() {
         assumeTrue(asyncOp().info.fullCapability.writeWithCacheControl);
         final String path = UUID.randomUUID().toString();

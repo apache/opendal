@@ -34,18 +34,17 @@ use opendal::Operator;
 use opendal::Scheme;
 
 use crate::convert::{
-    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field, read_map_field,
-    read_string_field,
+    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field,
 };
 use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
-use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::Result;
+use crate::{make_entry, make_write_options};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
@@ -122,45 +121,13 @@ fn intern_write(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
+    let write_opts = make_write_options(env, &options)?;
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    let content_type = read_string_field(env, &options, "contentType")?;
-    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
-    let content_encoding = read_string_field(env, &options, "contentEncoding")?;
-    let cache_control = read_string_field(env, &options, "cacheControl")?;
-    let if_match = read_string_field(env, &options, "ifMatch")?;
-    let if_none_match = read_string_field(env, &options, "ifNoneMatch")?;
-    let append = read_bool_field(env, &options, "append")?;
-    let if_not_exists = read_bool_field(env, &options, "ifNotExists")?;
-    let user_metadata = read_map_field(env, &options, "userMetadata")?;
-
-    let mut write_op = op.write_with(&path, content);
-    if let Some(content_type) = content_type {
-        write_op = write_op.content_type(&content_type);
-    }
-    if let Some(content_disposition) = content_disposition {
-        write_op = write_op.content_disposition(&content_disposition);
-    }
-    if let Some(content_encoding) = content_encoding {
-        write_op = write_op.content_encoding(&content_encoding);
-    }
-    if let Some(cache_control) = cache_control {
-        write_op = write_op.cache_control(&cache_control);
-    }
-    if let Some(if_match) = if_match {
-        write_op = write_op.if_match(&if_match);
-    }
-    if let Some(if_none_match) = if_none_match {
-        write_op = write_op.if_none_match(&if_none_match);
-    }
-    if let Some(user_metadata) = user_metadata {
-        write_op = write_op.user_metadata(user_metadata);
-    }
-    write_op = write_op.if_not_exists(if_not_exists);
-    write_op = write_op.append(append);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = write_op
+        let result = op
+            .write_options(&path, content, write_opts)
             .await
             .map(|_| JValueOwned::Void)
             .map_err(Into::into);

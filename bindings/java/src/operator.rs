@@ -30,11 +30,11 @@ use opendal::options;
 
 use crate::convert::{
     bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_bool_field,
-    read_int64_field, read_map_field, read_string_field,
+    read_int64_field,
 };
-use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
+use crate::{make_entry, make_write_options};
 
 /// # Safety
 ///
@@ -127,25 +127,9 @@ fn intern_write(
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
+    let write_opts = make_write_options(env, &options)?;
 
-    let append = read_bool_field(env, &options, "append")?;
-    let content_type = read_string_field(env, &options, "contentType")?;
-    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
-    let cache_control = read_string_field(env, &options, "cacheControl")?;
-    let user_metadata = read_map_field(env, &options, "userMetadata")?;
-
-    let _ = op.write_options(
-        &path,
-        content,
-        options::WriteOptions {
-            append,
-            content_type,
-            content_disposition,
-            cache_control,
-            user_metadata,
-            ..Default::default()
-        },
-    )?;
+    let _ = op.write_options(&path, content, write_opts)?;
     Ok(())
 }
 

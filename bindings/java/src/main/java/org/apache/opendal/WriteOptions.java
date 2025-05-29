@@ -79,4 +79,16 @@ public class WriteOptions {
      * Requires capability: writeWithIfNotExists
      */
     public final boolean ifNotExists;
+
+    /**
+     * Sets concurrent write operations for this writer.
+     */
+    @Builder.Default
+    public final int concurrent = 1;
+
+    /**
+     * Sets chunk size for buffered writes.
+     */
+    @Builder.Default
+    public final long chunk = -1L;
 }

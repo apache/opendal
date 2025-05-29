@@ -213,7 +213,7 @@ inline opendal_required_capability make_capability_create_dir_list() {
 opendal_test_config* opendal_test_config_new();
 void opendal_test_config_free(opendal_test_config* config);
 bool opendal_check_capability(const opendal_operator* op, opendal_required_capability required);
-char* opendal_generate_random_path();
+char* opendal_generate_random_path(const char* base_root);
 char* opendal_generate_random_content(size_t length);
 void opendal_run_test_suite(opendal_test_suite* suite, opendal_test_config* config);
 void opendal_run_test_case(opendal_test_case* test_case, opendal_test_config* config, const char* suite_name);

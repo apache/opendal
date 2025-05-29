@@ -73,7 +73,20 @@ opendal_test_config* opendal_test_config_new() {
     // Generate random root if not disabled
     const char* disable_random_root = getenv("OPENDAL_DISABLE_RANDOM_ROOT");
     if (!disable_random_root || strcmp(disable_random_root, "true") != 0) {
-        config->random_root = opendal_generate_random_path();
+        // Get existing root configuration if any
+        const char* existing_root = NULL;
+        
+        // Check if root was already set from environment variables
+        char root_env_var[256];
+        snprintf(root_env_var, sizeof(root_env_var), "OPENDAL_%s_ROOT", scheme);
+        // Convert to uppercase
+        for (char* p = root_env_var; *p; ++p) {
+            *p = toupper(*p);
+        }
+        existing_root = getenv(root_env_var);
+        
+        // Generate random path based on existing root
+        config->random_root = opendal_generate_random_path(existing_root);
         opendal_operator_options_set(config->options, "root", config->random_root);
     } else {
         config->random_root = NULL;
@@ -138,15 +151,26 @@ bool opendal_check_capability(const opendal_operator* op, opendal_required_capab
     return result;
 }
 
-char* opendal_generate_random_path() {
+char* opendal_generate_random_path(const char* base_root) {
     uuid_t uuid;
     char uuid_str[37];
     
     uuid_generate(uuid);
     uuid_unparse(uuid, uuid_str);
     
-    char* path = (char*)malloc(64);
-    snprintf(path, 64, "/test_%s/", uuid_str);
+    char* path = (char*)malloc(512);  // Increase size to accommodate longer paths
+    if (!path) return NULL;
+    
+    if (base_root && strlen(base_root) > 0) {
+        // If base_root is provided, append the random UUID to it
+        // Ensure proper path separator handling
+        const char* separator = (base_root[strlen(base_root) - 1] == '/') ? "" : "/";
+        snprintf(path, 512, "%s%stest_%s/", base_root, separator, uuid_str);
+    } else {
+        // If no base_root, use /tmp as a safe default instead of filesystem root
+        snprintf(path, 512, "/tmp/test_%s/", uuid_str);
+    }
+    
     return path;
 }
 

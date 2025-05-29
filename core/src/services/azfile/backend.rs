@@ -45,9 +45,9 @@ impl From<AzureStorageConfig> for AzfileConfig {
             account_name: config.account_name,
             account_key: config.account_key,
             sas_token: config.sas_token,
-            endpoint: None, // endpoint is not part of AzureStorageConfig
-            root: None,     // root is not part of AzureStorageConfig
-            share_name: String::new(),
+            endpoint: config.endpoint,
+            root: None,                // root is not part of AzureStorageConfig
+            share_name: String::new(), // share_name is not part of AzureStorageConfig
         }
     }
 }

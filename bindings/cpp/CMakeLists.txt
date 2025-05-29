@@ -40,18 +40,13 @@ option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
 option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(OPENDAL_ENABLE_ASYNC)
-    set(CMAKE_CXX_STANDARD 20)
-
     if (NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
         message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
     endif()
-else()
-    set(CMAKE_CXX_STANDARD 20)
 endif()
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (OPENDAL_DEV)
@@ -85,7 +80,7 @@ endif()
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
     OUTPUT_VARIABLE CARGO_TARGET_DIR
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-get_filename_component(CARGO_TARGET_DIR ${CARGO_TARGET_DIR} DIRECTORY)
+cmake_path(GET CARGO_TARGET_DIR PARENT_PATH CARGO_TARGET_DIR)
 cmake_path(APPEND CARGO_TARGET_DIR "target" )
 
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)

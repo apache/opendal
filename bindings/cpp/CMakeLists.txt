@@ -40,6 +40,8 @@ option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
 option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)
@@ -48,7 +50,7 @@ if(OPENDAL_ENABLE_ASYNC)
         message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
     endif()
 else()
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD 20)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -83,7 +85,9 @@ endif()
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
     OUTPUT_VARIABLE CARGO_TARGET_DIR
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-string(REGEX REPLACE "/Cargo.toml\n$" "/target" CARGO_TARGET_DIR "${CARGO_TARGET_DIR}")
+get_filename_component(CARGO_TARGET_DIR ${CARGO_TARGET_DIR} DIRECTORY)
+cmake_path(APPEND CARGO_TARGET_DIR "target" )
+
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)
 set(RUST_SOURCE_FILE ${PROJECT_SOURCE_DIR}/src/lib.rs)
 list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
@@ -171,7 +175,7 @@ endif()
 
 # Platform-specific test configuration
 if(WIN32)
-    target_link_libraries(opendal_cpp userenv ws2_32 bcrypt)
+    target_link_libraries(opendal_cpp PRIVATE userenv ws2_32 bcrypt Ntdll.lib)
     set_target_properties(
             opendal_cpp
             PROPERTIES

@@ -142,7 +142,7 @@ fn collect_blob_development_config(
 
     const AZURITE_DEFAULT_BLOB_URI: &str = "http://127.0.0.1:10000";
 
-    if key_values.get("UseDevelopmentStorage") == Some(&"true".to_string()) {
+    if key_values.get("UseDevelopmentStorage") != Some(&"true".to_string()) {
         return None; // Not using development storage
     }
 

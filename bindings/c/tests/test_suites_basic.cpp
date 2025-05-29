@@ -21,8 +21,23 @@
 
 // Test: Basic check operation
 void test_check(opendal_test_context* ctx) {
-    opendal_error* error = opendal_operator_check(ctx->config->operator_instance);
-    OPENDAL_ASSERT_NO_ERROR(error, "Check operation should succeed");
+    // Get operator capabilities first
+    opendal_operator_info* info = opendal_operator_info_new(ctx->config->operator_instance);
+    OPENDAL_ASSERT_NOT_NULL(info, "Should be able to get operator info");
+    
+    opendal_capability cap = opendal_operator_info_get_full_capability(info);
+    
+    if (cap.list) {
+        // Only perform the standard check if list operations are supported
+        opendal_error* error = opendal_operator_check(ctx->config->operator_instance);
+        OPENDAL_ASSERT_NO_ERROR(error, "Check operation should succeed");
+    } else {
+        // For KV adapters that don't support list, the operator creation itself is the check
+        // If we got here, the operator is working properly
+        printf("Note: Skipping list-based check for KV adapter\n");
+    }
+    
+    opendal_operator_info_free(info);
 }
 
 // Test: Basic write and read operation

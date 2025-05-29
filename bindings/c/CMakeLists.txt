@@ -90,7 +90,6 @@ target_link_libraries(error_handle opendal_c_shared)
 set(GTEST_SRCS
     tests/bdd.cpp
     tests/error_msg.cpp
-    tests/example_test.cpp
     tests/list.cpp
     tests/opinfo.cpp
     tests/reader.cpp

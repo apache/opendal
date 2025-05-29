@@ -18,6 +18,7 @@
 // expose the opendal rust core as `core`.
 // We will use `ocore::Xxx` to represents all types from opendal rust core.
 pub use ::opendal as ocore;
+use opendal::raw::oio::List;
 use pyo3::prelude::*;
 
 mod capability;
@@ -54,6 +55,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Capability>()?;
 
     m.add_class::<WriteOptions>()?;
+    m.add_class::<ListOptions>()?;
 
     // Layer module
     let layers_module = PyModule::new(py, "layers")?;

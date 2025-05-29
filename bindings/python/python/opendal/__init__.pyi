@@ -136,7 +136,7 @@ class Operator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    def list(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
+    def list(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """List the objects at the given path.
 
         Args:
@@ -146,7 +146,7 @@ class Operator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    def scan(self, path: PathBuf) -> Iterable[Entry]:
+    def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
 
         Args:
@@ -280,9 +280,7 @@ class AsyncOperator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    async def list(
-        self, path: PathBuf, *, start_after: str | None = None
-    ) -> AsyncIterable[Entry]:
+    async def list(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """List the objects at the given path.
 
         Args:
@@ -292,7 +290,7 @@ class AsyncOperator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    async def scan(self, path: PathBuf) -> AsyncIterable[Entry]:
+    async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
 
         Args:

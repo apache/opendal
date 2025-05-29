@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+from datetime import datetime
 from collections.abc import AsyncIterable, Iterable
 from types import TracebackType
 from typing import Any, Union, final
@@ -585,6 +586,9 @@ class Entry:
     @property
     def path(self) -> str:
         """The path of the entry."""
+    @property
+    def metadata(self) -> Metadata:
+        """The metadata of the entry."""
 
 @final
 class Metadata:
@@ -601,11 +605,29 @@ class Metadata:
     def content_type(self) -> str | None:
         """The mime type of the object."""
     @property
+    def content_encoding(self) -> str | None:
+        """The content encoding of the object."""
+    @property
     def etag(self) -> str | None:
         """The ETag of the object."""
     @property
     def mode(self) -> EntryMode:
         """The mode of the object."""
+    @property
+    def is_file(self) -> bool:
+        """Returns `True` if this metadata is for a file."""
+    @property
+    def is_dir(self) -> bool:
+        """Returns `True` if this metadata is for a directory."""
+    @property
+    def last_modified(self) -> Optional[datetime]:
+        """The last modified time of the object."""
+    @property
+    def version(self) -> Optional[str]:
+        """The version of the object, if available."""
+    @property
+    def user_metadata(self) -> Optional[dict]:
+        """The user defined metadata of the object."""
 
 @final
 class EntryMode:

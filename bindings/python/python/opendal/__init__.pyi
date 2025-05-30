@@ -185,6 +185,7 @@ class Operator(_Base):
         """
     def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
+        Deprecated: use `list()` instead.
 
         Args:
             path (str|Path): The path to the directory.
@@ -366,6 +367,7 @@ class AsyncOperator(_Base):
         """
     async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
+        Deprecated: use `list()` instead.
 
         Args:
             path (str|Path): The path to the directory.

@@ -17,7 +17,6 @@
 
 use anyhow::{anyhow, Context};
 use anyhow::{bail, Result};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -200,7 +199,7 @@ pub struct ServiceParser {
 impl ServiceParser {
     /// Parse the content of this service.
     fn parse(&self) -> Result<Service> {
-        debug!("service {} parse started", self.service);
+        log::debug!("service {} parse started", self.service);
 
         let ast = syn::parse_file(&self.content)?;
 
@@ -223,7 +222,7 @@ impl ServiceParser {
             config.push(field);
         }
 
-        debug!("service {} parse finished", self.service);
+        log::debug!("service {} parse finished", self.service);
         Ok(Service { config })
     }
 

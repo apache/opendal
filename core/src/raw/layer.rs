@@ -57,13 +57,9 @@ use crate::*;
 /// impl<A: Access> LayeredAccess for TraceAccessor<A> {
 ///     type Inner = A;
 ///     type Reader = A::Reader;
-///     type BlockingReader = A::BlockingReader;
 ///     type Writer = A::Writer;
-///     type BlockingWriter = A::BlockingWriter;
 ///     type Lister = A::Lister;
-///     type BlockingLister = A::BlockingLister;
 ///     type Deleter = A::Deleter;
-///     type BlockingDeleter = A::BlockingDeleter;
 ///
 ///     fn inner(&self) -> &Self::Inner {
 ///         &self.inner
@@ -73,45 +69,17 @@ use crate::*;
 ///         self.inner.read(path, args).await
 ///     }
 ///
-///     fn blocking_read(
-///         &self,
-///         path: &str,
-///         args: OpRead,
-///     ) -> Result<(RpRead, Self::BlockingReader)> {
-///         self.inner.blocking_read(path, args)
-///     }
-///
 ///     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
 ///         self.inner.write(path, args).await
-///     }
-///
-///     fn blocking_write(
-///         &self,
-///         path: &str,
-///         args: OpWrite,
-///     ) -> Result<(RpWrite, Self::BlockingWriter)> {
-///         self.inner.blocking_write(path, args)
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
 ///         self.inner.list(path, args).await
 ///     }
 ///
-///     fn blocking_list(
-///         &self,
-///         path: &str,
-///         args: OpList,
-///     ) -> Result<(RpList, Self::BlockingLister)> {
-///         self.inner.blocking_list(path, args)
-///     }
-///
 ///     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-///        self.inner.delete().await
-///        }
-///
-///     fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-///        self.inner.blocking_delete()
-///    }
+///         self.inner.delete().await
+///     }
 /// }
 ///
 /// /// The public struct that exposed to users.
@@ -145,10 +113,6 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
     type Writer: oio::Write;
     type Lister: oio::List;
     type Deleter: oio::Delete;
-    type BlockingReader: oio::BlockingRead;
-    type BlockingWriter: oio::BlockingWrite;
-    type BlockingLister: oio::BlockingList;
-    type BlockingDeleter: oio::BlockingDelete;
 
     fn inner(&self) -> &Self::Inner;
 
@@ -213,30 +177,6 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
     ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
         self.inner().presign(path, args)
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner().blocking_create_dir(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)>;
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)>;
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner().blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner().blocking_rename(from, to, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner().blocking_stat(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)>;
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)>;
 }
 
 impl<L: LayeredAccess> Access for L {
@@ -244,11 +184,6 @@ impl<L: LayeredAccess> Access for L {
     type Writer = L::Writer;
     type Lister = L::Lister;
     type Deleter = L::Deleter;
-
-    type BlockingReader = L::BlockingReader;
-    type BlockingWriter = L::BlockingWriter;
-    type BlockingLister = L::BlockingLister;
-    type BlockingDeleter = L::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         LayeredAccess::info(self)
@@ -289,38 +224,6 @@ impl<L: LayeredAccess> Access for L {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         LayeredAccess::presign(self, path, args).await
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        LayeredAccess::blocking_create_dir(self, path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        LayeredAccess::blocking_read(self, path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        LayeredAccess::blocking_write(self, path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        LayeredAccess::blocking_copy(self, from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        LayeredAccess::blocking_rename(self, from, to, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        LayeredAccess::blocking_stat(self, path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        LayeredAccess::blocking_delete(self)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        LayeredAccess::blocking_list(self, path, args)
-    }
 }
 
 #[cfg(test)]
@@ -352,16 +255,12 @@ mod tests {
 
     impl<A: Access> Access for Test<A> {
         type Reader = ();
-        type BlockingReader = ();
         type Writer = ();
-        type BlockingWriter = ();
         type Lister = ();
-        type BlockingLister = ();
         type Deleter = ();
-        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
+            let am = AccessorInfo::default();
             am.set_scheme(Scheme::Custom("test"));
             am.into()
         }

@@ -15,47 +15,158 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::GhacBackend;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::core::AzblobCore;
+use crate::services::writer::AzblobWriter;
 use crate::*;
 
-pub struct GhacWriter {
-    backend: GhacBackend,
-
-    cache_id: i64,
-    size: u64,
-}
+pub type GhacWriter = TwoWays<GhacWriterV1, GhacWriterV2>;
 
 impl GhacWriter {
-    pub fn new(backend: GhacBackend, cache_id: i64) -> Self {
-        GhacWriter {
-            backend,
-            cache_id,
-            size: 0,
+    /// TODO: maybe we can move the signed url logic to azblob service instead.
+    pub fn new(core: Arc<GhacCore>, write_path: String, url: String) -> Result<Self> {
+        match core.service_version {
+            GhacVersion::V1 => Ok(TwoWays::One(GhacWriterV1 {
+                core,
+                path: write_path,
+                url,
+                size: 0,
+            })),
+            GhacVersion::V2 => {
+                let uri = http::Uri::from_str(&url)
+                    .map_err(new_http_uri_invalid_error)?
+                    .into_parts();
+                let (Some(scheme), Some(authority), Some(pq)) =
+                    (uri.scheme, uri.authority, uri.path_and_query)
+                else {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "ghac returns invalid signed url",
+                    )
+                    .with_context("url", &url));
+                };
+                let endpoint = format!("{scheme}://{authority}");
+                let Some((container, path)) = pq.path().trim_matches('/').split_once("/") else {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "ghac returns invalid signed url that bucket or path is missing",
+                    )
+                    .with_context("url", &url));
+                };
+                let Some(query) = pq.query() else {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "ghac returns invalid signed url that sas is missing",
+                    )
+                    .with_context("url", &url));
+                };
+                let azure_core = Arc::new(AzblobCore {
+                    info: {
+                        let am = AccessorInfo::default();
+                        am.set_scheme(Scheme::Azblob)
+                            .set_root("/")
+                            .set_name(container)
+                            .set_native_capability(Capability {
+                                stat: true,
+                                stat_with_if_match: true,
+                                stat_with_if_none_match: true,
+                                stat_has_cache_control: true,
+                                stat_has_content_length: true,
+                                stat_has_content_type: true,
+                                stat_has_content_encoding: true,
+                                stat_has_content_range: true,
+                                stat_has_etag: true,
+                                stat_has_content_md5: true,
+                                stat_has_last_modified: true,
+                                stat_has_content_disposition: true,
+
+                                read: true,
+
+                                read_with_if_match: true,
+                                read_with_if_none_match: true,
+                                read_with_override_content_disposition: true,
+                                read_with_if_modified_since: true,
+                                read_with_if_unmodified_since: true,
+
+                                write: true,
+                                write_can_append: true,
+                                write_can_empty: true,
+                                write_can_multi: true,
+                                write_with_cache_control: true,
+                                write_with_content_type: true,
+                                write_with_if_not_exists: true,
+                                write_with_if_none_match: true,
+                                write_with_user_metadata: true,
+
+                                copy: true,
+
+                                list: true,
+                                list_with_recursive: true,
+                                list_has_etag: true,
+                                list_has_content_length: true,
+                                list_has_content_md5: true,
+                                list_has_content_type: true,
+                                list_has_last_modified: true,
+
+                                shared: true,
+
+                                ..Default::default()
+                            });
+
+                        am.into()
+                    },
+                    container: container.to_string(),
+                    root: "/".to_string(),
+                    endpoint,
+                    encryption_key: None,
+                    encryption_key_sha256: None,
+                    encryption_algorithm: None,
+                    loader: {
+                        let config = reqsign::AzureStorageConfig {
+                            sas_token: Some(query.to_string()),
+                            ..Default::default()
+                        };
+                        reqsign::AzureStorageLoader::new(config)
+                    },
+                    signer: { reqsign::AzureStorageSigner::new() },
+                });
+                let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());
+                let writer = oio::BlockWriter::new(core.info.clone(), w, 4);
+                Ok(TwoWays::Two(GhacWriterV2 {
+                    core,
+                    writer,
+                    path: write_path,
+                    url,
+                    size: 0,
+                }))
+            }
         }
     }
 }
 
-impl oio::Write for GhacWriter {
+pub struct GhacWriterV1 {
+    core: Arc<GhacCore>,
+
+    path: String,
+    url: String,
+    size: u64,
+}
+
+impl oio::Write for GhacWriterV1 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let size = bs.len();
+        let size = bs.len() as u64;
         let offset = self.size;
 
-        let req = self.backend.ghac_upload(
-            self.cache_id,
-            offset,
-            size as u64,
-            Buffer::from(bs.to_bytes()),
-        )?;
-
-        let resp = self.backend.client.send(req).await?;
-
+        let resp = self.core.ghac_v1_write(&self.url, size, offset, bs).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
         }
-
-        self.size += size as u64;
+        self.size += size;
         Ok(())
     }
 
@@ -63,14 +174,42 @@ impl oio::Write for GhacWriter {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
-        let req = self.backend.ghac_commit(self.cache_id, self.size)?;
-        let resp = self.backend.client.send(req).await?;
+    async fn close(&mut self) -> Result<Metadata> {
+        self.core
+            .ghac_finalize_upload(&self.path, &self.url, self.size)
+            .await?;
+        Ok(Metadata::default().with_content_length(self.size))
+    }
+}
 
-        if resp.status().is_success() {
-            Ok(())
-        } else {
-            Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_commit")))
-        }
+pub struct GhacWriterV2 {
+    core: Arc<GhacCore>,
+    writer: oio::BlockWriter<AzblobWriter>,
+
+    path: String,
+    url: String,
+    size: u64,
+}
+
+impl oio::Write for GhacWriterV2 {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let size = bs.len() as u64;
+
+        self.writer.write(bs).await?;
+        self.size += size;
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.writer.close().await?;
+        let _ = self
+            .core
+            .ghac_finalize_upload(&self.path, &self.url, self.size)
+            .await;
+        Ok(Metadata::default().with_content_length(self.size))
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 }

@@ -24,11 +24,11 @@ use jni::sys::jint;
 use jni::sys::jlong;
 use jni::JNIEnv;
 use opendal::raw::PresignedRequest;
-use opendal::Capability;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
 use opendal::OperatorInfo;
+use opendal::{Capability, Error, ErrorKind};
 
 mod async_operator;
 mod convert;
@@ -94,7 +94,7 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
 fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability = env.new_object(
         "org/apache/opendal/Capability",
-        "(ZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZ)V",
+        "(ZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZ)V",
         &[
             JValue::Bool(cap.stat as jboolean),
             JValue::Bool(cap.stat_with_if_match as jboolean),
@@ -111,6 +111,10 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.write_with_content_type as jboolean),
             JValue::Bool(cap.write_with_content_disposition as jboolean),
             JValue::Bool(cap.write_with_cache_control as jboolean),
+            JValue::Bool(cap.write_with_if_match as jboolean),
+            JValue::Bool(cap.write_with_if_none_match as jboolean),
+            JValue::Bool(cap.write_with_if_not_exists as jboolean),
+            JValue::Bool(cap.write_with_user_metadata as jboolean),
             JValue::Long(convert::usize_to_jlong(cap.write_multi_max_size)),
             JValue::Long(convert::usize_to_jlong(cap.write_multi_min_size)),
             JValue::Bool(cap.create_dir as jboolean),
@@ -126,7 +130,6 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.presign_stat as jboolean),
             JValue::Bool(cap.presign_write as jboolean),
             JValue::Bool(cap.shared as jboolean),
-            JValue::Bool(cap.blocking as jboolean),
         ],
     )?;
     Ok(capability)
@@ -198,4 +201,45 @@ fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
         "(Ljava/lang/String;Lorg/apache/opendal/Metadata;)V",
         &[JValue::Object(&path), JValue::Object(&metadata)],
     )?)
+}
+
+fn make_write_options<'a>(
+    env: &mut JNIEnv<'a>,
+    options: &JObject,
+) -> Result<opendal::options::WriteOptions> {
+    let concurrent = match convert::read_int_field(env, options, "concurrent")? {
+        v if v > 0 => v as usize,
+        v => {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Concurrent must be positive, instead got: {}", v),
+            )
+            .into())
+        }
+    };
+    let chunk = match convert::read_int64_field(env, options, "chunk")? {
+        -1 => None,
+        v if v >= 0 => Some(v as usize),
+        v => {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Chunk must be positive, instead got: {}", v),
+            )
+            .into())
+        }
+    };
+
+    Ok(opendal::options::WriteOptions {
+        append: convert::read_bool_field(env, options, "append").unwrap_or_default(),
+        content_type: convert::read_string_field(env, options, "contentType")?,
+        content_disposition: convert::read_string_field(env, options, "contentDisposition")?,
+        content_encoding: convert::read_string_field(env, options, "contentEncoding")?,
+        cache_control: convert::read_string_field(env, options, "cacheControl")?,
+        if_match: convert::read_string_field(env, options, "ifMatch")?,
+        if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_not_exists: convert::read_bool_field(env, options, "ifNotExists").unwrap_or_default(),
+        user_metadata: convert::read_map_field(env, options, "userMetadata")?,
+        concurrent,
+        chunk,
+    })
 }

@@ -2,8 +2,9 @@
 
 [![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
 [![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
+[![](https://deepwiki.com/badge.svg)](https://deepwiki.com/apache/opendal)
 
-OpenDAL is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 
 OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
 
@@ -11,24 +12,25 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* languages
 
-| Name              | Release                                          | Docs                                                                              |
-| ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       |
-| [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 |
-| [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               |
-| [D Binding]   | -                                                | -                                                                                 |
-| [Dotnet Binding]  | -                                                | -                                                                                 |
-| [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                         |
-| [Haskell Binding] | -                                                | -                                                                                 |
-| [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] |
-| [Lua Binding]     | -                                                | -                                                                                 |
-| [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           |
-| [Ocaml Binding]   | -                                                | -                                                                                 |
-| [PHP Binding]     | -                                                | -                                                                                 |
-| [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            |
-| [Ruby Binding]    | -                                                | -                                                                                 |
-| [Swift Binding]   | -                                                | -                                                                                 |
-| [Zig Binding]     | -                                                | -                                                                                 |
+| Name              | Release                                          | Docs                                                                              | Used By |
+| ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------- |
+| [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       | [![Rust Core Users Image]][Rust Core Users]            |
+| [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 | [![C Binding Users Image]][C Binding Users]            |
+| [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               | - |
+| [D Binding]       | -                                                | -                                                                                 | - |
+| [Dart Binding]    | -                                                | -                                                                                 | - |
+| [Dotnet Binding]  | -                                                | -                                                                                 | - |
+| [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                                | - |
+| [Haskell Binding] | -                                                | -                                                                                 | - |
+| [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] | [![Java Binding Users Image]][Java Binding Users]   |
+| [Lua Binding]     | -                                                | -                                                                                 | - |
+| [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           | - |
+| [OCaml Binding]   | -                                                | -                                                                                 | - |
+| [PHP Binding]     | -                                                | -                                                                                 | - |
+| [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            | [![Python Binding Users Image]][Python Binding Users] |
+| [Ruby Binding]    | -                                                | -                                                                                 | - |
+| [Swift Binding]   | -                                                | -                                                                                 | - |
+| [Zig Binding]     | -                                                | -                                                                                 | - |
 
 [Docs Release]: https://img.shields.io/badge/docs-release-blue
 [Docs Dev]: https://img.shields.io/badge/docs-dev-blue
@@ -37,11 +39,17 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Rust Core Link]: https://crates.io/crates/opendal
 [Rust Core Release Docs]: https://docs.rs/opendal
 [Rust Core Dev Docs]: https://opendal.apache.org/docs/rust/opendal/
+[Rust Core Users Image]: https://github.com/user-attachments/assets/2726c336-8509-491d-92d8-1be2040d5136
+[Rust Core Users]: core/users.md
+
 [C Binding]: bindings/c/README.md
 [C Binding Dev Docs]: https://opendal.apache.org/docs/c/
+[C Binding Users Image]: https://github.com/user-attachments/assets/b1cf4d79-8478-4eac-ae04-0bbe0d6a993d
+[C Binding Users]: bindings/c/users.md
 [Cpp Binding]: bindings/cpp/README.md
 [Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
 [D Binding]: bindings/d/README.md
+[Dart Binding]: bindings/dart/README.md
 [Dotnet Binding]: bindings/dotnet/README.md
 [Go Binding]: bindings/go/README.md
 [Go Binding Image]: https://badge.fury.io/go/github.com%2Fapache%2Fopendal%2Fbindings%2Fgo.svg
@@ -53,17 +61,21 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
 [Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
 [Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
+[Java Binding Users Image]: https://github.com/user-attachments/assets/f20a59a9-8f23-4919-a165-980ed4e6e0d0
+[Java Binding Users]: bindings/java/users.md
 [Lua Binding]: bindings/lua/README.md
 [Node.js Binding]: bindings/nodejs/README.md
 [Node.js Binding Image]: https://img.shields.io/npm/v/opendal
 [Node.js Binding Link]: https://www.npmjs.com/package/opendal
 [Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
-[Ocaml Binding]: bindings/ocaml/README.md
+[OCaml Binding]: bindings/ocaml/README.md
 [PHP Binding]: bindings/php/README.md
 [Python Binding]: bindings/python/README.md
 [Python Binding Image]: https://img.shields.io/pypi/v/opendal
 [Python Binding Link]: https://pypi.org/project/opendal/
 [Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
+[Python Binding Users Image]: https://github.com/user-attachments/assets/6bba7e5b-cada-4cf2-81e3-09d4e4535dcb 
+[Python Binding Users]: bindings/python/users.md
 [Ruby Binding]: bindings/ruby/README.md
 [Swift Binding]: bindings/swift/README.md
 [Zig Binding]: bindings/zig/README.md
@@ -144,7 +156,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [chainsafe] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                            |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                                        |
 | Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
 | Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
@@ -168,7 +180,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
 [azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
 [azfile]: https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api
-[chainsafe]: https://storage.chainsafe.io/
 [compfs]: https://github.com/compio-rs/compio/
 [dbfs]: https://docs.databricks.com/en/dbfs/index.html
 [gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/
@@ -232,31 +243,6 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - Start [Discussions](https://github.com/apache/opendal/discussions/new?category=q-a) for questions or ideas.
 - Talk to community directly at [Discord](https://opendal.apache.org/discord).
 - Report security vulnerabilities to [private mailing list](mailto:private@opendal.apache.org)
-
-## Who is using OpenDAL?
-
-### Rust Core
-
-- [apache/iceberg-rust](https://github.com/apache/iceberg-rust/): Native Rust implementation of [Apache Iceberg](https://iceberg.apache.org/), the open table format for analytic datasets.
-- [CrateDB](https://github.com/crate/crate): An open-source, distributed SQL database  for Real-Time Analytics and Hybrid Search
-- [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
-- [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
-- [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
-- [mozilla/sccache](https://github.com/mozilla/sccache/): `sccache` is [`ccache`](https://github.com/ccache/ccache) with cloud storage
-- [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
-- [ParadeDB](https://github.com/paradedb/paradedb): Postgres for Search and Analytics - fast full-text search and analytics in Postgres and over cloud storage. Built as an extension.
-- [Pants](https://github.com/pantsbuild/pants): A fast, scalable, user-friendly build system for codebases of all sizes.
-- [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
-- [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
-- [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
-
-### C Binding
-
-- [Milvus](https://github.com/milvus-io/milvus): A cloud-native vector database, storage for next generation AI applications
-
-### Java Binding
-
-- [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 
 ## Branding
 

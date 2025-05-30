@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -28,8 +26,6 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
-use serde::Deserialize;
-use serde_json;
 
 use super::core::*;
 use super::delete::GcsDeleter;
@@ -47,6 +43,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 
 impl Configurator for GcsConfig {
     type Builder = GcsBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
@@ -62,6 +60,7 @@ impl Configurator for GcsConfig {
 pub struct GcsBuilder {
     config: GcsConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
     customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
@@ -163,6 +162,8 @@ impl GcsBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -260,15 +261,6 @@ impl Builder for GcsBuilder {
         }?;
 
         // TODO: server side encryption
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs)
-            })?
-        };
 
         let endpoint = self
             .config
@@ -374,7 +366,7 @@ impl Access for GcsBackend {
                 stat_has_last_modified: true,
                 stat_has_user_metadata: true,
 
-                read: true,
+                            read: true,
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,
@@ -387,18 +379,18 @@ impl Access for GcsBackend {
                 write_with_user_metadata: true,
                 write_with_if_not_exists: !self.core.enable_versioning,
 
-                // The min multipart size of Gcs is 5 MiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of Gcs is 5 GiB.
-                //
-                // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
+                            // The min multipart size of Gcs is 5 MiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of Gcs is 5 GiB.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
 
                 delete: true,
                 delete_max_size: Some(100),
@@ -417,16 +409,56 @@ impl Access for GcsBackend {
                 list_with_versions: self.core.enable_versioning,
                 list_with_deleted: self.core.enable_versioning,
 
-                presign: true,
-                presign_stat: true,
-                presign_read: true,
-                presign_write: true,
+                            presign: true,
+                            presign_stat: true,
+                            presign_read: true,
+                            presign_write: true,
 
-                shared: true,
+                            shared: true,
 
-                ..Default::default()
-            });
-        am.into()
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
+                endpoint,
+                bucket: bucket.to_string(),
+                root,
+                signer,
+                token_loader,
+                token: self.config.token,
+                scope: scope.to_string(),
+                credential_loader: cred_loader,
+                predefined_acl: self.config.predefined_acl.clone(),
+                default_storage_class: self.config.default_storage_class.clone(),
+                allow_anonymous: self.config.allow_anonymous,
+            }),
+        };
+
+        Ok(backend)
+    }
+}
+
+/// GCS storage backend
+#[derive(Clone, Debug)]
+pub struct GcsBackend {
+    core: Arc<GcsCore>,
+}
+
+impl Access for GcsBackend {
+    type Reader = HttpBody;
+    type Writer = GcsWriters;
+    type Lister = oio::PageLister<GcsLister>;
+    type Deleter = oio::BatchDeleter<GcsDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -484,9 +516,8 @@ impl Access for GcsBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::MultipartWriter::new(w, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), w, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -517,15 +548,19 @@ impl Access for GcsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
+        let req = match args.operation() {
+            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v),
             PresignOperation::Write(v) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, v, Buffer::new())?
+                    .gcs_insert_object_xml_request(path, v, Buffer::new())
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         };
-
+        let mut req = req?;
         self.core.sign_query(&mut req, args.expire())?;
 
         // We don't need this request anymore, consume it directly.

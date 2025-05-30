@@ -17,10 +17,7 @@
 
 module BasicTest (basicTests) where
 
-import Colog (LogAction (LogAction), Msg (msgText))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.IORef
-import qualified Data.Text as T
 import OpenDAL
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -105,11 +102,3 @@ testError = do
 
 (?=) :: (MonadIO m, Eq a, Show a) => m a -> a -> m ()
 result ?= except = result >>= liftIO . (@?= except)
-
-findLister :: Lister -> String -> IO Bool
-findLister lister key = do
-  res <- nextLister lister
-  case res of
-    Left _ -> return False
-    Right Nothing -> return False
-    Right (Just k) -> if k == key then return True else findLister lister key

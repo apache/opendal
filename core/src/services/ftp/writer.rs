@@ -20,7 +20,7 @@ use bytes::Buf;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
-use super::backend::Manager;
+use super::core::Manager;
 use super::err::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -90,7 +90,7 @@ impl oio::Write for FtpWriter {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let data_stream = self.data_stream.take();
         if let Some(mut data_stream) = data_stream {
             data_stream.flush().await.map_err(|err| {
@@ -110,7 +110,7 @@ impl oio::Write for FtpWriter {
             }
         }
 
-        Ok(())
+        Ok(Metadata::default())
     }
 
     async fn abort(&mut self) -> Result<()> {

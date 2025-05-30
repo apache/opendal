@@ -24,8 +24,8 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.75"
-version = "0.45.14"
+rust-version = "1.80"
+version = "0.45.20"
 
 [features]
 default = [
@@ -53,7 +53,6 @@ services-all = [
   "services-aliyun-drive",
   "services-azfile",
   "services-cacache",
-  "services-chainsafe",
   "services-dashmap",
   "services-dropbox",
   # FIXME this service need protoc
@@ -64,6 +63,7 @@ services-all = [
   "services-gdrive",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
+  # "services-hdfs-native",
   "services-huggingface",
   "services-ipfs",
   "services-memcached",
@@ -78,7 +78,6 @@ services-all = [
   # FIXME how to support rocksdb services in bindings?
   # "services-rocksdb",
   "services-sled",
-  "services-supabase",
   "services-swift",
   # FIXME this service need protoc
   # "services-tikv",
@@ -86,7 +85,6 @@ services-all = [
   "services-mongodb",
   "services-gridfs",
   "services-sqlite",
-  "services-libsql",
   "services-alluxio",
   "services-b2",
   "services-seafile",
@@ -99,7 +97,6 @@ services-all = [
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
-services-chainsafe = ["opendal/services-chainsafe"]
 services-cos = ["opendal/services-cos"]
 services-fs = ["opendal/services-fs"]
 services-gcs = ["opendal/services-gcs"]
@@ -126,10 +123,10 @@ services-ftp = ["opendal/services-ftp"]
 services-gdrive = ["opendal/services-gdrive"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
+services-hdfs-native = ["opendal/services-hdfs-native"]
 services-huggingface = ["opendal/services-huggingface"]
 services-ipfs = ["opendal/services-ipfs"]
 services-koofr = ["opendal/services-koofr"]
-services-libsql = ["opendal/services-libsql"]
 services-memcached = ["opendal/services-memcached"]
 services-mini-moka = ["opendal/services-mini-moka"]
 services-moka = ["opendal/services-moka"]
@@ -146,7 +143,6 @@ services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
-services-supabase = ["opendal/services-supabase"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
@@ -161,19 +157,22 @@ doc = false
 
 [dependencies]
 bytes = "1.5.0"
+chrono = "0.4"
 dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
-  "layers-blocking",
+  "blocking",
+  "layers-mime-guess"
 ] }
-pyo3 = { version = "0.23.3", features = ["generate-import-lib"] }
-pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime"] }
+pyo3 = { version = "0.24.1", features = ["generate-import-lib", "chrono"] }
+pyo3-async-runtimes = { version = "0.24.0", features = ["tokio-runtime"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
 features = [
-  "layers-blocking",
+  "blocking",
+  "layers-mime-guess",
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",
 ]

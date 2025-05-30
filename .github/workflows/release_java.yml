@@ -31,6 +31,9 @@ on:
       - "bindings/java/tools/build.py"
   workflow_dispatch:
 
+env:
+  CARGO_BUILD_ENABLE_ZIGBUILD: "true"
+
 jobs:
   stage-snapshot:
     runs-on: ${{ matrix.os }}
@@ -90,7 +93,7 @@ jobs:
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
-            -Dcargo-build.enableZigbuild=true \
+            -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \

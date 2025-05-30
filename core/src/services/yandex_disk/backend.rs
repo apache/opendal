@@ -20,8 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -38,6 +36,8 @@ use crate::*;
 
 impl Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         YandexDiskBuilder {
             config: self,
@@ -52,6 +52,7 @@ impl Configurator for YandexDiskConfig {
 pub struct YandexDiskBuilder {
     config: YandexDiskConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -94,6 +95,8 @@ impl YandexDiskBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -120,20 +123,52 @@ impl Builder for YandexDiskBuilder {
             );
         }
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::YandexDisk)
-            })?
-        };
-
         Ok(YandexDiskBackend {
             core: Arc::new(YandexDiskCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::YandexDisk)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_last_modified: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_type: true,
+                            stat_has_content_length: true,
+
+                            create_dir: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+
+                            delete: true,
+                            rename: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_has_last_modified: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+                            list_has_content_length: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 root,
                 access_token: self.config.access_token.clone(),
-                client,
             }),
         })
     }
@@ -150,46 +185,9 @@ impl Access for YandexDiskBackend {
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::YandexDisk)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_last_modified: true,
-                stat_has_content_md5: true,
-                stat_has_content_type: true,
-                stat_has_content_length: true,
-
-                create_dir: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-
-                delete: true,
-                rename: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_has_last_modified: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-                list_has_content_length: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -225,14 +223,7 @@ impl Access for YandexDiskBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        // TODO: move this out of reader.
-        let download_url = self.core.get_download_url(path).await?;
-
-        let req = Request::get(download_url)
-            .header(header::RANGE, args.range().to_header())
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        let resp = self.core.client.fetch(req).await?;
+        let resp = self.core.download(path, args.range()).await?;
 
         let status = resp.status();
         match status {

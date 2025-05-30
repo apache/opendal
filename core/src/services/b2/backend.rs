@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -30,7 +29,6 @@ use super::core::constants;
 use super::core::parse_file_info;
 use super::core::B2Core;
 use super::core::B2Signer;
-use super::core::ListFileNamesResponse;
 use super::delete::B2Deleter;
 use super::error::parse_error;
 use super::lister::B2Lister;
@@ -42,6 +40,8 @@ use crate::*;
 
 impl Configurator for B2Config {
     type Builder = B2Builder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         B2Builder {
             config: self,
@@ -56,6 +56,7 @@ impl Configurator for B2Config {
 pub struct B2Builder {
     config: B2Config,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -126,6 +127,8 @@ impl B2Builder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -179,15 +182,6 @@ impl Builder for B2Builder {
             ),
         }?;
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::B2)
-            })?
-        };
-
         let signer = B2Signer {
             application_key_id,
             application_key,
@@ -196,12 +190,69 @@ impl Builder for B2Builder {
 
         Ok(B2Backend {
             core: Arc::new(B2Core {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::B2)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_type: true,
+
+                            read: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_content_type: true,
+                            // The min multipart size of b2 is 5 MiB.
+                            //
+                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of b2 is 5 Gb.
+                            //
+                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+
+                            delete: true,
+                            copy: true,
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_content_md5: true,
+                            list_has_content_type: true,
+
+                            presign: true,
+                            presign_read: true,
+                            presign_write: true,
+                            presign_stat: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 signer: Arc::new(RwLock::new(signer)),
                 root,
 
                 bucket: self.config.bucket.clone(),
                 bucket_id: self.config.bucket_id.clone(),
-                client,
             }),
         })
     }
@@ -218,62 +269,9 @@ impl Access for B2Backend {
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::B2)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_content_md5: true,
-                stat_has_content_type: true,
-
-                read: true,
-
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                // The min multipart size of b2 is 5 MiB.
-                //
-                // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_min_size: Some(5 * 1024 * 1024),
-                // The max multipart size of b2 is 5 Gb.
-                //
-                // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-
-                delete: true,
-                copy: true,
-
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-                list_has_content_md5: true,
-                list_has_content_type: true,
-
-                presign: true,
-                presign_read: true,
-                presign_write: true,
-                presign_stat: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-
-        am.into()
+        self.core.info.clone()
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
@@ -285,27 +283,10 @@ impl Access for B2Backend {
         }
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
-        let resp = self
-            .core
-            .list_file_names(Some(path), delimiter, None, None)
-            .await?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-                let meta = parse_file_info(&resp.files[0]);
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let file_info = self.core.get_file_info(path, delimiter).await?;
+        let meta = parse_file_info(&file_info);
+        Ok(RpStat::new(meta))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -329,10 +310,9 @@ impl Access for B2Backend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let concurrent = args.concurrent();
-        let executor = args.executor().cloned();
         let writer = B2Writer::new(self.core.clone(), path, args);
 
-        let w = oio::MultipartWriter::new(writer, executor, concurrent);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -358,28 +338,9 @@ impl Access for B2Backend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self
-            .core
-            .list_file_names(Some(from), None, None, None)
-            .await?;
+        let file_info = self.core.get_file_info(from, None).await?;
 
-        let status = resp.status();
-
-        let source_file_id = match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-
-                let resp: ListFileNamesResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if resp.files.is_empty() {
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-
-                let file_id = resp.files[0].clone().file_id;
-                Ok(file_id)
-            }
-            _ => Err(parse_error(resp)),
-        }?;
+        let source_file_id = file_info.file_id;
 
         let Some(source_file_id) = source_file_id else {
             return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
@@ -471,6 +432,10 @@ impl Access for B2Backend {
                     parts.headers,
                 )))
             }
+            PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         }
     }
 }

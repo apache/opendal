@@ -17,6 +17,9 @@
 
 use std::fmt::Debug;
 use std::future::ready;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::mem;
 use std::sync::Arc;
 
 use futures::Future;
@@ -63,15 +66,6 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     type Lister: oio::List;
     /// Deleter is the associated deleter returned in `delete` operation.
     type Deleter: oio::Delete;
-
-    /// BlockingReader is the associated reader returned `blocking_read` operation.
-    type BlockingReader: oio::BlockingRead;
-    /// BlockingWriter is the associated writer returned `blocking_write` operation.
-    type BlockingWriter: oio::BlockingWrite;
-    /// BlockingLister is the associated lister returned `blocking_list` operation.
-    type BlockingLister: oio::BlockingList;
-    /// BlockingDeleter is the associated deleter returned `blocking_delete` operation.
-    type BlockingDeleter: oio::BlockingDelete;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -263,120 +257,6 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         )))
     }
-
-    /// Invoke the `blocking_create` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::create_dir`]
-    ///
-    /// Require [`Capability::create_dir`] and [`Capability::blocking`]
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_stat` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::stat`]
-    ///
-    /// Require [`Capability::stat`] and [`Capability::blocking`]
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_read` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::read`]
-    ///
-    /// Require [`Capability::read`] and [`Capability::blocking`]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_write` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::write`]
-    ///
-    /// Require [`Capability::write`] and [`Capability::blocking`]
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_delete` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::delete`]
-    ///
-    /// Require [`Capability::write`] and [`Capability::blocking`]
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_list` operation on the specified path.
-    ///
-    /// This operation is the blocking version of [`Accessor::list`]
-    ///
-    /// Require [`Capability::list`] and [`Capability::blocking`]
-    ///
-    /// # Behavior
-    ///
-    /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_copy` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::copy`]
-    ///
-    /// Require [`Capability::copy`] and [`Capability::blocking`]
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `blocking_rename` operation on the specified `from` path and `to` path.
-    ///
-    /// This operation is the blocking version of [`Accessor::rename`]
-    ///
-    /// Require [`Capability::rename`] and [`Capability::blocking`]
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let (_, _, _) = (from, to, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
 }
 
 /// `AccessDyn` is the dyn version of [`Access`] make it possible to use as
@@ -432,39 +312,15 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         path: &'a str,
         args: OpPresign,
     ) -> BoxedFuture<'a, Result<RpPresign>>;
-    /// Dyn version of [`Accessor::blocking_create_dir`]
-    fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir>;
-    /// Dyn version of [`Accessor::blocking_stat`]
-    fn blocking_stat_dyn(&self, path: &str, args: OpStat) -> Result<RpStat>;
-    /// Dyn version of [`Accessor::blocking_read`]
-    fn blocking_read_dyn(&self, path: &str, args: OpRead) -> Result<(RpRead, oio::BlockingReader)>;
-    /// Dyn version of [`Accessor::blocking_write`]
-    fn blocking_write_dyn(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::BlockingWriter)>;
-    /// Dyn version of [`Accessor::blocking_delete`]
-    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)>;
-    /// Dyn version of [`Accessor::blocking_list`]
-    fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)>;
-    /// Dyn version of [`Accessor::blocking_copy`]
-    fn blocking_copy_dyn(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy>;
-    /// Dyn version of [`Accessor::blocking_rename`]
-    fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename>;
 }
 
 impl<A: ?Sized> AccessDyn for A
 where
     A: Access<
         Reader = oio::Reader,
-        BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
-        BlockingWriter = oio::BlockingWriter,
         Lister = oio::Lister,
-        BlockingLister = oio::BlockingLister,
         Deleter = oio::Deleter,
-        BlockingDeleter = oio::BlockingDeleter,
     >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {
@@ -536,53 +392,13 @@ where
     ) -> BoxedFuture<'a, Result<RpPresign>> {
         Box::pin(self.presign(path, args))
     }
-
-    fn blocking_create_dir_dyn(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.blocking_create_dir(path, args)
-    }
-
-    fn blocking_stat_dyn(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.blocking_stat(path, args)
-    }
-
-    fn blocking_read_dyn(&self, path: &str, args: OpRead) -> Result<(RpRead, oio::BlockingReader)> {
-        self.blocking_read(path, args)
-    }
-
-    fn blocking_write_dyn(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::BlockingWriter)> {
-        self.blocking_write(path, args)
-    }
-
-    fn blocking_delete_dyn(&self) -> Result<(RpDelete, oio::BlockingDeleter)> {
-        self.blocking_delete()
-    }
-
-    fn blocking_list_dyn(&self, path: &str, args: OpList) -> Result<(RpList, oio::BlockingLister)> {
-        self.blocking_list(path, args)
-    }
-
-    fn blocking_copy_dyn(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename_dyn(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.blocking_rename(from, to, args)
-    }
 }
 
 impl Access for dyn AccessDyn {
     type Reader = oio::Reader;
-    type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
     type Deleter = oio::Deleter;
-    type BlockingWriter = oio::BlockingWriter;
     type Lister = oio::Lister;
-    type BlockingLister = oio::BlockingLister;
-    type BlockingDeleter = oio::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info_dyn()
@@ -623,38 +439,6 @@ impl Access for dyn AccessDyn {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.presign_dyn(path, args).await
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.blocking_create_dir_dyn(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.blocking_read_dyn(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.blocking_stat_dyn(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.blocking_write_dyn(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.blocking_delete_dyn()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.blocking_list_dyn(path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.blocking_copy_dyn(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.blocking_rename_dyn(from, to, args)
-    }
 }
 
 /// Dummy implementation of accessor.
@@ -663,20 +447,14 @@ impl Access for () {
     type Writer = ();
     type Lister = ();
     type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        AccessorInfo {
-            scheme: Scheme::Custom("dummy"),
-            root: "".to_string(),
-            name: "dummy".to_string(),
-            native_capability: Capability::default(),
-            full_capability: Capability::default(),
-        }
-        .into()
+        let ai = AccessorInfo::default();
+        ai.set_scheme(Scheme::Custom("dummy"))
+            .set_root("")
+            .set_name("dummy")
+            .set_native_capability(Capability::default());
+        ai.into()
     }
 }
 
@@ -690,10 +468,6 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     type Writer = T::Writer;
     type Lister = T::Lister;
     type Deleter = T::Deleter;
-    type BlockingReader = T::BlockingReader;
-    type BlockingWriter = T::BlockingWriter;
-    type BlockingLister = T::BlockingLister;
-    type BlockingDeleter = T::BlockingDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.as_ref().info()
@@ -764,76 +538,144 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
         async move { self.as_ref().presign(path, args).await }
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.as_ref().blocking_create_dir(path, args)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().blocking_stat(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.as_ref().blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.as_ref().blocking_write(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.as_ref().blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.as_ref().blocking_list(path, args)
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.as_ref().blocking_copy(from, to, args)
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.as_ref().blocking_rename(from, to, args)
-    }
 }
 
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type Accessor = Arc<dyn AccessDyn>;
 
-/// Metadata for accessor, users can use this metadata to get information of underlying backend.
-#[derive(Clone, Debug, Default)]
-pub struct AccessorInfo {
+#[derive(Debug, Default)]
+struct AccessorInfoInner {
     scheme: Scheme,
-    root: String,
-    name: String,
+    root: Arc<str>,
+    name: Arc<str>,
 
     native_capability: Capability,
     full_capability: Capability,
+
+    http_client: HttpClient,
+    executor: Executor,
+}
+
+/// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.
+///
+/// This struct is intentionally not implemented with `Clone` to ensure that all accesses
+/// within the same operator, access layers, and services use the same instance of `AccessorInfo`.
+/// This is especially important for `HttpClient` and `Executor`.
+///
+/// ## Panic Safety
+///
+/// All methods provided by `AccessorInfo` will safely handle lock poisoning scenarios.
+/// If the inner `RwLock` is poisoned (which happens when another thread panicked while holding
+/// the write lock), this method will gracefully continue execution.
+///
+/// - For read operations, the method will return the current state.
+/// - For write operations, the method will do nothing.
+///
+/// ## Maintain Notes
+///
+/// We are using `std::sync::RwLock` to provide thread-safe access to the inner data.
+///
+/// I have performed [the bench across different arc-swap alike crates](https://github.com/krdln/arc-swap-benches):
+///
+/// ```txt
+/// test arcswap                    ... bench:          14.85 ns/iter (+/- 0.33)
+/// test arcswap_full               ... bench:         128.27 ns/iter (+/- 4.30)
+/// test baseline                   ... bench:          11.33 ns/iter (+/- 0.76)
+/// test mutex_4                    ... bench:         296.73 ns/iter (+/- 49.96)
+/// test mutex_unconteded           ... bench:          13.26 ns/iter (+/- 0.56)
+/// test rwlock_fast_4              ... bench:         201.60 ns/iter (+/- 7.47)
+/// test rwlock_fast_uncontended    ... bench:          12.77 ns/iter (+/- 0.37)
+/// test rwlock_parking_4           ... bench:         232.02 ns/iter (+/- 11.14)
+/// test rwlock_parking_uncontended ... bench:          13.18 ns/iter (+/- 0.39)
+/// test rwlock_std_4               ... bench:         219.56 ns/iter (+/- 5.56)
+/// test rwlock_std_uncontended     ... bench:          13.55 ns/iter (+/- 0.33)
+/// ```
+///
+/// The results show that as long as there aren't too many uncontended accesses, `RwLock` is the
+/// best choice, allowing for fast access and the ability to modify partial data without cloning
+/// everything.
+///
+/// And it's true: we only update and modify the internal data in a few instances, such as when
+/// building an operator or applying new layers.
+#[derive(Debug, Default)]
+pub struct AccessorInfo {
+    inner: std::sync::RwLock<AccessorInfoInner>,
+}
+
+impl PartialEq for AccessorInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.scheme() == other.scheme()
+            && self.root() == other.root()
+            && self.name() == other.name()
+    }
+}
+
+impl Eq for AccessorInfo {}
+
+impl Hash for AccessorInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.scheme().hash(state);
+        self.root().hash(state);
+        self.name().hash(state);
+    }
 }
 
 impl AccessorInfo {
     /// [`Scheme`] of backend.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current scheme.
     pub fn scheme(&self) -> Scheme {
-        self.scheme
+        match self.inner.read() {
+            Ok(v) => v.scheme,
+            Err(err) => err.get_ref().scheme,
+        }
     }
 
     /// Set [`Scheme`] for backend.
-    pub fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
-        self.scheme = scheme;
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn set_scheme(&self, scheme: Scheme) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.scheme = scheme;
+        }
+
         self
     }
 
     /// Root of backend, will be in format like `/path/to/dir/`
-    pub fn root(&self) -> &str {
-        &self.root
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current root.
+    pub fn root(&self) -> Arc<str> {
+        match self.inner.read() {
+            Ok(v) => v.root.clone(),
+            Err(err) => err.get_ref().root.clone(),
+        }
     }
 
     /// Set root for backend.
     ///
     /// Note: input root must be normalized.
-    pub fn set_root(&mut self, root: &str) -> &mut Self {
-        self.root = root.to_string();
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn set_root(&self, root: &str) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.root = Arc::from(root);
+        }
+
         self
     }
 
@@ -841,21 +683,48 @@ impl AccessorInfo {
     ///
     /// For example:
     ///
-    /// - name for `s3` => bucket name
-    /// - name for `azblob` => container name
-    pub fn name(&self) -> &str {
-        &self.name
+    /// - `s3` => bucket name
+    /// - `azblob` => container name
+    /// - `azdfs` => filesystem name
+    /// - `azfile` => share name
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current scheme.
+    pub fn name(&self) -> Arc<str> {
+        match self.inner.read() {
+            Ok(v) => v.name.clone(),
+            Err(err) => err.get_ref().name.clone(),
+        }
     }
 
     /// Set name of this backend.
-    pub fn set_name(&mut self, name: &str) -> &mut Self {
-        self.name = name.to_string();
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn set_name(&self, name: &str) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.name = Arc::from(name)
+        }
+
         self
     }
 
     /// Get backend's native capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current native capability.
     pub fn native_capability(&self) -> Capability {
-        self.native_capability
+        match self.inner.read() {
+            Ok(v) => v.native_capability,
+            Err(err) => err.get_ref().native_capability,
+        }
     }
 
     /// Set native capabilities for service.
@@ -863,20 +732,111 @@ impl AccessorInfo {
     /// # NOTES
     ///
     /// Set native capability will also flush the full capability. The only way to change
-    /// full_capability is via `full_capability_mut`.
-    pub fn set_native_capability(&mut self, capability: Capability) -> &mut Self {
-        self.native_capability = capability;
-        self.full_capability = capability;
+    /// full_capability is via `update_full_capability`.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn set_native_capability(&self, capability: Capability) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.native_capability = capability;
+            v.full_capability = capability;
+        }
+
         self
     }
 
     /// Get service's full capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current native capability.
     pub fn full_capability(&self) -> Capability {
-        self.full_capability
+        match self.inner.read() {
+            Ok(v) => v.full_capability,
+            Err(err) => err.get_ref().full_capability,
+        }
     }
 
-    /// Get service's full capabilities.
-    pub fn full_capability_mut(&mut self) -> &mut Capability {
-        &mut self.full_capability
+    /// Update service's full capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn update_full_capability(&self, f: impl FnOnce(Capability) -> Capability) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.full_capability = f(v.full_capability);
+        }
+
+        self
+    }
+
+    /// Get http client from the context.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current http client.
+    pub fn http_client(&self) -> HttpClient {
+        match self.inner.read() {
+            Ok(v) => v.http_client.clone(),
+            Err(err) => err.get_ref().http_client.clone(),
+        }
+    }
+
+    /// Update http client for the context.
+    ///
+    /// # Note
+    ///
+    /// Requests must be forwarded to the old HTTP client after the update. Otherwise, features such as retry, tracing, and metrics may not function properly.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation.
+    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            let client = mem::take(&mut v.http_client);
+            v.http_client = f(client);
+        }
+
+        self
+    }
+
+    /// Get executor from the context.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current executor.
+    pub fn executor(&self) -> Executor {
+        match self.inner.read() {
+            Ok(v) => v.executor.clone(),
+            Err(err) => err.get_ref().executor.clone(),
+        }
+    }
+
+    /// Update executor for the context.
+    ///
+    /// # Note
+    ///
+    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation.
+    pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            let executor = mem::take(&mut v.executor);
+            v.executor = f(executor);
+        }
+
+        self
     }
 }

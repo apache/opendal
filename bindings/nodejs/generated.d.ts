@@ -61,35 +61,6 @@ export interface WriteOptions {
   /** Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op. */
   cacheControl?: string
 }
-export interface WriterOptions {
-  /**
-   * Append bytes into a path.
-   *
-   * ### Notes
-   *
-   * - It always appends content to the end of the file.
-   * - It will create file if the path does not exist.
-   */
-  append?: boolean
-  /**
-   * Set the chunk of op.
-   *
-   * If chunk is set, the data will be chunked by the underlying writer.
-   *
-   * ## NOTE
-   *
-   * A service could have their own minimum chunk size while perform write
-   * operations like multipart uploads. So the chunk size may be larger than
-   * the given buffer size.
-   */
-  chunk?: bigint
-  /** Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op. */
-  contentType?: string
-  /** Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op. */
-  contentDisposition?: string
-  /** Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op. */
-  cacheControl?: string
-}
 /** PresignedRequest is a presigned request return by `presign`. */
 export interface PresignedRequest {
   /** HTTP method of this request. */
@@ -188,8 +159,6 @@ export class Capability {
   get presignWrite(): boolean
   /** If operator supports shared. */
   get shared(): boolean
-  /** If operator supports blocking. */
-  get blocking(): boolean
 }
 export class Operator {
   /**
@@ -245,6 +214,15 @@ export class Operator {
    */
   check(): Promise<void>
   /**
+   * Check the op synchronously.
+   *
+   * ### Example
+   * ```javascript
+   * op.checkSync();
+   * ```
+   */
+  checkSync(): void
+  /**
    * Check if this path exists or not.
    *
    * ### Example
@@ -252,7 +230,7 @@ export class Operator {
    * await op.isExist("test");
    * ```
    */
-  isExist(path: string): Promise<boolean>
+  exists(path: string): Promise<boolean>
   /**
    * Check if this path exists or not synchronously.
    *
@@ -261,7 +239,7 @@ export class Operator {
    * op.isExistSync("test");
    * ```
    */
-  isExistSync(path: string): boolean
+  existsSync(path: string): boolean
   /**
    * Create dir with a given path.
    *
@@ -328,13 +306,13 @@ export class Operator {
    *
    * It could be used to write large file in a streaming way.
    */
-  writer(path: string, options?: WriterOptions | undefined | null): Promise<Writer>
+  writer(path: string, options?: WriteOptions | undefined | null): Promise<Writer>
   /**
    * Write multiple bytes into a path synchronously.
    *
    * It could be used to write large file in a streaming way.
    */
-  writerSync(path: string, options?: WriterOptions | undefined | null): BlockingWriter
+  writerSync(path: string, options?: WriteOptions | undefined | null): BlockingWriter
   /**
    * Write bytes into a path synchronously.
    *

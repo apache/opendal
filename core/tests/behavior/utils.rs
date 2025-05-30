@@ -83,27 +83,6 @@ macro_rules! async_trials {
     };
 }
 
-/// Build a new async trail as a test case.
-pub fn build_blocking_trial<F>(name: &str, op: &Operator, f: F) -> Trial
-where
-    F: FnOnce(BlockingOperator) -> anyhow::Result<()> + MaybeSend + 'static,
-{
-    let op = op.blocking();
-
-    Trial::test(format!("behavior::{name}"), move || {
-        f(op).map_err(|err| Failed::from(err.to_string()))
-    })
-}
-
-#[macro_export]
-macro_rules! blocking_trials {
-    ($op:ident, $($test:ident),*) => {
-        vec![$(
-            build_blocking_trial(stringify!($test), $op, $test),
-        )*]
-    };
-}
-
 pub struct Fixture {
     pub paths: Mutex<Vec<String>>,
 }
@@ -120,6 +99,11 @@ impl Fixture {
         Self {
             paths: Mutex::new(vec![]),
         }
+    }
+
+    /// Add a path.
+    pub fn add_path(&self, path: String) {
+        self.paths.lock().unwrap().push(path);
     }
 
     /// Create a new dir path
@@ -186,6 +170,11 @@ impl Fixture {
     /// Perform cleanup
     pub async fn cleanup(&self, op: impl Into<Operator>) {
         let op = op.into();
+        // Don't cleanup data if delete is not supported
+        if !op.info().full_capability().delete {
+            return;
+        }
+
         let paths: Vec<_> = mem::take(self.paths.lock().unwrap().as_mut());
         // Don't call delete if paths is empty
         if paths.is_empty() {

@@ -68,32 +68,3 @@ impl oio::List for HdfsLister {
         Ok(Some(entry))
     }
 }
-
-impl oio::BlockingList for HdfsLister {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if let Some(path) = self.current_path.take() {
-            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
-        }
-
-        let de = match self.rd.next() {
-            Some(de) => de,
-            None => return Ok(None),
-        };
-
-        let path = build_rel_path(&self.root, de.path());
-
-        let entry = if de.is_file() {
-            let meta = Metadata::new(EntryMode::FILE)
-                .with_content_length(de.len())
-                .with_last_modified(de.modified().into());
-            oio::Entry::new(&path, meta)
-        } else if de.is_dir() {
-            // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
-        } else {
-            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
-        };
-
-        Ok(Some(entry))
-    }
-}

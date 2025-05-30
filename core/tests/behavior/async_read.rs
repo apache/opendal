@@ -18,7 +18,6 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::*;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
@@ -27,6 +26,8 @@ use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 use tokio::time::sleep;
+
+use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();
@@ -383,11 +384,6 @@ pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with special chars should succeed.
 pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
-    // Ignore test for supabase until https://github.com/apache/opendal/issues/2194 addressed.
-    if op.info().scheme() == opendal::Scheme::Supabase {
-        warn!("ignore test for supabase until https://github.com/apache/opendal/issues/2194 is resolved");
-        return Ok(());
-    }
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
         warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");

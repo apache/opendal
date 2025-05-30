@@ -25,6 +25,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define OPENDAL_SEEK_SET 0
+
+#define OPENDAL_SEEK_CUR 1
+
+#define OPENDAL_SEEK_END 2
+
 /**
  * \brief The error code for all opendal APIs in C binding.
  * \todo The error handling is not complete, the error with error message will be
@@ -207,14 +213,14 @@ typedef struct opendal_metadata {
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator actually owns a pointer to
- * an opendal::BlockingOperator, which is inside the Rust core code.
+ * an opendal::blocking::Operator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
  */
 typedef struct opendal_operator {
   /**
-   * The pointer to the opendal::BlockingOperator in the Rust code.
+   * The pointer to the opendal::blocking::Operator in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -314,11 +320,11 @@ typedef struct opendal_result_operator_reader {
 /**
  * \brief The result type returned by opendal's writer operation.
  * \note The opendal_writer actually owns a pointer to
- * an opendal::BlockingWriter, which is inside the Rust core code.
+ * an opendal::blocking::Writer, which is inside the Rust core code.
  */
 typedef struct opendal_writer {
   /**
-   * The pointer to the opendal::BlockingWriter in the Rust code.
+   * The pointer to the opendal::blocking::Writer in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -575,10 +581,6 @@ typedef struct opendal_capability {
    * If operator supports shared.
    */
   bool shared;
-  /**
-   * If operator supports blocking.
-   */
-  bool blocking;
 } opendal_capability;
 
 /**
@@ -596,6 +598,22 @@ typedef struct opendal_result_reader_read {
    */
   struct opendal_error *error;
 } opendal_result_reader_read;
+
+/**
+ * \brief The result type returned by opendal_reader_seek().
+ * The result type contains a pos field, which is the new position after seek,
+ * which is zero on error. The error field is the error code and error message.
+ */
+typedef struct opendal_result_reader_seek {
+  /**
+   * New position after seek
+   */
+  uint64_t pos;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_reader_seek;
 
 /**
  * \brief The result type returned by opendal_writer_write().
@@ -735,7 +753,7 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
  * each service, especially for the **Configuration Part**.
  *
- * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+ * @param scheme the service scheme you want to specify, e.g. "fs", "s3"
  * @param options the pointer to the options for this operator, it could be NULL, which means no
  * option is set
  * @see opendal_operator_options
@@ -1300,6 +1318,8 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *src,
                                             const char *dest);
 
+struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
 /**
  * \brief Get information of underlying accessor.
  *
@@ -1433,6 +1453,13 @@ struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *sel
                                                       uintptr_t len);
 
 /**
+ * \brief Seek to an offset, in bytes, in a stream.
+ */
+struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *self,
+                                                      int64_t offset,
+                                                      int32_t whence);
+
+/**
  * \brief Frees the heap memory used by the opendal_reader.
  */
 void opendal_reader_free(struct opendal_reader *ptr);
@@ -1444,8 +1471,12 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
                                                         const struct opendal_bytes *bytes);
 
 /**
+ * \brief Close the writer and make sure all data have been stored.
+ */
+struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
+
+/**
  * \brief Frees the heap memory used by the opendal_writer.
- * \note This function make sure all data have been stored.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
 

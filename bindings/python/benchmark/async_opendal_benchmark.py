@@ -18,7 +18,7 @@
 import asyncio
 import timeit
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 import opendal
 
@@ -82,8 +82,8 @@ def write_run():
 
 
 def opendal_benchmark():
-    print(f"OpenDAL S3 Client async write: {timeit.timeit(write_run, number=1)}")
-    print(f"OpenDAL S3 Client async read: {timeit.timeit(read_run, number=1)}")
+    print(f"OpenDAL S3 Client async write: {timeit.timeit(write_run, number=3)}")
+    print(f"OpenDAL S3 Client async read: {timeit.timeit(read_run, number=3)}")
 
 
 if __name__ == "__main__":

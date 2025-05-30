@@ -169,16 +169,34 @@ impl Builder for HuggingfaceBuilder {
 
         let token = self.config.token.as_ref().cloned();
 
-        let client = HttpClient::new()?;
-
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Huggingface)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_has_content_length: true,
+                            stat_has_last_modified: true,
+
+                            read: true,
+
+                            list: true,
+                            list_with_recursive: true,
+                            list_has_content_length: true,
+                            list_has_last_modified: true,
+
+                            shared: true,
+
+                            ..Default::default()
+                        });
+                    am.into()
+                },
                 repo_type,
                 repo_id,
                 revision,
                 root,
                 token,
-                client,
             }),
         })
     }
@@ -195,31 +213,9 @@ impl Access for HuggingfaceBackend {
     type Writer = ();
     type Lister = oio::PageLister<HuggingfaceLister>;
     type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Huggingface)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
-                read: true,
-
-                list: true,
-                list_with_recursive: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

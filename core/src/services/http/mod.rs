@@ -21,6 +21,8 @@ mod error;
 #[cfg(feature = "services-http")]
 mod backend;
 #[cfg(feature = "services-http")]
+mod core;
+#[cfg(feature = "services-http")]
 pub use backend::HttpBuilder as Http;
 
 mod config;

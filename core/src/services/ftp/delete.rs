@@ -15,21 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::FtpBackend;
-use super::err::parse_error;
-use crate::raw::*;
-use crate::*;
 use std::sync::Arc;
+
 use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
 
+use super::core::FtpCore;
+use super::err::parse_error;
+use crate::raw::*;
+use crate::*;
+
 pub struct FtpDeleter {
-    core: Arc<FtpBackend>,
+    core: Arc<FtpCore>,
 }
 
 impl FtpDeleter {
-    pub fn new(core: Arc<FtpBackend>) -> Self {
+    pub fn new(core: Arc<FtpCore>) -> Self {
         Self { core }
     }
 }

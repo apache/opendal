@@ -38,6 +38,7 @@ use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
+use opendal::raw::percent_decode_path;
 use opendal::Buffer;
 use opendal::Writer;
 use opendal::{Operator, OperatorInfo};
@@ -148,9 +149,10 @@ impl ObjectStore for OpendalStore {
         bytes: PutPayload,
         opts: PutOptions,
     ) -> object_store::Result<PutResult> {
-        let mut future_write = self
-            .inner
-            .write_with(location.as_ref(), Buffer::from_iter(bytes.into_iter()));
+        let mut future_write = self.inner.write_with(
+            &percent_decode_path(location.as_ref()),
+            Buffer::from_iter(bytes.into_iter()),
+        );
         let opts_mode = opts.mode.clone();
         match opts.mode {
             PutMode::Overwrite => {}
@@ -192,7 +194,7 @@ impl ObjectStore for OpendalStore {
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         let writer = self
             .inner
-            .writer_with(location.as_ref())
+            .writer_with(&percent_decode_path(location.as_ref()))
             .concurrent(8)
             .into_send()
             .await
@@ -220,8 +222,9 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
+        let raw_location = percent_decode_path(location.as_ref());
         let meta = {
-            let mut s = self.inner.stat_with(location.as_ref());
+            let mut s = self.inner.stat_with(&raw_location);
             if let Some(version) = &options.version {
                 s = s.version(version.as_str())
             }
@@ -245,7 +248,7 @@ impl ObjectStore for OpendalStore {
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
-            size: meta.content_length() as usize,
+            size: meta.content_length(),
             e_tag: meta.etag().map(|x| x.to_string()),
             version: meta.version().map(|x| x.to_string()),
         };
@@ -260,7 +263,7 @@ impl ObjectStore for OpendalStore {
         }
 
         let reader = {
-            let mut r = self.inner.reader_with(location.as_ref());
+            let mut r = self.inner.reader_with(raw_location.as_ref());
             if let Some(version) = options.version {
                 r = r.version(version.as_str());
             }
@@ -302,7 +305,7 @@ impl ObjectStore for OpendalStore {
         };
 
         let stream = reader
-            .into_bytes_stream(read_range.start as u64..read_range.end as u64)
+            .into_bytes_stream(read_range.start..read_range.end)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?
@@ -322,7 +325,7 @@ impl ObjectStore for OpendalStore {
 
     async fn delete(&self, location: &Path) -> object_store::Result<()> {
         self.inner
-            .delete(location.as_ref())
+            .delete(&percent_decode_path(location.as_ref()))
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
@@ -330,16 +333,16 @@ impl ObjectStore for OpendalStore {
         Ok(())
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         // object_store `Path` always removes trailing slash
         // need to add it back
-        let path = prefix.map_or("".into(), |x| format!("{}/", x));
+        let path = prefix.map_or("".into(), |x| {
+            format!("{}/", percent_decode_path(x.as_ref()))
+        });
 
+        let lister_fut = self.inner.lister_with(&path).recursive(true);
         let fut = async move {
-            let stream = self
-                .inner
-                .lister_with(&path)
-                .recursive(true)
+            let stream = lister_fut
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
 
@@ -359,13 +362,19 @@ impl ObjectStore for OpendalStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
-        let path = prefix.map_or("".into(), |x| format!("{}/", x));
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        let path = prefix.map_or("".into(), |x| {
+            format!("{}/", percent_decode_path(x.as_ref()))
+        });
         let offset = offset.clone();
 
+        // clone self for 'static lifetime
+        // clone self is cheap
+        let this = self.clone();
+
         let fut = async move {
-            let list_with_start_after = self.inner.info().full_capability().list_with_start_after;
-            let mut fut = self.inner.lister_with(&path).recursive(true);
+            let list_with_start_after = this.inner.info().full_capability().list_with_start_after;
+            let mut fut = this.inner.lister_with(&path).recursive(true);
 
             // Use native start_after support if possible.
             if list_with_start_after {
@@ -377,7 +386,7 @@ impl ObjectStore for OpendalStore {
                 .map_err(|err| format_object_store_error(err, &path))?
                 .then(move |entry| {
                     let path = path.clone();
-
+                    let this = this.clone();
                     async move {
                         let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
                         let (path, metadata) = entry.into_parts();
@@ -388,7 +397,7 @@ impl ObjectStore for OpendalStore {
                             return Ok(object_meta);
                         }
 
-                        let metadata = self
+                        let metadata = this
                             .inner
                             .stat(&path)
                             .await
@@ -416,7 +425,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
-        let path = prefix.map_or("".into(), |x| format!("{}/", x));
+        let path = prefix.map_or("".into(), |x| {
+            format!("{}/", percent_decode_path(x.as_ref()))
+        });
         let mut stream = self
             .inner
             .lister_with(&path)
@@ -652,7 +663,7 @@ mod tests {
 
         let meta = object_store.head(&path).await.unwrap();
 
-        assert_eq!(meta.size, all_bytes.len());
+        assert_eq!(meta.size, all_bytes.len() as u64);
 
         assert_eq!(
             object_store

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use bytes::Buf;
 use http::header;
@@ -32,6 +33,8 @@ use crate::*;
 
 #[derive(Clone)]
 pub struct PcloudCore {
+    pub info: Arc<AccessorInfo>,
+
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -40,8 +43,6 @@ pub struct PcloudCore {
     pub username: String,
     /// The password of this backend.
     pub password: String,
-
-    pub client: HttpClient,
 }
 
 impl Debug for PcloudCore {
@@ -57,7 +58,7 @@ impl Debug for PcloudCore {
 impl PcloudCore {
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -76,7 +77,10 @@ impl PcloudCore {
         let req = Request::get(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         let resp = self.send(req).await?;
 
@@ -113,10 +117,11 @@ impl PcloudCore {
         // set body
         let req = req
             .header(header::RANGE, range.to_header())
+            .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
@@ -165,7 +170,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::CreateDir)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -186,7 +194,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -206,7 +217,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -225,7 +239,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -244,7 +261,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -265,7 +285,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -286,7 +309,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -307,7 +333,10 @@ impl PcloudCore {
         let req = Request::post(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -329,7 +358,10 @@ impl PcloudCore {
         let req = Request::put(url);
 
         // set body
-        let req = req.body(bs).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Write)
+            .body(bs)
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -352,7 +384,10 @@ impl PcloudCore {
         let req = Request::get(url);
 
         // set body
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.send(req).await
     }

@@ -17,14 +17,22 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as od;
 use mlua::prelude::*;
 use mlua::UserData;
 
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
+
 #[derive(Clone, mlua::FromLua)]
 struct ODOperator {
-    operator: od::BlockingOperator,
+    operator: od::blocking::Operator,
 }
 
 impl UserData for ODOperator {}
@@ -56,9 +64,13 @@ fn operator_new<'a>(
     };
 
     let op = match od::Operator::via_iter(od_schema, map) {
-        Ok(o) => o.blocking(),
+        Ok(o) => o,
         Err(e) => return Err(LuaError::external(e)),
     };
+
+    let handle = RUNTIME.handle();
+    let _guard = handle.enter();
+    let op = od::blocking::Operator::new(op).map_err(LuaError::external)?;
 
     // this prevents the operator memory from being dropped by the Box
     let op = ODOperator { operator: op };
@@ -84,7 +96,7 @@ fn operator_is_exist<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -
     }
 
     let path = path.as_str();
-    let res = op.is_exist(path);
+    let res = op.exists(path);
     match res {
         Ok(exist) => Ok(exist),
         Err(e) => Err(LuaError::external(e)),
@@ -165,7 +177,7 @@ fn operator_read<'a>(
     let path = path.as_str();
     let data = op.read(path);
     match data {
-        Ok(data) => Ok(lua.create_string(&data.to_vec())?),
+        Ok(data) => Ok(lua.create_string(data.to_vec())?),
         Err(e) => Err(LuaError::external(e)),
     }
 }

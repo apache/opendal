@@ -21,8 +21,6 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use chrono::Utc;
-use http::header;
-use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -40,6 +38,8 @@ use crate::*;
 
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
+
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AliyunDriveBuilder {
             config: self,
@@ -53,6 +53,7 @@ impl Configurator for AliyunDriveConfig {
 pub struct AliyunDriveBuilder {
     config: AliyunDriveConfig,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
 }
 
@@ -120,6 +121,8 @@ impl AliyunDriveBuilder {
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    #[allow(deprecated)]
     pub fn http_client(mut self, client: HttpClient) -> Self {
         self.http_client = Some(client);
         self
@@ -135,15 +138,6 @@ impl Builder for AliyunDriveBuilder {
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
-
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive)
-            })?
-        };
 
         let sign = match self.config.access_token.clone() {
             Some(access_token) if !access_token.is_empty() => {
@@ -181,6 +175,46 @@ impl Builder for AliyunDriveBuilder {
 
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::AliyunDrive)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            create_dir: true,
+                            read: true,
+                            write: true,
+                            write_can_multi: true,
+                            // The min multipart size of AliyunDrive is 100 KiB.
+                            write_multi_min_size: Some(100 * 1024),
+                            // The max multipart size of AliyunDrive is 5 GiB.
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            delete: true,
+                            copy: true,
+                            rename: true,
+                            list: true,
+                            list_with_limit: true,
+                            shared: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            list_has_last_modified: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
                 drive_type,
@@ -188,7 +222,6 @@ impl Builder for AliyunDriveBuilder {
                     drive_id: None,
                     sign,
                 })),
-                client,
                 dir_lock: Arc::new(Mutex::new(())),
             }),
         })
@@ -205,43 +238,9 @@ impl Access for AliyunDriveBackend {
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::AliyunDrive)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-                create_dir: true,
-                read: true,
-                write: true,
-                write_can_multi: true,
-                // The min multipart size of AliyunDrive is 100 KiB.
-                write_multi_min_size: Some(100 * 1024),
-                // The max multipart size of AliyunDrive is 5 GiB.
-                write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                    Some(5 * 1024 * 1024 * 1024)
-                } else {
-                    Some(usize::MAX)
-                },
-                delete: true,
-                copy: true,
-                rename: true,
-                list: true,
-                list_with_limit: true,
-                shared: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                list_has_last_modified: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                ..Default::default()
-            });
-        am.into()
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
@@ -363,14 +362,8 @@ impl Access for AliyunDriveBackend {
         let res = self.core.get_by_path(path).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+        let resp = self.core.download(&file.file_id, args.range()).await?;
 
-        let download_url = self.core.get_download_url(&file.file_id).await?;
-        let req = Request::get(&download_url)
-            .header(header::RANGE, args.range().to_header())
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        let resp = self.core.client.fetch(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {

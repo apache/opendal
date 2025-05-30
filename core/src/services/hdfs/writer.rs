@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Write;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -30,6 +29,7 @@ pub struct HdfsWriter<F> {
     f: Option<F>,
     client: Arc<hdrs::Client>,
     target_path_exists: bool,
+    size: u64,
 }
 
 /// # Safety
@@ -44,6 +44,7 @@ impl<F> HdfsWriter<F> {
         f: F,
         client: Arc<hdrs::Client>,
         target_path_exists: bool,
+        initial_size: u64,
     ) -> Self {
         Self {
             target_path,
@@ -51,12 +52,14 @@ impl<F> HdfsWriter<F> {
             f: Some(f),
             client,
             target_path_exists,
+            size: initial_size,
         }
     }
 }
 
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let len = bs.len() as u64;
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
 
         while bs.has_remaining() {
@@ -64,10 +67,11 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             bs.advance(n);
         }
 
+        self.size += len;
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let f = self.f.as_mut().expect("HdfsWriter must be initialized");
         f.close().await.map_err(new_std_io_error)?;
 
@@ -84,7 +88,7 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
                 .map_err(new_std_io_error)?
         }
 
-        Ok(())
+        Ok(Metadata::default().with_content_length(self.size))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -92,36 +96,5 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             ErrorKind::Unsupported,
             "HdfsWriter doesn't support abort",
         ))
-    }
-}
-
-impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        while bs.has_remaining() {
-            let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
-            bs.advance(n);
-        }
-
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<()> {
-        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        f.flush().map_err(new_std_io_error)?;
-
-        if let Some(tmp_path) = &self.tmp_path {
-            // we must delete the target_path, otherwise the rename_file operation will fail
-            if self.target_path_exists {
-                self.client
-                    .remove_file(&self.target_path)
-                    .map_err(new_std_io_error)?;
-            }
-            self.client
-                .rename_file(tmp_path, &self.target_path)
-                .map_err(new_std_io_error)?;
-        }
-
-        Ok(())
     }
 }

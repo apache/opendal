@@ -16,10 +16,12 @@
 # under the License.
 
 import os
+from pathlib import Path
 from random import randint
 from uuid import uuid4
 
 import pytest
+
 from opendal.exceptions import NotFound
 
 
@@ -35,6 +37,47 @@ def test_sync_write(service_name, operator, async_operator):
     assert metadata.mode.is_file()
     assert metadata.content_length == size
 
+    last_modified = (
+        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
+        if metadata.last_modified
+        else None
+    )
+    assert repr(metadata) == (
+        "Metadata(mode=file, "
+        f"content_length={metadata.content_length}, "
+        f"content_type={metadata.content_type}, "
+        f"last_modified={last_modified}, "
+        f"etag={metadata.etag})"
+    )
+
+    operator.delete(filename)
+
+
+@pytest.mark.need_capability("write", "delete", "stat")
+def test_sync_write_path(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = Path(f"test_file_{str(uuid4())}.txt")
+    content = os.urandom(size)
+    size = len(content)
+    operator.write(filename, content, content_type="text/plain")
+    metadata = operator.stat(filename)
+    assert metadata is not None
+    assert metadata.mode.is_file()
+    assert metadata.content_length == size
+
+    last_modified = (
+        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
+        if metadata.last_modified
+        else None
+    )
+    assert repr(metadata) == (
+        "Metadata(mode=file, "
+        f"content_length={metadata.content_length}, "
+        f"content_type={metadata.content_type}, "
+        f"last_modified={last_modified}, "
+        f"etag={metadata.etag})"
+    )
+
     operator.delete(filename)
 
 
@@ -43,6 +86,22 @@ def test_sync_write(service_name, operator, async_operator):
 async def test_async_write(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    size = len(content)
+    await async_operator.write(filename, content)
+    metadata = await async_operator.stat(filename)
+    assert metadata is not None
+    assert metadata.mode.is_file()
+    assert metadata.content_length == size
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "stat")
+async def test_async_write_path(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = Path(f"test_file_{str(uuid4())}.txt")
     content = os.urandom(size)
     size = len(content)
     await async_operator.write(filename, content)

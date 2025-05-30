@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::{AliyunDriveCore, AliyunDriveFile};
+use std::sync::Arc;
+
+use bytes::Buf;
+
+use super::core::AliyunDriveCore;
+use super::core::AliyunDriveFile;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use std::sync::Arc;
 
 pub struct AliyunDriveDeleter {
     core: Arc<AliyunDriveCore>,

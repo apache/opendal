@@ -38,8 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This same toolchain for rust 1.79.0 but nightly so we can use new features.
-  RUST_DOC_TOOLCHAIN: nightly-2024-06-13
+  # This same toolchain for rust 1.85.1 but nightly so we can use new features.
+  RUST_DOC_TOOLCHAIN: nightly-2025-03-18
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 
@@ -116,7 +116,7 @@ jobs:
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Corepack
         working-directory: bindings/nodejs
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs
@@ -148,20 +148,53 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          python -m pip install -e .[docs]
+          uv sync --group docs
 
       - name: Build Docs
         working-directory: bindings/python
-        run: pdoc -t ./template --output-dir ./docs opendal
+        run: uv run mkdocs build
 
       - name: Upload docs
         uses: actions/upload-artifact@v4
         with:
           name: python-docs
-          path: ./bindings/python/docs
+          path: ./bindings/python/site
+
+  build-ruby-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: bindings/ruby
+          bundler-cache: true
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+
+      - name: Build Docs
+        working-directory: bindings/ruby
+        run: bundle exec rake doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./bindings/ruby/doc
 
   build-c-doc:
     runs-on: ubuntu-latest
@@ -459,29 +492,6 @@ jobs:
           name: object-parquet-docs
           path: ./integrations/parquet/target/doc
 
-  build-opendal-compat-doc:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Rust Nightly
-        run: |
-          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
-
-      - name: Build opendal_compat doc
-        working-directory: "integrations/compat"
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
-
-      - name: Upload docs
-        uses: actions/upload-artifact@v4
-        with:
-          name: opendal-compat-docs
-          path: ./integrations/compat/target/doc
-
   build-website:
     runs-on: ubuntu-latest
     permissions:
@@ -491,6 +501,7 @@ jobs:
       - build-java-doc
       - build-nodejs-doc
       - build-python-doc
+      - build-ruby-doc
       - build-c-doc
       - build-lua-doc
       - build-haskell-doc
@@ -502,7 +513,6 @@ jobs:
       - build-unftp-sbe-opendal-doc
       - build-virtiofs-opendal-doc
       - build-parquet-opendal-doc
-      - build-opendal-compat-doc
 
     steps:
       - uses: actions/checkout@v4
@@ -521,7 +531,7 @@ jobs:
 
       - name: Corepack
         working-directory: website
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v4
@@ -540,6 +550,12 @@ jobs:
         with:
           name: python-docs
           path: ./website/static/docs/python
+
+      - name: Download ruby docs
+        uses: actions/download-artifact@v4
+        with:
+          name: ruby-docs
+          path: ./website/static/docs/ruby
 
       - name: Download java docs
         uses: actions/download-artifact@v4
@@ -582,12 +598,6 @@ jobs:
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
-
-      - name: Download opendal_compat docs
-        uses: actions/download-artifact@v4
-        with:
-          name: opendal-compat-docs
-          path: ./website/static/docs/opendal_compat
 
       - name: Download dav-server-opendalfs docs
         uses: actions/download-artifact@v4

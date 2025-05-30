@@ -30,16 +30,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/apache/opendal-go-services/fs"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
-
-// Add more schemes for behavior tests here.
-var schemes = []opendal.Scheme{
-	fs.Scheme,
-}
 
 var op *opendal.Operator
 
@@ -169,6 +163,14 @@ func genFixedBytes(size uint) []byte {
 	return content
 }
 
+func genOffsetLength(size uint) (int64, int64) {
+	// Generate a random offset and length within the given size
+	offset, _ := rand.Int(rand.Reader, big.NewInt(int64(size-1)))
+	length, _ := rand.Int(rand.Reader, big.NewInt(int64(size)-offset.Int64()))
+
+	return offset.Int64(), length.Int64()
+}
+
 type fixture struct {
 	op   *opendal.Operator
 	lock *sync.Mutex
@@ -224,7 +226,7 @@ func (f *fixture) Cleanup(assert *require.Assertions) {
 	defer f.lock.Unlock()
 
 	for i := len(f.paths) - 1; i >= 0; i-- {
-		assert.Nil(f.op.Delete(f.paths[i]), "delete must succeed: %s", f.paths[i])
+		f.op.Delete(f.paths[i])
 	}
 }
 

@@ -15,18 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::SftpBackend;
-use super::error::{is_not_found, parse_sftp_error};
-use crate::raw::*;
-use crate::*;
 use std::sync::Arc;
 
+use super::core::SftpCore;
+use super::error::is_not_found;
+use super::error::parse_sftp_error;
+use crate::raw::*;
+use crate::*;
+
 pub struct SftpDeleter {
-    core: Arc<SftpBackend>,
+    core: Arc<SftpCore>,
 }
 
 impl SftpDeleter {
-    pub fn new(core: Arc<SftpBackend>) -> Self {
+    pub fn new(core: Arc<SftpCore>) -> Self {
         Self { core }
     }
 }

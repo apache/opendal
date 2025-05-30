@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -53,6 +53,8 @@ pub mod constants {
 
     pub const X_OSS_FORBID_OVERWRITE: &str = "x-oss-forbid-overwrite";
 
+    pub const X_OSS_VERSION_ID: &str = "x-oss-version-id";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
@@ -61,6 +63,8 @@ pub mod constants {
 }
 
 pub struct OssCore {
+    pub info: Arc<AccessorInfo>,
+
     pub root: String,
     pub bucket: String,
     /// buffered host string
@@ -70,15 +74,12 @@ pub struct OssCore {
     pub endpoint: String,
     pub presign_endpoint: String,
     pub allow_anonymous: bool,
-    pub enable_versioning: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
-    pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
-    pub delete_max_size: usize,
 }
 
 impl Debug for OssCore {
@@ -139,7 +140,7 @@ impl OssCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 
     /// Set sse headers
@@ -237,7 +238,7 @@ impl OssCore {
         let mut m = parse_into_metadata(path, headers)?;
         let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
-            m.with_user_metadata(user_meta);
+            m = m.with_user_metadata(user_meta);
         }
 
         Ok(m)
@@ -264,6 +265,8 @@ impl OssCore {
 
         // set sse headers
         req = self.insert_sse_headers(req);
+
+        let req = req.extension(Operation::Write);
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -292,6 +295,8 @@ impl OssCore {
 
         // set sse headers
         req = self.insert_sse_headers(req);
+
+        let req = req.extension(Operation::Write);
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -360,6 +365,8 @@ impl OssCore {
             );
         }
 
+        let req = req.extension(Operation::Read);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -385,6 +392,8 @@ impl OssCore {
         }
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -422,6 +431,9 @@ impl OssCore {
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
+
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -438,34 +450,34 @@ impl OssCore {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
-        let mut url = format!("{}/?list-type=2", endpoint);
-
-        write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        let mut url = QueryPairsWriter::new(endpoint);
+        url = url.push("list-type", "2");
+        if !delimiter.is_empty() {
+            url = url.push("delimiter", delimiter);
+        }
         // prefix
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(&p));
         }
 
         // max-key
         if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
 
         // continuation_token
         if !token.is_empty() {
-            write!(url, "&continuation-token={}", percent_encode_path(token))
-                .expect("write into string must succeed");
+            url = url.push("continuation-token", &percent_encode_path(token));
         }
 
         // start-after
         if let Some(start_after) = start_after {
             let start_after = build_abs_path(&self.root, &start_after);
-            write!(url, "&start-after={}", percent_encode_path(&start_after))
-                .expect("write into string must succeed");
+            url = url.push("start-after", &percent_encode_path(&start_after));
         }
 
-        let req = Request::get(&url)
+        let req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -474,7 +486,7 @@ impl OssCore {
     pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
         let mut req = self.oss_get_object_request(path, false, args)?;
         self.sign(&mut req).await?;
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
@@ -500,6 +512,8 @@ impl OssCore {
         req = self.insert_sse_headers(req);
 
         req = req.header("x-oss-copy-source", source);
+
+        let req = req.extension(Operation::Copy);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -531,32 +545,28 @@ impl OssCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let mut url = format!("{}?versions", self.endpoint);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("versions", "");
+
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(p.as_str()));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", percent_encode_path(key_marker))
-                .expect("write into string must succeed");
+            url = url.push("key-marker", &percent_encode_path(key_marker));
         }
         if !version_id_marker.is_empty() {
-            write!(
-                url,
-                "&version-id-marker={}",
-                percent_encode_path(version_id_marker)
-            )
-            .expect("write into string must succeed");
+            url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -571,7 +581,10 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn oss_delete_objects(
+        &self,
+        paths: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -579,12 +592,13 @@ impl OssCore {
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
             object: paths
                 .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
+                .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),
+                    version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
-        .map_err(new_xml_deserialize_error)?;
+        .map_err(new_xml_serialize_error)?;
 
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
@@ -592,6 +606,8 @@ impl OssCore {
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -632,6 +648,9 @@ impl OssCore {
             req = req.header(CACHE_CONTROL, cache_control);
         }
         req = self.insert_sse_headers(req);
+
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -660,6 +679,9 @@ impl OssCore {
 
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
+
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
@@ -686,11 +708,13 @@ impl OssCore {
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
-        .map_err(new_xml_deserialize_error)?;
+        .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let req = req.extension(Operation::Write);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -717,6 +741,7 @@ impl OssCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -735,6 +760,8 @@ pub struct DeleteObjectsRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -748,6 +775,7 @@ pub struct DeleteObjectsResult {
 #[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
+    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -866,12 +894,15 @@ mod tests {
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "multipart.data".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "test.jpg".to_string(),
+                    version_id: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "demo.jpg".to_string(),
+                    version_id: None,
                 },
             ],
         };

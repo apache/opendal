@@ -42,12 +42,7 @@ use crate::*;
 ///     5. delete
 ///     6. list
 ///     7. presign
-///     8. blocking_create_dir
-///     9. blocking_read
-///     10. blocking_write
-///     11. blocking_stat
-///     12. blocking_delete
-///     13. blocking_list
+///
 /// 2. ${operation}_end, arguments: path
 ///     1. create_dir
 ///     2. read
@@ -56,24 +51,12 @@ use crate::*;
 ///     5. delete
 ///     6. list
 ///     7. presign
-///     8. blocking_create_dir
-///     9. blocking_read
-///     10. blocking_write
-///     11. blocking_stat
-///     12. blocking_delete
-///     13. blocking_list
 ///
 /// ### For Reader
 ///
 /// 1. reader_read_start, arguments: path
 /// 2. reader_read_ok, arguments: path, length
 /// 3. reader_read_error, arguments: path
-///
-/// ### For BlockingReader
-///
-/// 1. blocking_reader_read_start, arguments: path
-/// 2. blocking_reader_read_ok, arguments: path, length
-/// 3. blocking_reader_read_error, arguments: path
 ///
 /// ### For Writer
 ///
@@ -86,15 +69,6 @@ use crate::*;
 /// 7. writer_close_start, arguments: path
 /// 8. writer_close_ok, arguments: path
 /// 9. writer_close_error, arguments: path
-///
-/// ### For BlockingWriter
-///
-/// 1. blocking_writer_write_start, arguments: path
-/// 2. blocking_writer_write_ok, arguments: path, length
-/// 3. blocking_writer_write_error, arguments: path
-/// 4. blocking_writer_close_start, arguments: path
-/// 5. blocking_writer_close_ok, arguments: path
-/// 6. blocking_writer_close_error, arguments: path
 ///
 /// Example:
 ///
@@ -174,13 +148,9 @@ impl<A: Access> Debug for DTraceAccessor<A> {
 impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Inner = A;
     type Reader = DtraceLayerWrapper<A::Reader>;
-    type BlockingReader = DtraceLayerWrapper<A::BlockingReader>;
     type Writer = DtraceLayerWrapper<A::Writer>;
-    type BlockingWriter = DtraceLayerWrapper<A::BlockingWriter>;
     type Lister = A::Lister;
-    type BlockingLister = A::BlockingLister;
     type Deleter = A::Deleter;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -246,56 +216,6 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         probe_lazy!(opendal, presign_end, c_path.as_ptr());
         result
     }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_create_dir_start, c_path.as_ptr());
-        let result = self.inner.blocking_create_dir(path, args);
-        probe_lazy!(opendal, blocking_create_dir_end, c_path.as_ptr());
-        result
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_read_start, c_path.as_ptr());
-        let result = self
-            .inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
-        probe_lazy!(opendal, blocking_read_end, c_path.as_ptr());
-        result
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_write_start, c_path.as_ptr());
-        let result = self
-            .inner
-            .blocking_write(path, args)
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
-        probe_lazy!(opendal, blocking_write_end, c_path.as_ptr());
-        result
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_stat_start, c_path.as_ptr());
-        let result = self.inner.blocking_stat(path, args);
-        probe_lazy!(opendal, blocking_stat_end, c_path.as_ptr());
-        result
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, blocking_list_start, c_path.as_ptr());
-        let result = self.inner.blocking_list(path, args);
-        probe_lazy!(opendal, blocking_list_end, c_path.as_ptr());
-        result
-    }
 }
 
 pub struct DtraceLayerWrapper<R> {
@@ -329,28 +249,6 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for DtraceLayerWrapper<R> {
-    fn read(&mut self) -> Result<Buffer> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_reader_read_start, c_path.as_ptr());
-        self.inner
-            .read()
-            .map(|bs| {
-                probe_lazy!(
-                    opendal,
-                    blocking_reader_read_ok,
-                    c_path.as_ptr(),
-                    bs.remaining()
-                );
-                bs
-            })
-            .map_err(|e| {
-                probe_lazy!(opendal, blocking_reader_read_error, c_path.as_ptr());
-                e
-            })
-    }
-}
-
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
@@ -361,9 +259,8 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             .map(|_| {
                 probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());
             })
-            .map_err(|err| {
+            .inspect_err(|_| {
                 probe_lazy!(opendal, writer_write_error, c_path.as_ptr());
-                err
             })
     }
 
@@ -376,54 +273,22 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             .map(|_| {
                 probe_lazy!(opendal, writer_poll_abort_ok, c_path.as_ptr());
             })
-            .map_err(|err| {
+            .inspect_err(|_| {
                 probe_lazy!(opendal, writer_poll_abort_error, c_path.as_ptr());
-                err
             })
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_close_start, c_path.as_ptr());
         self.inner
             .close()
             .await
-            .map(|_| {
+            .inspect(|_| {
                 probe_lazy!(opendal, writer_close_ok, c_path.as_ptr());
             })
-            .map_err(|err| {
+            .inspect_err(|_| {
                 probe_lazy!(opendal, writer_close_error, c_path.as_ptr());
-                err
-            })
-    }
-}
-
-impl<R: oio::BlockingWrite> oio::BlockingWrite for DtraceLayerWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_writer_write_start, c_path.as_ptr());
-        self.inner
-            .write(bs)
-            .map(|_| {
-                probe_lazy!(opendal, blocking_writer_write_ok, c_path.as_ptr());
-            })
-            .map_err(|err| {
-                probe_lazy!(opendal, blocking_writer_write_error, c_path.as_ptr());
-                err
-            })
-    }
-
-    fn close(&mut self) -> Result<()> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, blocking_writer_close_start, c_path.as_ptr());
-        self.inner
-            .close()
-            .map(|_| {
-                probe_lazy!(opendal, blocking_writer_close_ok, c_path.as_ptr());
-            })
-            .map_err(|err| {
-                probe_lazy!(opendal, blocking_writer_close_error, c_path.as_ptr());
-                err
             })
     }
 }

@@ -147,13 +147,9 @@ impl Access for DbfsBackend {
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;
     type Deleter = oio::OneShotDeleter<DbfsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
+        let am = AccessorInfo::default();
         am.set_scheme(Scheme::Dbfs)
             .set_root(&self.core.root)
             .set_native_capability(Capability {

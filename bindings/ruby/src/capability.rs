@@ -43,6 +43,7 @@ macro_rules! bind_methods_to_ruby {
     };
 }
 
+/// @yard
 /// Capability describes OpenDAL supported operations by current Operator.
 #[magnus::wrap(class = "OpenDAL::Capability", free_immediately, size)]
 pub struct Capability(ocore::Capability);
@@ -94,8 +95,6 @@ define_accessors!(Capability, {
     presign_read: bool,
     presign_stat: bool,
     presign_write: bool,
-    shared: bool,
-    blocking: bool,
 });
 
 // includes class into the Ruby module
@@ -142,7 +141,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
         presign_read,
         presign_stat,
         presign_write,
-        blocking
     });
 
     Ok(())

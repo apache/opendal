@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use http::StatusCode;
+
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
 use crate::*;
-use http::StatusCode;
-use std::sync::Arc;
 
 pub struct AzblobDeleter {
     core: Arc<AzblobCore>,

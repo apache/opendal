@@ -92,8 +92,20 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, l) = self.acc.list(de.path(), OpList::new()).await?;
-                self.active_lister.push((Some(de), l));
+                let (_, mut l) = self.acc.list(de.path(), OpList::new()).await?;
+                if let Some(v) = l.next().await? {
+                    self.active_lister.push((Some(de.clone()), l));
+
+                    if v.mode().is_dir() {
+                        // should not loop itself again
+                        if v.path() != de.path() {
+                            self.next_dir = Some(v);
+                            continue;
+                        }
+                    } else {
+                        return Ok(Some(v));
+                    }
+                }
             }
 
             let (de, lister) = match self.active_lister.last_mut() {
@@ -121,142 +133,5 @@ where
                 },
             }
         }
-    }
-}
-
-impl<A, P> oio::BlockingList for FlatLister<A, P>
-where
-    A: Access<BlockingLister = P>,
-    P: oio::BlockingList,
-{
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        loop {
-            if let Some(de) = self.next_dir.take() {
-                let (_, l) = self.acc.blocking_list(de.path(), OpList::new())?;
-
-                self.active_lister.push((Some(de), l))
-            }
-
-            let (de, lister) = match self.active_lister.last_mut() {
-                Some((de, lister)) => (de, lister),
-                None => return Ok(None),
-            };
-
-            match lister.next()? {
-                Some(v) if v.mode().is_dir() => {
-                    if v.path() != de.as_ref().expect("de should not be none here").path() {
-                        self.next_dir = Some(v);
-                        continue;
-                    }
-                }
-                Some(v) => return Ok(Some(v)),
-                None => match de.take() {
-                    Some(de) => {
-                        return Ok(Some(de));
-                    }
-                    None => {
-                        let _ = self.active_lister.pop();
-                        continue;
-                    }
-                },
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::vec;
-    use std::vec::IntoIter;
-
-    use log::debug;
-    use oio::BlockingList;
-
-    use super::*;
-
-    #[derive(Debug)]
-    struct MockService {
-        map: HashMap<&'static str, Vec<&'static str>>,
-    }
-
-    impl MockService {
-        fn new() -> Self {
-            let mut map = HashMap::default();
-            map.insert("x/", vec!["x/x/"]);
-            map.insert("x/x/", vec!["x/x/x/"]);
-            map.insert("x/x/x/", vec!["x/x/x/x"]);
-
-            Self { map }
-        }
-
-        fn get(&self, path: &str) -> MockLister {
-            let inner = self.map.get(path).expect("must have value").to_vec();
-
-            MockLister {
-                inner: inner.into_iter(),
-            }
-        }
-    }
-
-    impl Access for MockService {
-        type Reader = ();
-        type BlockingReader = ();
-        type Writer = ();
-        type BlockingWriter = ();
-        type Lister = ();
-        type BlockingLister = MockLister;
-        type Deleter = ();
-        type BlockingDeleter = ();
-
-        fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
-            am.full_capability_mut().list = true;
-
-            am.into()
-        }
-
-        fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingLister)> {
-            debug!("visit path: {path}");
-            Ok((RpList::default(), self.get(path)))
-        }
-    }
-
-    struct MockLister {
-        inner: IntoIter<&'static str>,
-    }
-
-    impl BlockingList for MockLister {
-        fn next(&mut self) -> Result<Option<oio::Entry>> {
-            Ok(self.inner.next().map(|path| {
-                if path.ends_with('/') {
-                    oio::Entry::new(path, Metadata::new(EntryMode::DIR))
-                } else {
-                    oio::Entry::new(path, Metadata::new(EntryMode::FILE))
-                }
-            }))
-        }
-    }
-
-    #[test]
-    fn test_blocking_list() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let acc = MockService::new();
-        let mut lister = FlatLister::new(acc, "x/");
-
-        let mut entries = Vec::default();
-
-        while let Some(e) = lister.next()? {
-            entries.push(e)
-        }
-
-        assert_eq!(
-            entries[0],
-            oio::Entry::new("x/x/x/x", Metadata::new(EntryMode::FILE))
-        );
-
-        Ok(())
     }
 }

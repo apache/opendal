@@ -19,13 +19,13 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use ::opendal as core;
-use once_cell::sync::Lazy;
 
 use super::*;
 
-static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -39,22 +39,22 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 /// @see opendal_operator_free This function frees the heap memory of the operator
 ///
 /// \note The opendal_operator actually owns a pointer to
-/// an opendal::BlockingOperator, which is inside the Rust core code.
+/// an opendal::blocking::Operator, which is inside the Rust core code.
 ///
 /// \remark You may use the field `ptr` to check whether this is a NULL
 /// operator.
 #[repr(C)]
 pub struct opendal_operator {
-    /// The pointer to the opendal::BlockingOperator in the Rust code.
+    /// The pointer to the opendal::blocking::Operator in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_operator {
-    pub(crate) fn deref(&self) -> &core::BlockingOperator {
+    pub(crate) fn deref(&self) -> &core::blocking::Operator {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &*(self.inner as *mut core::BlockingOperator) }
+        unsafe { &*(self.inner as *mut core::blocking::Operator) }
     }
 }
 
@@ -77,7 +77,7 @@ impl opendal_operator {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_free(ptr: *const opendal_operator) {
         if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::BlockingOperator));
+            drop(Box::from_raw((*ptr).inner as *mut core::blocking::Operator));
             drop(Box::from_raw(ptr as *mut opendal_operator));
         }
     }
@@ -86,18 +86,13 @@ impl opendal_operator {
 fn build_operator(
     schema: core::Scheme,
     map: HashMap<String, String>,
-) -> core::Result<core::Operator> {
-    let mut op = match core::Operator::via_iter(schema, map) {
-        Ok(o) => o,
-        Err(e) => return Err(e),
-    };
-    if !op.info().full_capability().blocking {
-        let runtime =
-            tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
-        let _guard = runtime.enter();
-        op = op
-            .layer(core::layers::BlockingLayer::create().expect("blocking layer must be created"));
-    }
+) -> core::Result<core::blocking::Operator> {
+    let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
+
+    let runtime =
+        tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
+    let _guard = runtime.enter();
+    let op = core::blocking::Operator::new(op)?;
     Ok(op)
 }
 
@@ -108,7 +103,7 @@ fn build_operator(
 /// reference the [documentation](https://opendal.apache.org/docs/category/services/) for
 /// each service, especially for the **Configuration Part**.
 ///
-/// @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+/// @param scheme the service scheme you want to specify, e.g. "fs", "s3"
 /// @param options the pointer to the options for this operator, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options
@@ -167,7 +162,7 @@ pub unsafe extern "C" fn opendal_operator_new(
     match build_operator(scheme, map) {
         Ok(op) => opendal_result_operator_new {
             op: Box::into_raw(Box::new(opendal_operator {
-                inner: Box::into_raw(Box::new(op.blocking())) as _,
+                inner: Box::into_raw(Box::new(op)) as _,
             })),
             error: std::ptr::null_mut(),
         },
@@ -891,6 +886,15 @@ pub unsafe extern "C" fn opendal_operator_copy(
         .to_str()
         .expect("malformed dest");
     if let Err(err) = op.deref().copy(src, dest) {
+        opendal_error::new(err)
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut opendal_error {
+    if let Err(err) = op.deref().check() {
         opendal_error::new(err)
     } else {
         std::ptr::null_mut()

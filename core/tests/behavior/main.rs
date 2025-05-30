@@ -24,23 +24,12 @@ pub use utils::*;
 mod async_copy;
 mod async_create_dir;
 mod async_delete;
-// mod async_fuzz;
 mod async_list;
 mod async_presign;
 mod async_read;
 mod async_rename;
 mod async_stat;
 mod async_write;
-
-// Blocking test cases
-mod blocking_copy;
-mod blocking_create_dir;
-mod blocking_delete;
-mod blocking_list;
-mod blocking_read;
-mod blocking_rename;
-mod blocking_stat;
-mod blocking_write;
 
 // External dependencies
 use libtest_mimic::Arguments;
@@ -71,15 +60,6 @@ fn main() -> anyhow::Result<()> {
     async_rename::tests(&op, &mut tests);
     async_stat::tests(&op, &mut tests);
     async_write::tests(&op, &mut tests);
-
-    blocking_copy::tests(&op, &mut tests);
-    blocking_create_dir::tests(&op, &mut tests);
-    blocking_delete::tests(&op, &mut tests);
-    blocking_list::tests(&op, &mut tests);
-    blocking_read::tests(&op, &mut tests);
-    blocking_rename::tests(&op, &mut tests);
-    blocking_stat::tests(&op, &mut tests);
-    blocking_write::tests(&op, &mut tests);
 
     // Don't init logging while building operator which may break cargo
     // nextest output

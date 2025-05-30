@@ -30,6 +30,7 @@ on:
       - "bindings/cpp/**"
       - "core/**"
       - ".github/workflows/ci_bindings_cpp.yml"
+      - "examples/cpp/**"
   workflow_dispatch:
 
 concurrency:
@@ -51,6 +52,11 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      
+      - name: Clippy Check
+        working-directory: "bindings/cpp"
+        run: |
+          cargo clippy -- -D warnings
 
       - name: Build Cpp binding && Run tests
         working-directory: "bindings/cpp"
@@ -78,3 +84,11 @@ jobs:
           cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
           ninja
           ./opendal_cpp_test
+      
+      - name: Build Cpp examples
+        working-directory: "examples/cpp"
+        run: |
+          mkdir build
+          cd build
+          cmake -GNinja ..
+          ninja

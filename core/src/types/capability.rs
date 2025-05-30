@@ -218,12 +218,11 @@ pub struct Capability {
     pub presign_stat: bool,
     /// Indicates if presigned URLs for write operations are supported.
     pub presign_write: bool,
+    /// Indicates if presigned URLs for delete operations are supported.
+    pub presign_delete: bool,
 
     /// Indicate if the operator supports shared access.
     pub shared: bool,
-
-    /// Indicates if blocking operations are supported.
-    pub blocking: bool,
 }
 
 impl Debug for Capability {
@@ -244,9 +243,7 @@ impl Debug for Capability {
         if self.shared {
             f.write_str("| Shared")?;
         }
-        if self.blocking {
-            f.write_str("| Blocking")?;
-        }
+
         Ok(())
     }
 }

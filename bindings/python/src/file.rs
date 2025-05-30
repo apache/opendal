@@ -15,9 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Remove this `allow` after <https://github.com/rust-lang/rust-clippy/issues/12039> fixed.
-#![allow(clippy::unnecessary_fallible_conversions)]
-
 use std::io::BufRead;
 use std::io::Read;
 use std::io::Seek;
@@ -44,17 +41,17 @@ use crate::*;
 pub struct File(FileState);
 
 enum FileState {
-    Reader(ocore::StdReader),
-    Writer(ocore::StdWriter),
+    Reader(ocore::blocking::StdReader),
+    Writer(ocore::blocking::StdWriter),
     Closed,
 }
 
 impl File {
-    pub fn new_reader(reader: ocore::StdReader) -> Self {
+    pub fn new_reader(reader: ocore::blocking::StdReader) -> Self {
         Self(FileState::Reader(reader))
     }
 
-    pub fn new_writer(writer: ocore::BlockingWriter) -> Self {
+    pub fn new_writer(writer: ocore::blocking::Writer) -> Self {
         Self(FileState::Writer(writer.into_std_write()))
     }
 }

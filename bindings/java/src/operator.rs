@@ -25,12 +25,16 @@ use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use jni::JNIEnv;
-use opendal::BlockingOperator;
+use opendal::blocking;
+use opendal::options;
 
-use crate::convert::jstring_to_string;
-use crate::make_entry;
+use crate::convert::{
+    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_bool_field,
+    read_int64_field,
+};
 use crate::make_metadata;
 use crate::Result;
+use crate::{make_entry, make_write_options};
 
 /// # Safety
 ///
@@ -39,7 +43,7 @@ use crate::Result;
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
     _: JNIEnv,
     _: JObject,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
 ) {
     drop(Box::from_raw(op));
 }
@@ -51,7 +55,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate(
     _: JNIEnv,
     _: JObject,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
 ) -> jlong {
     let op = &mut *op;
     Box::into_raw(Box::new(op.clone())) as jlong
@@ -64,19 +68,36 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
+    read_options: JObject,
 ) -> jbyteArray {
-    intern_read(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_read(&mut env, &mut *op, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JByteArray::default().into_raw()
     })
 }
 
-fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
+fn intern_read(
+    env: &mut JNIEnv,
+    op: &mut blocking::Operator,
+    path: JString,
+    options: JObject,
+) -> Result<jbyteArray> {
     let path = jstring_to_string(env, &path)?;
-    let content = op.read(&path)?.to_bytes();
-    let result = env.byte_array_from_slice(&content)?;
+
+    let offset = read_int64_field(env, &options, "offset")?;
+    let length = read_int64_field(env, &options, "length")?;
+
+    let content = op.read_options(
+        &path,
+        options::ReadOptions {
+            range: offset_length_to_range(offset, length)?.into(),
+            ..Default::default()
+        },
+    )?;
+
+    let result = bytes_to_jbytearray(env, content.to_bytes())?;
     Ok(result.into_raw())
 }
 
@@ -87,24 +108,29 @@ fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
     content: JByteArray,
+    write_options: JObject,
 ) {
-    intern_write(&mut env, &mut *op, path, content).unwrap_or_else(|e| {
+    intern_write(&mut env, &mut *op, path, content, write_options).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
 
 fn intern_write(
     env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    op: &mut blocking::Operator,
     path: JString,
     content: JByteArray,
+    options: JObject,
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    Ok(op.write(&path, content)?)
+    let write_opts = make_write_options(env, &options)?;
+
+    let _ = op.write_options(&path, content, write_opts)?;
+    Ok(())
 }
 
 /// # Safety
@@ -114,7 +140,7 @@ fn intern_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) -> jobject {
     intern_stat(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -123,7 +149,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     })
 }
 
-fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
+fn intern_stat(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
     let metadata = op.stat(&path)?;
     Ok(make_metadata(env, metadata)?.into_raw())
@@ -136,7 +162,7 @@ fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Re
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) {
     intern_delete(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -144,7 +170,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
     })
 }
 
-fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+fn intern_delete(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     Ok(op.delete(&path)?)
 }
@@ -156,7 +182,7 @@ fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> 
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) {
     intern_create_dir(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -164,7 +190,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir(
     })
 }
 
-fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+fn intern_create_dir(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
     Ok(op.create_dir(&path)?)
 }
@@ -176,7 +202,7 @@ fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     source_path: JString,
     target_path: JString,
 ) {
@@ -187,7 +213,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy(
 
 fn intern_copy(
     env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    op: &mut blocking::Operator,
     source_path: JString,
     target_path: JString,
 ) -> Result<()> {
@@ -204,7 +230,7 @@ fn intern_copy(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     source_path: JString,
     target_path: JString,
 ) {
@@ -215,7 +241,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename(
 
 fn intern_rename(
     env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    op: &mut blocking::Operator,
     source_path: JString,
     target_path: JString,
 ) -> Result<()> {
@@ -232,7 +258,7 @@ fn intern_rename(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) {
     intern_remove_all(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -240,7 +266,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll(
     })
 }
 
-fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+fn intern_remove_all(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
 
     Ok(op.remove_all(&path)?)
@@ -253,27 +279,41 @@ fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_list(&mut env, &mut *op, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
+fn intern_list(
+    env: &mut JNIEnv,
+    op: &mut blocking::Operator,
+    path: JString,
+    options: JObject,
+) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let obs = op.list(&path)?;
+    let recursive = read_bool_field(env, &options, "recursive")?;
+
+    let entries = op.list_options(
+        &path,
+        options::ListOptions {
+            recursive,
+            ..Default::default()
+        },
+    )?;
 
     let jarray = env.new_object_array(
-        obs.len() as jsize,
+        entries.len() as jsize,
         "org/apache/opendal/Entry",
         JObject::null(),
     )?;
 
-    for (idx, entry) in obs.iter().enumerate() {
-        let entry = make_entry(env, entry.to_owned())?;
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let entry = make_entry(env, entry)?;
         env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 

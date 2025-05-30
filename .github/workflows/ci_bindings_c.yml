@@ -48,11 +48,18 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Clippy Check
+        working-directory: "bindings/c"
+        
+        run: |
+          cargo clippy -- -D warnings
+
+
       - name: Build C binding
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON
+          cmake .. -DTEST_ENABLE_ASAN=ON -DFEATURES=opendal/services-memory 
           make -j$(nproc)
 
       - name: Check diff

@@ -1,6 +1,6 @@
 # Apache OpenDAL™ C Binding (WIP)
 
-![](https://img.shields.io/badge/status-unreleased-red)
+[![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/c/)
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
@@ -98,6 +98,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
   - The library is under `../../target/debug` after building.
 
+  - use `FEATURES` to enable services, like `cmake .. -DFEATURES="opendal/services-memory,opendal/services-fs"`
+
 - To **clean** the build results.
 
   ```sh
@@ -129,9 +131,12 @@ If you want to build the documentations yourself, you could use
 make doc
 ```
 
+## Used by
+
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
+
 ## License and Trademarks
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
-

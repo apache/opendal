@@ -17,6 +17,9 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+use http::HeaderMap;
+use http::HeaderValue;
 use http::StatusCode;
 
 use super::core::*;
@@ -42,10 +45,25 @@ impl ObsWriter {
             op,
         }
     }
+
+    fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
+        let mut meta = Metadata::default();
+        if let Some(etag) = parse_etag(headers)? {
+            meta.set_etag(etag);
+        }
+        if let Some(md5) = parse_content_md5(headers)? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
+            meta.set_version(version);
+        }
+
+        Ok(meta)
+    }
 }
 
 impl oio::MultipartWrite for ObsWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<()> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
@@ -54,10 +72,12 @@ impl oio::MultipartWrite for ObsWriter {
 
         let resp = self.core.send(req).await?;
 
+        let meta = Self::parse_metadata(resp.headers())?;
+
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -122,7 +142,7 @@ impl oio::MultipartWrite for ObsWriter {
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<()> {
+    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| CompleteMultipartUploadRequestPart {
@@ -131,15 +151,22 @@ impl oio::MultipartWrite for ObsWriter {
             })
             .collect();
 
-        let resp = self
+        let mut resp = self
             .core
             .obs_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
 
+        let mut meta = Self::parse_metadata(resp.headers())?;
+
+        let result: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(resp.body_mut().reader())
+                .map_err(new_xml_deserialize_error)?;
+        meta.set_etag(&result.etag);
+
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }
@@ -181,7 +208,7 @@ impl oio::AppendWrite for ObsWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<()> {
+    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let mut req = self
             .core
             .obs_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -190,10 +217,18 @@ impl oio::AppendWrite for ObsWriter {
 
         let resp = self.core.send(req).await?;
 
+        let mut meta = Metadata::default();
+        if let Some(md5) = parse_content_md5(resp.headers())? {
+            meta.set_content_md5(md5);
+        }
+        if let Some(version) = parse_header_to_str(resp.headers(), constants::X_OBS_VERSION_ID)? {
+            meta.set_version(version);
+        }
+
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

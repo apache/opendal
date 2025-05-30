@@ -19,7 +19,12 @@ use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::BufRead;
 use std::io::IoSlice;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::{self};
 use std::mem;
 use std::ops::Bound;
 use std::ops::RangeBounds;
@@ -153,6 +158,7 @@ impl Default for Buffer {
         Self::new()
     }
 }
+
 impl Buffer {
     /// Create a new empty buffer.
     ///
@@ -599,8 +605,97 @@ impl Stream for Buffer {
     }
 }
 
+impl Read for Buffer {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let chunk = self.chunk();
+        let len = chunk.len().min(buf.len());
+        buf[..len].copy_from_slice(&chunk[..len]);
+        self.advance(len);
+        Ok(len)
+    }
+}
+
+impl Seek for Buffer {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let len = self.len() as u64;
+        let new_pos = match pos {
+            SeekFrom::Start(offset) => offset,
+            SeekFrom::End(offset) => {
+                if offset < 0 {
+                    len.checked_sub(offset.unsigned_abs())
+                        .ok_or(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "invalid seek to a negative position",
+                        ))?
+                } else {
+                    len.checked_add(offset as u64).ok_or(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "seek out of bounds",
+                    ))?
+                }
+            }
+            SeekFrom::Current(offset) => {
+                let current_pos = (len - self.remaining() as u64) as i64;
+                let new_pos = current_pos.checked_add(offset).ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "seek out of bounds",
+                ))?;
+                if new_pos < 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "invalid seek to a negative position",
+                    ));
+                }
+                new_pos as u64
+            }
+        };
+
+        if new_pos > len {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "seek out of bounds",
+            ));
+        }
+
+        self.advance((new_pos - (len - self.remaining() as u64)) as usize);
+        Ok(new_pos)
+    }
+}
+
+impl BufRead for Buffer {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        let chunk = match &self.0 {
+            Inner::Contiguous(b) => b.chunk(),
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+            } => {
+                if *size == 0 {
+                    return Ok(&[]);
+                }
+
+                let chunk = &parts[*idx];
+                let n = (chunk.len() - *offset).min(*size);
+                &parts[*idx][*offset..*offset + n]
+            }
+        };
+        Ok(chunk)
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.advance(amt);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::io::BufRead;
+    use std::io::Read;
+    use std::io::Seek;
+    use std::io::SeekFrom;
+
     use pretty_assertions::assert_eq;
     use rand::prelude::*;
 
@@ -818,5 +913,86 @@ mod tests {
             assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
         }
+    }
+
+    #[test]
+    fn test_read_trait() {
+        let mut buffer = Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]);
+        let mut output = vec![0; 5];
+        let size = buffer.read(&mut output).unwrap();
+        assert_eq!(size, 5);
+        assert_eq!(&output, b"Hello");
+    }
+
+    #[test]
+    fn test_seek_trait() {
+        let mut buffer = Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]);
+        buffer.seek(SeekFrom::Start(5)).unwrap();
+        let mut output = vec![0; 5];
+        buffer.read_exact(&mut output).unwrap();
+        assert_eq!(&output, b"World");
+    }
+
+    #[test]
+    fn test_bufread_trait() {
+        let mut buffer = Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]);
+        let mut output = String::new();
+        buffer.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "HelloWorld");
+
+        let mut buffer = Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]);
+        let buf = buffer.fill_buf().unwrap();
+        assert_eq!(buf, b"Hello");
+        buffer.consume(5);
+        let buf = buffer.fill_buf().unwrap();
+        assert_eq!(buf, b"World");
+    }
+
+    #[test]
+    fn test_read_partial() {
+        let mut buffer = Buffer::from(vec![Bytes::from("Partial"), Bytes::from("Read")]);
+        let mut output = vec![0; 4];
+        let size = buffer.read(&mut output).unwrap();
+        assert_eq!(size, 4);
+        assert_eq!(&output, b"Part");
+
+        let size = buffer.read(&mut output).unwrap();
+        assert_eq!(size, 3);
+        assert_eq!(&output[..3], b"ial");
+    }
+
+    #[test]
+    fn test_seek_and_read() {
+        let mut buffer = Buffer::from(vec![Bytes::from("SeekAndRead")]);
+        buffer.seek(SeekFrom::Start(4)).unwrap();
+        let mut output = vec![0; 3];
+        buffer.read_exact(&mut output).unwrap();
+        assert_eq!(&output, b"And");
+    }
+
+    #[test]
+    fn test_bufread_consume() {
+        let mut buffer = Buffer::from(vec![Bytes::from("ConsumeTest")]);
+        let buf = buffer.fill_buf().unwrap();
+        assert_eq!(buf, b"ConsumeTest");
+        buffer.consume(7);
+        let buf = buffer.fill_buf().unwrap();
+        assert_eq!(buf, b"Test");
+    }
+
+    #[test]
+    fn test_empty_buffer() {
+        let mut buffer = Buffer::new();
+        let mut output = vec![0; 5];
+        let size = buffer.read(&mut output).unwrap();
+        assert_eq!(size, 0);
+        assert_eq!(&output, &[0; 5]);
+    }
+
+    #[test]
+    fn test_seek_out_of_bounds() {
+        let mut buffer = Buffer::from(vec![Bytes::from("OutOfBounds")]);
+        let result = buffer.seek(SeekFrom::Start(100));
+        assert!(result.is_err());
     }
 }

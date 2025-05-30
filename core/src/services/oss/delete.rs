@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use bytes::Buf;
+use http::StatusCode;
+
 use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use http::StatusCode;
-use std::collections::HashSet;
-use std::sync::Arc;
 
 pub struct OssDeleter {
     core: Arc<OssCore>,
@@ -50,17 +52,12 @@ impl oio::BatchDelete for OssDeleter {
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
         // Sadly, OSS will not return failed keys, so we will build
         // a set to calculate the failed keys.
-        let mut keys = HashSet::new();
-
-        let paths = batch
-            .into_iter()
-            .map(|(p, _)| {
-                keys.insert(p.clone());
-                p
-            })
+        let mut keys: HashSet<(String, OpDelete)> = batch
+            .iter()
+            .map(|path| (path.0.to_owned(), path.1.clone()))
             .collect();
 
-        let resp = self.core.oss_delete_objects(paths).await?;
+        let resp = self.core.oss_delete_objects(batch).await?;
 
         let status = resp.status();
 
@@ -87,14 +84,19 @@ impl oio::BatchDelete for OssDeleter {
 
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
-            keys.remove(&path);
-            batched_result.succeeded.push((path, OpDelete::default()));
+            let mut op = OpDelete::default();
+            if let Some(version) = &i.version_id {
+                op = op.with_version(version);
+            }
+            let object = (path, op);
+            keys.remove(&object);
+            batched_result.succeeded.push(object);
         }
         // TODO: we should handle those errors with code.
-        for i in keys {
+        for (path, op) in keys {
             batched_result.failed.push((
-                i,
-                OpDelete::default(),
+                path,
+                op,
                 Error::new(
                     ErrorKind::Unexpected,
                     "oss delete this key failed for reason we don't know",

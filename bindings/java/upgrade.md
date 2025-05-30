@@ -1,3 +1,9 @@
+# Upgrade to v0.48
+
+## Breaking change
+
+[PR-6169](https://github.com/apache/opendal/pull/6169/) The `append` method in `AsyncOperator` has been deprecated. Please use the `write` method with `WriteOptions.builder().append(true).build()` instead.
+
 # Upgrade to v0.47
 
 ## Breaking change

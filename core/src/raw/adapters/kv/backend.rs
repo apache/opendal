@@ -16,9 +16,9 @@
 // under the License.
 
 use std::sync::Arc;
-use std::vec::IntoIter;
 
-use super::{Adapter, Scan};
+use super::Adapter;
+use super::Scan;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::oio::QueueBuf;
 use crate::raw::*;
@@ -35,6 +35,7 @@ use crate::*;
 pub struct Backend<S: Adapter> {
     kv: Arc<S>,
     root: String,
+    info: Arc<AccessorInfo>,
 }
 
 impl<S> Backend<S>
@@ -43,9 +44,34 @@ where
 {
     /// Create a new kv backend.
     pub fn new(kv: S) -> Self {
+        let kv_info = kv.info();
         Self {
             kv: Arc::new(kv),
             root: "/".to_string(),
+            info: {
+                let am: AccessorInfo = AccessorInfo::default();
+                am.set_root("/");
+                am.set_scheme(kv_info.scheme());
+                am.set_name(kv_info.name());
+
+                let mut cap = kv_info.capabilities();
+                if cap.read {
+                    cap.stat = true;
+                }
+
+                if cap.write {
+                    cap.write_can_empty = true;
+                    cap.delete = true;
+                }
+
+                if cap.list {
+                    cap.list_with_recursive = true;
+                }
+
+                am.set_native_capability(cap);
+
+                am.into()
+            },
         }
     }
 
@@ -58,6 +84,8 @@ where
     ///
     /// This method assumes root is normalized.
     pub(crate) fn with_normalized_root(mut self, root: String) -> Self {
+        let root = normalize_root(&root);
+        self.info.set_root(&root);
         self.root = root;
         self
     }
@@ -68,35 +96,9 @@ impl<S: Adapter> Access for Backend<S> {
     type Writer = KvWriter<S>;
     type Lister = HierarchyLister<KvLister<S::Scanner>>;
     type Deleter = oio::OneShotDeleter<KvDeleter<S>>;
-    type BlockingReader = Buffer;
-    type BlockingWriter = KvWriter<S>;
-    type BlockingLister = HierarchyLister<BlockingKvLister>;
-    type BlockingDeleter = oio::OneShotDeleter<KvDeleter<S>>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let kv_info = self.kv.info();
-        let mut am: AccessorInfo = AccessorInfo::default();
-        am.set_root(&self.root);
-        am.set_scheme(kv_info.scheme());
-        am.set_name(kv_info.name());
-
-        let mut cap = kv_info.capabilities();
-        if cap.read {
-            cap.stat = true;
-        }
-
-        if cap.write {
-            cap.write_can_empty = true;
-            cap.delete = true;
-        }
-
-        if cap.list {
-            cap.list_with_recursive = true;
-        }
-
-        am.set_native_capability(cap);
-
-        am.into()
+        self.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -145,53 +147,6 @@ impl<S: Adapter> Access for Backend<S> {
 
         Ok((RpList::default(), lister))
     }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
-
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-        } else {
-            let bs = self.kv.blocking_get(&p)?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
-                )),
-                None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-            }
-        }
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.kv.blocking_get(&p)? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
-    }
-
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let p = build_abs_path(&self.root, path);
-
-        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(KvDeleter::new(self.kv.clone(), self.root.clone())),
-        ))
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        let p = build_abs_path(&self.root, path);
-        let res = self.kv.blocking_scan(&p)?;
-        let lister = BlockingKvLister::new(&self.root, res);
-        let lister = HierarchyLister::new(lister, path, args.recursive());
-
-        Ok((RpList::default(), lister))
-    }
 }
 
 pub struct KvLister<Iter> {
@@ -235,41 +190,6 @@ where
     }
 }
 
-pub struct BlockingKvLister {
-    root: String,
-    inner: IntoIter<String>,
-}
-
-impl BlockingKvLister {
-    fn new(root: &str, inner: Vec<String>) -> Self {
-        Self {
-            root: root.to_string(),
-            inner: inner.into_iter(),
-        }
-    }
-
-    fn inner_next(&mut self) -> Option<oio::Entry> {
-        self.inner.next().map(|v| {
-            let mode = if v.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut path = build_rel_path(&self.root, &v);
-            if path.is_empty() {
-                path = "/".to_string();
-            }
-            oio::Entry::new(&path, Metadata::new(mode))
-        })
-    }
-}
-
-impl oio::BlockingList for BlockingKvLister {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.inner_next())
-    }
-}
-
 pub struct KvWriter<S> {
     kv: Arc<S>,
     path: String,
@@ -297,26 +217,17 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
-        self.kv.set(&self.path, buf).await
+        let length = buf.len() as u64;
+        self.kv.set(&self.path, buf).await?;
+
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
-        Ok(())
-    }
-}
-
-impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.buffer.push(bs);
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<()> {
-        let buf = self.buffer.clone().collect();
-        self.kv.blocking_set(&self.path, buf)?;
         Ok(())
     }
 }
@@ -337,15 +248,6 @@ impl<S: Adapter> oio::OneShotDelete for KvDeleter<S> {
         let p = build_abs_path(&self.root, &path);
 
         self.kv.delete(&p).await?;
-        Ok(())
-    }
-}
-
-impl<S: Adapter> oio::BlockingOneShotDelete for KvDeleter<S> {
-    fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-
-        self.kv.blocking_delete(&p)?;
         Ok(())
     }
 }

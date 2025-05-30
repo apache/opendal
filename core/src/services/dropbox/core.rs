@@ -39,10 +39,8 @@ use crate::raw::*;
 use crate::*;
 
 pub struct DropboxCore {
+    pub info: Arc<AccessorInfo>,
     pub root: String,
-
-    pub client: HttpClient,
-
     pub signer: Arc<Mutex<DropboxSigner>>,
 }
 
@@ -89,7 +87,7 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(request).await?;
+        let resp = self.info.http_client().send(request).await?;
         let body = resp.into_body();
 
         let token: DropboxTokenResponse =
@@ -133,10 +131,12 @@ impl DropboxCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
+        let req = req.extension(Operation::Read);
+
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.fetch(request).await
+        self.info.http_client().fetch(request).await
     }
 
     pub async fn dropbox_update(
@@ -160,6 +160,8 @@ impl DropboxCore {
             args.content_type().unwrap_or("application/octet-stream"),
         );
 
+        let request_builder = request_builder.extension(Operation::Write);
+
         let mut request = request_builder
             .header(
                 "Dropbox-API-Arg",
@@ -169,7 +171,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_delete(&self, path: &str) -> Result<Response<Buffer>> {
@@ -183,11 +185,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::Delete)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<RpCreateDir> {
@@ -201,11 +204,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::CreateDir)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        let resp = self.client.send(request).await?;
+        let resp = self.info.http_client().send(request).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
@@ -240,11 +244,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::List)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_list_continue(&self, cursor: &str) -> Result<Response<Buffer>> {
@@ -259,11 +264,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::List)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -279,11 +285,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::Copy)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
@@ -299,11 +306,12 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::Rename)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
@@ -318,12 +326,13 @@ impl DropboxCore {
         let mut request = Request::post(&url)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
+            .extension(Operation::Stat)
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut request).await?;
 
-        self.client.send(request).await
+        self.info.http_client().send(request).await
     }
 }
 

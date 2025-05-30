@@ -16,7 +16,9 @@
 // under the License.
 
 use dict_derive::FromPyObject;
+use opendal as ocore;
 use pyo3::pyclass;
+use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
@@ -26,4 +28,19 @@ pub struct WriteOptions {
     pub content_type: Option<String>,
     pub content_disposition: Option<String>,
     pub cache_control: Option<String>,
+    pub user_metadata: Option<HashMap<String, String>>,
+}
+
+impl From<WriteOptions> for ocore::options::WriteOptions {
+    fn from(opts: WriteOptions) -> Self {
+        Self {
+            append: opts.append.unwrap_or(false),
+            chunk: opts.chunk,
+            content_type: opts.content_type,
+            content_disposition: opts.content_disposition,
+            cache_control: opts.cache_control,
+            user_metadata: opts.user_metadata,
+            ..Default::default()
+        }
+    }
 }

@@ -46,7 +46,7 @@ use std::io;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// ErrorKind is all kinds of Error of opendal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// OpenDAL don't know what happened here, and no actions other than just
@@ -92,6 +92,14 @@ impl ErrorKind {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
+    }
+
+    /// Capturing a backtrace can be a quite expensive runtime operation.
+    /// For some kinds of errors, backtrace is not useful and we can skip it (e.g., check if a file exists).
+    ///
+    /// See <https://github.com/apache/opendal/discussions/5569>
+    fn enable_backtrace(&self) -> bool {
+        matches!(self, ErrorKind::Unexpected)
     }
 }
 
@@ -219,8 +227,9 @@ pub struct Error {
     status: ErrorStatus,
     operation: &'static str,
     context: Vec<(&'static str, String)>,
+
     source: Option<anyhow::Error>,
-    backtrace: Backtrace,
+    backtrace: Option<Box<Backtrace>>,
 }
 
 impl Display for Error {
@@ -285,10 +294,11 @@ impl Debug for Error {
             writeln!(f, "Source:")?;
             writeln!(f, "   {source:#}")?;
         }
-        if self.backtrace.status() == BacktraceStatus::Captured {
+
+        if let Some(backtrace) = &self.backtrace {
             writeln!(f)?;
             writeln!(f, "Backtrace:")?;
-            writeln!(f, "{}", self.backtrace)?;
+            writeln!(f, "{}", backtrace)?;
         }
 
         Ok(())
@@ -312,9 +322,16 @@ impl Error {
             operation: "",
             context: Vec::default(),
             source: None,
-            // `Backtrace::capture()` will check if backtrace has been enabled
-            // internally. It's zero cost if backtrace is disabled.
-            backtrace: Backtrace::capture(),
+
+            backtrace: kind
+                .enable_backtrace()
+                // `Backtrace::capture()` will check if backtrace has
+                // been enabled internally. It's zero cost if backtrace
+                // is disabled.
+                .then(Backtrace::capture)
+                // We only keep captured backtrace to avoid an extra box.
+                .filter(|bt| bt.status() == BacktraceStatus::Captured)
+                .map(Box::new),
         }
     }
 
@@ -400,6 +417,51 @@ impl Error {
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
     }
+
+    /// Return error's backtrace.
+    ///
+    /// Note: the standard way of exposing backtrace is the unstable feature [`error_generic_member_access`](https://github.com/rust-lang/rust/issues/99301).
+    /// We don't provide it as it requires nightly rust.
+    ///
+    /// If you just want to print error with backtrace, use `Debug`, like `format!("{err:?}")`.
+    ///
+    /// If you use nightly rust, and want to access `opendal::Error`'s backtrace in the standard way, you can
+    /// implement a newtype like this:
+    ///
+    /// ```ignore
+    /// // assume you already have `#![feature(error_generic_member_access)]` on the top of your crate
+    ///
+    /// #[derive(::std::fmt::Debug)]
+    /// pub struct OpendalError(opendal::Error);
+    ///
+    /// impl std::fmt::Display for OpendalError {
+    ///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    ///         self.0.fmt(f)
+    ///     }
+    /// }
+    ///
+    /// impl std::error::Error for OpendalError {
+    ///     fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+    ///         if let Some(bt) = self.0.backtrace() {
+    ///             request.provide_ref::<std::backtrace::Backtrace>(bt);
+    ///         }
+    ///     }
+    ///
+    ///     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    ///         self.0.source()
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Additionally, you can add a clippy lint to prevent usage of the original `opendal::Error` type.
+    /// ```toml
+    /// disallowed-types = [
+    ///     { path = "opendal::Error", reason = "Please use `my_crate::OpendalError` instead." },
+    /// ]
+    /// ```
+    pub fn backtrace(&self) -> Option<&Backtrace> {
+        self.backtrace.as_ref().map(|bt| bt.as_ref())
+    }
 }
 
 impl From<Error> for io::Error {
@@ -416,13 +478,15 @@ impl From<Error> for io::Error {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::size_of;
+    use std::sync::LazyLock;
+
     use anyhow::anyhow;
-    use once_cell::sync::Lazy;
     use pretty_assertions::assert_eq;
 
     use super::*;
 
-    static TEST_ERROR: Lazy<Error> = Lazy::new(|| Error {
+    static TEST_ERROR: LazyLock<Error> = LazyLock::new(|| Error {
         kind: ErrorKind::Unexpected,
         message: "something wrong happened".to_string(),
         status: ErrorStatus::Permanent,
@@ -432,22 +496,32 @@ mod tests {
             ("called", "send_async".to_string()),
         ],
         source: Some(anyhow!("networking error")),
-        backtrace: Backtrace::disabled(),
+        backtrace: None,
     });
+
+    /// This is not a real test case.
+    ///
+    /// We assert our public structs here to make sure we don't introduce
+    /// unexpected struct/enum size change.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn assert_size() {
+        assert_eq!(88, size_of::<Error>());
+    }
 
     #[test]
     fn test_error_display() {
-        let s = format!("{}", Lazy::force(&TEST_ERROR));
+        let s = format!("{}", LazyLock::force(&TEST_ERROR));
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"#
         );
-        println!("{:#?}", Lazy::force(&TEST_ERROR));
+        println!("{:#?}", LazyLock::force(&TEST_ERROR));
     }
 
     #[test]
     fn test_error_debug() {
-        let s = format!("{:?}", Lazy::force(&TEST_ERROR));
+        let s = format!("{:?}", LazyLock::force(&TEST_ERROR));
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read => something wrong happened

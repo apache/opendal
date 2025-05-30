@@ -17,6 +17,7 @@
 
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use compio::buf::IoBuf;
 use compio::dispatcher::Dispatcher;
@@ -41,6 +42,8 @@ unsafe impl IoBuf for Buffer {
 
 #[derive(Debug)]
 pub(super) struct CompfsCore {
+    pub info: Arc<AccessorInfo>,
+
     pub root: PathBuf,
     pub dispatcher: Dispatcher,
     pub buf_pool: oio::PooledBuf,

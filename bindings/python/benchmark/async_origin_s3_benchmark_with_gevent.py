@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import greenify
+import timeit
 
 from gevent import monkey
 
-import timeit
+monkey.patch_all()
+
 import gevent
+import greenify
 from boto3 import client as boto3_client
 from mypy_boto3_s3 import S3Client
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 greenify.greenify()
-
-monkey.patch_all()
 
 
 class Config(BaseSettings):
@@ -96,12 +96,8 @@ def async_origin_s3_read():
 
 
 def async_s3_benchmark():
-    print(
-        f"Origin S3 Client async write: {timeit.timeit(async_origin_s3_write, number=2)}"
-    )
-    print(
-        f"Origin S3 Client async read: {timeit.timeit(async_origin_s3_read, number=2)}"
-    )
+    for func in (async_origin_s3_write, async_origin_s3_read):
+        print(f"{func.__name__}: {timeit.timeit(func, number=3)}")
 
 
 if __name__ == "__main__":

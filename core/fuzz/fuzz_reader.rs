@@ -89,11 +89,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
 }
 
 fuzz_target!(|input: FuzzInput| {
-    let _ = tracing_subscriber::fmt()
-        .pretty()
-        .with_test_writer()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
+    let _ = logforth::stderr().try_apply();
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {

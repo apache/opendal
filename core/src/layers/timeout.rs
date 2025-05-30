@@ -169,6 +169,11 @@ impl<A: Access> Layer<A> for TimeoutLayer {
     type LayeredAccess = TimeoutAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_executor(|exec| {
+            Executor::with(TimeoutExecutor::new(exec.into_inner(), self.io_timeout))
+        });
+
         TimeoutAccessor {
             inner,
 
@@ -215,13 +220,9 @@ impl<A: Access> TimeoutAccessor<A> {
 impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Inner = A;
     type Reader = TimeoutWrapper<A::Reader>;
-    type BlockingReader = A::BlockingReader;
     type Writer = TimeoutWrapper<A::Writer>;
-    type BlockingWriter = A::BlockingWriter;
     type Lister = TimeoutWrapper<A::Lister>;
-    type BlockingLister = A::BlockingLister;
     type Deleter = TimeoutWrapper<A::Deleter>;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -232,27 +233,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .await
     }
 
-    async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.io_timeout(Operation::Read, self.inner.read(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn write(&self, path: &str, mut args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if let Some(exec) = args.executor().cloned() {
-            args = args.with_executor(Executor::with(TimeoutExecutor::new(
-                exec.into_inner(),
-                self.io_timeout,
-            )));
-        }
-
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.io_timeout(Operation::Write, self.inner.write(path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
@@ -288,22 +275,6 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.timeout(Operation::Presign, self.inner.presign(path, args))
             .await
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.inner.blocking_list(path, args)
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
     }
 }
 
@@ -357,31 +328,31 @@ impl<R> TimeoutWrapper<R> {
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, Operation::ReaderRead.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
     }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, Operation::WriterWrite.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::WriterClose.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, Operation::WriterAbort.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, Operation::ListerNext.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::List.into_static(), fut).await
     }
 }
 
@@ -392,7 +363,7 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
 
     async fn flush(&mut self) -> Result<usize> {
         let fut = self.inner.flush();
-        Self::io_timeout(self.timeout, Operation::DeleterFlush.into_static(), fut).await
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 }
 
@@ -419,14 +390,10 @@ mod tests {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
-        type BlockingReader = ();
-        type BlockingWriter = ();
-        type BlockingLister = ();
         type Deleter = ();
-        type BlockingDeleter = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
-            let mut am = AccessorInfo::default();
+            let am = AccessorInfo::default();
             am.set_native_capability(Capability {
                 read: true,
                 delete: true,

@@ -22,8 +22,8 @@ use jni::objects::JString;
 use jni::sys::jbyteArray;
 use jni::sys::jlong;
 use jni::JNIEnv;
-use opendal::BlockingOperator;
-use opendal::StdBytesIterator;
+use opendal::blocking;
+use opendal::blocking::StdBytesIterator;
 
 use crate::convert::jstring_to_string;
 
@@ -34,7 +34,7 @@ use crate::convert::jstring_to_string;
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader(
     mut env: JNIEnv,
     _: JClass,
-    op: *mut BlockingOperator,
+    op: *mut blocking::Operator,
     path: JString,
 ) -> jlong {
     intern_construct_reader(&mut env, &mut *op, path).unwrap_or_else(|e| {
@@ -45,7 +45,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constr
 
 fn intern_construct_reader(
     env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    op: &mut blocking::Operator,
     path: JString,
 ) -> crate::Result<jlong> {
     let path = jstring_to_string(env, &path)?;

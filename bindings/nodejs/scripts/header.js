@@ -17,12 +17,12 @@
  * under the License.
  */
 
-const fs = require('fs')
+import fs from 'fs'
 
-let files = ['generated.js', 'generated.d.ts']
+const files = ['generated.js', 'generated.d.ts']
 
-for (path of files) {
-  let data = fs.readFileSync(path, 'utf8')
+for (const path of files) {
+  const data = fs.readFileSync(path, 'utf8')
   fs.writeFileSync(
     path,
     `/*

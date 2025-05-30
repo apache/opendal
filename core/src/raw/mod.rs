@@ -29,6 +29,19 @@
 mod accessor;
 pub use accessor::*;
 
+#[cfg(any(
+    feature = "services-azblob",
+    feature = "services-azdls",
+    feature = "services-azfile"
+))]
+mod azure;
+#[cfg(any(
+    feature = "services-azblob",
+    feature = "services-azdls",
+    feature = "services-azfile"
+))]
+pub(crate) use azure::*;
+
 mod layer;
 pub use layer::*;
 
@@ -72,7 +85,6 @@ pub use std_io_util::*;
 mod futures_util;
 pub use futures_util::BoxedFuture;
 pub use futures_util::BoxedStaticFuture;
-pub use futures_util::ConcurrentFutures;
 pub use futures_util::ConcurrentTasks;
 pub use futures_util::MaybeSend;
 

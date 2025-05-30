@@ -194,7 +194,7 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
             log!(
                 target: LOGGING_TARGET,
                 lvl,
-                "service={} name={} {}: {operation} {message} {}",
+                "service={} name={}{}: {operation} {message} {}",
                 info.scheme(),
                 info.name(),
                 LoggingContext(context),
@@ -210,17 +210,10 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
             );
         }
 
-        // Print debug message if operation is oneshot, otherwise in trace.
-        let lvl = if operation.is_oneshot() {
-            Level::Debug
-        } else {
-            Level::Trace
-        };
-
         log!(
             target: LOGGING_TARGET,
-            lvl,
-            "service={} name={} {}: {operation} {message}",
+            Level::Debug,
+            "service={} name={}{}: {operation} {message}",
             info.scheme(),
             info.name(),
             LoggingContext(context),
@@ -232,12 +225,8 @@ struct LoggingContext<'a>(&'a [(&'a str, &'a str)]);
 
 impl Display for LoggingContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, (k, v)) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, " {}={}", k, v)?;
-            } else {
-                write!(f, "{}={}", k, v)?;
-            }
+        for (k, v) in self.0.iter() {
+            write!(f, " {}={}", k, v)?;
         }
         Ok(())
     }
@@ -256,28 +245,16 @@ static LOGGING_TARGET: &str = "opendal::services";
 impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader, I>;
-    type BlockingReader = LoggingReader<A::BlockingReader, I>;
     type Writer = LoggingWriter<A::Writer, I>;
-    type BlockingWriter = LoggingWriter<A::BlockingWriter, I>;
     type Lister = LoggingLister<A::Lister, I>;
-    type BlockingLister = LoggingLister<A::BlockingLister, I>;
     type Deleter = LoggingDeleter<A::Deleter, I>;
-    type BlockingDeleter = LoggingDeleter<A::BlockingDeleter, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.logger
-            .log(&self.info, Operation::Info, &[], "started", None);
-
-        let info = self.info.clone();
-
-        self.logger
-            .log(&self.info, Operation::Info, &[], "finished", None);
-
-        info
+        self.info.clone()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -292,7 +269,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .create_dir(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::CreateDir,
@@ -300,17 +277,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::CreateDir,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -339,15 +314,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     LoggingReader::new(self.info.clone(), self.logger.clone(), path, r),
                 )
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Read,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -374,15 +348,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
                 (rp, w)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Write,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -398,7 +371,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .copy(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
@@ -406,17 +379,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
                     &[("from", from), ("to", to)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -432,7 +403,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .rename(from, to, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Rename,
@@ -440,17 +411,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Rename,
                     &[("from", from), ("to", to)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -466,7 +435,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .stat(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Stat,
@@ -474,17 +443,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Stat,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -501,10 +468,9 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
                 (rp, d)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger
-                    .log(&self.info, Operation::Delete, &[], "failed", Some(&err));
-                err
+                    .log(&self.info, Operation::Delete, &[], "failed", Some(err));
             })
     }
 
@@ -531,15 +497,14 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                 let streamer = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
                 (rp, streamer)
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::List,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
             })
     }
 
@@ -555,7 +520,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         self.inner
             .presign(path, args)
             .await
-            .map(|v| {
+            .inspect(|_| {
                 self.logger.log(
                     &self.info,
                     Operation::Presign,
@@ -563,275 +528,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "finished",
                     None,
                 );
-                v
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.logger.log(
                     &self.info,
                     Operation::Presign,
                     &[("path", path)],
                     "failed",
-                    Some(&err),
+                    Some(err),
                 );
-                err
-            })
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingCreateDir,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_create_dir(path, args)
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingCreateDir,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-                v
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingCreateDir,
-                    &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingRead,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_read(path, args.clone())
-            .map(|(rp, r)| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingRead,
-                    &[("path", path)],
-                    "created reader",
-                    None,
-                );
-                let r = LoggingReader::new(self.info.clone(), self.logger.clone(), path, r);
-                (rp, r)
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingRead,
-                    &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingWrite,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWrite,
-                    &[("path", path)],
-                    "created writer",
-                    None,
-                );
-                let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
-                (rp, w)
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWrite,
-                    &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingCopy,
-            &[("from", from), ("to", to)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_copy(from, to, args)
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingCopy,
-                    &[("from", from), ("to", to)],
-                    "finished",
-                    None,
-                );
-                v
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingCopy,
-                    &[("from", from), ("to", to)],
-                    "",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingRename,
-            &[("from", from), ("to", to)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_rename(from, to, args)
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingRename,
-                    &[("from", from), ("to", to)],
-                    "finished",
-                    None,
-                );
-                v
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingRename,
-                    &[("from", from), ("to", to)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingStat,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_stat(path, args)
-            .map(|v| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingStat,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-                v
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingStat,
-                    &[("path", path)],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_delete(&self) -> Result<(RpDelete, Self::BlockingDeleter)> {
-        self.logger
-            .log(&self.info, Operation::BlockingDelete, &[], "started", None);
-
-        self.inner
-            .blocking_delete()
-            .map(|(rp, d)| {
-                self.logger
-                    .log(&self.info, Operation::BlockingDelete, &[], "finished", None);
-                let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
-                (rp, d)
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDelete,
-                    &[],
-                    "failed",
-                    Some(&err),
-                );
-                err
-            })
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingLister)> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingList,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .blocking_list(path, args)
-            .map(|(rp, v)| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingList,
-                    &[("path", path)],
-                    "created lister",
-                    None,
-                );
-                let li = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
-                (rp, li)
-            })
-            .map_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingList,
-                    &[("path", path)],
-                    "",
-                    Some(&err),
-                );
-                err
             })
     }
 }
@@ -863,7 +568,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         self.logger.log(
             &self.info,
-            Operation::ReaderRead,
+            Operation::Read,
             &[("path", &self.path), ("read", &self.read.to_string())],
             "started",
             None,
@@ -874,7 +579,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
                 self.read += bs.len() as u64;
                 self.logger.log(
                     &self.info,
-                    Operation::ReaderRead,
+                    Operation::Read,
                     &[
                         ("path", &self.path),
                         ("read", &self.read.to_string()),
@@ -892,51 +597,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::ReaderRead,
-                    &[("path", &self.path), ("read", &self.read.to_string())],
-                    "failed",
-                    Some(&err),
-                );
-                Err(err)
-            }
-        }
-    }
-}
-
-impl<R: oio::BlockingRead, I: LoggingInterceptor> oio::BlockingRead for LoggingReader<R, I> {
-    fn read(&mut self) -> Result<Buffer> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingReaderRead,
-            &[("path", &self.path), ("read", &self.read.to_string())],
-            "started",
-            None,
-        );
-
-        match self.inner.read() {
-            Ok(bs) => {
-                self.read += bs.len() as u64;
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingReaderRead,
-                    &[
-                        ("path", &self.path),
-                        ("read", &self.read.to_string()),
-                        ("size", &bs.len().to_string()),
-                    ],
-                    if bs.is_empty() {
-                        "finished"
-                    } else {
-                        "succeeded"
-                    },
-                    None,
-                );
-                Ok(bs)
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingReaderRead,
+                    Operation::Read,
                     &[("path", &self.path), ("read", &self.read.to_string())],
                     "failed",
                     Some(&err),
@@ -975,7 +636,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
 
         self.logger.log(
             &self.info,
-            Operation::WriterWrite,
+            Operation::Write,
             &[
                 ("path", &self.path),
                 ("written", &self.written.to_string()),
@@ -990,7 +651,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
                 self.written += size as u64;
                 self.logger.log(
                     &self.info,
-                    Operation::WriterWrite,
+                    Operation::Write,
                     &[
                         ("path", &self.path),
                         ("written", &self.written.to_string()),
@@ -1004,7 +665,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::WriterWrite,
+                    Operation::Write,
                     &[
                         ("path", &self.path),
                         ("written", &self.written.to_string()),
@@ -1021,7 +682,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     async fn abort(&mut self) -> Result<()> {
         self.logger.log(
             &self.info,
-            Operation::WriterAbort,
+            Operation::Write,
             &[("path", &self.path), ("written", &self.written.to_string())],
             "started",
             None,
@@ -1031,7 +692,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             Ok(_) => {
                 self.logger.log(
                     &self.info,
-                    Operation::WriterAbort,
+                    Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "succeeded",
                     None,
@@ -1041,7 +702,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::WriterAbort,
+                    Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "failed",
                     Some(&err),
@@ -1051,112 +712,30 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<Metadata> {
         self.logger.log(
             &self.info,
-            Operation::WriterClose,
+            Operation::Write,
             &[("path", &self.path), ("written", &self.written.to_string())],
             "started",
             None,
         );
 
         match self.inner.close().await {
-            Ok(_) => {
+            Ok(meta) => {
                 self.logger.log(
                     &self.info,
-                    Operation::WriterClose,
+                    Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "succeeded",
                     None,
                 );
-                Ok(())
+                Ok(meta)
             }
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::WriterClose,
-                    &[("path", &self.path), ("written", &self.written.to_string())],
-                    "failed",
-                    Some(&err),
-                );
-                Err(err)
-            }
-        }
-    }
-}
-
-impl<W: oio::BlockingWrite, I: LoggingInterceptor> oio::BlockingWrite for LoggingWriter<W, I> {
-    fn write(&mut self, bs: Buffer) -> Result<()> {
-        let size = bs.len();
-
-        self.logger.log(
-            &self.info,
-            Operation::BlockingWriterWrite,
-            &[
-                ("path", &self.path),
-                ("written", &self.written.to_string()),
-                ("size", &size.to_string()),
-            ],
-            "started",
-            None,
-        );
-
-        match self.inner.write(bs) {
-            Ok(_) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWriterWrite,
-                    &[
-                        ("path", &self.path),
-                        ("written", &self.written.to_string()),
-                        ("size", &size.to_string()),
-                    ],
-                    "succeeded",
-                    None,
-                );
-                Ok(())
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWriterWrite,
-                    &[
-                        ("path", &self.path),
-                        ("written", &self.written.to_string()),
-                        ("size", &size.to_string()),
-                    ],
-                    "failed",
-                    Some(&err),
-                );
-                Err(err)
-            }
-        }
-    }
-
-    fn close(&mut self) -> Result<()> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingWriterClose,
-            &[("path", &self.path), ("written", &self.written.to_string())],
-            "started",
-            None,
-        );
-
-        match self.inner.close() {
-            Ok(_) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWriterWrite,
-                    &[("path", &self.path), ("written", &self.written.to_string())],
-                    "succeeded",
-                    None,
-                );
-                Ok(())
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingWriterClose,
+                    Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
                     "failed",
                     Some(&err),
@@ -1193,7 +772,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.logger.log(
             &self.info,
-            Operation::ListerNext,
+            Operation::List,
             &[("path", &self.path), ("listed", &self.listed.to_string())],
             "started",
             None,
@@ -1206,7 +785,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
                 self.listed += 1;
                 self.logger.log(
                     &self.info,
-                    Operation::ListerNext,
+                    Operation::List,
                     &[
                         ("path", &self.path),
                         ("listed", &self.listed.to_string()),
@@ -1219,7 +798,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
             Ok(None) => {
                 self.logger.log(
                     &self.info,
-                    Operation::ListerNext,
+                    Operation::List,
                     &[("path", &self.path), ("listed", &self.listed.to_string())],
                     "finished",
                     None,
@@ -1228,57 +807,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::ListerNext,
-                    &[("path", &self.path), ("listed", &self.listed.to_string())],
-                    "failed",
-                    Some(err),
-                );
-            }
-        };
-
-        res
-    }
-}
-
-impl<P: oio::BlockingList, I: LoggingInterceptor> oio::BlockingList for LoggingLister<P, I> {
-    fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingListerNext,
-            &[("path", &self.path), ("listed", &self.listed.to_string())],
-            "started",
-            None,
-        );
-
-        let res = self.inner.next();
-        match &res {
-            Ok(Some(de)) => {
-                self.listed += 1;
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingListerNext,
-                    &[
-                        ("path", &self.path),
-                        ("listed", &self.listed.to_string()),
-                        ("entry", de.path()),
-                    ],
-                    "succeeded",
-                    None,
-                );
-            }
-            Ok(None) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingListerNext,
-                    &[("path", &self.path), ("listed", &self.listed.to_string())],
-                    "finished",
-                    None,
-                );
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingListerNext,
+                    Operation::List,
                     &[("path", &self.path), ("listed", &self.listed.to_string())],
                     "failed",
                     Some(err),
@@ -1321,7 +850,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
 
         self.logger.log(
             &self.info,
-            Operation::DeleterDelete,
+            Operation::Delete,
             &[("path", path), ("version", &version)],
             "started",
             None,
@@ -1334,7 +863,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                 self.queued += 1;
                 self.logger.log(
                     &self.info,
-                    Operation::DeleterDelete,
+                    Operation::Delete,
                     &[
                         ("path", path),
                         ("version", &version),
@@ -1348,7 +877,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::DeleterDelete,
+                    Operation::Delete,
                     &[
                         ("path", path),
                         ("version", &version),
@@ -1367,7 +896,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
     async fn flush(&mut self) -> Result<usize> {
         self.logger.log(
             &self.info,
-            Operation::DeleterFlush,
+            Operation::Delete,
             &[
                 ("queued", &self.queued.to_string()),
                 ("deleted", &self.deleted.to_string()),
@@ -1384,7 +913,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                 self.deleted += flushed;
                 self.logger.log(
                     &self.info,
-                    Operation::DeleterFlush,
+                    Operation::Delete,
                     &[
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
@@ -1396,106 +925,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
             Err(err) => {
                 self.logger.log(
                     &self.info,
-                    Operation::DeleterFlush,
-                    &[
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
-                    "failed",
-                    Some(err),
-                );
-            }
-        };
-
-        res
-    }
-}
-
-impl<D: oio::BlockingDelete, I: LoggingInterceptor> oio::BlockingDelete for LoggingDeleter<D, I> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        let version = args
-            .version()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "<latest>".to_string());
-
-        self.logger.log(
-            &self.info,
-            Operation::BlockingDeleterDelete,
-            &[("path", path), ("version", &version)],
-            "started",
-            None,
-        );
-
-        let res = self.inner.delete(path, args);
-
-        match &res {
-            Ok(_) => {
-                self.queued += 1;
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDeleterDelete,
-                    &[
-                        ("path", path),
-                        ("version", &version),
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
-                    "succeeded",
-                    None,
-                );
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDeleterDelete,
-                    &[
-                        ("path", path),
-                        ("version", &version),
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
-                    "failed",
-                    Some(err),
-                );
-            }
-        };
-
-        res
-    }
-
-    fn flush(&mut self) -> Result<usize> {
-        self.logger.log(
-            &self.info,
-            Operation::BlockingDeleterFlush,
-            &[
-                ("queued", &self.queued.to_string()),
-                ("deleted", &self.deleted.to_string()),
-            ],
-            "started",
-            None,
-        );
-
-        let res = self.inner.flush();
-
-        match &res {
-            Ok(flushed) => {
-                self.queued -= flushed;
-                self.deleted += flushed;
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDeleterFlush,
-                    &[
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
-                    "succeeded",
-                    None,
-                );
-            }
-            Err(err) => {
-                self.logger.log(
-                    &self.info,
-                    Operation::BlockingDeleterFlush,
+                    Operation::Delete,
                     &[
                         ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),

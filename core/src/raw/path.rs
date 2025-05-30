@@ -157,7 +157,7 @@ pub fn get_basename(path: &str) -> &str {
     if !path.ends_with('/') {
         return path
             .split('/')
-            .last()
+            .next_back()
             .expect("file path without name is invalid");
     }
 
@@ -211,6 +211,7 @@ pub fn get_parent(path: &str) -> &str {
 }
 
 /// Validate given path is match with given EntryMode.
+#[inline]
 pub fn validate_path(path: &str, mode: EntryMode) -> bool {
     debug_assert!(!path.is_empty(), "input path should not be empty");
 
@@ -290,6 +291,7 @@ mod tests {
             ("file walk", "foo/bar/baz", "foo/bar/"),
             ("dir rel path", "bar/baz/", "bar/"),
             ("dir root", "/", "/"),
+            ("dir abs path", "/foo/bar/", "/foo/"),
             ("dir walk", "foo/bar/baz/", "foo/bar/"),
         ];
 

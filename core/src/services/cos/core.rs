@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -40,17 +40,18 @@ use crate::*;
 
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
+
+    pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
 }
 
 pub struct CosCore {
+    pub info: Arc<AccessorInfo>,
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
-    pub enable_versioning: bool,
 
     pub signer: TencentCosSigner,
     pub loader: TencentCosCredentialLoader,
-    pub client: HttpClient,
 }
 
 impl Debug for CosCore {
@@ -105,7 +106,7 @@ impl CosCore {
 
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.client.send(req).await
+        self.info.http_client().send(req).await
     }
 }
 
@@ -120,7 +121,7 @@ impl CosCore {
 
         self.sign(&mut req).await?;
 
-        self.client.fetch(req).await
+        self.info.http_client().fetch(req).await
     }
 
     pub fn cos_get_object_request(
@@ -158,6 +159,8 @@ impl CosCore {
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
+
+        let req = req.extension(Operation::Read);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -209,6 +212,8 @@ impl CosCore {
             }
         }
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -249,6 +254,8 @@ impl CosCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        let req = req.extension(Operation::Stat);
+
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
@@ -272,6 +279,8 @@ impl CosCore {
         }
 
         let req = Request::delete(&url);
+
+        let req = req.extension(Operation::Delete);
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -312,6 +321,8 @@ impl CosCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        let req = req.extension(Operation::Write);
+
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
@@ -324,6 +335,7 @@ impl CosCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
+            .extension(Operation::Copy)
             .header("x-cos-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -342,27 +354,23 @@ impl CosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut queries = vec![];
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+
         if !p.is_empty() {
-            queries.push(format!("prefix={}", percent_encode_path(&p)));
+            url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
-            queries.push(format!("delimiter={delimiter}"));
+            url = url.push("delimiter", delimiter);
         }
         if let Some(limit) = limit {
-            queries.push(format!("max-keys={limit}"));
+            url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            queries.push(format!("marker={next_marker}"));
+            url = url.push("marker", next_marker);
         }
 
-        let url = if queries.is_empty() {
-            self.endpoint.to_string()
-        } else {
-            format!("{}?{}", self.endpoint, queries.join("&"))
-        };
-
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -401,6 +409,8 @@ impl CosCore {
             }
         }
 
+        let req = req.extension(Operation::Write);
+
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
@@ -428,6 +438,9 @@ impl CosCore {
 
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
+
+        let req = req.extension(Operation::Write);
+
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -454,11 +467,13 @@ impl CosCore {
         let req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
-            .map_err(new_xml_deserialize_error)?;
+            .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let req = req.extension(Operation::Write);
 
         let mut req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -485,6 +500,7 @@ impl CosCore {
         );
 
         let mut req = Request::delete(&url)
+            .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
@@ -501,32 +517,27 @@ impl CosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, prefix);
 
-        let mut url = format!("{}?versions", self.endpoint);
+        let mut url = QueryPairsWriter::new(&self.endpoint);
+        url = url.push("versions", "");
         if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(p.as_str()))
-                .expect("write into string must succeed");
+            url = url.push("prefix", &percent_encode_path(p.as_str()));
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            url = url.push("delimiter", delimiter);
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            url = url.push("max-keys", &limit.to_string());
         }
         if !key_marker.is_empty() {
-            write!(url, "&key-marker={}", percent_encode_path(key_marker))
-                .expect("write into string must succeed");
+            url = url.push("key-marker", &percent_encode_path(key_marker));
         }
         if !version_id_marker.is_empty() {
-            write!(
-                url,
-                "&version-id-marker={}",
-                percent_encode_path(version_id_marker)
-            )
-            .expect("write into string must succeed");
+            url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(&url)
+        let mut req = Request::get(url.finish())
+            .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -583,6 +594,17 @@ pub struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Output of `CompleteMultipartUpload` operation
+#[derive(Debug, Default, Deserialize)]
+#[serde[default, rename_all = "PascalCase"]]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
 }

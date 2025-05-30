@@ -308,5 +308,20 @@ impl kv::Adapter for Adapter {
 }
 
 fn parse_sqlite_error(err: sqlx::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from sqlite").set_source(err)
+    let is_temporary = matches!(
+        &err,
+        sqlx::Error::Database(db_err) if db_err.code().is_some_and(|c| c == "5" || c == "6")
+    );
+
+    let message = if is_temporary {
+        "database is locked or busy"
+    } else {
+        "unhandled error from sqlite"
+    };
+
+    let mut error = Error::new(ErrorKind::Unexpected, message).set_source(err);
+    if is_temporary {
+        error = error.set_temporary();
+    }
+    error
 }

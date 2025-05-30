@@ -58,17 +58,18 @@ create_exception!(
 );
 
 pub fn format_pyerr(err: ocore::Error) -> PyErr {
+    let e = format!("{err:?}");
     match err.kind() {
-        ocore::ErrorKind::Unexpected => Unexpected::new_err(err.to_string()),
-        ocore::ErrorKind::Unsupported => Unsupported::new_err(err.to_string()),
-        ocore::ErrorKind::ConfigInvalid => ConfigInvalid::new_err(err.to_string()),
-        ocore::ErrorKind::NotFound => NotFound::new_err(err.to_string()),
-        ocore::ErrorKind::PermissionDenied => PermissionDenied::new_err(err.to_string()),
-        ocore::ErrorKind::IsADirectory => IsADirectory::new_err(err.to_string()),
-        ocore::ErrorKind::NotADirectory => NotADirectory::new_err(err.to_string()),
-        ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(err.to_string()),
-        ocore::ErrorKind::IsSameFile => IsSameFile::new_err(err.to_string()),
-        ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(err.to_string()),
-        _ => Unexpected::new_err(err.to_string()),
+        ocore::ErrorKind::Unexpected => Unexpected::new_err(e),
+        ocore::ErrorKind::Unsupported => Unsupported::new_err(e),
+        ocore::ErrorKind::ConfigInvalid => ConfigInvalid::new_err(e),
+        ocore::ErrorKind::NotFound => NotFound::new_err(e),
+        ocore::ErrorKind::PermissionDenied => PermissionDenied::new_err(e),
+        ocore::ErrorKind::IsADirectory => IsADirectory::new_err(e),
+        ocore::ErrorKind::NotADirectory => NotADirectory::new_err(e),
+        ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(e),
+        ocore::ErrorKind::IsSameFile => IsSameFile::new_err(e),
+        ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(e),
+        _ => Unexpected::new_err(e),
     }
 }

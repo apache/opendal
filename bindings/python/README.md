@@ -1,14 +1,18 @@
 # Apache OpenDAL™ Python Binding
 
-![](https://img.shields.io/badge/status-released-blue)
+[![img](https://img.shields.io/badge/status-released-blue)](https://pypi.org/project/opendal/)
 [![PyPI](https://img.shields.io/pypi/v/opendal.svg?logo=PyPI)](https://pypi.org/project/opendal/)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/python/)
-
-Documentation: [main](https://opendal.apache.org/docs/python/)
 
 This package intends to build a native python binding for Apache OpenDAL.
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
+## Useful Links
+
+- [Documentation](https://opendal.apache.org/docs/python/)
+- [Examples](./docs/examples)
+- [Upgrade Guide](./upgrade.md)
 
 ## Installation
 
@@ -19,6 +23,7 @@ pip install opendal
 ## Usage
 
 fs service example:
+
 ```python
 import opendal
 
@@ -42,6 +47,7 @@ asyncio.run(main())
 ```
 
 s3 service example:
+
 ```python
 import opendal
 
@@ -64,48 +70,36 @@ async def main():
 asyncio.run(main())
 ```
 
-
 ## Development
 
 Setup virtualenv:
 
 ```shell
-python -m venv venv
+uv venv --python 3.11
 ```
 
-Activate venv:
+Install all the dependencies:
 
 ```shell
-source venv/bin/activate
-````
-
-Install `maturin`:
-
-```shell
-pip install maturin
-```
-
-Build bindings:
-
-```shell
-maturin develop
+uv sync --all-groups --all-extras
 ```
 
 Run some tests:
 
 ```shell
-# Ensure the dependencies are installed
-maturin develop -E test
 # To run `test_write.py` and use `fs` operator
-OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp pytest -vk test_write
+OPENDAL_TEST=fs OPENDAL_FS_ROOT=/tmp uv run pytest -vk test_write
 ```
 
 Build API docs:
 
 ```shell
-maturin develop -E docs
-pdoc -t ./template opendal
+uv run mkdocs build
 ```
+
+## Used by
+
+Check out the [users](./users.md) list for more details on who is using OpenDAL.
 
 ## License and Trademarks
 

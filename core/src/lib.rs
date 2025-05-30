@@ -26,7 +26,7 @@
 //!
 //! # Quick Start
 //!
-//! OpenDAL's API entry points are [`Operator`] and [`BlockingOperator`]. All
+//! OpenDAL's API entry points are [`Operator`] and [`blocking::Operator`]. All
 //! public APIs are accessible through the operator. To utilize OpenDAL, you
 //! need to:
 //!
@@ -88,17 +88,23 @@
 //! ## Use operator
 //!
 //! The final step is to use the operator. OpenDAL supports both async [`Operator`]
-//! and blocking [`BlockingOperator`]. Please pick the one that fits your use case.
+//! and blocking [`blocking::Operator`]. Please pick the one that fits your use case.
 //!
-//! Every Operator API follows the same pattern, take `read` as an example:
+//! Every Operator API follows a consistent pattern. For example, consider the `read` operation:
 //!
-//! - `read`: Execute a read operation.
-//! - `read_with`: Execute a read operation with additional options, like `range` and `if_match`.
-//! - `reader`: Create a reader for streaming data, enabling flexible access.
-//! - `reader_with`: Create a reader with advanced options.
+//! - [`Operator::read`]: Executes a read operation.
+//! - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
+//! - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
+//! - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
+//! - [`Operator::reader_with`]: Creates a reader with advanced options using the builder pattern.
+//! - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
+//!
+//! The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
+//! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 //!
 //! ```no_run
 //! use opendal::layers::LoggingLayer;
+//! use opendal::options;
 //! use opendal::services;
 //! use opendal::Operator;
 //! use opendal::Result;
@@ -118,12 +124,33 @@
 //!     let meta = op.stat("hello.txt").await?;
 //!     let length = meta.content_length();
 //!
-//!     // Read data from `hello.txt` with range `0..1024`.
-//!     let bs = op.read_with("hello.txt").range(0..1024).await?;
+//!     // Read data from `hello.txt` with options.
+//!     let bs = op
+//!         .read_with("hello.txt")
+//!         .range(0..8 * 1024 * 1024)
+//!         .chunk(1024 * 1024)
+//!         .concurrent(4)
+//!         .await?;
+//!
+//!     // The same to:
+//!     let bs = op
+//!         .read_options("hello.txt", options::ReadOptions {
+//!             range: (0..8 * 1024 * 1024).into(),
+//!             chunk: Some(1024 * 1024),
+//!             concurrent: 4,
+//!             ..Default::default()
+//!         })
+//!         .await?;
 //!
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Useful Links
+//!
+//! - [Concept][crate::docs::concepts]
+//! - [Internals][crate::docs::internals]
+//! - [Performance Guide][crate::docs::performance]
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]
@@ -133,6 +160,8 @@ mod types;
 pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
+#[cfg(feature = "blocking")]
+pub mod blocking;
 #[cfg(docsrs)]
 pub mod docs;
 pub mod layers;
@@ -148,9 +177,10 @@ mod tests {
     ///
     /// We assert our public structs here to make sure we don't introduce
     /// unexpected struct/enum size change.
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn assert_size() {
-        assert_eq!(32, size_of::<Operator>());
+        assert_eq!(16, size_of::<Operator>());
         assert_eq!(320, size_of::<Entry>());
         assert_eq!(296, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
@@ -165,10 +195,6 @@ mod tests {
     impl AssertSendSync for Writer {}
     impl AssertSendSync for Lister {}
     impl AssertSendSync for Operator {}
-    impl AssertSendSync for BlockingReader {}
-    impl AssertSendSync for BlockingWriter {}
-    impl AssertSendSync for BlockingLister {}
-    impl AssertSendSync for BlockingOperator {}
 
     /// This is used to make sure our public API implement Send + Sync
     #[test]

@@ -21,22 +21,17 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_tls::TlsConnector;
-use bb8::PooledConnection;
-use bb8::RunError;
 use http::Uri;
 use log::debug;
+use services::ftp::core::Manager;
 use suppaftp::list::File;
-use suppaftp::types::FileType;
 use suppaftp::types::Response;
-use suppaftp::AsyncRustlsConnector;
-use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
+use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
@@ -166,110 +161,10 @@ impl Builder for FtpBuilder {
             Some(v) => v.clone(),
         };
 
-        Ok(FtpBackend {
-            endpoint,
-            root,
-            user,
-            password,
-            enable_secure,
-            pool: OnceCell::new(),
-        })
-    }
-}
-
-pub struct Manager {
-    endpoint: String,
-    root: String,
-    user: String,
-    password: String,
-    enable_secure: bool,
-}
-
-#[async_trait::async_trait]
-impl bb8::ManageConnection for Manager {
-    type Connection = AsyncRustlsFtpStream;
-    type Error = FtpError;
-
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
-        // switch to secure mode if ssl/tls is on.
-        let mut ftp_stream = if self.enable_secure {
-            stream
-                .into_secure(
-                    AsyncRustlsConnector::from(TlsConnector::default()),
-                    &self.endpoint,
-                )
-                .await?
-        } else {
-            stream
-        };
-
-        // login if needed
-        if !self.user.is_empty() {
-            ftp_stream.login(&self.user, &self.password).await?;
-        }
-
-        // change to the root path
-        match ftp_stream.cwd(&self.root).await {
-            Err(FtpError::UnexpectedResponse(e)) if e.status == Status::FileUnavailable => {
-                ftp_stream.mkdir(&self.root).await?;
-                // Then change to root path
-                ftp_stream.cwd(&self.root).await?;
-            }
-            // Other errors, return.
-            Err(e) => return Err(e),
-            // Do nothing if success.
-            Ok(_) => (),
-        }
-
-        ftp_stream.transfer_type(FileType::Binary).await?;
-
-        Ok(ftp_stream)
-    }
-
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.noop().await
-    }
-
-    /// Don't allow reuse conn.
-    ///
-    /// We need to investigate why reuse conn will cause error.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        true
-    }
-}
-
-/// Backend is used to serve `Accessor` support for ftp.
-#[derive(Clone)]
-pub struct FtpBackend {
-    endpoint: String,
-    root: String,
-    user: String,
-    password: String,
-    enable_secure: bool,
-    pool: OnceCell<bb8::Pool<Manager>>,
-}
-
-impl Debug for FtpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").finish()
-    }
-}
-
-impl Access for FtpBackend {
-    type Reader = FtpReader;
-    type Writer = FtpWriter;
-    type Lister = FtpLister;
-    type Deleter = oio::OneShotDeleter<FtpDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Ftp)
-            .set_root(&self.root)
+        let accessor_info = AccessorInfo::default();
+        accessor_info
+            .set_scheme(Scheme::Ftp)
+            .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
                 stat_has_content_length: true,
@@ -292,12 +187,47 @@ impl Access for FtpBackend {
 
                 ..Default::default()
             });
+        let manager = Manager {
+            endpoint: endpoint.clone(),
+            root: root.clone(),
+            user: user.clone(),
+            password: password.clone(),
+            enable_secure,
+        };
+        let core = Arc::new(FtpCore {
+            info: accessor_info.into(),
+            manager,
+            pool: OnceCell::new(),
+        });
 
-        am.into()
+        Ok(FtpBackend { core })
+    }
+}
+
+// Backend is used to serve `Accessor` support for ftp.
+#[derive(Clone)]
+pub struct FtpBackend {
+    core: Arc<FtpCore>,
+}
+
+impl Debug for FtpBackend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Backend").finish()
+    }
+}
+
+impl Access for FtpBackend {
+    type Reader = FtpReader;
+    type Writer = FtpWriter;
+    type Lister = FtpLister;
+    type Deleter = oio::OneShotDeleter<FtpDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.core.info.clone()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut ftp_stream = self.ftp_connect(Operation::CreateDir).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
 
@@ -340,7 +270,7 @@ impl Access for FtpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let ftp_stream = self.ftp_connect(Operation::Read).await?;
+        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
 
         let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
         Ok((RpRead::new(), reader))
@@ -352,7 +282,7 @@ impl Access for FtpBackend {
         let paths: Vec<&str> = parent.split('/').collect();
 
         // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
         let mut curr_path = String::new();
 
         for path in paths {
@@ -389,12 +319,12 @@ impl Access for FtpBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(FtpDeleter::new(Arc::new(self.clone()))),
+            oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone())),
         ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let mut ftp_stream = self.ftp_connect(Operation::List).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
         let files = ftp_stream.list(pathname).await.map_err(parse_error)?;
@@ -407,34 +337,8 @@ impl Access for FtpBackend {
 }
 
 impl FtpBackend {
-    pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
-        let pool = self
-            .pool
-            .get_or_try_init(|| async {
-                bb8::Pool::builder()
-                    .max_size(64)
-                    .build(Manager {
-                        endpoint: self.endpoint.to_string(),
-                        root: self.root.to_string(),
-                        user: self.user.to_string(),
-                        password: self.password.to_string(),
-                        enable_secure: self.enable_secure,
-                    })
-                    .await
-            })
-            .await
-            .map_err(parse_error)?;
-
-        pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => parse_error(err),
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
-            }
-        })
-    }
-
     pub async fn ftp_stat(&self, path: &str) -> Result<File> {
-        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
+        let mut ftp_stream = self.core.ftp_connect(Operation::Stat).await?;
 
         let (parent, basename) = (get_parent(path), get_basename(path));
 

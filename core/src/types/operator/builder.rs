@@ -182,8 +182,6 @@ impl Operator {
             Scheme::YandexDisk => Self::from_iter::<services::YandexDisk>(iter)?.finish(),
             #[cfg(feature = "services-pcloud")]
             Scheme::Pcloud => Self::from_iter::<services::Pcloud>(iter)?.finish(),
-            #[cfg(feature = "services-chainsafe")]
-            Scheme::Chainsafe => Self::from_iter::<services::Chainsafe>(iter)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_iter::<services::Azblob>(iter)?.finish(),
             #[cfg(feature = "services-azdls")]
@@ -230,8 +228,6 @@ impl Operator {
             Scheme::Ipmfs => Self::from_iter::<services::Ipmfs>(iter)?.finish(),
             #[cfg(feature = "services-icloud")]
             Scheme::Icloud => Self::from_iter::<services::Icloud>(iter)?.finish(),
-            #[cfg(feature = "services-libsql")]
-            Scheme::Libsql => Self::from_iter::<services::Libsql>(iter)?.finish(),
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached => Self::from_iter::<services::Memcached>(iter)?.finish(),
             #[cfg(feature = "services-memory")]
@@ -270,8 +266,6 @@ impl Operator {
             Scheme::Sled => Self::from_iter::<services::Sled>(iter)?.finish(),
             #[cfg(feature = "services-sqlite")]
             Scheme::Sqlite => Self::from_iter::<services::Sqlite>(iter)?.finish(),
-            #[cfg(feature = "services-supabase")]
-            Scheme::Supabase => Self::from_iter::<services::Supabase>(iter)?.finish(),
             #[cfg(feature = "services-swift")]
             Scheme::Swift => Self::from_iter::<services::Swift>(iter)?.finish(),
             #[cfg(feature = "services-tikv")]
@@ -381,6 +375,11 @@ impl Operator {
     }
 
     /// Create a new layer with dynamic dispatch.
+    ///
+    /// Please note that `Layer` can modify internal contexts such as `HttpClient`
+    /// and `Runtime` for the operator. Therefore, it is recommended to add layers
+    /// before interacting with the storage. Adding or duplicating layers after
+    /// accessing the storage may result in unexpected behavior.
     ///
     /// # Notes
     ///

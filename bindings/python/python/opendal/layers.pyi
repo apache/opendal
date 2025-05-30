@@ -34,3 +34,7 @@ class RetryLayer(Layer):
 @final
 class ConcurrentLimitLayer(Layer):
     def __init__(self, limit: int) -> None: ...
+
+@final
+class MimeGuessLayer(Layer):
+    def __init__(self) -> None: ...

@@ -30,6 +30,8 @@ pub struct WebhdfsConfig {
     pub root: Option<String>,
     /// Endpoint for webhdfs.
     pub endpoint: Option<String>,
+    /// Name of the user for webhdfs.
+    pub user_name: Option<String>,
     /// Delegation token for webhdfs.
     pub delegation: Option<String>,
     /// Disable batch listing
@@ -43,6 +45,7 @@ impl Debug for WebhdfsConfig {
         f.debug_struct("WebhdfsConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
+            .field("user_name", &self.user_name)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }

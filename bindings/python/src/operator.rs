@@ -405,11 +405,26 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs.unwrap_or_default();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
+            let range = kwargs.make_range();
+            let res = this
+                .reader_options(&path, kwargs.into())
+                .await
+                .map_err(format_pyerr)?
+                .read(range)
+                .await
+                .map_err(format_pyerr)?
+                .to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
         })
     }

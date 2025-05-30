@@ -77,40 +77,25 @@ class Operator(_Base):
                 f.write(b"hello world")
             ```
         """
-    def read(self, path: PathBuf) -> bytes:
+    def read(self, path: PathBuf, **options: Any) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
             path (str|Path): The path to the object.
+            **options (any): Reader options.
+                See the documentation `reader_with` for more details.
 
         Returns:
             The content of the object as bytes.
         """
-    def write(
-        self,
-        path: PathBuf,
-        bs: bytes,
-        *,
-        append: bool = ...,
-        chunk: int = ...,
-        content_type: str = ...,
-        content_disposition: str = ...,
-        cache_control: str = ...,
-    ) -> None:
+    def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
         """Write the content to the object at the given path.
 
         Args:
             path (str|Path): The path to the object.
             bs (bytes): The content to write.
-            append (bool): Whether to append the content to the object.
-                Defaults to False.
-            chunk (int): The chunk size for writing. Defaults to write all.
-            content_type (str): The content type of the object.
-                Defaults to None.
-            content_disposition (str): The content disposition of the object.
-                Defaults to None.
-            cache_control (str): The cache control of the object.
-                Defaults to None.
+            **options (any): Writer options.
+                See the documentation `writer_with` for more details.
         """
     def stat(self, path: PathBuf) -> Metadata:
         """Get the metadata of the object at the given path.
@@ -226,40 +211,25 @@ class AsyncOperator(_Base):
                 await f.write(b"hello world")
             ```
         """
-    async def read(self, path: PathBuf) -> bytes:
+    async def read(self, path: PathBuf, **options: Any) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
             path (str|Path): The path to the object.
+            **options (any): Reader options.
+                See the documentation `reader_with` for more details.
 
         Returns:
             The content of the object as bytes.
         """
-    async def write(
-        self,
-        path: PathBuf,
-        bs: bytes,
-        *,
-        append: bool = ...,
-        chunk: int = ...,
-        content_type: str = ...,
-        content_disposition: str = ...,
-        cache_control: str = ...,
-    ) -> None:
+    async def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
         """Write the content to the object at the given path.
 
         Args:
             path (str|Path): The path to the object.
             bs (bytes): The content to write.
-            append (bool): Whether to append the content to the object.
-                Defaults to False.
-            chunk (int): The chunk size for writing. Defaults to write all.
-            content_type (str): The content type of the object.
-                Defaults to None.
-            content_disposition (str): The content disposition of the object.
-                Defaults to None.
-            cache_control (str): The cache control of the object.
-                Defaults to None.
+            **options (any): Reader options.
+                See the documentation `reader_with` for more details.
         """
     async def stat(self, path: PathBuf) -> Metadata:
         """Get the metadata of the object at the given path.

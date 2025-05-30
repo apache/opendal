@@ -16,8 +16,9 @@
 # under the License.
 
 import os
+from collections.abc import AsyncIterable, Iterable
 from types import TracebackType
-from typing import Any, AsyncIterable, Iterable, Optional, Type, Union, final
+from typing import Any, Union, final
 
 from opendal import exceptions as exceptions
 from opendal import layers as layers
@@ -38,12 +39,13 @@ class Operator(_Base):
     Example:
         ```python
         import opendal
+
         op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
         op.write("hello.txt", b"hello world")
         ```
     """
     def __init__(self, scheme: str, **options: Any) -> None: ...
-    def layer(self, layer: Layer) -> "Operator":
+    def layer(self, layer: Layer) -> Operator:
         """Add new layers upon the current operator.
 
         Args:
@@ -52,12 +54,16 @@ class Operator(_Base):
         Returns:
             The new operator with the layer added.
         """
-    def open(self, path: PathBuf, mode: str) -> File:
+    def open(self, path: PathBuf, mode: str, **options: Any) -> File:
         """Open a file at the given path for reading or writing.
 
         Args:
             path (str|Path): The path to the file.
             mode (str): The mode to open the file. Can be "rb" or "wb".
+            **options (any): Reader options if mode == "rb" and
+            writer options if mode == "wb".
+                See the documentation `reader_with` and `writer_with` for more details.
+
 
         Returns:
             A file-like object that can be used to read or write the file.
@@ -65,6 +71,7 @@ class Operator(_Base):
         Example:
             ```python
             import opendal
+
             op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
             with op.open("hello.txt", "wb") as f:
                 f.write(b"hello world")
@@ -175,8 +182,7 @@ class Operator(_Base):
             target (str|Path): The target path.
         """
     def remove_all(self, path: PathBuf) -> None:
-        """Convert into an async operator
-        """
+        """Convert into an async operator"""
     def to_async_operator(self) -> AsyncOperator: ...
 
 @final
@@ -191,12 +197,13 @@ class AsyncOperator(_Base):
     Example:
         ```python
         import opendal
+
         op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
         await op.write("hello.txt", b"hello world")
         ```
     """
     def __init__(self, scheme: str, **options: Any) -> None: ...
-    def layer(self, layer: Layer) -> "AsyncOperator": ...
+    def layer(self, layer: Layer) -> AsyncOperator: ...
     async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
         """Open a file at the given path for reading or writing.
 
@@ -213,6 +220,7 @@ class AsyncOperator(_Base):
         Example:
             ```python
             import opendal
+
             op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
             async with await op.open("hello.txt", "wb") as f:
                 await f.write(b"hello world")
@@ -378,7 +386,7 @@ class File:
 
     Created by the `open` method of the `Operator` class.
     """
-    def read(self, size: Optional[int] = None) -> bytes:
+    def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
@@ -387,7 +395,7 @@ class File:
         Returns:
             The content of the file as bytes.
         """
-    def readline(self, size: Optional[int] = None) -> bytes:
+    def readline(self, size: int | None = None) -> bytes:
         """Read a single line from the file.
 
         Args:
@@ -424,9 +432,9 @@ class File:
         """Enter the runtime context related to this object."""
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the runtime context related to this object."""
     @property
@@ -436,7 +444,7 @@ class File:
         """Flush the internal buffer."""
     def readable(self) -> bool:
         """Check if the file is readable."""
-    def readinto(self, buffer: Union[bytes, bytearray]) -> int:
+    def readinto(self, buffer: bytes | bytearray) -> int:
         """Read bytes into a buffer.
 
         Args:
@@ -457,7 +465,7 @@ class AsyncFile:
 
     Created by the `open` method of the `AsyncOperator` class.
     """
-    async def read(self, size: Optional[int] = None) -> bytes:
+    async def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
@@ -494,9 +502,9 @@ class AsyncFile:
         """Enter the runtime context related to this object."""
     def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the runtime context related to this object."""
     @property
@@ -519,19 +527,19 @@ class Entry:
 @final
 class Metadata:
     @property
-    def content_disposition(self) -> Optional[str]:
+    def content_disposition(self) -> str | None:
         """The content disposition of the object."""
     @property
     def content_length(self) -> int:
         """The content length of the object."""
     @property
-    def content_md5(self) -> Optional[str]:
+    def content_md5(self) -> str | None:
         """The MD5 checksum of the object."""
     @property
-    def content_type(self) -> Optional[str]:
+    def content_type(self) -> str | None:
         """The mime type of the object."""
     @property
-    def etag(self) -> Optional[str]:
+    def etag(self) -> str | None:
         """The ETag of the object."""
     @property
     def mode(self) -> EntryMode:
@@ -603,15 +611,15 @@ class Capability:
     write_with_cache_control: bool
     """If operator supports write with cache control"""
 
-    write_multi_max_size: Optional[int]
+    write_multi_max_size: int | None
     """Write_multi_max_size is the max size that services support in write_multi.
     For example, AWS S3 supports 5GiB as max in write_multi."""
 
-    write_multi_min_size: Optional[int]
+    write_multi_min_size: int | None
     """Write_multi_min_size is the min size that services support in write_multi.
     For example, AWS S3 requires at least 5MiB in write_multi expect the last one."""
 
-    write_total_max_size: Optional[int]
+    write_total_max_size: int | None
     """Write_total_max_size is the max size that services support in write_total.
     For example, Cloudflare D1 supports 1MB as max in write_total."""
 

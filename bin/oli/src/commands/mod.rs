@@ -20,6 +20,7 @@
 pub mod bench;
 pub mod cat;
 pub mod cp;
+pub mod edit;
 pub mod ls;
 pub mod mv;
 pub mod rm;
@@ -31,6 +32,7 @@ pub enum OliSubcommand {
     Bench(bench::BenchCmd),
     Cat(cat::CatCmd),
     Cp(cp::CopyCmd),
+    Edit(edit::EditCmd),
     Ls(ls::LsCmd),
     Rm(rm::RmCmd),
     Stat(stat::StatCmd),
@@ -44,6 +46,7 @@ impl OliSubcommand {
             Self::Bench(cmd) => cmd.run(),
             Self::Cat(cmd) => cmd.run(),
             Self::Cp(cmd) => cmd.run(),
+            Self::Edit(cmd) => cmd.run(),
             Self::Ls(cmd) => cmd.run(),
             Self::Rm(cmd) => cmd.run(),
             Self::Stat(cmd) => cmd.run(),

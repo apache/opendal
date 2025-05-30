@@ -81,12 +81,37 @@ class Operator(_Base):
         """Read the content of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
-            **options (any): Reader options.
-                See the documentation `reader_with` for more details.
+            path (str | Path): The path to the object.
+            **options (Any): Optional read parameters matching the
+                [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html):
+
+                - offset (int): Byte offset to start reading from. Defaults to 0
+                    if not specified.
+                - size (int): Number of bytes to read. If not specified, reads until
+                    the end of the object.
+                  Together, `offset` and `size` define the byte range for reading.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Read only if the object was modified
+                    since this timestamp.
+                - if_unmodified_since (datetime): Read only if the object was not
+                    modified since this timestamp.
+                - concurrent (int): Level of concurrency for reading. Defaults to
+                    backend-specific value.
+                - chunk (int): Read chunk size in bytes.
+                - gap (int): Minimum gap (in bytes) between chunks to consider
+                    them separate.
+                - override_content_type (str): Override the returned content type.
+                - override_cache_control (str): Override the returned cache
+                    control headers.
+                - override_content_disposition (str): Override the returned content
+                    disposition headers.
 
         Returns:
-            The content of the object as bytes.
+            bytes: The content of the object as bytes.
         """
     def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
         """Write the content to the object at the given path.
@@ -215,9 +240,34 @@ class AsyncOperator(_Base):
         """Read the content of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
-            **options (any): Reader options.
-                See the documentation `reader_with` for more details.
+            path (str | Path): The path to the object.
+            **options (Any): Optional read parameters matching the
+                [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html):
+
+                - offset (int): Byte offset to start reading from. Defaults to 0
+                    if not specified.
+                - size (int): Number of bytes to read. If not specified, reads until
+                    the end of the object.
+                  Together, `offset` and `size` define the byte range for reading.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Read only if the object was modified
+                    since this timestamp.
+                - if_unmodified_since (datetime): Read only if the object was not
+                    modified since this timestamp.
+                - concurrent (int): Level of concurrency for reading. Defaults to
+                    backend-specific value.
+                - chunk (int): Read chunk size in bytes.
+                - gap (int): Minimum gap (in bytes) between chunks to consider
+                    them separate.
+                - override_content_type (str): Override the returned content type.
+                - override_cache_control (str): Override the returned cache
+                    control headers.
+                - override_content_disposition (str): Override the returned content
+                    disposition headers.
 
         Returns:
             The content of the object as bytes.

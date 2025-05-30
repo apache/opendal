@@ -18,7 +18,6 @@
 // expose the opendal rust core as `core`.
 // We will use `ocore::Xxx` to represents all types from opendal rust core.
 pub use ::opendal as ocore;
-use opendal::raw::oio::List;
 use pyo3::prelude::*;
 
 mod capability;

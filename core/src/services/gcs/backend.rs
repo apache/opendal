@@ -193,13 +193,6 @@ impl GcsBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
-        self
-    }
-
     /// Set the predefined acl for GCS.
     ///
     /// Available values are:
@@ -236,6 +229,13 @@ impl GcsBuilder {
     /// storage emulators.
     pub fn allow_anonymous(mut self) -> Self {
         self.config.allow_anonymous = true;
+        self
+    }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
         self
     }
 }
@@ -313,71 +313,40 @@ impl Builder for GcsBuilder {
 
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
-                endpoint,
-                bucket: bucket.to_string(),
-                root,
-                client,
-                signer,
-                token_loader,
-                token: self.config.token,
-                scope: scope.to_string(),
-                credential_loader: cred_loader,
-                predefined_acl: self.config.predefined_acl.clone(),
-                default_storage_class: self.config.default_storage_class.clone(),
-                allow_anonymous: self.config.allow_anonymous,
-                enable_versioning: self.config.enable_versioning,
-            }),
-        };
-
-        Ok(backend)
-    }
-}
-
-/// GCS storage backend
-#[derive(Clone, Debug)]
-pub struct GcsBackend {
-    core: Arc<GcsCore>,
-}
-
-impl Access for GcsBackend {
-    type Reader = HttpBody;
-    type Writer = GcsWriters;
-    type Lister = oio::PageLister<GcsLister>;
-    type Deleter = oio::BatchDeleter<GcsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Gcs)
-            .set_root(&self.core.root)
-            .set_name(&self.core.bucket)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_with_version: self.core.enable_versioning,
-                stat_has_last_modified: true,
-                stat_has_user_metadata: true,
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(Scheme::Gcs)
+                        .set_root(&root)
+                        .set_name(bucket)
+                        .set_native_capability(Capability {
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_version: self.config.enable_versioning,
+                            stat_has_etag: true,
+                            stat_has_content_md5: true,
+                            stat_has_content_length: true,
+                            stat_has_content_type: true,
+                            stat_has_content_encoding: true,
+                            stat_has_last_modified: true,
+                            stat_has_user_metadata: true,
+                            stat_has_cache_control: true,
+                            stat_has_version: self.config.enable_versioning,
 
                             read: true,
 
-                read_with_if_match: true,
-                read_with_if_none_match: true,
-                read_with_version: self.core.enable_versioning,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_version: self.config.enable_versioning,
 
-                write: true,
-                write_can_empty: true,
-                write_can_multi: true,
-                write_with_content_type: true,
-                write_with_user_metadata: true,
-                write_with_if_not_exists: !self.core.enable_versioning,
+                            write: true,
+                            write_can_empty: true,
+                            write_can_multi: true,
+                            write_with_cache_control: true,
+                            write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_user_metadata: true,
+                            write_with_if_not_exists: true,
 
                             // The min multipart size of Gcs is 5 MiB.
                             //
@@ -392,22 +361,22 @@ impl Access for GcsBackend {
                                 Some(usize::MAX)
                             },
 
-                delete: true,
-                delete_max_size: Some(100),
-                delete_with_version: self.core.enable_versioning,
-                copy: true,
+                            delete: true,
+                            delete_with_version: self.config.enable_versioning,
+                            delete_max_size: Some(100),
+                            copy: true,
 
-                list: true,
-                list_with_limit: true,
-                list_with_start_after: true,
-                list_with_recursive: true,
-                list_has_etag: true,
-                list_has_content_md5: true,
-                list_has_content_length: true,
-                list_has_content_type: true,
-                list_has_last_modified: true,
-                list_with_versions: self.core.enable_versioning,
-                list_with_deleted: self.core.enable_versioning,
+                            list: true,
+                            list_with_limit: true,
+                            list_with_start_after: true,
+                            list_with_recursive: true,
+                            list_has_etag: true,
+                            list_has_content_md5: true,
+                            list_has_content_length: true,
+                            list_has_content_type: true,
+                            list_has_last_modified: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
 
                             presign: true,
                             presign_stat: true,
@@ -469,30 +438,7 @@ impl Access for GcsBackend {
         }
 
         let slc = resp.into_body();
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_reader(slc.reader()).map_err(new_json_deserialize_error)?;
-
-        let mut m = Metadata::new(EntryMode::FILE);
-
-        m.set_etag(&meta.etag);
-        m.set_content_md5(&meta.md5_hash);
-        m.set_version(&meta.generation);
-
-        let size = meta
-            .size
-            .parse::<u64>()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        m.set_content_length(size);
-        if !meta.content_type.is_empty() {
-            m.set_content_type(&meta.content_type);
-        }
-
-        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
-
-        if !meta.metadata.is_empty() {
-            m.with_user_metadata(meta.metadata);
-        }
+        let m = GcsCore::build_metadata_from_object_response(path, slc)?;
 
         Ok(RpStat::new(m))
     }
@@ -571,83 +517,5 @@ impl Access for GcsBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-}
-
-/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct GetObjectJsonResponse {
-    /// GCS will return size in string.
-    ///
-    /// For example: `"size": "56535"`
-    size: String,
-    /// etag is not quoted.
-    ///
-    /// For example: `"etag": "CKWasoTgyPkCEAE="`
-    etag: String,
-    /// RFC3339 styled datetime string.
-    ///
-    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
-    updated: String,
-    /// Content md5 hash
-    ///
-    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
-    md5_hash: String,
-    /// Content type of this object.
-    ///
-    /// For example: `"contentType": "image/png",`
-    content_type: String,
-    /// Generation of this object.
-    ///
-    /// For example: `"generation": "1660563214863653"`
-    generation: String,
-    /// Custom metadata of this object.
-    ///
-    /// For example: `"metadata" : { "my-key": "my-value" }`
-    metadata: HashMap<String, String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_deserialize_get_object_json_response() {
-        let content = r#"{
-  "kind": "storage#object",
-  "id": "example/1.png/1660563214863653",
-  "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
-  "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
-  "name": "1.png",
-  "bucket": "example",
-  "generation": "1660563214863653",
-  "metageneration": "1",
-  "contentType": "image/png",
-  "storageClass": "STANDARD",
-  "size": "56535",
-  "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
-  "crc32c": "j/un9g==",
-  "etag": "CKWasoTgyPkCEAE=",
-  "timeCreated": "2022-08-15T11:33:34.866Z",
-  "updated": "2022-08-15T11:33:34.866Z",
-  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z",
-  "metadata" : {
-    "location" : "everywhere"
-  }
-}"#;
-
-        let meta: GetObjectJsonResponse =
-            serde_json::from_str(content).expect("json Deserialize must succeed");
-
-        assert_eq!(meta.size, "56535");
-        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
-        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
-        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
-        assert_eq!(meta.content_type, "image/png");
-        assert_eq!(
-            meta.metadata,
-            HashMap::from_iter([("location".to_string(), "everywhere".to_string())])
-        );
     }
 }

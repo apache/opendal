@@ -22,7 +22,7 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import NotFound
+from opendal.exceptions import ConditionNotMatch, NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
@@ -176,6 +176,22 @@ async def test_async_writer(service_name, operator, async_operator):
         await async_operator.stat(filename)
 
 
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+async def test_async_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = await async_operator.open(filename, "wb")
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    with pytest.raises(ConditionNotMatch):
+        async with await async_operator.open(filename, "wb", if_not_exists=True) as w:
+            w.write(content)
+
+
 @pytest.mark.need_capability("write", "delete")
 def test_sync_writer(service_name, operator, async_operator):
     size = randint(1, 1024)
@@ -188,3 +204,18 @@ def test_sync_writer(service_name, operator, async_operator):
     operator.delete(filename)
     with pytest.raises(NotFound):
         operator.stat(filename)
+
+
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+def test_sync_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = operator.open(filename, "wb")
+    written_bytes = f.write(content)
+    assert written_bytes == size
+    f.close()
+
+    with pytest.raises(ConditionNotMatch):
+        with operator.open(filename, "wb", if_not_exists=True) as w:
+            w.write(content)

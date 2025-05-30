@@ -21,9 +21,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.need_capability(
-    "read", "write", "delete", "list", "create_dir"
-)
+@pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
 def test_sync_exists(service_name, operator, async_operator):
     content = os.urandom(1024)
     target = f"random_{str(uuid4())}"

@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
+use futures::AsyncWriteExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
@@ -335,7 +336,7 @@ pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::FuturesAsyncReader),
-    Writer(ocore::Writer),
+    Writer(ocore::FuturesAsyncWriter),
     Closed,
 }
 
@@ -344,7 +345,7 @@ impl AsyncFile {
         Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
     }
 
-    pub fn new_writer(writer: ocore::Writer) -> Self {
+    pub fn new_writer(writer: ocore::FuturesAsyncWriter) -> Self {
         Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
@@ -422,7 +423,7 @@ impl AsyncFile {
 
             let len = bs.len();
             writer
-                .write(bs)
+                .write_all(&bs)
                 .await
                 .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))

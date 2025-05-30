@@ -99,19 +99,39 @@ impl Operator {
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open(&self, path: PathBuf, mode: String) -> PyResult<File> {
-        let path = path.to_string_lossy().to_string();
+    #[pyo3(signature = (path, mode, *, **kwargs))]
+    pub fn open(
+        &self,
+        path: PathBuf,
+        mode: String,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<File> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReadOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         if mode == "rb" {
-            let r = this
-                .reader(&path)
-                .map_err(format_pyerr)?
-                .into_std_read(..)
+            let range = reader_opts.make_range();
+            let reader = this
+                .reader_options(&path, reader_opts.into())
                 .map_err(format_pyerr)?;
+
+            let r = reader.into_std_read(range).map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
-            let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w))
+            let writer = this
+                .writer_options(&path, writer_opts.into())
+                .map_err(format_pyerr)?;
+            Ok(File::new_writer(writer))
         } else {
             Err(Unsupported::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"

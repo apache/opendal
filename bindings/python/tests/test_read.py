@@ -73,6 +73,18 @@ def test_sync_reader(service_name, operator, async_operator):
         reader.readinto(buf)
         assert buf == content[:1]
 
+    range_start = randint(0, len(content) - 1)
+    range_end = randint(range_start, len(content) - 1)
+
+    with operator.open(filename, "rb", offset=range_start, size=range_end) as reader:
+        assert reader.readable()
+        assert not reader.writable()
+        assert not reader.closed
+
+        read_content = reader.read()
+        assert read_content is not None
+        assert read_content == content[range_start:range_end]
+
     operator.delete(filename)
 
 
@@ -142,6 +154,10 @@ async def test_async_reader(service_name, operator, async_operator):
     await async_operator.write(filename, content)
 
     async with await async_operator.open(filename, "rb") as reader:
+        assert await reader.readable()
+        assert not await reader.writable()
+        assert not await reader.closed
+
         read_content = await reader.read()
         assert read_content is not None
         assert read_content == content

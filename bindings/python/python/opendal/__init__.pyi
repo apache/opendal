@@ -95,23 +95,14 @@ class Operator(_Base):
                   Together, `offset` and `size` define the byte range for reading.
                 - version (str): Specify the version of the object to read, if
                     supported by the backend.
-                - if_match (str): Read only if the ETag matches the given value.
-                - if_none_match (str): Read only if the ETag does not match the
-                    given value.
-                - if_modified_since (datetime): Read only if the object was modified
-                    since this timestamp.
-                - if_unmodified_since (datetime): Read only if the object was not
-                    modified since this timestamp.
                 - concurrent (int): Level of concurrency for reading. Defaults to
                     backend-specific value.
                 - chunk (int): Read chunk size in bytes.
                 - gap (int): Minimum gap (in bytes) between chunks to consider
                     them separate.
-                - override_content_type (str): Override the returned content type.
-                - override_cache_control (str): Override the returned cache
-                    control headers.
-                - override_content_disposition (str): Override the returned content
-                    disposition headers.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
 
         Returns:
             bytes: The content of the object as bytes.
@@ -120,10 +111,32 @@ class Operator(_Base):
         """Write the content to the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
             bs (bytes): The content to write.
-            **options (any): Writer options.
-                See the documentation `writer_with` for more details.
+            **options (Any): Optional write parameters matching the
+                [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html):
+
+                - append (bool): If True, append to the object instead of overwriting.
+                - chunk (int): Specify the chunk size in bytes for multipart uploads.
+                - concurrent (int): Number of concurrent upload parts. Larger values can
+                    improve performance.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+                - content_encoding (str): Override the Content-Encoding header.
+                - if_match (str): Perform the write only if the object's current
+                    ETag matches the given one.
+                - if_none_match (str): Perform the write only if the object's
+                    current ETag does NOT match the given one.
+                - if_not_exists (bool): Only write the object if it doesn't
+                    already exist.
+                - user_metadata (dict[str, str]): Custom user metadata to associate
+                    with the object.
+
+        Returns:
+            None
         """
     def stat(self, path: PathBuf) -> Metadata:
         """Get the metadata of the object at the given path.
@@ -258,23 +271,15 @@ class AsyncOperator(_Base):
                   Together, `offset` and `size` define the byte range for reading.
                 - version (str): Specify the version of the object to read, if
                     supported by the backend.
-                - if_match (str): Read only if the ETag matches the given value.
-                - if_none_match (str): Read only if the ETag does not match the
-                    given value.
-                - if_modified_since (datetime): Read only if the object was modified
-                    since this timestamp.
-                - if_unmodified_since (datetime): Read only if the object was not
-                    modified since this timestamp.
                 - concurrent (int): Level of concurrency for reading. Defaults to
                     backend-specific value.
                 - chunk (int): Read chunk size in bytes.
                 - gap (int): Minimum gap (in bytes) between chunks to consider
                     them separate.
                 - override_content_type (str): Override the returned content type.
-                - override_cache_control (str): Override the returned cache
-                    control headers.
-                - override_content_disposition (str): Override the returned content
-                    disposition headers.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
 
         Returns:
             The content of the object as bytes.
@@ -283,10 +288,32 @@ class AsyncOperator(_Base):
         """Write the content to the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
             bs (bytes): The content to write.
-            **options (any): Reader options.
-                See the documentation `reader_with` for more details.
+            **options (Any): Optional write parameters matching the
+                [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html):
+
+                - append (bool): If True, append to the object instead of overwriting.
+                - chunk (int): Specify the chunk size in bytes for multipart uploads.
+                - concurrent (int): Number of concurrent upload parts. Larger values can
+                    improve performance.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+                - content_encoding (str): Override the Content-Encoding header.
+                - if_match (str): Perform the write only if the object's current
+                    ETag matches the given one.
+                - if_none_match (str): Perform the write only if the object's
+                    current ETag does NOT match the given one.
+                - if_not_exists (bool): Only write the object if it doesn't
+                    already exist.
+                - user_metadata (dict[str, str]): Custom user metadata to associate
+                    with the object.
+
+        Returns:
+            None
         """
     async def stat(self, path: PathBuf) -> Metadata:
         """Get the metadata of the object at the given path.

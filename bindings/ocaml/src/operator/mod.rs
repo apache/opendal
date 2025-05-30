@@ -16,9 +16,13 @@
 // under the License.
 
 mod _type;
+mod capability;
 mod entry;
+mod lister;
 mod metadata;
+mod operator_info;
 mod reader;
+mod writer;
 
 use _type::*;
 
@@ -51,6 +55,15 @@ pub fn blocking_list(
             .list(path.as_str())
             .map(|m| m.into_iter().map(|it| Entry(it).into()).collect()),
     )
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> string -> (lister, string) Result.t ")]
+pub fn blocking_lister(
+    operator: &mut Operator,
+    path: String,
+) -> Result<ocaml::Pointer<Lister>, String> {
+    map_res_error(operator.0.lister(path.as_str())).map(|op| Lister(op).into())
 }
 
 #[ocaml::func]
@@ -100,6 +113,15 @@ pub fn blocking_write(
 }
 
 #[ocaml::func]
+#[ocaml::sig("operator -> string -> (writer, string) Result.t ")]
+pub fn blocking_writer(
+    operator: &mut Operator,
+    path: String,
+) -> Result<ocaml::Pointer<Writer>, String> {
+    map_res_error(operator.0.writer(path.as_str())).map(|op| Writer(op).into())
+}
+
+#[ocaml::func]
 #[ocaml::sig("operator -> string -> string -> (unit, string) Result.t ")]
 pub fn blocking_copy(operator: &mut Operator, from: String, to: String) -> Result<(), String> {
     map_res_error(operator.0.copy(from.as_str(), to.as_str()))
@@ -127,4 +149,22 @@ pub fn blocking_remove(operator: &mut Operator, path: Vec<String>) -> Result<(),
 #[ocaml::sig("operator -> string -> (unit, string) Result.t ")]
 pub fn blocking_remove_all(operator: &mut Operator, path: String) -> Result<(), String> {
     map_res_error(operator.0.remove_all(path.as_str()))
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> (unit, string) Result.t ")]
+pub fn blocking_check(operator: &mut Operator) -> Result<(), String> {
+    map_res_error(operator.0.check())
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator -> operator_info ")]
+pub fn operator_info(operator: &mut Operator) -> ocaml::Pointer<OperatorInfo> {
+    OperatorInfo(operator.0.info()).into()
+}
+
+#[ocaml::func]
+#[ocaml::sig("operator_info -> capability ")]
+pub fn operator_info_capability(info: &mut OperatorInfo) -> ocaml::Pointer<Capability> {
+    Capability(info.0.full_capability()).into()
 }

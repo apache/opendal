@@ -48,6 +48,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Install C build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config uuid-dev
+
       - name: Clippy Check
         working-directory: "bindings/c"
         
@@ -68,3 +73,27 @@ jobs:
       - name: Build and Run tests
         working-directory: "bindings/c"
         run: ./build/tests
+
+      - name: Build OpenDAL C library for test framework
+        working-directory: "bindings/c"
+        run: cargo build --features="opendal/services-memory"
+
+      - name: Build test framework
+        working-directory: "bindings/c/tests"
+        run: make clean && make
+
+      - name: Run test framework verification
+        working-directory: "bindings/c/tests"
+        run: ./verify_framework.sh
+
+      - name: Run test framework with memory service
+        working-directory: "bindings/c/tests"
+        run: OPENDAL_TEST=memory make behavior_test
+
+      - name: List available test suites
+        working-directory: "bindings/c/tests"
+        run: make list-suites
+
+      - name: Run CI integration test
+        working-directory: "bindings/c/tests"
+        run: ./test_ci_integration.sh

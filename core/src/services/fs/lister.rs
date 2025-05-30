@@ -50,7 +50,7 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         // since list should return path itself, we return it first
         if let Some(path) = self.current_path.take() {
-            let meta = tokio::fs::metadata(self.root.join(&path))
+            let meta = tokio::fs::metadata(self.root.join(path))
                 .await
                 .map_err(new_std_io_error)?;
             let m = Metadata::new(EntryMode::DIR)

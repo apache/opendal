@@ -54,7 +54,6 @@ pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
-    pub const X_GOOG_IF_GENERATION_MATCH: &str = "x-goog-if-generation-match";
     pub const GENERATION: &str = "generation";
 }
 
@@ -74,7 +73,6 @@ pub struct GcsCore {
     pub default_storage_class: Option<String>,
 
     pub allow_anonymous: bool,
-    pub enable_versioning: bool,
 }
 
 impl Debug for GcsCore {
@@ -190,26 +188,21 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
-            "{}/storage/v1/b/{}/o/{}?alt=media",
+        let url = format!(
+            "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let mut query_args = Vec::new();
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("alt", "media");
+
         if let Some(version) = args.version() {
-            query_args.push(format!(
-                "{}={}",
-                constants::GENERATION,
-                percent_decode_path(version)
-            ))
-        }
-        if !query_args.is_empty() {
-            url.push_str(&format!("&{}", query_args.join("&")));
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
         }
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(url.finish());
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -234,11 +227,13 @@ impl GcsCore {
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
-        let mut req = Request::get(&url);
+        let mut url = QueryPairsWriter::new(&url);
 
         if let Some(version) = args.version() {
-            req = req.header(constants::X_GOOG_IF_GENERATION_MATCH, version);
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
         }
+
+        let mut req = Request::get(url.finish());
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -406,26 +401,20 @@ impl GcsCore {
     pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
+        let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let mut query_args = Vec::new();
+        let mut url = QueryPairsWriter::new(&url);
+
         if let Some(version) = args.version() {
-            query_args.push(format!(
-                "{}={}",
-                constants::GENERATION,
-                percent_decode_path(version)
-            ))
-        }
-        if !query_args.is_empty() {
-            url.push_str(&format!("?{}", query_args.join("&")));
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
         }
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(url.finish());
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
@@ -450,21 +439,15 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
-        let mut query_args = Vec::new();
+        let mut url = QueryPairsWriter::new(&url);
+
         if let Some(version) = args.version() {
-            query_args.push(format!(
-                "{}={}",
-                constants::GENERATION,
-                percent_decode_path(version)
-            ))
-        }
-        if !query_args.is_empty() {
-            url.push_str(&format!("?{}", query_args.join("&")));
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
         }
 
-        let mut req = Request::head(&url);
+        let mut req = Request::head(url.finish());
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
@@ -503,26 +486,20 @@ impl GcsCore {
     pub fn gcs_delete_object_request(&self, path: &str, args: OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
+        let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let mut query_args = Vec::new();
+        let mut url = QueryPairsWriter::new(&url);
+
         if let Some(version) = args.version() {
-            query_args.push(format!(
-                "{}={}",
-                constants::GENERATION,
-                percent_decode_path(version)
-            ))
-        }
-        if !query_args.is_empty() {
-            url.push_str(&format!("?{}", query_args.join("&")));
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
         }
 
-        Request::delete(&url)
+        Request::delete(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)
     }
@@ -589,6 +566,9 @@ impl GcsCore {
         let mut url = QueryPairsWriter::new(&url);
         url = url.push("prefix", &percent_encode_path(&p));
 
+        if versions {
+            url = url.push("versions", "true");
+        }
         if !delimiter.is_empty() {
             url = url.push("delimiter", delimiter);
         }

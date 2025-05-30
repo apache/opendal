@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+from datetime import datetime
 from types import TracebackType
 from typing import Any, AsyncIterable, Iterable, Optional, Type, Union, final
 
@@ -135,7 +136,7 @@ class Operator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    def list(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
+    def list(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """List the objects at the given path.
 
         Args:
@@ -145,8 +146,9 @@ class Operator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    def scan(self, path: PathBuf) -> Iterable[Entry]:
+    def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
+        Deprecated: use `list()` instead.
 
         Args:
             path (str|Path): The path to the directory.
@@ -175,8 +177,7 @@ class Operator(_Base):
             target (str|Path): The target path.
         """
     def remove_all(self, path: PathBuf) -> None:
-        """Convert into an async operator
-        """
+        """Convert into an async operator"""
     def to_async_operator(self) -> AsyncOperator: ...
 
 @final
@@ -280,9 +281,7 @@ class AsyncOperator(_Base):
         Returns:
             True if the object exists, False otherwise.
         """
-    async def list(
-        self, path: PathBuf, *, start_after: str | None = None
-    ) -> AsyncIterable[Entry]:
+    async def list(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """List the objects at the given path.
 
         Args:
@@ -292,8 +291,9 @@ class AsyncOperator(_Base):
         Returns:
             An iterable of entries representing the objects in the directory.
         """
-    async def scan(self, path: PathBuf) -> AsyncIterable[Entry]:
+    async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
+        Deprecated: use `list()` instead.
 
         Args:
             path (str|Path): The path to the directory.
@@ -512,6 +512,9 @@ class Entry:
     @property
     def path(self) -> str:
         """The path of the entry."""
+    @property
+    def metadata(self) -> Metadata:
+        """The metadata of the entry."""
 
 @final
 class Metadata:
@@ -526,13 +529,31 @@ class Metadata:
         """The MD5 checksum of the object."""
     @property
     def content_type(self) -> Optional[str]:
-        """The mime type of the object."""
+        """The content type (mime) of the object."""
+    @property
+    def content_encoding(self) -> Optional[str]:
+        """The content encoding of the object."""
     @property
     def etag(self) -> Optional[str]:
         """The ETag of the object."""
     @property
     def mode(self) -> EntryMode:
         """The mode of the object."""
+    @property
+    def is_file(self) -> bool:
+        """Returns `True` if this metadata is for a file."""
+    @property
+    def is_dir(self) -> bool:
+        """Returns `True` if this metadata is for a directory."""
+    @property
+    def last_modified(self) -> Optional[datetime]:
+        """The last modified time of the object."""
+    @property
+    def version(self) -> Optional[str]:
+        """The version of the object, if available."""
+    @property
+    def user_metadata(self) -> Optional[dict]:
+        """The user defined metadata of the object."""
 
 @final
 class EntryMode:

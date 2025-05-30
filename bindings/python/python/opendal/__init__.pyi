@@ -58,15 +58,18 @@ class Operator(_Base):
         """Open a file at the given path for reading or writing.
 
         Args:
-            path (str|Path): The path to the file.
-            mode (str): The mode to open the file. Can be "rb" or "wb".
-            **options (any): Reader options if mode == "rb" and
-            writer options if mode == "wb".
-                See the documentation `reader_with` and `writer_with` for more details.
-
+            path (str | Path): The path to the file.
+            mode (str): The mode to open the file. Must be either `"rb"` for reading or
+                `"wb"` for writing.
+            **options (Any): Additional options passed to the underlying OpenDAL reader
+                or writer.
+                - If `mode == "rb"`: options match the
+                  [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html).
+                - If `mode == "wb"`: options match the
+                  [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
         Returns:
-            A file-like object that can be used to read or write the file.
+            File: A file-like object that can be used to read or write the file.
 
         Example:
             ```python
@@ -218,14 +221,18 @@ class AsyncOperator(_Base):
         """Open a file at the given path for reading or writing.
 
         Args:
-            path (str|Path): The path to the file.
-            mode (str): The mode to open the file. Can be "rb" or "wb".
-            **options (any): Reader options if mode == "rb" and
-            writer options if mode == "wb".
-                See the documentation `reader_with` and `writer_with` for more details.
+            path (str | Path): The path to the file.
+            mode (str): The mode to open the file. Must be either `"rb"` for reading or
+                `"wb"` for writing.
+            **options (Any): Additional options passed to the underlying OpenDAL reader
+                or writer.
+                - If `mode == "rb"`: options match the
+                  [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html).
+                - If `mode == "wb"`: options match the
+                  [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
         Returns:
-            A file-like object that can be used to read or write the file.
+            AsyncFile: A file-like object that can be used to read or write the file.
 
         Example:
             ```python

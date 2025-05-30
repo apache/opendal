@@ -24,11 +24,11 @@ use jni::sys::jint;
 use jni::sys::jlong;
 use jni::JNIEnv;
 use opendal::raw::PresignedRequest;
-use opendal::Capability;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
 use opendal::OperatorInfo;
+use opendal::{Capability, Error, ErrorKind};
 
 mod async_operator;
 mod convert;
@@ -201,4 +201,45 @@ fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
         "(Ljava/lang/String;Lorg/apache/opendal/Metadata;)V",
         &[JValue::Object(&path), JValue::Object(&metadata)],
     )?)
+}
+
+fn make_write_options<'a>(
+    env: &mut JNIEnv<'a>,
+    options: &JObject,
+) -> Result<opendal::options::WriteOptions> {
+    let concurrent = match convert::read_int_field(env, options, "concurrent")? {
+        v if v > 0 => v as usize,
+        v => {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Concurrent must be positive, instead got: {}", v),
+            )
+            .into())
+        }
+    };
+    let chunk = match convert::read_int64_field(env, options, "chunk")? {
+        -1 => None,
+        v if v >= 0 => Some(v as usize),
+        v => {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Chunk must be positive, instead got: {}", v),
+            )
+            .into())
+        }
+    };
+
+    Ok(opendal::options::WriteOptions {
+        append: convert::read_bool_field(env, options, "append").unwrap_or_default(),
+        content_type: convert::read_string_field(env, options, "contentType")?,
+        content_disposition: convert::read_string_field(env, options, "contentDisposition")?,
+        content_encoding: convert::read_string_field(env, options, "contentEncoding")?,
+        cache_control: convert::read_string_field(env, options, "cacheControl")?,
+        if_match: convert::read_string_field(env, options, "ifMatch")?,
+        if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_not_exists: convert::read_bool_field(env, options, "ifNotExists").unwrap_or_default(),
+        user_metadata: convert::read_map_field(env, options, "userMetadata")?,
+        concurrent,
+        chunk,
+    })
 }

@@ -87,7 +87,7 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             (&rel_path, EntryMode::Unknown)
         };
 
-        let meta = tokio::fs::metadata(self.root.join(&path))
+        let meta = tokio::fs::metadata(self.root.join(path))
             .await
             .map_err(new_std_io_error)?;
         let m = Metadata::new(mode)

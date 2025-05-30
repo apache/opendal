@@ -89,4 +89,35 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
         assertThat(result.length).isEqualTo(contentOne.length + contentTwo.length);
         assertThat(result).isEqualTo("Test Data".getBytes());
     }
+
+    @Test
+    void testWriteWithChunk() {
+        assumeTrue(op().info.fullCapability.writeCanMulti);
+
+        final String path = UUID.randomUUID().toString();
+        final byte[] content = generateBytes(5 * 1024 * 1024);
+
+        WriteOptions options = WriteOptions.builder().chunk(1024 * 1024L).build();
+
+        op().write(path, content, options);
+
+        byte[] result = op().read(path);
+        assertThat(result).isEqualTo(content);
+    }
+
+    @Test
+    void testWriteWithConcurrentChunk() {
+        assumeTrue(op().info.fullCapability.writeCanMulti);
+
+        final String path = UUID.randomUUID().toString();
+        final byte[] content = generateBytes(5 * 1024 * 1024);
+
+        WriteOptions options =
+                WriteOptions.builder().chunk(1024 * 1024L).concurrent(4).build();
+
+        op().write(path, content, options);
+
+        byte[] result = op().read(path);
+        assertThat(result).isEqualTo(content);
+    }
 }

@@ -1,0 +1,141 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Release OCaml Bindings
+
+on:
+  push:
+    tags:
+      - 'bindings/ocaml/v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.48.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  package:
+    name: Package OCaml Bindings
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
+        with:
+          need-depext: true
+          need-pin: true
+          
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        
+      - name: Install dune-release
+        run: opam install -y dune-release
+        
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/bindings/ocaml/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+          
+      - name: Update version in dune-project
+        working-directory: bindings/ocaml
+        run: |
+          sed -i "s/(version [^)]*)/(version ${{ steps.version.outputs.version }})/" dune-project
+          
+      - name: Build and test
+        working-directory: bindings/ocaml
+        run: |
+          eval $(opam env)
+          dune build
+          dune runtest
+          dune build @doc
+          
+      - name: Create source distribution
+        working-directory: bindings/ocaml
+        run: |
+          eval $(opam env)
+          # Create a git tag if it doesn't exist (for workflow_dispatch)
+          if ! git tag -l | grep -q "bindings/ocaml/v${{ steps.version.outputs.version }}"; then
+            git tag "bindings/ocaml/v${{ steps.version.outputs.version }}"
+          fi
+          dune-release tag "bindings/ocaml/v${{ steps.version.outputs.version }}"
+          dune-release distrib
+          
+      - name: Upload distribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendal-ocaml-${{ steps.version.outputs.version }}
+          path: bindings/ocaml/_build/opendal-*.tbz
+          
+      - name: Test local installation
+        working-directory: bindings/ocaml
+        run: |
+          eval $(opam env)
+          opam install . --yes --deps-only
+          opam install . --yes
+          
+  release:
+    name: Create opam-repository PR
+    runs-on: ubuntu-22.04
+    needs: [package]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/bindings/ocaml/v')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: opendal-ocaml-${{ steps.version.outputs.version }}
+          path: ./dist
+          
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
+        with:
+          need-depext: true
+          need-pin: true
+          
+      - name: Install dune-release
+        run: opam install -y dune-release
+        
+      - name: Create opam-repository PR
+        working-directory: bindings/ocaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          eval $(opam env)
+          echo "🌐 Creating PR to opam-repository..."
+          echo "This step requires manual intervention."
+          echo "Please run: dune-release publish distrib --verbose"
+          echo "Or manually create a PR to https://github.com/ocaml/opam-repository"
+          
+          # For now, just output the generated opam file
+          echo "Generated opam file:"
+          cat opendal.opam 

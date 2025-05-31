@@ -52,5 +52,6 @@ pub struct Capability(pub(crate) od::Capability);
 ocaml::custom!(Capability);
 
 #[ocaml::sig]
+#[allow(dead_code)]
 pub struct PresignedRequest(pub(crate) od::raw::PresignedRequest);
 ocaml::custom!(PresignedRequest);

@@ -19,6 +19,7 @@
 
 (** Core operator functions *)
 let new_operator = Opendal_core.Operator.operator
+
 let list = Opendal_core.Operator.blocking_list
 let lister = Opendal_core.Operator.blocking_lister
 let stat = Opendal_core.Operator.blocking_stat
@@ -90,7 +91,10 @@ module Capability = struct
   let rename = Opendal_core.Operator.capability_rename
   let list = Opendal_core.Operator.capability_list
   let list_with_limit = Opendal_core.Operator.capability_list_with_limit
-  let list_with_start_after = Opendal_core.Operator.capability_list_with_start_after
+
+  let list_with_start_after =
+    Opendal_core.Operator.capability_list_with_start_after
+
   let list_with_recursive = Opendal_core.Operator.capability_list_with_recursive
   let presign = Opendal_core.Operator.capability_presign
   let presign_read = Opendal_core.Operator.capability_presign_read

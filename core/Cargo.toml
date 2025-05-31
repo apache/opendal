@@ -63,6 +63,8 @@ tests = [
   "dep:sha2",
   "dep:dotenvy",
   "services-azblob",
+  "services-azdls",
+  "services-azfile",
   "services-fs",
   "services-http",
   "services-memory",

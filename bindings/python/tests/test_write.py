@@ -22,7 +22,7 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import ConditionNotMatch, NotFound
+from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
@@ -187,9 +187,11 @@ async def test_async_writer_options(service_name, operator, async_operator):
     assert written_bytes == size
     await f.close()
 
-    with pytest.raises(ConditionNotMatch):
+    with pytest.raises(Exception)as excinfo:
         async with await async_operator.open(filename, "wb", if_not_exists=True) as w:
             w.write(content)
+        assert "ConditionNotMatch" in str(excinfo.value)
+
 
 
 @pytest.mark.need_capability("write", "delete")
@@ -216,6 +218,7 @@ def test_sync_writer_options(service_name, operator, async_operator):
     assert written_bytes == size
     f.close()
 
-    with pytest.raises(ConditionNotMatch):
+    with pytest.raises(Exception)as excinfo:
         with operator.open(filename, "wb", if_not_exists=True) as w:
             w.write(content)
+        assert "ConditionNotMatch" in str(excinfo.value)

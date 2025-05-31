@@ -43,7 +43,7 @@
 val new_operator :
   string ->
   (string * string) list ->
-  (Opendal_core.operator, string) result
+  (Opendal_core.Operator.operator, string) result
 (** [new_operator scheme config_map] creates a new blocking operator from given
     scheme and configuration.
 
@@ -78,9 +78,9 @@ val new_operator :
 *)
 
 val list :
-  Opendal_core.operator ->
+  Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.entry array, string) result
+  (Opendal_core.Operator.entry array, string) result
 (** [list operator path] lists all entries in the given directory path.
 
     @param operator The blocking operator
@@ -102,9 +102,9 @@ val list :
 *)
 
 val lister :
-  Opendal_core.operator ->
+  Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.lister, string) result
+  (Opendal_core.Operator.lister, string) result
 (** [lister operator path] creates a streaming lister for the given directory.
 
     @param operator The blocking operator
@@ -131,9 +131,9 @@ val lister :
 *)
 
 val stat :
-  Opendal_core.operator ->
+  Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.metadata, string) result
+  (Opendal_core.Operator.metadata, string) result
 (** [stat operator path] gets metadata for the given path.
 
     @param operator The blocking operator
@@ -151,7 +151,7 @@ val stat :
 *)
 
 val is_exist : 
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   (bool, string) result
 (** [is_exist operator path] checks if the given path exists.
@@ -170,9 +170,9 @@ val is_exist :
 *)
 
 val create_dir :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
-  (unit, string) result
+  (bool, string) result
 (** [create_dir operator path] creates a directory at the given path.
 
     @param operator The blocking operator
@@ -192,7 +192,7 @@ val create_dir :
 *)
 
 val read :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   (char array, string) result
 (** [read operator path] reads the entire file content into memory.
@@ -214,9 +214,9 @@ val read :
 *)
 
 val reader :
-  Opendal_core.operator ->
+  Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.reader, string) result
+  (Opendal_core.Operator.reader, string) result
 (** [reader operator path] creates a reader for streaming file access.
 
     @param operator The blocking operator
@@ -238,7 +238,7 @@ val reader :
 *)
 
 val write :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   bytes -> 
   (unit, string) result
@@ -263,9 +263,9 @@ val write :
 *)
 
 val writer :
-  Opendal_core.operator ->
+  Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.writer, string) result
+  (Opendal_core.Operator.writer, string) result
 (** [writer operator path] creates a writer for streaming file writes.
 
     @param operator The blocking operator
@@ -286,7 +286,7 @@ val writer :
 *)
 
 val copy :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   string -> 
   (unit, string) result
@@ -310,7 +310,7 @@ val copy :
 *)
 
 val rename :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   string -> 
   (unit, string) result
@@ -334,7 +334,7 @@ val rename :
 *)
 
 val delete :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   (unit, string) result
 (** [delete operator path] deletes the file at the given path.
@@ -355,7 +355,7 @@ val delete :
 *)
 
 val remove :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string array -> 
   (unit, string) result
 (** [remove operator paths] deletes multiple files in a batch operation.
@@ -376,7 +376,7 @@ val remove :
 *)
 
 val remove_all :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   string -> 
   (unit, string) result
 (** [remove_all operator path] recursively deletes the directory and all its contents.
@@ -396,7 +396,7 @@ val remove_all :
 *)
 
 val check :
-  Opendal_core.operator -> 
+  Opendal_core.Operator.operator -> 
   (unit, string) result
 (** [check operator] performs a health check on the storage service.
 
@@ -414,8 +414,8 @@ val check :
 *)
 
 val info :
-  Opendal_core.operator -> 
-  Opendal_core.operator_info
+  Opendal_core.Operator.operator -> 
+  Opendal_core.Operator.operator_info
 (** [info operator] returns information about the operator.
 
     @param operator The blocking operator
@@ -436,7 +436,7 @@ val info :
 *)
 module Reader : sig
   val pread :
-    Opendal_core.reader -> 
+    Opendal_core.Operator.reader -> 
     bytes -> 
     int64 -> 
     (int, string) result
@@ -464,7 +464,7 @@ end
 *)
 module Writer : sig
   val write :
-    Opendal_core.writer -> 
+    Opendal_core.Operator.writer -> 
     bytes -> 
     (unit, string) result
   (** [write writer data] writes a chunk of data.
@@ -484,8 +484,8 @@ module Writer : sig
   *)
 
   val close :
-    Opendal_core.writer -> 
-    (Opendal_core.metadata, string) result
+    Opendal_core.Operator.writer -> 
+    (Opendal_core.Operator.metadata, string) result
   (** [close writer] finalizes the write operation and returns metadata.
 
       Must be called to ensure all data is properly written and committed.
@@ -511,8 +511,8 @@ end
 *)
 module Lister : sig
   val next :
-    Opendal_core.lister -> 
-    (Opendal_core.entry option, string) result
+    Opendal_core.Operator.lister -> 
+    (Opendal_core.Operator.entry option, string) result
   (** [next lister] gets the next entry from the directory listing.
 
       @param lister The lister instance
@@ -540,37 +540,37 @@ end
     Module for accessing file and directory metadata.
 *)
 module Metadata : sig
-  val is_file : Opendal_core.metadata -> bool
+  val is_file : Opendal_core.Operator.metadata -> bool
   (** [is_file metadata] checks if the metadata represents a file.
       
       @example {[if Metadata.is_file meta then print_endline "It's a file"]}
   *)
 
-  val is_dir : Opendal_core.metadata -> bool
+  val is_dir : Opendal_core.Operator.metadata -> bool
   (** [is_dir metadata] checks if the metadata represents a directory.
       
       @example {[if Metadata.is_dir meta then print_endline "It's a directory"]}
   *)
 
-  val content_length : Opendal_core.metadata -> int64
+  val content_length : Opendal_core.Operator.metadata -> int64
   (** [content_length metadata] gets the size of the content in bytes.
       
       @example {[printf "File size: %Ld bytes\n" (Metadata.content_length meta)]}
   *)
 
-  val content_md5 : Opendal_core.metadata -> string option
+  val content_md5 : Opendal_core.Operator.metadata -> string option
   (** [content_md5 metadata] gets the MD5 hash of the content, if available. *)
 
-  val content_type : Opendal_core.metadata -> string option
+  val content_type : Opendal_core.Operator.metadata -> string option
   (** [content_type metadata] gets the MIME type of the content, if available. *)
 
-  val content_disposition : Opendal_core.metadata -> string option
+  val content_disposition : Opendal_core.Operator.metadata -> string option
   (** [content_disposition metadata] gets the Content-Disposition header, if available. *)
 
-  val etag : Opendal_core.metadata -> string option
+  val etag : Opendal_core.Operator.metadata -> string option
   (** [etag metadata] gets the ETag of the content, if available. *)
 
-  val last_modified : Opendal_core.metadata -> int64 option
+  val last_modified : Opendal_core.Operator.metadata -> int64 option
   (** [last_modified metadata] gets the last modification time as Unix timestamp, if available. *)
 end
 
@@ -579,19 +579,19 @@ end
     Module for accessing directory entry information.
 *)
 module Entry : sig
-  val path : Opendal_core.entry -> string
+  val path : Opendal_core.Operator.entry -> string
   (** [path entry] gets the full path of the directory entry.
       
       @example {[printf "Full path: %s\n" (Entry.path entry)]}
   *)
 
-  val name : Opendal_core.entry -> string
+  val name : Opendal_core.Operator.entry -> string
   (** [name entry] gets the name (filename) of the directory entry.
       
       @example {[printf "Name: %s\n" (Entry.name entry)]}
   *)
 
-  val metadata : Opendal_core.entry -> Opendal_core.metadata
+  val metadata : Opendal_core.Operator.entry -> Opendal_core.Operator.metadata
   (** [metadata entry] gets the metadata for the directory entry.
       
       @example 
@@ -607,22 +607,22 @@ end
     Module for accessing operator configuration and capabilities.
 *)
 module OperatorInfo : sig
-  val name : Opendal_core.operator_info -> string
+  val name : Opendal_core.Operator.operator_info -> string
   (** [name info] gets the name of the operator instance. *)
 
-  val scheme : Opendal_core.operator_info -> string
+  val scheme : Opendal_core.Operator.operator_info -> string
   (** [scheme info] gets the storage scheme (e.g., "fs", "s3", "gcs").
       
       @example {[printf "Using scheme: %s\n" (OperatorInfo.scheme info)]}
   *)
 
-  val root : Opendal_core.operator_info -> string
+  val root : Opendal_core.Operator.operator_info -> string
   (** [root info] gets the root path configured for the operator.
       
       @example {[printf "Root path: %s\n" (OperatorInfo.root info)]}
   *)
 
-  val capability : Opendal_core.operator_info -> Opendal_core.capability
+  val capability : Opendal_core.Operator.operator_info -> Opendal_core.Operator.capability
   (** [capability info] gets the capability information for the operator.
       
       @example 
@@ -638,51 +638,51 @@ end
     Module for checking what operations are supported by the storage backend.
 *)
 module Capability : sig
-  val stat : Opendal_core.capability -> bool
+  val stat : Opendal_core.Operator.capability -> bool
   (** [stat cap] checks if stat operations are supported. *)
 
-  val read : Opendal_core.capability -> bool
+  val read : Opendal_core.Operator.capability -> bool
   (** [read cap] checks if read operations are supported. *)
 
-  val write : Opendal_core.capability -> bool
+  val write : Opendal_core.Operator.capability -> bool
   (** [write cap] checks if write operations are supported. *)
 
-  val create_dir : Opendal_core.capability -> bool
+  val create_dir : Opendal_core.Operator.capability -> bool
   (** [create_dir cap] checks if directory creation is supported. *)
 
-  val delete : Opendal_core.capability -> bool
+  val delete : Opendal_core.Operator.capability -> bool
   (** [delete cap] checks if delete operations are supported. *)
 
-  val copy : Opendal_core.capability -> bool
+  val copy : Opendal_core.Operator.capability -> bool
   (** [copy cap] checks if copy operations are supported. *)
 
-  val rename : Opendal_core.capability -> bool
+  val rename : Opendal_core.Operator.capability -> bool
   (** [rename cap] checks if rename operations are supported. *)
 
-  val list : Opendal_core.capability -> bool
+  val list : Opendal_core.Operator.capability -> bool
   (** [list cap] checks if list operations are supported. *)
 
-  val list_with_limit : Opendal_core.capability -> bool
+  val list_with_limit : Opendal_core.Operator.capability -> bool
   (** [list_with_limit cap] checks if list operations with limit are supported. *)
 
-  val list_with_start_after : Opendal_core.capability -> bool
+  val list_with_start_after : Opendal_core.Operator.capability -> bool
   (** [list_with_start_after cap] checks if list operations with start_after are supported. *)
 
-  val list_with_recursive : Opendal_core.capability -> bool
+  val list_with_recursive : Opendal_core.Operator.capability -> bool
   (** [list_with_recursive cap] checks if recursive list operations are supported. *)
 
-  val presign : Opendal_core.capability -> bool
+  val presign : Opendal_core.Operator.capability -> bool
   (** [presign cap] checks if presigned URL generation is supported. *)
 
-  val presign_read : Opendal_core.capability -> bool
+  val presign_read : Opendal_core.Operator.capability -> bool
   (** [presign_read cap] checks if presigned read URLs are supported. *)
 
-  val presign_stat : Opendal_core.capability -> bool
+  val presign_stat : Opendal_core.Operator.capability -> bool
   (** [presign_stat cap] checks if presigned stat URLs are supported. *)
 
-  val presign_write : Opendal_core.capability -> bool
+  val presign_write : Opendal_core.Operator.capability -> bool
   (** [presign_write cap] checks if presigned write URLs are supported. *)
 
-  val shared : Opendal_core.capability -> bool
+  val shared : Opendal_core.Operator.capability -> bool
   (** [shared cap] checks if the operator can be safely shared between threads. *)
 end

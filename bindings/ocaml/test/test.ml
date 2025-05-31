@@ -297,7 +297,17 @@ let test_complex_workflow test_ctxt =
   (* Verify file contents *)
   let readme_data = test_check_result (Operator.read bo "project/README.md") in
   let readme_str = readme_data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string in
-  assert_bool "README should contain project info" (String.contains readme_str "My Project");
+  let contains_substring s sub =
+    let len_s = String.length s in
+    let len_sub = String.length sub in
+    let rec check i =
+      if i > len_s - len_sub then false
+      else if String.sub s i len_sub = sub then true
+      else check (i + 1)
+    in
+    if len_sub = 0 then true else check 0
+  in
+  assert_bool "README should contain project info" (contains_substring readme_str "My Project");
   
   (* Copy the main file *)
   ignore (test_check_result (Operator.copy bo "project/src/main.ml" "project/src/backup.ml"));

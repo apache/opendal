@@ -24,7 +24,7 @@ pub fn writer_write(writer: &mut Writer, bs: &'static [u8]) -> Result<(), String
 }
 
 #[ocaml::func]
-#[ocaml::sig("writer -> (Metadata.t, string) Result.t ")]
-pub fn writer_close(writer: &mut Writer) -> Result<Metadata, String> {
-    map_res_error(writer.0.close()).map(Metadata)
+#[ocaml::sig("writer -> (metadata, string) Result.t ")]
+pub fn writer_close(writer: &mut Writer) -> Result<ocaml::Pointer<Metadata>, String> {
+    map_res_error(writer.0.close()).map(|m| Metadata(m).into())
 }

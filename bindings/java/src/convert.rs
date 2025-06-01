@@ -106,6 +106,22 @@ pub(crate) fn read_map_field(
     }
 }
 
+pub(crate) fn read_jlong_field_to_usize(
+    env: &mut JNIEnv,
+    options: &JObject,
+    field_name: &str,
+) -> Result<Option<usize>> {
+    match read_int64_field(env, options, field_name)? {
+        -1 => Ok(None),
+        v if v > 0 => Ok(Some(v as usize)),
+        v => Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("{} must be positive, instead got: {}", field_name, v),
+        )
+        .into()),
+    }
+}
+
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {
     let offset = u64::try_from(offset)
         .map_err(|_| Error::new(ErrorKind::RangeNotSatisfied, "offset must be non-negative"))?;

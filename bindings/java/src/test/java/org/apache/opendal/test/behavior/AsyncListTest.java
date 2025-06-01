@@ -256,7 +256,7 @@ class AsyncListTest extends BehaviorTestBase {
     void testListWithLimitCollectsAllPages() {
         assumeTrue(asyncOp().info.fullCapability.listWithLimit);
 
-        final String dir = String.format("%s/", UUID.randomUUID());
+        String dir = String.format("%s/", UUID.randomUUID());
         asyncOp().createDir(dir).join();
         for (int i = 0; i < 5; i++) {
             String file = dir + "file-" + i;
@@ -316,7 +316,7 @@ class AsyncListTest extends BehaviorTestBase {
         assumeTrue(asyncOp().info.fullCapability.listWithDeleted);
 
         String dir = String.format("%s/", UUID.randomUUID());
-        final String path = dir + "file";
+        String path = dir + "file";
         asyncOp().createDir(dir).join();
 
         asyncOp().write(path, "data").join();

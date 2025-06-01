@@ -196,9 +196,9 @@ public class BlockingListTest extends BehaviorTestBase {
         assumeTrue(op().info.fullCapability.listWithDeleted);
 
         String dir = String.format("%s/", UUID.randomUUID());
-        final String path = dir + "file";
-        op().createDir(dir);
+        String path = dir + "file";
 
+        op().createDir(dir);
         op().write(path, "data");
         op().delete(path);
 

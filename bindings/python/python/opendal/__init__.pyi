@@ -174,24 +174,45 @@ class Operator(_Base):
             True if the object exists, False otherwise.
         """
     def list(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
-        """List the objects at the given path.
+        """List objects at the given path.
 
         Args:
-            path (str|Path): The path to the directory.
-            start_after (str | None): The key to start listing from.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html):
 
+                - limit (int): The limit passed to the underlying service to specify the
+                    max results that could return per-request. Users could use this to
+                    control the memory usage of list operation. If not set, all matching
+                    entries will be listed.
+                - start_after (str): Start listing after this key. Useful for pagination
+                    or resuming interrupted listings.
+                - recursive (bool): Whether to list entries recursively through all
+                    subdirectories. If False, lists only top-level entries (entries
+                    under the given path).
+                - versions (bool): Whether to include all versions of objects, if the
+                    underlying service supports versioning.
+                - deleted (bool): Whether to include deleted objects, if the underlying
+                    service supports soft-deletes or versioning.
         Returns:
-            An iterable of entries representing the objects in the directory.
+            Iterable[Entry]: An iterable of entries representing the objects in the
+                directory or prefix.
         """
     def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
         Deprecated: use `list()` instead.
 
         Args:
-            path (str|Path): The path to the directory.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
+                excluding `recursive` which is always enforced as `True`
 
         Returns:
-            An iterable of entries representing the objects in the directory.
+            Iterable[Entry]: An iterable of all entries under the given path,
+                recursively traversing all subdirectories. Each entry represents
+                an object (e.g., file or directory) discovered within the full
+                descendant hierarchy of the specified path.
         """
     def capability(self) -> Capability:
         """Get the capability of the operator.
@@ -356,24 +377,45 @@ class AsyncOperator(_Base):
             True if the object exists, False otherwise.
         """
     async def list(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
-        """List the objects at the given path.
+        """List objects at the given path.
 
         Args:
-            path (str|Path): The path to the directory.
-            start_after (str | None): The key to start listing from.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html):
 
+                - limit (int): The limit passed to the underlying service to specify the
+                    max results that could return per-request. Users could use this to
+                    control the memory usage of list operation. If not set, all matching
+                    entries will be listed.
+                - start_after (str): Start listing after this key. Useful for pagination
+                    or resuming interrupted listings.
+                - recursive (bool): Whether to list entries recursively through all
+                    subdirectories. If False, lists only top-level entries (entries
+                    under the given path).
+                - versions (bool): Whether to include all versions of objects, if the
+                    underlying service supports versioning.
+                - deleted (bool): Whether to include deleted objects, if the underlying
+                    service supports soft-deletes or versioning.
         Returns:
-            An iterable of entries representing the objects in the directory.
+            Iterable[Entry]: An iterable of entries representing the objects in the
+                directory or prefix.
         """
     async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
         Deprecated: use `list()` instead.
 
         Args:
-            path (str|Path): The path to the directory.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
+                excluding `recursive` which is always enforced as `True`
 
         Returns:
-            An iterable of entries representing the objects in the directory.
+            Iterable[Entry]: An iterable of all entries under the given path,
+                recursively traversing all subdirectories. Each entry represents
+                an object (e.g., file or directory) discovered within the full
+                descendant hierarchy of the specified path.
         """
     async def presign_stat(self, path: PathBuf, expire_second: int) -> PresignedRequest:
         """Generate a presigned URL for stat operation.

@@ -173,6 +173,16 @@ public class Capability {
     public final boolean listWithRecursive;
 
     /**
+     * If backend support list with versions.
+     */
+    public final boolean listWithVersions;
+
+    /**
+     * If backend support list with deleted.
+     */
+    public final boolean listWithDeleted;
+
+    /**
      * If operator supports presign.
      */
     public final boolean presign;
@@ -227,6 +237,8 @@ public class Capability {
             boolean listWithLimit,
             boolean listWithStartAfter,
             boolean listWithRecursive,
+            boolean listWithVersions,
+            boolean listWithDeleted,
             boolean presign,
             boolean presignRead,
             boolean presignStat,
@@ -261,6 +273,8 @@ public class Capability {
         this.listWithLimit = listWithLimit;
         this.listWithStartAfter = listWithStartAfter;
         this.listWithRecursive = listWithRecursive;
+        this.listWithVersions = listWithVersions;
+        this.listWithDeleted = listWithDeleted;
         this.presign = presign;
         this.presignRead = presignRead;
         this.presignStat = presignStat;

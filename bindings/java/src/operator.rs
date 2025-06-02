@@ -29,12 +29,11 @@ use opendal::blocking;
 use opendal::options;
 
 use crate::convert::{
-    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_bool_field,
-    read_int64_field,
+    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_int64_field,
 };
 use crate::make_metadata;
 use crate::Result;
-use crate::{make_entry, make_write_options};
+use crate::{make_entry, make_list_options, make_write_options};
 
 /// # Safety
 ///
@@ -296,15 +295,8 @@ fn intern_list(
     options: JObject,
 ) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
-    let recursive = read_bool_field(env, &options, "recursive")?;
-
-    let entries = op.list_options(
-        &path,
-        options::ListOptions {
-            recursive,
-            ..Default::default()
-        },
-    )?;
+    let list_opts = make_list_options(env, &options)?;
+    let entries = op.list_options(&path, list_opts)?;
 
     let jarray = env.new_object_array(
         entries.len() as jsize,

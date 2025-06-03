@@ -46,6 +46,18 @@
     "LICENSE",
     "NOTICE"
   ],
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      },
+      "import": {
+        "types": "./index.d.ts",
+        "default": "./index.mjs"
+      }
+    }
+  },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.468.0",
     "@napi-rs/cli": "^2.18.3",

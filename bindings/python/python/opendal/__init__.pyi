@@ -618,103 +618,124 @@ class Capability:
     """Storage capability information."""
 
     stat: bool
-    """If operator supports stat"""
+    """If operator supports stat."""
 
     stat_with_if_match: bool
-    """If operator supports stat with if match"""
+    """If operator supports stat with if match."""
 
     stat_with_if_none_match: bool
-    """If operator supports stat with if none match"""
+    """If operator supports stat with if none match."""
 
     read: bool
-    """If operator supports read"""
+    """Indicates if the operator supports read operations."""
 
     read_with_if_match: bool
-    """If operator supports read with if match"""
+    """Indicates if conditional read operations using If-Match are supported."""
 
     read_with_if_none_match: bool
-    """If operator supports read with if none match"""
+    """Indicates if conditional read operations using If-None-Match are supported."""
+
+    read_with_if_modified_since: bool
+    """If-Modified-Since condition supported for read."""
+
+    read_with_if_unmodified_since: bool
+    """If-Unmodified-Since condition supported for read."""
 
     read_with_override_cache_control: bool
-    """If operator supports read with override cache control"""
+    """Cache-Control header override supported for read."""
 
     read_with_override_content_disposition: bool
-    """If operator supports read with override content disposition"""
+    """Content-Disposition header override supported for read."""
 
     read_with_override_content_type: bool
-    """If operator supports read with override content type"""
+    """Indicates if Content-Type header override is supported during read operations."""
+
+    read_with_version: bool
+    """Indicates if versions read operations are supported."""
 
     write: bool
-    """If operator supports write"""
+    """Indicates if the operator supports write operations."""
 
     write_can_multi: bool
-    """If operator supports write can be called in multi times"""
+    """Indicates if multiple write operations can be performed on the same object."""
 
     write_can_empty: bool
-    """If operator supports write with empty content"""
+    """Indicates if writing empty content is supported."""
 
     write_can_append: bool
-    """If operator supports write by append"""
+    """Indicates if append operations are supported."""
 
     write_with_content_type: bool
-    """If operator supports write with content type"""
+    """Indicates if Content-Type can be specified during write operations."""
 
     write_with_content_disposition: bool
-    """If operator supports write with content disposition"""
+    """Indicates if Content-Disposition can be specified during write operations."""
+
+    write_with_content_encoding: bool
+    """Indicates if Content-Encoding can be specified during write operations."""
 
     write_with_cache_control: bool
-    """If operator supports write with cache control"""
+    """Indicates if Cache-Control can be specified during write operations."""
+
+    write_with_if_match: bool
+    """Indicates if conditional write operations using If-Match are supported."""
+
+    write_with_if_none_match: bool
+    """Indicates if conditional write operations using If-None-Match are supported."""
+
+    write_with_if_not_exists: bool
+    """Indicates if write operations can be conditional on object non-existence."""
+
+    write_with_user_metadata: bool
+    """Indicates if custom user metadata can be attached during write operations."""
 
     write_multi_max_size: int | None
-    """Write_multi_max_size is the max size that services support in write_multi.
-    For example, AWS S3 supports 5GiB as max in write_multi."""
+    """Maximum part size for multipart uploads (e.g. 5GiB for AWS S3)."""
 
     write_multi_min_size: int | None
-    """Write_multi_min_size is the min size that services support in write_multi.
-    For example, AWS S3 requires at least 5MiB in write_multi expect the last one."""
+    """Minimum part size for multipart uploads (e.g. 5MiB for AWS S3)."""
 
     write_total_max_size: int | None
-    """Write_total_max_size is the max size that services support in write_total.
-    For example, Cloudflare D1 supports 1MB as max in write_total."""
+    """Maximum total size for write operations (e.g. 1MB for Cloudflare D1)."""
 
     create_dir: bool
-    """If operator supports create dir"""
+    """If operator supports create dir."""
 
     delete: bool
-    """If operator supports delete"""
+    """If operator supports delete."""
 
     copy: bool
-    """If operator supports copy"""
+    """If operator supports copy."""
 
     rename: bool
-    """If operator supports rename"""
+    """If operator supports rename."""
 
     list: bool
-    """If operator supports list"""
+    """If operator supports list."""
 
     list_with_limit: bool
-    """If backend supports list with limit"""
+    """If backend supports list with limit."""
 
     list_with_start_after: bool
-    """If backend supports list with start after"""
+    """If backend supports list with start after."""
 
     list_with_recursive: bool
-    """If backend supports list with recursive"""
+    """If backend supports list with recursive."""
 
     presign: bool
-    """If operator supports presign"""
+    """If operator supports presign."""
 
     presign_read: bool
-    """If operator supports presign read"""
+    """If operator supports presign read."""
 
     presign_stat: bool
-    """If operator supports presign stat"""
+    """If operator supports presign stat."""
 
     presign_write: bool
-    """If operator supports presign write"""
+    """If operator supports presign write."""
 
     presign_delete: bool
-    """If operator supports presign delete"""
+    """If operator supports presign delete."""
 
     shared: bool
-    """If operator supports shared"""
+    """If operator supports shared."""

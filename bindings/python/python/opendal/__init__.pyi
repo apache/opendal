@@ -45,6 +45,7 @@ class Operator(_Base):
         op.write("hello.txt", b"hello world")
         ```
     """
+
     def __init__(self, scheme: str, **options: Any) -> None: ...
     def layer(self, layer: Layer) -> Operator:
         """Add new layers upon the current operator.
@@ -52,7 +53,8 @@ class Operator(_Base):
         Args:
             layer (Layer): The layer to be added.
 
-        Returns:
+        Returns
+        -------
             The new operator with the layer added.
         """
     def open(self, path: PathBuf, mode: str, **options: Any) -> File:
@@ -69,7 +71,8 @@ class Operator(_Base):
                 - If `mode == "wb"`: options match the
                   [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
-        Returns:
+        Returns
+        -------
             File: A file-like object that can be used to read or write the file.
 
         Example:
@@ -109,7 +112,8 @@ class Operator(_Base):
                 - if_unmodified_since (datetime): Only read if the object was not
                     modified since this timestamp. This timestamp must be in UTC.
 
-        Returns:
+        Returns
+        -------
             bytes: The content of the object as bytes.
         """
     def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
@@ -140,7 +144,8 @@ class Operator(_Base):
                 - user_metadata (dict[str, str]): Custom user metadata to associate
                     with the object.
 
-        Returns:
+        Returns
+        -------
             None
         """
     def stat(self, path: PathBuf) -> Metadata:
@@ -149,7 +154,8 @@ class Operator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             The metadata of the object.
         """
     def create_dir(self, path: PathBuf) -> None:
@@ -170,7 +176,8 @@ class Operator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             True if the object exists, False otherwise.
         """
     def list(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
@@ -194,12 +201,15 @@ class Operator(_Base):
                     underlying service supports versioning.
                 - deleted (bool): Whether to include deleted objects, if the underlying
                     service supports soft-deletes or versioning.
-        Returns:
+
+        Returns
+        -------
             Iterable[Entry]: An iterable of entries representing the objects in the
                 directory or prefix.
         """
     def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
+
         Deprecated: use `list()` instead.
 
         Args:
@@ -208,7 +218,8 @@ class Operator(_Base):
                 [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
                 excluding `recursive` which is always enforced as `True`
 
-        Returns:
+        Returns
+        -------
             Iterable[Entry]: An iterable of all entries under the given path,
                 recursively traversing all subdirectories. Each entry represents
                 an object (e.g., file or directory) discovered within the full
@@ -217,7 +228,8 @@ class Operator(_Base):
     def capability(self) -> Capability:
         """Get the capability of the operator.
 
-        Returns:
+        Returns
+        -------
             The capability of the operator.
         """
     def copy(self, source: PathBuf, target: PathBuf) -> None:
@@ -235,7 +247,7 @@ class Operator(_Base):
             target (str|Path): The target path.
         """
     def remove_all(self, path: PathBuf) -> None:
-        """Convert into an async operator"""
+        """Convert into an async operator."""
     def to_async_operator(self) -> AsyncOperator: ...
 
 @final
@@ -255,6 +267,7 @@ class AsyncOperator(_Base):
         await op.write("hello.txt", b"hello world")
         ```
     """
+
     def __init__(self, scheme: str, **options: Any) -> None: ...
     def layer(self, layer: Layer) -> AsyncOperator: ...
     async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
@@ -271,7 +284,8 @@ class AsyncOperator(_Base):
                 - If `mode == "wb"`: options match the
                   [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
-        Returns:
+        Returns
+        -------
             AsyncFile: A file-like object that can be used to read or write the file.
 
         Example:
@@ -312,7 +326,8 @@ class AsyncOperator(_Base):
                 - if_unmodified_since (datetime): Only read if the object was not
                     modified since this timestamp. This timestamp must be in UTC.
 
-        Returns:
+        Returns
+        -------
             The content of the object as bytes.
         """
     async def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
@@ -343,7 +358,8 @@ class AsyncOperator(_Base):
                 - user_metadata (dict[str, str]): Custom user metadata to associate
                     with the object.
 
-        Returns:
+        Returns
+        -------
             None
         """
     async def stat(self, path: PathBuf) -> Metadata:
@@ -352,7 +368,8 @@ class AsyncOperator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             The metadata of the object.
         """
     async def create_dir(self, path: PathBuf) -> None:
@@ -373,7 +390,8 @@ class AsyncOperator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             True if the object exists, False otherwise.
         """
     async def list(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
@@ -397,12 +415,15 @@ class AsyncOperator(_Base):
                     underlying service supports versioning.
                 - deleted (bool): Whether to include deleted objects, if the underlying
                     service supports soft-deletes or versioning.
-        Returns:
+
+        Returns
+        -------
             Iterable[Entry]: An iterable of entries representing the objects in the
                 directory or prefix.
         """
     async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
+
         Deprecated: use `list()` instead.
 
         Args:
@@ -411,7 +432,8 @@ class AsyncOperator(_Base):
                 [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
                 excluding `recursive` which is always enforced as `True`
 
-        Returns:
+        Returns
+        -------
             Iterable[Entry]: An iterable of all entries under the given path,
                 recursively traversing all subdirectories. Each entry represents
                 an object (e.g., file or directory) discovered within the full
@@ -424,7 +446,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_read(self, path: PathBuf, expire_second: int) -> PresignedRequest:
@@ -434,7 +457,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_write(
@@ -446,7 +470,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_delete(
@@ -458,7 +483,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     def capability(self) -> Capability: ...
@@ -491,13 +517,15 @@ class File:
 
     Created by the `open` method of the `Operator` class.
     """
+
     def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
             size (int): The number of bytes to read. If None, read all.
 
-        Returns:
+        Returns
+        -------
             The content of the file as bytes.
         """
     def readline(self, size: int | None = None) -> bytes:
@@ -506,7 +534,8 @@ class File:
         Args:
             size (int): The number of bytes to read. If None, read until newline.
 
-        Returns:
+        Returns
+        -------
             The line read from the file as bytes.
         """
     def write(self, bs: bytes) -> None:
@@ -522,13 +551,15 @@ class File:
             pos (int): The position to set.
             whence (int): The reference point for the position. Can be 0, 1, or 2.
 
-        Returns:
+        Returns
+        -------
             The new position in the file.
         """
     def tell(self) -> int:
         """Get the current position in the file.
 
-        Returns:
+        Returns
+        -------
             The current position in the file.
         """
     def close(self) -> None:
@@ -555,7 +586,8 @@ class File:
         Args:
             buffer (bytes|bytearray): The buffer to read into.
 
-        Returns:
+        Returns
+        -------
             The number of bytes read.
         """
     def seekable(self) -> bool:
@@ -570,13 +602,15 @@ class AsyncFile:
 
     Created by the `open` method of the `AsyncOperator` class.
     """
+
     async def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
             size (int): The number of bytes to read. If None, read all.
 
-        Returns:
+        Returns
+        -------
             The content of the file as bytes.
         """
     async def write(self, bs: bytes) -> None:
@@ -592,13 +626,15 @@ class AsyncFile:
             pos (int): The position to set.
             whence (int): The reference point for the position. Can be 0, 1, or 2.
 
-        Returns:
+        Returns
+        -------
             The new position in the file.
         """
     async def tell(self) -> int:
         """Get the current position in the file.
 
-        Returns:
+        Returns
+        -------
             The current position in the file.
         """
     async def close(self) -> None:
@@ -625,6 +661,7 @@ class AsyncFile:
 @final
 class Entry:
     """An entry in the directory listing."""
+
     @property
     def path(self) -> str:
         """The path of the entry."""
@@ -662,13 +699,13 @@ class Metadata:
     def is_dir(self) -> bool:
         """Returns `True` if this metadata is for a directory."""
     @property
-    def last_modified(self) -> Optional[datetime]:
+    def last_modified(self) -> datetime | None:
         """The last modified time of the object."""
     @property
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """The version of the object, if available."""
     @property
-    def user_metadata(self) -> Optional[dict]:
+    def user_metadata(self) -> str | None:
         """The user defined metadata of the object."""
 
 @final

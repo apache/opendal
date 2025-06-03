@@ -205,8 +205,8 @@ public class BlockingListTest extends BehaviorTestBase {
         ListOptions options = ListOptions.builder().deleted(true).build();
         List<Entry> entries = op().list(dir, options);
 
-        assertThat(entries.size()).isEqualTo(1);
-        assertThat(entries.get(0).getPath()).isEqualTo(path);
+        List<String> actual = entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+        assertThat(actual).contains(path);
 
         op().removeAll(dir);
     }

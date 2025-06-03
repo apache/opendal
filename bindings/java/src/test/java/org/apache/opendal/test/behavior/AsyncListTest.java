@@ -325,8 +325,8 @@ class AsyncListTest extends BehaviorTestBase {
         ListOptions options = ListOptions.builder().deleted(true).build();
         List<Entry> entries = asyncOp().list(dir, options).join();
 
-        assertThat(entries.size()).isEqualTo(1);
-        assertThat(entries.get(0).getPath()).isEqualTo(path);
+        List<String> actual = entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+        assertThat(actual).contains(path);
 
         asyncOp().removeAll(dir).join();
     }

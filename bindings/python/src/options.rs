@@ -33,6 +33,9 @@ pub struct ReadOptions {
     pub size: Option<usize>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
+    pub content_type: Option<String>,
+    pub cache_control: Option<String>,
+    pub content_disposition: Option<String>,
 }
 
 impl ReadOptions {
@@ -72,9 +75,12 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            concurrent: opts.concurrent.unwrap_or(1),
+            concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
+            override_content_type: opts.content_type,
+            override_cache_control: opts.cache_control,
+            override_content_disposition: opts.content_disposition,
             ..Default::default()
         }
     }
@@ -86,7 +92,7 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            concurrent: opts.concurrent.unwrap_or(1),
+            concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
             ..Default::default()
@@ -98,7 +104,7 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
     fn from(opts: WriteOptions) -> Self {
         Self {
             append: opts.append.unwrap_or(false),
-            concurrent: opts.concurrent.unwrap_or(1),
+            concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             content_type: opts.content_type,
             content_disposition: opts.content_disposition,

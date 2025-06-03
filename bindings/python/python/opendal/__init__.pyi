@@ -16,13 +16,16 @@
 # under the License.
 
 import os
+import sys
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime
 from types import TracebackType
 from typing import Any, Union, final
 
-from typing_extensions import deprecated
-
+if sys.version_info >= (3, 13):
+    from warnings import deprecated
+else:
+    from typing_extensions import deprecated
 from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.__base import _Base

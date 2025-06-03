@@ -94,7 +94,7 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
 fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability = env.new_object(
         "org/apache/opendal/Capability",
-        "(ZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZ)V",
+        "(ZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZ)V",
         &[
             JValue::Bool(cap.stat as jboolean),
             JValue::Bool(cap.stat_with_if_match as jboolean),
@@ -125,6 +125,8 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.list_with_limit as jboolean),
             JValue::Bool(cap.list_with_start_after as jboolean),
             JValue::Bool(cap.list_with_recursive as jboolean),
+            JValue::Bool(cap.list_with_versions as jboolean),
+            JValue::Bool(cap.list_with_deleted as jboolean),
             JValue::Bool(cap.presign as jboolean),
             JValue::Bool(cap.presign_read as jboolean),
             JValue::Bool(cap.presign_stat as jboolean),
@@ -217,18 +219,6 @@ fn make_write_options<'a>(
             .into())
         }
     };
-    let chunk = match convert::read_int64_field(env, options, "chunk")? {
-        -1 => None,
-        v if v >= 0 => Some(v as usize),
-        v => {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                format!("Chunk must be positive, instead got: {}", v),
-            )
-            .into())
-        }
-    };
-
     Ok(opendal::options::WriteOptions {
         append: convert::read_bool_field(env, options, "append").unwrap_or_default(),
         content_type: convert::read_string_field(env, options, "contentType")?,
@@ -240,6 +230,19 @@ fn make_write_options<'a>(
         if_not_exists: convert::read_bool_field(env, options, "ifNotExists").unwrap_or_default(),
         user_metadata: convert::read_map_field(env, options, "userMetadata")?,
         concurrent,
-        chunk,
+        chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
+    })
+}
+
+fn make_list_options<'a>(
+    env: &mut JNIEnv<'a>,
+    options: &JObject,
+) -> Result<opendal::options::ListOptions> {
+    Ok(opendal::options::ListOptions {
+        limit: convert::read_jlong_field_to_usize(env, options, "limit")?,
+        start_after: convert::read_string_field(env, options, "startAfter")?,
+        recursive: convert::read_bool_field(env, options, "recursive").unwrap_or_default(),
+        versions: convert::read_bool_field(env, options, "versions").unwrap_or_default(),
+        deleted: convert::read_bool_field(env, options, "deleted").unwrap_or_default(),
     })
 }

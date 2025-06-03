@@ -25,12 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.ListOptions;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
+import org.assertj.core.util.Lists;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -128,5 +130,84 @@ public class BlockingListTest extends BehaviorTestBase {
         final List<Entry> noRecursiveEntries =
                 op().list(dir, ListOptions.builder().recursive(false).build());
         assertThat(noRecursiveEntries).hasSize(3);
+    }
+
+    @Test
+    void testListWithLimitCollectsAllPages() {
+        assumeTrue(op().info.fullCapability.listWithLimit);
+
+        String dir = String.format("%s/", UUID.randomUUID());
+        op().createDir(dir);
+        for (int i = 0; i < 5; i++) {
+            String file = dir + "file-" + i;
+            op().write(file, "data");
+        }
+
+        ListOptions options = ListOptions.builder().limit(3).build();
+        List<Entry> entries = op().list(dir, options);
+        assertThat(entries.size()).isEqualTo(6);
+
+        op().removeAll(dir);
+    }
+
+    @Test
+    void testListWithStartAfter() {
+        assumeTrue(op().info.fullCapability.listWithStartAfter);
+
+        String dir = String.format("%s/", UUID.randomUUID());
+        op().createDir(dir);
+
+        List<String> filesToCreate = Lists.newArrayList();
+        for (int i = 0; i < 5; i++) {
+            String file = dir + "file-" + i;
+            op().write(file, "data");
+            filesToCreate.add(file);
+        }
+
+        ListOptions options =
+                ListOptions.builder().startAfter(filesToCreate.get(2)).build();
+        List<Entry> entries = op().list(dir, options);
+        List<String> actual = entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+
+        assertThat(actual).containsAnyElementsOf(filesToCreate.subList(3, 5));
+        op().removeAll(dir);
+    }
+
+    @Test
+    void testListWithVersions() {
+        assumeTrue(op().info.fullCapability.listWithVersions);
+
+        String dir = String.format("%s/", UUID.randomUUID());
+        String path = dir + "versioned-file";
+
+        op().createDir(dir);
+        op().write(path, "data-1");
+        op().write(path, "data-2");
+
+        ListOptions options = ListOptions.builder().versions(true).build();
+        List<Entry> entries = op().list(dir, options);
+
+        assertThat(entries).isNotEmpty();
+        op().removeAll(dir);
+    }
+
+    @Test
+    void testListWithDeleted() {
+        assumeTrue(op().info.fullCapability.listWithDeleted);
+
+        String dir = String.format("%s/", UUID.randomUUID());
+        String path = dir + "file";
+
+        op().createDir(dir);
+        op().write(path, "data");
+        op().delete(path);
+
+        ListOptions options = ListOptions.builder().deleted(true).build();
+        List<Entry> entries = op().list(dir, options);
+
+        assertThat(entries.size()).isEqualTo(1);
+        assertThat(entries.get(0).getPath()).isEqualTo(path);
+
+        op().removeAll(dir);
     }
 }

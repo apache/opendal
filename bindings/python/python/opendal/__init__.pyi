@@ -21,6 +21,8 @@ from datetime import datetime
 from types import TracebackType
 from typing import Any, Union, final
 
+from typing_extensions import deprecated
+
 from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.__base import _Base
@@ -223,10 +225,9 @@ class Operator(_Base):
             Iterable[Entry]: An iterable of entries representing the objects in the
                 directory or prefix.
         """
+    @deprecated("Use `list()` instead.")
     def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
-
-        Deprecated: use `list()` instead.
 
         Args:
             path (str | Path): The path to the directory/ prefix.
@@ -453,10 +454,10 @@ class AsyncOperator(_Base):
             Iterable[Entry]: An iterable of entries representing the objects in the
                 directory or prefix.
         """
+    @deprecated("Use `list()` instead.")
     async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
 
-        Deprecated: use `list()` instead.
 
         Args:
             path (str | Path): The path to the directory/ prefix.

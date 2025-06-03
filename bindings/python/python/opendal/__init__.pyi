@@ -64,7 +64,7 @@ class Operator(_Base):
             **options (Any): Additional options passed to the underlying OpenDAL reader
                 or writer.
                 - If `mode == "rb"`: options match the
-                  [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html).
+                  [OpenDAL `ReaderOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReaderOptions.html).
                 - If `mode == "wb"`: options match the
                   [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
@@ -103,6 +103,10 @@ class Operator(_Base):
                 - if_match (str): Read only if the ETag matches the given value.
                 - if_none_match (str): Read-only if the ETag does not match the
                     given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
 
         Returns:
             bytes: The content of the object as bytes.
@@ -240,7 +244,7 @@ class AsyncOperator(_Base):
             **options (Any): Additional options passed to the underlying OpenDAL reader
                 or writer.
                 - If `mode == "rb"`: options match the
-                  [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html).
+                  [OpenDAL `ReaderOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReaderOptions.html).
                 - If `mode == "wb"`: options match the
                   [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
@@ -280,6 +284,10 @@ class AsyncOperator(_Base):
                 - if_match (str): Read only if the ETag matches the given value.
                 - if_none_match (str): Read-only if the ETag does not match the
                     given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
 
         Returns:
             The content of the object as bytes.

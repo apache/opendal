@@ -148,15 +148,31 @@ class Operator(_Base):
         -------
             None
         """
-    def stat(self, path: PathBuf) -> Metadata:
+    def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **kwargs (Any): Optional stat parameters matching the
+                [OpenDAL `StatOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.StatOptions.html):
 
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
         Returns
         -------
-            The metadata of the object.
+            Metadata: The metadata of the object.
         """
     def create_dir(self, path: PathBuf) -> None:
         """Create a directory at the given path.
@@ -362,15 +378,31 @@ class AsyncOperator(_Base):
         -------
             None
         """
-    async def stat(self, path: PathBuf) -> Metadata:
+    async def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **kwargs (Any): Optional stat parameters matching the
+                [OpenDAL `StatOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.StatOptions.html):
 
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
         Returns
         -------
-            The metadata of the object.
+            Metadata: The metadata of the object.
         """
     async def create_dir(self, path: PathBuf) -> None:
         """Create a directory at the given path.

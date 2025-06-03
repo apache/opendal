@@ -169,11 +169,16 @@ impl Operator {
             .map_err(format_pyerr)
     }
 
-    /// Get the current path's metadata **without cache** directly.
-    pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
+    /// Get metadata for the current path **without cache** directly.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn stat(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs
+            .map(|v| v.extract::<StatOptions>())
+            .transpose()?
+            .unwrap_or_default();
         self.core
-            .stat(&path)
+            .stat_options(&path, kwargs.into())
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
@@ -465,13 +470,24 @@ impl AsyncOperator {
         })
     }
 
-    /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    /// Get metadata for the current path **without cache** directly.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn stat<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs
+            .map(|v| v.extract::<StatOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
             let res: Metadata = this
-                .stat(&path)
+                .stat_options(&path, kwargs.into())
                 .await
                 .map_err(format_pyerr)
                 .map(Metadata::new)?;

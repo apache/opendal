@@ -144,3 +144,31 @@ impl From<ListOptions> for ocore::options::ListOptions {
         }
     }
 }
+
+#[pyclass(module = "opendal")]
+#[derive(FromPyObject, Default, Debug)]
+pub struct StatOptions {
+    pub version: Option<String>,
+    pub if_match: Option<String>,
+    pub if_none_match: Option<String>,
+    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub content_type: Option<String>,
+    pub cache_control: Option<String>,
+    pub content_disposition: Option<String>,
+}
+
+impl From<StatOptions> for ocore::options::StatOptions {
+    fn from(opts: StatOptions) -> Self {
+        Self {
+            version: opts.version,
+            if_match: opts.if_match,
+            if_none_match: opts.if_none_match,
+            if_modified_since: opts.if_modified_since,
+            if_unmodified_since: opts.if_unmodified_since,
+            override_content_type: opts.content_type,
+            override_cache_control: opts.cache_control,
+            override_content_disposition: opts.content_disposition,
+        }
+    }
+}

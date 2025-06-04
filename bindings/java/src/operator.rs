@@ -33,7 +33,7 @@ use crate::convert::{
 };
 use crate::make_metadata;
 use crate::Result;
-use crate::{make_entry, make_list_options, make_write_options};
+use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
 /// # Safety
 ///
@@ -141,16 +141,23 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
+    stat_options: JObject,
 ) -> jobject {
-    intern_stat(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    intern_stat(&mut env, &mut *op, path, stat_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_stat(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<jobject> {
+fn intern_stat(
+    env: &mut JNIEnv,
+    op: &mut blocking::Operator,
+    path: JString,
+    options: JObject,
+) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
-    let metadata = op.stat(&path)?;
+    let stat_opts = make_stat_options(env, &options)?;
+    let metadata = op.stat_options(&path, stat_opts)?;
     Ok(make_metadata(env, metadata)?.into_raw())
 }
 

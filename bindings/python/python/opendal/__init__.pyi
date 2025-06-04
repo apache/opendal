@@ -16,7 +16,6 @@
 # under the License.
 
 import os
-import sys
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime
 from types import TracebackType

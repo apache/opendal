@@ -54,6 +54,7 @@ pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+    pub const GENERATION: &str = "generation";
 }
 
 pub struct GcsCore {
@@ -188,13 +189,20 @@ impl GcsCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/storage/v1/b/{}/o/{}?alt=media",
+            "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let mut req = Request::get(&url);
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("alt", "media");
+
+        if let Some(version) = args.version() {
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
+        }
+
+        let mut req = Request::get(url.finish());
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -219,7 +227,13 @@ impl GcsCore {
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
-        let mut req = Request::get(&url);
+        let mut url = QueryPairsWriter::new(&url);
+
+        if let Some(version) = args.version() {
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
+        }
+
+        let mut req = Request::get(url.finish());
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -394,7 +408,13 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::get(&url);
+        let mut url = QueryPairsWriter::new(&url);
+
+        if let Some(version) = args.version() {
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
+        }
+
+        let mut req = Request::get(url.finish());
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
@@ -421,7 +441,13 @@ impl GcsCore {
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
-        let mut req = Request::head(&url);
+        let mut url = QueryPairsWriter::new(&url);
+
+        if let Some(version) = args.version() {
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
+        }
+
+        let mut req = Request::head(url.finish());
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
@@ -450,14 +476,14 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.gcs_delete_object_request(path)?;
+    pub async fn gcs_delete_object(&self, path: &str, args: OpDelete) -> Result<Response<Buffer>> {
+        let mut req = self.gcs_delete_object_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
+    pub fn gcs_delete_object_request(&self, path: &str, args: OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -467,18 +493,27 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        Request::delete(&url)
+        let mut url = QueryPairsWriter::new(&url);
+
+        if let Some(version) = args.version() {
+            url = url.push(constants::GENERATION, &percent_decode_path(version));
+        }
+
+        Request::delete(url.finish())
             .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn gcs_delete_objects(
+        &self,
+        batch: Vec<(String, OpDelete)>,
+    ) -> Result<Response<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
 
-        for (idx, path) in paths.iter().enumerate() {
-            let req = self.gcs_delete_object_request(path)?;
+        for (idx, (path, args)) in batch.iter().enumerate() {
+            let req = self.gcs_delete_object_request(path, args.clone())?;
 
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
@@ -522,6 +557,7 @@ impl GcsCore {
         delimiter: &str,
         limit: Option<usize>,
         start_after: Option<String>,
+        versions: bool,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -530,6 +566,9 @@ impl GcsCore {
         let mut url = QueryPairsWriter::new(&url);
         url = url.push("prefix", &percent_encode_path(&p));
 
+        if versions {
+            url = url.push("versions", "true");
+        }
         if !delimiter.is_empty() {
             url = url.push("delimiter", delimiter);
         }
@@ -762,6 +801,8 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+    pub time_deleted: Option<String>,
+    pub generation: String,
 }
 
 /// Result of CreateMultipartUpload

@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::Result;
+use chrono::{DateTime, Utc};
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::{JByteArray, JMap};
@@ -120,6 +121,34 @@ pub(crate) fn read_jlong_field_to_usize(
         )
         .into()),
     }
+}
+
+pub(crate) fn read_instant_field_to_date_time(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> Result<Option<DateTime<Utc>>> {
+    let result = env.get_field(obj, field, "Ljava/time/Instant;")?.l()?;
+    if result.is_null() {
+        return Ok(None);
+    }
+
+    let epoch_second = env
+        .call_method(&result, "getEpochSecond", "()J", &[])?
+        .j()?;
+    let nano = env.call_method(&result, "getNano", "()I", &[])?.i()?;
+    DateTime::from_timestamp(epoch_second, nano as u32)
+        .map(Some)
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                format!(
+                    "Invalid timestamp: seconds={}, nanos={}",
+                    epoch_second, nano
+                ),
+            )
+            .into()
+        })
 }
 
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {

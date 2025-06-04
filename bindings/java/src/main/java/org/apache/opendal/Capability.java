@@ -40,6 +40,21 @@ public class Capability {
     public final boolean statWithIfNoneMatch;
 
     /**
+     * If operator supports stat with if modified since.
+     */
+    public final boolean statWithIfModifiedSince;
+
+    /**
+     * If operator supports stat with if unmodified since.
+     */
+    public final boolean statWithIfUnmodifiedSince;
+
+    /**
+     * If operator supports stat with versions.
+     */
+    public final boolean statWithVersion;
+
+    /**
      * If operator supports read.
      */
     public final boolean read;
@@ -211,6 +226,9 @@ public class Capability {
             boolean stat,
             boolean statWithIfMatch,
             boolean statWithIfNoneMatch,
+            boolean statWithIfModifiedSince,
+            boolean statWithIfUnmodifiedSince,
+            boolean statWithVersion,
             boolean read,
             boolean readWithIfMatch,
             boolean readWithIfNoneMatch,
@@ -247,6 +265,9 @@ public class Capability {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
+        this.statWithIfModifiedSince = statWithIfModifiedSince;
+        this.statWithIfUnmodifiedSince = statWithIfUnmodifiedSince;
+        this.statWithVersion = statWithVersion;
         this.read = read;
         this.readWithIfMatch = readWithIfMatch;
         this.readWithIfNoneMatch = readWithIfNoneMatch;

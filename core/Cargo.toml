@@ -110,7 +110,6 @@ layers-dtrace = ["dep:probe"]
 
 services-aliyun-drive = []
 services-alluxio = []
-services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
   "dep:sha2",
   "dep:reqsign",
@@ -162,7 +161,6 @@ services-hdfs = ["dep:hdrs"]
 services-hdfs-native = ["hdfs-native"]
 services-http = []
 services-huggingface = []
-services-icloud = ["internal-path-cache"]
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
 services-koofr = []
@@ -174,7 +172,6 @@ services-moka = ["dep:moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-mysql = ["dep:sqlx", "sqlx?/mysql"]
-services-nebula-graph = ["dep:rust-nebula", "dep:bb8", "dep:snowflaked"]
 services-obs = [
   "dep:reqsign",
   "reqsign?/services-huaweicloud",
@@ -289,8 +286,6 @@ reqsign = { version = "0.16.3", default-features = false, optional = true }
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }
 
-# for services-atomic-server
-atomic_lib = { version = "0.39.0", optional = true }
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
@@ -359,9 +354,6 @@ compio = { version = "0.14.0", optional = true, features = [
 ] }
 # for services-s3
 crc32c = { version = "0.6.6", optional = true }
-# for services-nebula-graph
-rust-nebula = { version = "^0.0.2", optional = true, features = ["graph"] }
-snowflaked = { version = "1", optional = true, features = ["sync"] }
 # for services-monoiofs
 flume = { version = "0.11", optional = true }
 monoio = { version = "0.2.4", optional = true, features = [

@@ -28,52 +28,41 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
 use jni::JNIEnv;
-use opendal::layers::BlockingLayer;
+use opendal::blocking;
 use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
 
 use crate::convert::{
-    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field, read_map_field,
-    read_string_field,
+    bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
+    read_int64_field,
 };
-use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
-use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::Result;
+use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
     mut env: JNIEnv,
     _: JClass,
-    executor: *const Executor,
     scheme: JString,
     map: JObject,
 ) -> jlong {
-    intern_constructor(&mut env, executor, scheme, map).unwrap_or_else(|e| {
+    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_constructor(
-    env: &mut JNIEnv,
-    executor: *const Executor,
-    scheme: JString,
-    map: JObject,
-) -> Result<jlong> {
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_iter(scheme, map)?;
-    if !op.info().full_capability().blocking {
-        let layer = executor_or_default(env, executor)?.enter_with(BlockingLayer::create)?;
-        op = op.layer(layer);
-    }
+    let op = Operator::via_iter(scheme, map)?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -132,45 +121,13 @@ fn intern_write(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
+    let write_opts = make_write_options(env, &options)?;
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    let content_type = read_string_field(env, &options, "contentType")?;
-    let content_disposition = read_string_field(env, &options, "contentDisposition")?;
-    let content_encoding = read_string_field(env, &options, "contentEncoding")?;
-    let cache_control = read_string_field(env, &options, "cacheControl")?;
-    let if_match = read_string_field(env, &options, "ifMatch")?;
-    let if_none_match = read_string_field(env, &options, "ifNoneMatch")?;
-    let append = read_bool_field(env, &options, "append")?;
-    let if_not_exists = read_bool_field(env, &options, "ifNotExists")?;
-    let user_metadata = read_map_field(env, &options, "userMetadata")?;
-
-    let mut write_op = op.write_with(&path, content);
-    if let Some(content_type) = content_type {
-        write_op = write_op.content_type(&content_type);
-    }
-    if let Some(content_disposition) = content_disposition {
-        write_op = write_op.content_disposition(&content_disposition);
-    }
-    if let Some(content_encoding) = content_encoding {
-        write_op = write_op.content_encoding(&content_encoding);
-    }
-    if let Some(cache_control) = cache_control {
-        write_op = write_op.cache_control(&cache_control);
-    }
-    if let Some(if_match) = if_match {
-        write_op = write_op.if_match(&if_match);
-    }
-    if let Some(if_none_match) = if_none_match {
-        write_op = write_op.if_none_match(&if_none_match);
-    }
-    if let Some(user_metadata) = user_metadata {
-        write_op = write_op.user_metadata(user_metadata);
-    }
-    write_op = write_op.if_not_exists(if_not_exists);
-    write_op = write_op.append(append);
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = write_op
+        let result = op
+            .write_options(&path, content, write_opts)
             .await
             .map(|_| JValueOwned::Void)
             .map_err(Into::into);
@@ -190,8 +147,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    stat_options: JObject,
 ) -> jlong {
-    intern_stat(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_stat(&mut env, op, executor, path, stat_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -202,14 +160,16 @@ fn intern_stat(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
+    let stat_opts = make_stat_options(env, &options)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let metadata = op.stat(&path).await.map_err(Into::into);
+        let metadata = op.stat_options(&path, stat_opts).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = metadata.and_then(|metadata| make_metadata(&mut env, metadata));
         complete_future(id, result.map(JValueOwned::Object))
@@ -310,12 +270,26 @@ fn intern_delete(
 /// This function should not be called before the Operator is ready.
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp(
-    _: JNIEnv,
+    mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
+    executor: *const Executor,
 ) -> jlong {
+    intern_make_blocking_op(&mut env, op, executor).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_make_blocking_op(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    executor: *const Executor,
+) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    Box::into_raw(Box::new(op.blocking())) as jlong
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
+    Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
 /// # Safety
@@ -533,13 +507,9 @@ fn intern_list(
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
-    let recursive = read_bool_field(env, &options, "recursive")?;
-
-    let mut list_op = op.list_with(&path);
-    list_op = list_op.recursive(recursive);
-
+    let list_opts = make_list_options(env, &options)?;
     executor_or_default(env, executor)?.spawn(async move {
-        let entries = list_op.await.map_err(Into::into);
+        let entries = op.list_options(&path, list_opts).await.map_err(Into::into);
         let result = make_entries(entries);
         complete_future(id, result.map(JValueOwned::Object))
     });

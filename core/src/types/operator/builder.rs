@@ -189,8 +189,6 @@ impl Operator {
         let op = match scheme {
             #[cfg(feature = "services-aliyun-drive")]
             Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
-            #[cfg(feature = "services-atomicserver")]
-            Scheme::Atomicserver => Self::from_iter::<services::Atomicserver>(iter)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
             #[cfg(feature = "services-compfs")]
@@ -247,8 +245,6 @@ impl Operator {
             Scheme::Ipfs => Self::from_iter::<services::Ipfs>(iter)?.finish(),
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs => Self::from_iter::<services::Ipmfs>(iter)?.finish(),
-            #[cfg(feature = "services-icloud")]
-            Scheme::Icloud => Self::from_iter::<services::Icloud>(iter)?.finish(),
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached => Self::from_iter::<services::Memcached>(iter)?.finish(),
             #[cfg(feature = "services-memory")]
@@ -307,8 +303,6 @@ impl Operator {
             Scheme::HdfsNative => Self::from_iter::<services::HdfsNative>(iter)?.finish(),
             #[cfg(feature = "services-lakefs")]
             Scheme::Lakefs => Self::from_iter::<services::Lakefs>(iter)?.finish(),
-            #[cfg(feature = "services-nebula-graph")]
-            Scheme::NebulaGraph => Self::from_iter::<services::NebulaGraph>(iter)?.finish(),
             v => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

@@ -18,6 +18,11 @@
 use std::env;
 use std::sync::Arc;
 
+use http::Response;
+use http::StatusCode;
+use log::debug;
+use sha2::Digest;
+
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
@@ -25,10 +30,6 @@ use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
-use http::Response;
-use http::StatusCode;
-use log::debug;
-use sha2::Digest;
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -239,10 +240,6 @@ impl Access for GhacBackend {
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

@@ -95,55 +95,6 @@ impl Stream for Lister {
     }
 }
 
-/// BlockingLister is designed to list entries at given path in a blocking
-/// manner.
-///
-/// Users can construct Lister by [`BlockingOperator::lister`] or [`BlockingOperator::lister_with`].
-///
-/// - Lister implements `Iterator<Item = Result<Entry>>`.
-/// - Lister will return `None` if there is no more entries or error has been returned.
-pub struct BlockingLister {
-    lister: oio::BlockingLister,
-    errored: bool,
-}
-
-/// # Safety
-///
-/// BlockingLister will only be accessed by `&mut Self`
-unsafe impl Sync for BlockingLister {}
-
-impl BlockingLister {
-    /// Create a new lister.
-    pub(crate) fn create(acc: Accessor, path: &str, args: OpList) -> Result<Self> {
-        let (_, lister) = acc.blocking_list(path, args)?;
-
-        Ok(Self {
-            lister,
-            errored: false,
-        })
-    }
-}
-
-impl Iterator for BlockingLister {
-    type Item = Result<Entry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Returns `None` if we have errored.
-        if self.errored {
-            return None;
-        }
-
-        match self.lister.next() {
-            Ok(Some(entry)) => Some(Ok(entry.into_entry())),
-            Ok(None) => None,
-            Err(err) => {
-                self.errored = true;
-                Some(Err(err))
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 #[cfg(feature = "services-azblob")]
 mod tests {

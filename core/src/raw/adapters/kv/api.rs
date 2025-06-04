@@ -47,7 +47,6 @@ pub struct ScanStdIter<I>(I);
 #[cfg(any(
     feature = "services-cloudflare-kv",
     feature = "services-etcd",
-    feature = "services-nebula-graph",
     feature = "services-rocksdb",
     feature = "services-sled"
 ))]
@@ -104,48 +103,13 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// - return `Ok(None)` if this key is not exist.
     fn get(&self, path: &str) -> impl Future<Output = Result<Option<Buffer>>> + MaybeSend;
 
-    /// The blocking version of get.
-    fn blocking_get(&self, path: &str) -> Result<Option<Buffer>> {
-        let _ = path;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "kv adapter doesn't support this operation",
-        )
-        .with_operation("kv::Adapter::blocking_get"))
-    }
-
     /// Set a key into service.
     fn set(&self, path: &str, value: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
-
-    /// The blocking version of set.
-    fn blocking_set(&self, path: &str, value: Buffer) -> Result<()> {
-        let _ = (path, value);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "kv adapter doesn't support this operation",
-        )
-        .with_operation("kv::Adapter::blocking_set"))
-    }
 
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
     fn delete(&self, path: &str) -> impl Future<Output = Result<()>> + MaybeSend;
-
-    /// Delete a key from service in blocking way.
-    ///
-    /// - return `Ok(())` even if this key is not exist.
-    fn blocking_delete(&self, path: &str) -> Result<()> {
-        let _ = path;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "kv adapter doesn't support this operation",
-        )
-        .with_operation("kv::Adapter::blocking_delete"))
-    }
 
     /// Scan a key prefix to get all keys that start with this key.
     fn scan(&self, path: &str) -> impl Future<Output = Result<Self::Scanner>> + MaybeSend {
@@ -158,18 +122,6 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
         .with_operation("kv::Adapter::scan")))
     }
 
-    /// Scan a key prefix to get all keys that start with this key
-    /// in blocking way.
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let _ = path;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "kv adapter doesn't support this operation",
-        )
-        .with_operation("kv::Adapter::blocking_scan"))
-    }
-
     /// Append a key into service
     fn append(&self, path: &str, value: &[u8]) -> impl Future<Output = Result<()>> + MaybeSend {
         let _ = path;
@@ -180,19 +132,6 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
             "kv adapter doesn't support this operation",
         )
         .with_operation("kv::Adapter::append")))
-    }
-
-    /// Append a key into service
-    /// in blocking way.
-    fn blocking_append(&self, path: &str, value: &[u8]) -> Result<()> {
-        let _ = path;
-        let _ = value;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "kv adapter doesn't support this operation",
-        )
-        .with_operation("kv::Adapter::blocking_append"))
     }
 }
 

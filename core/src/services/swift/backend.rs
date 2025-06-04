@@ -211,10 +211,6 @@ impl Access for SwiftBackend {
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::OneShotDeleter<SwfitDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

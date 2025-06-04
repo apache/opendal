@@ -232,10 +232,4 @@ impl Capability {
     pub fn shared(&self) -> bool {
         self.0.shared
     }
-
-    /// If operator supports blocking.
-    #[napi(getter)]
-    pub fn blocking(&self) -> bool {
-        self.0.blocking
-    }
 }

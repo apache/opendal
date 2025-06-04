@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use crate::layers::correctness_check::new_unsupported_error;
 use crate::raw::*;
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
 
 /// Add an extra capability check layer for every operation
 ///
@@ -84,10 +86,6 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
-    type BlockingReader = A::BlockingReader;
-    type BlockingWriter = A::BlockingWriter;
-    type BlockingLister = A::BlockingLister;
-    type BlockingDeleter = A::BlockingDeleter;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -140,72 +138,14 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 
         self.inner.list(path, args).await
     }
-
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> crate::Result<(RpRead, Self::BlockingReader)> {
-        self.inner().blocking_read(path, args)
-    }
-
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> crate::Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.info.full_capability();
-        if !capability.write_with_content_type && args.content_type().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Write,
-                "content_type",
-            ));
-        }
-        if !capability.write_with_cache_control && args.cache_control().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Write,
-                "cache_control",
-            ));
-        }
-        if !capability.write_with_content_disposition && args.content_disposition().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Write,
-                "content_disposition",
-            ));
-        }
-
-        self.inner.blocking_write(path, args)
-    }
-
-    fn blocking_delete(&self) -> crate::Result<(RpDelete, Self::BlockingDeleter)> {
-        self.inner.blocking_delete()
-    }
-
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> crate::Result<(RpList, Self::BlockingLister)> {
-        let capability = self.info.full_capability();
-        if !capability.list_with_versions && args.versions() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::List,
-                "version",
-            ));
-        }
-
-        self.inner.blocking_list(path, args)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Capability, ErrorKind, Operator};
+    use crate::Capability;
+    use crate::ErrorKind;
+    use crate::Operator;
 
     #[derive(Debug)]
     struct MockService {
@@ -217,10 +157,6 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
-        type BlockingReader = oio::BlockingReader;
-        type BlockingWriter = oio::BlockingWriter;
-        type BlockingLister = oio::BlockingLister;
-        type BlockingDeleter = oio::BlockingDeleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();

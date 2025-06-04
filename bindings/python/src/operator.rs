@@ -33,14 +33,19 @@ fn build_operator(
     scheme: ocore::Scheme,
     map: HashMap<String, String>,
 ) -> PyResult<ocore::Operator> {
-    let mut op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
-    if !op.info().full_capability().blocking {
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
-        let _guard = runtime.enter();
-        op = op
-            .layer(ocore::layers::BlockingLayer::create().expect("blocking layer must be created"));
-    }
+    let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
+    Ok(op)
+}
 
+fn build_blocking_operator(
+    scheme: ocore::Scheme,
+    map: HashMap<String, String>,
+) -> PyResult<ocore::blocking::Operator> {
+    let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
+
+    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let _guard = runtime.enter();
+    let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
 }
 
@@ -49,7 +54,7 @@ fn build_operator(
 /// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
 pub struct Operator {
-    core: ocore::BlockingOperator,
+    core: ocore::blocking::Operator,
     __scheme: ocore::Scheme,
     __map: HashMap<String, String>,
 }
@@ -73,36 +78,60 @@ impl Operator {
             .unwrap_or_default();
 
         Ok(Operator {
-            core: build_operator(scheme, map.clone())?.blocking(),
+            core: build_blocking_operator(scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
+
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+        let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
         Ok(Self {
-            core: op.blocking(),
+            core: op,
             __scheme: self.__scheme,
             __map: self.__map.clone(),
         })
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open(&self, path: PathBuf, mode: String) -> PyResult<File> {
-        let path = path.to_string_lossy().to_string();
+    #[pyo3(signature = (path, mode, *, **kwargs))]
+    pub fn open(
+        &self,
+        path: PathBuf,
+        mode: String,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<File> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReadOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         if mode == "rb" {
-            let r = this
-                .reader(&path)
-                .map_err(format_pyerr)?
-                .into_std_read(..)
+            let range = reader_opts.make_range();
+            let reader = this
+                .reader_options(&path, reader_opts.into())
                 .map_err(format_pyerr)?;
+
+            let r = reader.into_std_read(range).map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
-            let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w))
+            let writer = this
+                .writer_options(&path, writer_opts.into())
+                .map_err(format_pyerr)?;
+            Ok(File::new_writer(writer))
         } else {
             Err(Unsupported::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
@@ -111,41 +140,36 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy().to_string();
-        let buffer = self.core.read(&path).map_err(format_pyerr)?.to_vec();
+        let kwargs = kwargs.unwrap_or_default();
+        let buffer = self
+            .core
+            .read_options(&path, kwargs.into())
+            .map_err(format_pyerr)?
+            .to_vec();
+
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Write bytes into given path.
+    /// Write bytes into a given path.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        let mut kwargs = kwargs.unwrap_or_default();
-        let mut write = self
-            .core
-            .write_with(&path, bs)
-            .append(kwargs.append.unwrap_or(false));
-        if let Some(chunk) = kwargs.chunk {
-            write = write.chunk(chunk);
-        }
-        if let Some(content_type) = &kwargs.content_type {
-            write = write.content_type(content_type);
-        }
-        if let Some(content_disposition) = &kwargs.content_disposition {
-            write = write.content_disposition(content_disposition);
-        }
-        if let Some(cache_control) = &kwargs.cache_control {
-            write = write.cache_control(cache_control);
-        }
-        if let Some(user_metadata) = kwargs.user_metadata.take() {
-            write = write.user_metadata(user_metadata);
-        }
-
-        write.call().map(|_| ()).map_err(format_pyerr)
+        let kwargs = kwargs.unwrap_or_default();
+        self.core
+            .write_options(&path, bs, kwargs.into())
+            .map(|_| ())
+            .map_err(format_pyerr)
     }
 
-    /// Get current path's metadata **without cache** directly.
+    /// Get the current path's metadata **without cache** directly.
     pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
         self.core
@@ -154,7 +178,7 @@ impl Operator {
             .map(Metadata::new)
     }
 
-    /// Copy source to target.
+    /// Copy the source to the target.
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
@@ -168,19 +192,19 @@ impl Operator {
         self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
-    /// Remove all file
+    /// Remove all files
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.remove_all(&path).map_err(format_pyerr)
     }
 
-    /// Create a dir at given path.
+    /// Create a dir at the given path.
     ///
     /// # Notes
     ///
     /// To indicate that a path is a directory, it is compulsory to include
     /// a trailing / in the path. Failure to do so may result in
-    /// `NotADirectory` error being returned by OpenDAL.
+    ///  a ` NotADirectory ` error being returned by OpenDAL.
     ///
     /// # Behavior
     ///
@@ -201,7 +225,7 @@ impl Operator {
         self.core.delete(&path).map_err(format_pyerr)
     }
 
-    /// Check given path is exists.
+    /// Checks if the given path exists.
     ///
     /// # Notes
     ///
@@ -215,22 +239,31 @@ impl Operator {
     #[pyo3(signature = (path, *, start_after=None))]
     pub fn list(&self, path: PathBuf, start_after: Option<String>) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
-        let mut builder = self.core.lister_with(&path);
-        if let Some(start_after) = start_after {
-            builder = builder.start_after(&start_after);
-        }
-        let l = builder.call().map_err(format_pyerr)?;
+        let l = self
+            .core
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    start_after,
+                    ..Default::default()
+                },
+            )
+            .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
-    /// List dir in flat way.
+    /// List dir in a flat way.
     pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
         let l = self
             .core
-            .lister_with(&path)
-            .recursive(true)
-            .call()
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
@@ -311,7 +344,7 @@ impl AsyncOperator {
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
@@ -322,27 +355,46 @@ impl AsyncOperator {
     }
 
     /// Open a file-like reader for the given path.
+    #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         mode: String,
+        kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReadOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
             if mode == "rb" {
-                let r = this
-                    .reader(&path)
+                let range = reader_opts.make_range();
+                let reader = this
+                    .reader_options(&path, reader_opts.into())
                     .await
-                    .map_err(format_pyerr)?
-                    .into_futures_async_read(..)
+                    .map_err(format_pyerr)?;
+
+                let r = reader
+                    .into_futures_async_read(range)
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
-                let w = this.writer(&path).await.map_err(format_pyerr)?;
+                let writer = this
+                    .writer_options(&path, writer_opts.into())
+                    .await
+                    .map_err(format_pyerr)?;
+                let w = writer.into_futures_async_write();
                 Ok(AsyncFile::new_writer(w))
             } else {
                 Err(Unsupported::new_err(format!(
@@ -353,11 +405,26 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs.unwrap_or_default();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
+            let range = kwargs.make_range();
+            let res = this
+                .reader_options(&path, kwargs.into())
+                .await
+                .map_err(format_pyerr)?
+                .read(range)
+                .await
+                .map_err(format_pyerr)?
+                .to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
         })
     }
@@ -629,8 +696,12 @@ impl AsyncOperator {
     }
 
     pub fn to_operator(&self) -> PyResult<Operator> {
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+        let op = ocore::blocking::Operator::new(self.core.clone()).map_err(format_pyerr)?;
+
         Ok(Operator {
-            core: self.core.clone().blocking(),
+            core: op,
             __scheme: self.__scheme,
             __map: self.__map.clone(),
         })

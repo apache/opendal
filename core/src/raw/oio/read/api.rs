@@ -117,38 +117,3 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
         self.deref_mut().read_all_dyn().await
     }
 }
-
-/// BlockingReader is a arc dyn `BlockingRead`.
-pub type BlockingReader = Box<dyn BlockingRead>;
-
-/// Read is the trait that OpenDAL returns to callers.
-pub trait BlockingRead: Send + Sync {
-    /// Read data from the reader at the given offset with the given size.
-    fn read(&mut self) -> Result<Buffer>;
-}
-
-impl BlockingRead for () {
-    fn read(&mut self) -> Result<Buffer> {
-        unimplemented!("read is required to be implemented for oio::BlockingRead")
-    }
-}
-
-impl BlockingRead for Bytes {
-    fn read(&mut self) -> Result<Buffer> {
-        Ok(Buffer::from(self.split_off(0)))
-    }
-}
-
-impl BlockingRead for Buffer {
-    fn read(&mut self) -> Result<Buffer> {
-        Ok(mem::take(self))
-    }
-}
-
-/// `Arc<dyn BlockingRead>` won't implement `BlockingRead` automatically.
-/// To make BlockingReader work as expected, we must add this impl.
-impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
-    fn read(&mut self) -> Result<Buffer> {
-        (**self).read()
-    }
-}

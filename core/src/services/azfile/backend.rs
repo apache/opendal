@@ -36,8 +36,18 @@ use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
 
-/// Default endpoint of Azure File services.
-const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
+impl From<AzureStorageConfig> for AzfileConfig {
+    fn from(config: AzureStorageConfig) -> Self {
+        AzfileConfig {
+            account_name: config.account_name,
+            account_key: config.account_key,
+            sas_token: config.sas_token,
+            endpoint: config.endpoint,
+            root: None,                // root is not part of AzureStorageConfig
+            share_name: String::new(), // share_name is not part of AzureStorageConfig
+        }
+    }
+}
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
@@ -143,6 +153,31 @@ impl AzfileBuilder {
         self.http_client = Some(client);
         self
     }
+
+    /// Create a new `AfileBuilder` instance from an [Azure Storage connection string][1].
+    ///
+    /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+    ///
+    /// # Example
+    /// ```
+    /// use opendal::Builder;
+    /// use opendal::services::Azfile;
+    ///
+    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    ///
+    /// let mut config = Azfile::from_connection_string(&conn_str)
+    ///     .unwrap()
+    ///     // Add additional configuration if needed
+    ///     .share_name("myShare")
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn from_connection_string(conn_str: &str) -> Result<Self> {
+        let config =
+            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::File)?;
+
+        Ok(AzfileConfig::from(config).into_builder())
+    }
 }
 
 impl Builder for AzfileBuilder {
@@ -167,7 +202,7 @@ impl Builder for AzfileBuilder {
             .config
             .account_name
             .clone()
-            .or_else(|| infer_account_name_from_endpoint(endpoint.as_str()));
+            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()));
 
         let account_name = match account_name_option {
             Some(account_name) => Ok(account_name),
@@ -240,27 +275,6 @@ impl Builder for AzfileBuilder {
     }
 }
 
-fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let account_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT_SUFFIX {
-        account_name.map(|s| s.to_string())
-    } else {
-        None
-    }
-}
-
 /// Backend for azfile services.
 #[derive(Debug, Clone)]
 pub struct AzfileBackend {
@@ -272,10 +286,6 @@ impl Access for AzfileBackend {
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -371,31 +381,6 @@ impl Access for AzfileBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint() {
-        let cases = vec![
-            (
-                "test infer account name from endpoint",
-                "https://account.file.core.windows.net",
-                "account",
-            ),
-            (
-                "test infer account name from endpoint with trailing slash",
-                "https://account.file.core.windows.net/",
-                "account",
-            ),
-        ];
-        for (desc, endpoint, expected) in cases {
-            let account_name = infer_account_name_from_endpoint(endpoint);
-            assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
         }
     }
 }

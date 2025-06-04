@@ -28,7 +28,8 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::{constants, ObsCore};
+use super::core::constants;
+use super::core::ObsCore;
 use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
@@ -321,10 +322,6 @@ impl Access for ObsBackend {
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{
-    collections::VecDeque,
-    sync::atomic::Ordering,
-    sync::{atomic::AtomicUsize, Arc},
-};
+use std::collections::VecDeque;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use futures::FutureExt;
 
@@ -309,11 +308,11 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 mod tests {
     use std::time::Duration;
 
+    use pretty_assertions::assert_eq;
     use rand::Rng;
     use tokio::time::sleep;
 
     use super::*;
-    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn test_concurrent_tasks() {

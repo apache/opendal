@@ -15,17 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
-use std::collections::VecDeque;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 
 use super::error::parse_error;
 use crate::raw::*;

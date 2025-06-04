@@ -48,10 +48,6 @@ impl Access for OnedriveBackend {
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
-    type BlockingReader = ();
-    type BlockingWriter = ();
-    type BlockingLister = ();
-    type BlockingDeleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

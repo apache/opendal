@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Write;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -97,39 +96,5 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
             ErrorKind::Unsupported,
             "HdfsWriter doesn't support abort",
         ))
-    }
-}
-
-impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        let len = bs.len() as u64;
-
-        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        while bs.has_remaining() {
-            let n = f.write(bs.chunk()).map_err(new_std_io_error)?;
-            bs.advance(n);
-        }
-
-        self.size += len;
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<Metadata> {
-        let f = self.f.as_mut().expect("HdfsWriter must be initialized");
-        f.flush().map_err(new_std_io_error)?;
-
-        if let Some(tmp_path) = &self.tmp_path {
-            // we must delete the target_path, otherwise the rename_file operation will fail
-            if self.target_path_exists {
-                self.client
-                    .remove_file(&self.target_path)
-                    .map_err(new_std_io_error)?;
-            }
-            self.client
-                .rename_file(tmp_path, &self.target_path)
-                .map_err(new_std_io_error)?;
-        }
-
-        Ok(Metadata::default().with_content_length(self.size))
     }
 }

@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use http::header;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::sync::Arc;
+
+use crate::raw::*;
+use crate::*;
 
 pub struct LakefsCore {
     pub info: Arc<AccessorInfo>,

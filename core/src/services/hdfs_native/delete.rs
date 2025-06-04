@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use super::backend::HdfsNativeBackend;
 use super::error::parse_hdfs_error;
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 
 pub struct HdfsNativeDeleter {
     core: Arc<HdfsNativeBackend>,

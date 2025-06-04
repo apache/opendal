@@ -21,16 +21,12 @@
 mod operator;
 pub use operator::Operator;
 
-mod blocking_operator;
-pub use blocking_operator::BlockingOperator;
-
 mod builder;
 pub use builder::OperatorBuilder;
 
 mod info;
 pub use info::OperatorInfo;
 
-pub mod operator_functions;
 pub mod operator_futures;
 
 mod registry;

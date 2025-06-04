@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io;
+use std::sync::Arc;
+
 use super::backend::HdfsBackend;
 use crate::raw::*;
 use crate::*;
-use std::io;
-use std::sync::Arc;
 
 pub struct HdfsDeleter {
     core: Arc<HdfsBackend>,
@@ -33,35 +34,6 @@ impl HdfsDeleter {
 
 impl oio::OneShotDelete for HdfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.core.root, &path);
-
-        let meta = self.core.client.metadata(&p);
-
-        if let Err(err) = meta {
-            return if err.kind() == io::ErrorKind::NotFound {
-                Ok(())
-            } else {
-                Err(new_std_io_error(err))
-            };
-        }
-
-        // Safety: Err branch has been checked, it's OK to unwrap.
-        let meta = meta.ok().unwrap();
-
-        let result = if meta.is_dir() {
-            self.core.client.remove_dir(&p)
-        } else {
-            self.core.client.remove_file(&p)
-        };
-
-        result.map_err(new_std_io_error)?;
-
-        Ok(())
-    }
-}
-
-impl oio::BlockingOneShotDelete for HdfsDeleter {
-    fn blocking_delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.core.root, &path);
 
         let meta = self.core.client.metadata(&p);

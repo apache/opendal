@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::pin::pin;
+
+use futures::Stream;
+use futures::StreamExt;
+
 use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
 use crate::*;
-use futures::{Stream, StreamExt};
-use std::pin::pin;
 
 /// Deleter is designed to continuously remove content from storage.
 ///
@@ -48,9 +51,9 @@ use std::pin::pin;
 /// Delete multiple files via a stream:
 ///
 /// ```rust
+/// use futures::stream;
 /// use opendal::Operator;
 /// use opendal::Result;
-/// use futures::stream;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut d = op.deleter().await?;
@@ -65,10 +68,11 @@ use std::pin::pin;
 /// Deleter can be used as a Sink for file deletion:
 ///
 /// ```rust
+/// use futures::stream;
+/// use futures::Sink;
+/// use futures::SinkExt;
 /// use opendal::Operator;
 /// use opendal::Result;
-/// use futures::{stream, Sink};
-/// use futures::SinkExt;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut sink = op.deleter().await?.into_sink();

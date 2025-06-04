@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::Result;
+use chrono::{DateTime, Utc};
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::{JByteArray, JMap};
@@ -76,6 +77,10 @@ pub(crate) fn read_int64_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str)
     Ok(env.get_field(obj, field, "J")?.j()?)
 }
 
+pub(crate) fn read_int_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<i32> {
+    Ok(env.get_field(obj, field, "I")?.i()?)
+}
+
 pub(crate) fn read_string_field(
     env: &mut JNIEnv<'_>,
     obj: &JObject,
@@ -100,6 +105,50 @@ pub(crate) fn read_map_field(
     } else {
         Ok(Some(jmap_to_hashmap(env, &result)?))
     }
+}
+
+pub(crate) fn read_jlong_field_to_usize(
+    env: &mut JNIEnv,
+    options: &JObject,
+    field_name: &str,
+) -> Result<Option<usize>> {
+    match read_int64_field(env, options, field_name)? {
+        -1 => Ok(None),
+        v if v > 0 => Ok(Some(v as usize)),
+        v => Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("{} must be positive, instead got: {}", field_name, v),
+        )
+        .into()),
+    }
+}
+
+pub(crate) fn read_instant_field_to_date_time(
+    env: &mut JNIEnv<'_>,
+    obj: &JObject,
+    field: &str,
+) -> Result<Option<DateTime<Utc>>> {
+    let result = env.get_field(obj, field, "Ljava/time/Instant;")?.l()?;
+    if result.is_null() {
+        return Ok(None);
+    }
+
+    let epoch_second = env
+        .call_method(&result, "getEpochSecond", "()J", &[])?
+        .j()?;
+    let nano = env.call_method(&result, "getNano", "()I", &[])?.i()?;
+    DateTime::from_timestamp(epoch_second, nano as u32)
+        .map(Some)
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                format!(
+                    "Invalid timestamp: seconds={}, nanos={}",
+                    epoch_second, nano
+                ),
+            )
+            .into()
+        })
 }
 
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {

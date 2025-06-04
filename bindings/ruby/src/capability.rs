@@ -95,7 +95,6 @@ define_accessors!(Capability, {
     presign_read: bool,
     presign_stat: bool,
     presign_write: bool,
-    blocking: bool,
 });
 
 // includes class into the Ruby module
@@ -142,7 +141,6 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
         presign_read,
         presign_stat,
         presign_write,
-        blocking
     });
 
     Ok(())

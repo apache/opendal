@@ -18,7 +18,6 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::*;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
@@ -27,6 +26,8 @@ use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 use tokio::time::sleep;
+
+use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     let cap = op.info().full_capability();

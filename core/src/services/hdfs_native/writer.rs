@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use hdfs_native::file::FileWriter;
+
 use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::*;
-use hdfs_native::file::FileWriter;
 pub struct HdfsNativeWriter {
     f: FileWriter,
     size: u64,

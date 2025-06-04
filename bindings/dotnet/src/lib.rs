@@ -18,6 +18,14 @@
 use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::str::FromStr;
+use std::sync::LazyLock;
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
 
 /// # Safety
 ///
@@ -25,7 +33,7 @@ use std::str::FromStr;
 #[no_mangle]
 pub unsafe extern "C" fn blocking_operator_construct(
     scheme: *const c_char,
-) -> *const opendal::BlockingOperator {
+) -> *const opendal::blocking::Operator {
     if scheme.is_null() {
         return std::ptr::null();
     }
@@ -39,14 +47,24 @@ pub unsafe extern "C" fn blocking_operator_construct(
     let mut map = HashMap::<String, String>::default();
     map.insert("root".to_string(), "/tmp".to_string());
     let op = match opendal::Operator::via_iter(scheme, map) {
-        Ok(op) => op.blocking(),
+        Ok(op) => op,
         Err(err) => {
             println!("err={err:?}");
             return std::ptr::null();
         }
     };
 
-    Box::leak(Box::new(op))
+    let handle = RUNTIME.handle();
+    let _enter = handle.enter();
+    let blocking_op = match opendal::blocking::Operator::new(op) {
+        Ok(op) => op,
+        Err(err) => {
+            println!("err={err:?}");
+            return std::ptr::null();
+        }
+    };
+
+    Box::leak(Box::new(blocking_op))
 }
 
 /// # Safety
@@ -54,7 +72,7 @@ pub unsafe extern "C" fn blocking_operator_construct(
 /// Not yet.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_operator_write(
-    op: *const opendal::BlockingOperator,
+    op: *const opendal::blocking::Operator,
     path: *const c_char,
     content: *const c_char,
 ) {
@@ -69,7 +87,7 @@ pub unsafe extern "C" fn blocking_operator_write(
 /// Not yet.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_operator_read(
-    op: *const opendal::BlockingOperator,
+    op: *const opendal::blocking::Operator,
     path: *const c_char,
 ) -> *const c_char {
     let op = &*(op);

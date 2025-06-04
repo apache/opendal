@@ -22,9 +22,9 @@ from datetime import datetime
 from types import TracebackType
 from typing import Any, Union, final
 
-if sys.version_info >= (3, 13):
+try:
     from warnings import deprecated
-else:
+except ImportError:
     from typing_extensions import deprecated
 from opendal import exceptions as exceptions
 from opendal import layers as layers

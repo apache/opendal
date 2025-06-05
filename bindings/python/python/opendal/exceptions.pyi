@@ -19,31 +19,31 @@ class Error(Exception):
     """Base class for exceptions in this module."""
 
 class Unexpected(Error):
-    """Unexpected errors"""
+    """Unexpected errors."""
 
 class Unsupported(Error):
-    """Unsupported operation"""
+    """Unsupported operation."""
 
 class ConfigInvalid(Error):
-    """Config is invalid"""
+    """Config is invalid."""
 
 class NotFound(Error):
-    """Not found"""
+    """Not found."""
 
 class PermissionDenied(Error):
-    """Permission denied"""
+    """Permission denied."""
 
 class IsADirectory(Error):
-    """Is a directory"""
+    """Is a directory."""
 
 class NotADirectory(Error):
-    """Not a directory"""
+    """Not a directory."""
 
 class AlreadyExists(Error):
-    """Already exists"""
+    """Already exists."""
 
 class IsSameFile(Error):
-    """Is same file"""
+    """Is same file."""
 
 class ConditionNotMatch(Error):
-    """Condition not match"""
+    """Condition not match."""

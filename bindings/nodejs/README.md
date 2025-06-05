@@ -17,6 +17,31 @@
 npm install opendal
 ```
 
+### Install OpenDAL with Next.js
+
+```sell
+pnpm install opendal
+pnpm add -D node-loader
+```
+
+- Config automatically be bundled by [Next.js](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages).
+
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  serverExternalPackages: ['opendal'],
+  webpack: (config) => {
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'node-loader',
+    })
+    return config
+  },
+}
+ 
+module.exports = nextConfig
+```
+
 ## Docs
 
 To build the docs locally, please run the following commands:

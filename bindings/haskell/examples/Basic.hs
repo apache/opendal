@@ -21,7 +21,7 @@
 module Main where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.ByteString.Char8 as BS8
+import Data.ByteString.Char8 as BS8 hiding (putStrLn)
 import OpenDAL
 
 main :: IO ()

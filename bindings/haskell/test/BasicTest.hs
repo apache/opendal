@@ -28,7 +28,14 @@ basicTests =
     "Basic Tests"
     [ testCase "testBasicOperation" testRawOperation,
       testCase "testMonad" testMonad,
-      testCase "testError" testError
+      testCase "testError" testError,
+      testCase "testWriter" testWriter,
+      testCase "testWriterAppend" testWriterAppend,
+      testCase "testAppendOperation" testAppendOperation,
+      testCase "testLister" testLister,
+      testCase "testCopyRename" testCopyRename,
+      testCase "testRemoveAll" testRemoveAll,
+      testCase "testOperatorInfo" testOperatorInfo
     ]
 
 testRawOperation :: Assertion
@@ -97,6 +104,119 @@ testError = do
     Right _ -> assertFailure "should not reach here"
   where
     operation = readOp "non-exist-path"
+
+testWriter :: Assertion
+testWriter = do
+  Right op <- newOperator "memory"
+  Right writer <- newWriter op "test-writer-file"
+  writerWrite writer "Hello" ?= Right ()
+  writerWrite writer " " ?= Right ()
+  writerWrite writer "World!" ?= Right ()
+  writerClose writer >>= \case
+    Right meta -> mContentLength meta @?= 12
+    Left err -> assertFailure $ "Failed to close writer: " ++ show err
+  readOpRaw op "test-writer-file" ?= Right "Hello World!"
+
+testWriterAppend :: Assertion
+testWriterAppend = do
+  Right op <- newOperator "memory"
+  -- First write some initial content
+  writeOpRaw op "append-file" "Initial content" ?= Right ()
+  -- Create append writer and add more content
+  Right writer <- newWriterAppend op "append-file"
+  writerWrite writer " appended" ?= Right ()
+  writerClose writer >>= \case
+    Right meta -> mContentLength meta @?= 24
+    Left err -> assertFailure $ "Failed to close append writer: " ++ show err
+  readOpRaw op "append-file" ?= Right "Initial content appended"
+
+testAppendOperation :: Assertion  
+testAppendOperation = do
+  Right op <- newOperator "memory"
+  -- Write initial content
+  writeOpRaw op "append-test" "Hello" ?= Right ()
+  -- Append more content
+  appendOpRaw op "append-test" " World" ?= Right ()
+  readOpRaw op "append-test" ?= Right "Hello World"
+  -- Test with monad
+  runOp op appendMonadTest ?= Right ()
+  where
+    appendMonadTest = do
+      writeOp "monad-append" "Start"
+      appendOp "monad-append" " Middle"
+      appendOp "monad-append" " End"
+      content <- readOp "monad-append"
+      liftIO $ content @?= "Start Middle End"
+
+testLister :: Assertion
+testLister = do
+  Right op <- newOperator "memory"
+  -- Create some test files and directories
+  writeOpRaw op "dir1/file1.txt" "content1" ?= Right ()
+  writeOpRaw op "dir1/file2.txt" "content2" ?= Right ()
+  writeOpRaw op "dir1/subdir/file3.txt" "content3" ?= Right ()
+  createDirOpRaw op "dir1/empty-dir/" ?= Right ()
+  
+  -- Test listing
+  Right lister <- listOpRaw op "dir1/"
+  files <- collectListerItems lister
+  length files @?= 3 -- file1.txt, file2.txt, subdir/, empty-dir/
+  
+  -- Test scanning (recursive)
+  Right scanner <- scanOpRaw op "dir1/"
+  allFiles <- collectListerItems scanner
+  length allFiles @?= 4 -- All files including nested ones
+
+testCopyRename :: Assertion
+testCopyRename = do
+  Right op <- newOperator "memory"
+  -- Create source file
+  writeOpRaw op "source.txt" "test content" ?= Right ()
+  -- Test copy
+  copyOpRaw op "source.txt" "copy.txt" ?= Right ()
+  readOpRaw op "copy.txt" ?= Right "test content"
+  isExistOpRaw op "source.txt" ?= Right True
+  
+  -- Test rename
+  renameOpRaw op "source.txt" "renamed.txt" ?= Right ()
+  readOpRaw op "renamed.txt" ?= Right "test content"
+  isExistOpRaw op "source.txt" ?= Right False
+
+testRemoveAll :: Assertion
+testRemoveAll = do
+  Right op <- newOperator "memory"
+  -- Create directory structure
+  writeOpRaw op "remove-test/file1.txt" "content1" ?= Right ()
+  writeOpRaw op "remove-test/subdir/file2.txt" "content2" ?= Right ()
+  createDirOpRaw op "remove-test/empty/" ?= Right ()
+  
+  -- Verify structure exists
+  isExistOpRaw op "remove-test/file1.txt" ?= Right True
+  isExistOpRaw op "remove-test/subdir/file2.txt" ?= Right True
+  
+  -- Remove all
+  removeAllOpRaw op "remove-test/" ?= Right ()
+  
+  -- Verify everything is gone
+  isExistOpRaw op "remove-test/file1.txt" ?= Right False
+  isExistOpRaw op "remove-test/subdir/file2.txt" ?= Right False
+  isExistOpRaw op "remove-test/" ?= Right False
+
+testOperatorInfo :: Assertion
+testOperatorInfo = do
+  Right op <- newOperator "memory"
+  operatorInfoRaw op ?= Right "memory"
+
+-- Helper function to collect all items from a lister
+collectListerItems :: Lister -> IO [String]
+collectListerItems lister = go []
+  where
+    go acc = do
+      result <- nextLister lister
+      case result of
+        Right (Just item) -> go (item : acc)
+        Right Nothing -> return $ reverse acc
+        Left err -> assertFailure $ "Lister error: " ++ show err
 
 -- helper function
 

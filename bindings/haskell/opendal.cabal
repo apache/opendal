@@ -75,9 +75,16 @@ test-suite opendal-test
     import:           base
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
-    other-modules:    BasicTest
+    other-modules:    BasicTest, WriterTest, ErrorTest, PerformanceTest
     hs-source-dirs:   test
     build-depends:
         opendal,
         tasty >= 1.5 && < 1.6,
         tasty-hunit >= 0.10.1 && < 0.11,
+
+executable basic-example
+    import:           base
+    main-is:          Basic.hs
+    hs-source-dirs:   examples
+    build-depends:
+        opendal,

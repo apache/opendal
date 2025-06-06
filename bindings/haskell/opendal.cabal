@@ -81,10 +81,3 @@ test-suite opendal-test
         opendal,
         tasty >= 1.5 && < 1.6,
         tasty-hunit >= 0.10.1 && < 0.11,
-
-executable basic-example
-    import:           base
-    main-is:          Basic.hs
-    hs-source-dirs:   examples
-    build-depends:
-        opendal,

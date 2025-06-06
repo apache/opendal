@@ -92,7 +92,7 @@
   "prettier": {
     "overrides": [
       {
-        "files": "./**/*.{js,ts,mjs,jsx,tsx}",
+        "files": "./**/*.{js,cjs,ts,mjs,jsx,tsx}",
         "options": {
           "arrowParens": "always",
           "parser": "typescript",

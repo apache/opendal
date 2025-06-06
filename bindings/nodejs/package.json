@@ -79,8 +79,8 @@
     "node": ">= 10"
   },
   "scripts": {
-    "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js --dts generated.d.ts && node ./scripts/header.js",
-    "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js --dts generated.d.ts && node ./scripts/header.js",
+    "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js --dts generated.d.ts && node ./scripts/header.mjs",
+    "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js --dts generated.d.ts && node ./scripts/header.mjs",
     "build:theme": "tsc -p ./tsconfig.theme.json",
     "docs": "typedoc",
     "format": "prettier --write .",

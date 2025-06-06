@@ -19,7 +19,7 @@
 
 /// <reference types="node" />
 
-import { Writable, Readable } from 'node:stream'
+const { Writable, Readable } = require('stream')
 
 class ReadStream extends Readable {
   constructor(reader, options) {
@@ -119,7 +119,7 @@ class BlockingWriteStream extends Writable {
   }
 }
 
-import { Operator, RetryLayer, BlockingReader, Reader, BlockingWriter, Writer } from './generated.js'
+const { Operator, RetryLayer, BlockingReader, Reader, BlockingWriter, Writer } = require('./generated.js')
 
 BlockingReader.prototype.createReadStream = function (options) {
   return new BlockingReadStream(this, options)

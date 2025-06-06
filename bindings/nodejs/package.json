@@ -3,8 +3,8 @@
   "author": "Apache OpenDAL <dev@opendal.apache.org>",
   "version": "0.48.3",
   "license": "Apache-2.0",
-  "type": "module",
-  "main": "index.js",
+  "main": "index.cjs",
+  "module": "index.mjs",
   "types": "index.d.ts",
   "description": "Apache OpenDAL: Access data freely",
   "repository": "git@github.com/apache/opendal.git",
@@ -41,12 +41,26 @@
   ],
   "files": [
     "index.d.ts",
-    "index.js",
+    "index.cjs",
+    "index.mjs",
     "generated.d.ts",
     "generated.js",
     "LICENSE",
     "NOTICE"
   ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.d.ts",
+        "default": "./index.mjs"
+      },
+      "require": {
+        "types": "./index.d.ts",
+        "default": "./index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.468.0",
     "@napi-rs/cli": "^2.18.3",

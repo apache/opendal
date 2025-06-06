@@ -18,7 +18,7 @@
 module PerformanceTest (performanceTests) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.ByteString.Char8 as BS8
+import qualified Data.ByteString.Char8 as BS8
 import Data.Time
 import OpenDAL
 import Test.Tasty
@@ -40,11 +40,11 @@ testBulkOperations = do
   
   -- Test bulk write operations
   start <- getCurrentTime
-  mapM_ (\i -> writeOpRaw op ("bulk-file-" ++ show i) ("content-" ++ show i) ?= Right ()) [1..100]
+  mapM_ (\i -> writeOpRaw op ("bulk-file-" ++ show i) (BS8.pack ("content-" ++ show i)) ?= Right ()) [1..100 :: Int]
   writeEnd <- getCurrentTime
   
   -- Test bulk read operations  
-  mapM_ (\i -> readOpRaw op ("bulk-file-" ++ show i) ?= Right ("content-" ++ show i)) [1..100]
+  mapM_ (\i -> readOpRaw op ("bulk-file-" ++ show i) ?= Right (BS8.pack ("content-" ++ show i))) [1..100 :: Int]
   readEnd <- getCurrentTime
   
   let writeTime = diffUTCTime writeEnd start
@@ -55,24 +55,24 @@ testBulkOperations = do
   putStrLn $ "Bulk read time: " ++ show readTime
   
   -- Verify correctness
-  readOpRaw op "bulk-file-50" ?= Right "content-50"
+  readOpRaw op "bulk-file-50" ?= Right (BS8.pack "content-50")
 
 testWriterVsDirectWrite :: Assertion
 testWriterVsDirectWrite = do
   Right op <- newOperator "memory"
   
-  let testData = BS8.replicate 1000 'A'
+
   
   -- Test writer approach
   start1 <- getCurrentTime
   Right writer <- newWriter op "writer-test"
-  mapM_ (\_ -> writerWrite writer "chunk" ?= Right ()) [1..100]
+  mapM_ (\_ -> writerWrite writer "chunk" ?= Right ()) [1..100 :: Int]
   Right _ <- writerClose writer
   end1 <- getCurrentTime
   
   -- Test direct write approach  
   start2 <- getCurrentTime
-  let combinedData = BS8.concat $ replicate 100 "chunk"
+  let combinedData = BS8.concat $ Prelude.replicate 100 (BS8.pack "chunk")
   writeOpRaw op "direct-test" combinedData ?= Right ()
   end2 <- getCurrentTime
   
@@ -129,21 +129,21 @@ testConcurrentOperations = do
   start <- getCurrentTime
   
   -- Write some files
-  mapM_ (\i -> writeOpRaw op ("concurrent-" ++ show i) ("data-" ++ show i) ?= Right ()) [1..50]
+  mapM_ (\i -> writeOpRaw op ("concurrent-" ++ show i) (BS8.pack ("data-" ++ show i)) ?= Right ()) [1..50 :: Int]
   
   -- Read while writing more
   mapM_ (\i -> do
-    writeOpRaw op ("concurrent-extra-" ++ show i) ("extra-" ++ show i) ?= Right ()
-    readOpRaw op ("concurrent-" ++ show i) ?= Right ("data-" ++ show i)
-    ) [1..25]
+    writeOpRaw op ("concurrent-extra-" ++ show i) (BS8.pack ("extra-" ++ show i)) ?= Right ()
+    readOpRaw op ("concurrent-" ++ show i) ?= Right (BS8.pack ("data-" ++ show i))
+    ) [1..25 :: Int]
   
   end <- getCurrentTime
   let totalTime = diffUTCTime end start
   putStrLn $ "Concurrent operations time: " ++ show totalTime
   
   -- Verify some operations completed correctly
-  readOpRaw op "concurrent-10" ?= Right "data-10"
-  readOpRaw op "concurrent-extra-10" ?= Right "extra-10"
+  readOpRaw op "concurrent-10" ?= Right (BS8.pack "data-10")
+  readOpRaw op "concurrent-extra-10" ?= Right (BS8.pack "extra-10")
 
 -- helper function
 

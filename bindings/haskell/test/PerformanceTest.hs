@@ -135,7 +135,7 @@ testConcurrentOperations = do
   mapM_ (\i -> do
     writeOpRaw op ("concurrent-extra-" ++ show i) ("extra-" ++ show i) ?= Right ()
     readOpRaw op ("concurrent-" ++ show i) ?= Right ("data-" ++ show i)
-  ) [1..25]
+    ) [1..25]
   
   end <- getCurrentTime
   let totalTime = diffUTCTime end start

@@ -96,7 +96,7 @@ testMonadErrorPropagation = do
   where
     errorOperation = do
       writeOp "test-file" "content"
-      readOp "nonexistent-file" -- This should fail
+      _ <- readOp "nonexistent-file" -- This should fail
       writeOp "should-not-reach" "content"
 
 -- helper function

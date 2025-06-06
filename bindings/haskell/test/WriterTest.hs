@@ -59,7 +59,7 @@ testWriterLargeData = do
   
   -- Write 1KB of data in chunks
   let chunk = BS8.replicate 100 'A'
-  mapM_ (\_ -> writerWrite writer chunk ?= Right ()) [1..10]
+  mapM_ (\_ -> writerWrite writer chunk ?= Right ()) [1..10 :: Int]
   
   Right meta <- writerClose writer
   mContentLength meta @?= 1000

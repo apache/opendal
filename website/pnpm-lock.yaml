@@ -50,8 +50,8 @@ devDependencies:
     specifier: ^3.4.0
     version: 3.6.1(acorn@8.14.0)(react-dom@18.3.1)(react@18.3.1)
   crates-llms-txt:
-    specifier: ^0.0.5
-    version: 0.0.5
+    specifier: ^0.0.7
+    version: 0.0.7
   docusaurus-plugin-llms-builder:
     specifier: ^0.1.13
     version: 0.1.13(@docusaurus/core@3.6.1)(acorn@8.14.0)(react-dom@18.3.1)(react@18.3.1)
@@ -3958,8 +3958,8 @@ packages:
       path-type: 4.0.0
       typescript: 5.6.3
 
-  /crates-llms-txt-napi-darwin-arm64@0.0.5:
-    resolution: {integrity: sha512-gGF5HoMNOF6TIKWBXhvrYKLov4jzqbsvpsmEqRfRhX6yPWs12GhWmL32XuOVKsX8JnKkWKMpJx7HqXNIGvCofA==}
+  /crates-llms-txt-napi-darwin-arm64@0.0.6:
+    resolution: {integrity: sha512-b2lHrGXb0RIAEmPsslaBaI90fbOyS0UvsrtRG2JfogJtan84mLaurRnmHDNfWjPr7F2aFAeY5dcA9MekACCXYg==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [darwin]
@@ -3967,8 +3967,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-darwin-x64@0.0.5:
-    resolution: {integrity: sha512-cNzTLBcHNsfagIOaxvloTz4ize4BWYkYDkN2tYr/NYOABG/xVVVFlqjWoODb1SEH2beVflgDf79WUtziKCwrow==}
+  /crates-llms-txt-napi-darwin-x64@0.0.6:
+    resolution: {integrity: sha512-uHRsEMNQ9/ieTlOz+bjMjNna56XDJwDp2vVyqsXsOvG+uBFeUjfHNELFHXgPbXlCcCgtAVbte2ddeznG8kq7BQ==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [darwin]
@@ -3976,8 +3976,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm-gnueabihf@0.0.5:
-    resolution: {integrity: sha512-HeA04E8XnQxOCBER2h3YvpGR6YqQDlFYaVm0sk9hRGps5p/X8RdKnVfTkiaX+TJV/bI9XFAkHNBMebJ6fg3lZA==}
+  /crates-llms-txt-napi-linux-arm-gnueabihf@0.0.6:
+    resolution: {integrity: sha512-uBtlYXKRDkwqRhAi+rp8ta43wwg/OXuy6xpbmDsTU2dINbP5rfvpWADa6PtXG4cmhA1nxm2h5owbwYzlQlk9uw==}
     engines: {node: '>= 20'}
     cpu: [arm]
     os: [linux]
@@ -3985,8 +3985,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm64-gnu@0.0.5:
-    resolution: {integrity: sha512-PMHMfURWldxYHttFfa/kIFi8UoKXHHh6DJIhd42EtNOswiZ2f1Cu7SWSVTXvzUGjiM50Y8NK93aXPjadG3yPNw==}
+  /crates-llms-txt-napi-linux-arm64-gnu@0.0.6:
+    resolution: {integrity: sha512-G8X0aRfeMVt+SKsKFBaqPd8/n/ZV7Me9+502japBXdFBQ5xVYjqp+I3dggCWtHWaNFJpDFTXjbLrnTgSrVUAYQ==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
@@ -3994,8 +3994,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm64-musl@0.0.5:
-    resolution: {integrity: sha512-AyFOAU6wffBDdrMbqVgte80q07s/F57v4ZXP9mxP42v3f1ohG1nPryEDksXW5fxonMDwXtvr07XfwxDEilPSUA==}
+  /crates-llms-txt-napi-linux-arm64-musl@0.0.6:
+    resolution: {integrity: sha512-eq1HR8xO1GjjRAoH1mgca9/gCjxLrXw5vUslmFYIMJl5oIi3kkLCTI2XNa2v/gfzJvGWyBoJg6+H81aUdXZm3g==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
@@ -4003,8 +4003,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-x64-gnu@0.0.5:
-    resolution: {integrity: sha512-bXqqkaxhaBuDt50dOHuS7XM3gk38dRyJCY1923obOV95FxuT4y6S1TXHjNJWkkyru6NcngFxW+c1mtIucLro0w==}
+  /crates-llms-txt-napi-linux-x64-gnu@0.0.6:
+    resolution: {integrity: sha512-+AM2hUsz3j8B91EsVAKZY6ujbiL/F36JBFQRopMIshKZ2N9hdaSxUQcZDJuPJaF9fj93VKwhNsh2kXJf8vj+xg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
@@ -4012,8 +4012,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-x64-musl@0.0.5:
-    resolution: {integrity: sha512-0h544ZBuFp7MJDb3K45daci71ZjofHLIiE9LbOFAszJR1O6p72GK2PVRNuyDA+IxjCzWpN5NxlUrSUJEevYIYw==}
+  /crates-llms-txt-napi-linux-x64-musl@0.0.6:
+    resolution: {integrity: sha512-S7AXcB7ZXoqsMccP+r237A2zUoc+A210Hu74mYPAH8nyBiT3iw+96gkn71iN067Cxa8Dcfx//TFsC36hE+Filg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
@@ -4021,8 +4021,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-arm64-msvc@0.0.5:
-    resolution: {integrity: sha512-yYtXpMO51lm4Pcfv6+OGQeusybhDn/odXi4pLKdu+jk7qowDYim0nBLy9G7XtQ3Bgn2U0QvZqUhmabPDVNoDUA==}
+  /crates-llms-txt-napi-win32-arm64-msvc@0.0.6:
+    resolution: {integrity: sha512-Gevkk8urkKSSf+rhUADeuQBDZYbhZC40BAU28RnDuUMCKsE9A86HtSZYpF6cKwCnBEBIehjWtUjX2WbVZiqnBw==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [win32]
@@ -4030,8 +4030,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-ia32-msvc@0.0.5:
-    resolution: {integrity: sha512-Pfw+BxfzrGdxDBlIOv/Y+AQnVBsc9td5eUr/w1+I9zUlA8CZZV1ARZRPeasLkLjS6t0/3fQiQe3GrVAU0EsE8A==}
+  /crates-llms-txt-napi-win32-ia32-msvc@0.0.6:
+    resolution: {integrity: sha512-lL1hXmso1gZzaP9V4DX6AzEFKfyeP9arrGtIFJfbWEWhLAYxMKo08OmNhxM+l5AcA7cod0JUIGPPORiKSQj8AQ==}
     engines: {node: '>= 20'}
     cpu: [ia32]
     os: [win32]
@@ -4039,8 +4039,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-x64-msvc@0.0.5:
-    resolution: {integrity: sha512-fgoh6Lyz8J4R//zhl8HfM6cUDXfPlpKI1JKT/VfDDFrWaWdqgUZgWqg1uQUJTrMuwxqwV+Yp9JfmcV027Z8pcw==}
+  /crates-llms-txt-napi-win32-x64-msvc@0.0.6:
+    resolution: {integrity: sha512-dSN09kaxgT7J8LpscE+J2TU2DeKKYFMVBpFdTght7PmqFV9XJ77NnG5CB1ISWTw8c9YgDm6e3CQov1nWmNJQQw==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [win32]
@@ -4048,26 +4048,37 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi@0.0.5:
-    resolution: {integrity: sha512-d6tcDjCCopq6GVlXkkwPxpXGM2Utr6NvFMk4gStTlVAvB0ls7FNbU+izpNnBws5ffiiDy1c4lxCC6Hgz29nhBA==}
+  /crates-llms-txt-napi@0.0.6:
+    resolution: {integrity: sha512-by0X6skc3BA/enQ9EtNAm37PtKG2GV/phUNmmPpdKyx8Z1UdXfr+G58sW3XMBtQOFhhDB3c1ndOyYlD62k+m6g==}
     engines: {node: '>= 20'}
     optionalDependencies:
-      crates-llms-txt-napi-darwin-arm64: 0.0.5
-      crates-llms-txt-napi-darwin-x64: 0.0.5
-      crates-llms-txt-napi-linux-arm-gnueabihf: 0.0.5
-      crates-llms-txt-napi-linux-arm64-gnu: 0.0.5
-      crates-llms-txt-napi-linux-arm64-musl: 0.0.5
-      crates-llms-txt-napi-linux-x64-gnu: 0.0.5
-      crates-llms-txt-napi-linux-x64-musl: 0.0.5
-      crates-llms-txt-napi-win32-arm64-msvc: 0.0.5
-      crates-llms-txt-napi-win32-ia32-msvc: 0.0.5
-      crates-llms-txt-napi-win32-x64-msvc: 0.0.5
+      crates-llms-txt-napi-darwin-arm64: 0.0.6
+      crates-llms-txt-napi-darwin-x64: 0.0.6
+      crates-llms-txt-napi-linux-arm-gnueabihf: 0.0.6
+      crates-llms-txt-napi-linux-arm64-gnu: 0.0.6
+      crates-llms-txt-napi-linux-arm64-musl: 0.0.6
+      crates-llms-txt-napi-linux-x64-gnu: 0.0.6
+      crates-llms-txt-napi-linux-x64-musl: 0.0.6
+      crates-llms-txt-napi-win32-arm64-msvc: 0.0.6
+      crates-llms-txt-napi-win32-ia32-msvc: 0.0.6
+      crates-llms-txt-napi-win32-x64-msvc: 0.0.6
     dev: true
 
-  /crates-llms-txt@0.0.5:
-    resolution: {integrity: sha512-6S0h0PxX8TH0BNiXwmLkyfDINvpk5ZwDkR2J0WF1jkqYRiOwJXpuIUkJb0WzIGUoWwI9h+xcK1J7G6BlepbqTg==}
+  /crates-llms-txt@0.0.7:
+    resolution: {integrity: sha512-gXuzon7EvB8wyWs1Wb6AVNaSIuEk+p4QzVsgef+kaVxrredpTdWwnWMjs2S19jTPcUmrwpFDmHcjxEzTRu2qBA==}
     dependencies:
-      crates-llms-txt-napi: 0.0.5
+      crates-llms-txt-napi: 0.0.6
+    optionalDependencies:
+      crates-llms-txt-napi-darwin-arm64: 0.0.6
+      crates-llms-txt-napi-darwin-x64: 0.0.6
+      crates-llms-txt-napi-linux-arm-gnueabihf: 0.0.6
+      crates-llms-txt-napi-linux-arm64-gnu: 0.0.6
+      crates-llms-txt-napi-linux-arm64-musl: 0.0.6
+      crates-llms-txt-napi-linux-x64-gnu: 0.0.6
+      crates-llms-txt-napi-linux-x64-musl: 0.0.6
+      crates-llms-txt-napi-win32-arm64-msvc: 0.0.6
+      crates-llms-txt-napi-win32-ia32-msvc: 0.0.6
+      crates-llms-txt-napi-win32-x64-msvc: 0.0.6
     dev: true
 
   /cross-spawn@7.0.5:

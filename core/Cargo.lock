@@ -5381,6 +5381,7 @@ dependencies = [
  "mongodb",
  "mongodb-internal-macros",
  "monoio",
+ "object_store",
  "openssh",
  "openssh-sftp-client",
  "opentelemetry",

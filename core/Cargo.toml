@@ -215,6 +215,7 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
+services-object-store = ["dep:object_store"]
 
 [lib]
 bench = false
@@ -327,6 +328,8 @@ redis = { version = "0.29", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
+# for service-object-store
+object_store = { version = "0.12.1", optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-sled

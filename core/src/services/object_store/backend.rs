@@ -2,9 +2,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use crate::raw::*;
+use crate::Error;
+use crate::ErrorKind;
+use crate::*;
 use object_store::ObjectStore;
-use opendal::raw::*;
-use opendal::*;
 
 /// ObjectStore backend builder
 #[derive(Default)]

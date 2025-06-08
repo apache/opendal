@@ -20,8 +20,8 @@ use std::fmt::Formatter;
 use std::time::Duration;
 
 use log::debug;
-use moka::sync::CacheBuilder;
-use moka::sync::SegmentedCache;
+use moka::future::Cache;
+use moka::future::CacheBuilder;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;
@@ -81,15 +81,6 @@ impl MokaBuilder {
         self
     }
 
-    /// Sets the segments number of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub fn segments(mut self, v: usize) -> Self {
-        assert!(v != 0);
-        self.config.num_segments = Some(v);
-        self
-    }
-
     /// Set root path of this backend
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = if path.is_empty() {
@@ -97,7 +88,6 @@ impl MokaBuilder {
         } else {
             Some(path.to_string())
         };
-
         self
     }
 }
@@ -109,8 +99,8 @@ impl Builder for MokaBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, typed_kv::Value, _> =
-            SegmentedCache::builder(self.config.num_segments.unwrap_or(1));
+        let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
+
         // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
         if let Some(v) = &self.config.name {
@@ -144,7 +134,7 @@ pub type MokaBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    inner: SegmentedCache<String, typed_kv::Value>,
+    inner: Cache<String, typed_kv::Value>,
 }
 
 impl Debug for Adapter {
@@ -172,21 +162,19 @@ impl typed_kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.get(path) {
+        match self.inner.get(path).await {
             None => Ok(None),
             Some(bs) => Ok(Some(bs)),
         }
     }
 
     async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.insert(path.to_string(), value);
-
+        self.inner.insert(path.to_string(), value).await;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.inner.invalidate(path);
-
+        self.inner.invalidate(path).await;
         Ok(())
     }
 

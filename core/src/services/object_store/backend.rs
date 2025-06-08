@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -7,6 +8,7 @@ use crate::services::object_store::error::parse_error;
 use crate::Error;
 use crate::ErrorKind;
 use crate::*;
+use object_store::GetRange;
 use object_store::ObjectStore;
 
 /// ObjectStore backend builder
@@ -84,7 +86,7 @@ impl Access for ObjectStoreBackend {
         Arc::new(info)
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let path = object_store::path::Path::from(path);
         let meta = self.store.head(&path).await.map_err(parse_error)?;
 
@@ -114,5 +116,75 @@ impl Access for ObjectStoreBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         todo!()
+    }
+}
+
+struct ObjectStoreReader {
+    store: Arc<dyn ObjectStore + 'static>,
+    path: object_store::path::Path,
+    args: OpRead,
+}
+
+impl ObjectStoreReader {
+    pub fn new(
+        store: Arc<dyn ObjectStore + 'static>,
+        path: object_store::path::Path,
+        args: OpRead,
+    ) -> Self {
+        Self { store, path, args }
+    }
+
+    fn parse_args(&self, args: &OpRead) -> Result<object_store::GetOptions> {
+        let mut options = object_store::GetOptions::default();
+
+        if let Some(version) = args.version() {
+            options.version = Some(version.to_string());
+        }
+
+        if let Some(if_match) = args.if_match() {
+            options.if_match = Some(if_match.to_string());
+        }
+
+        if let Some(if_none_match) = args.if_none_match() {
+            options.if_none_match = Some(if_none_match.to_string());
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            options.if_modified_since = Some(if_modified_since);
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            options.if_unmodified_since = Some(if_unmodified_since);
+        }
+
+        if !args.range().is_full() {
+            let range = args.range();
+            match range.size() {
+                Some(size) => {
+                    options.range = Some(GetRange::Bounded(range.offset()..range.offset() + size));
+                }
+                None => {
+                    options.range = Some(GetRange::Offset(range.offset()));
+                }
+            }
+        }
+
+        Ok(options)
+    }
+}
+
+impl oio::Read for ObjectStoreReader {
+    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
+        async {
+            let opts = self.parse_args(&self.args)?;
+            let result = self
+                .store
+                .get_opts(&self.path, opts)
+                .await
+                .map_err(parse_error)?;
+            let bytes = result.bytes().await.map_err(parse_error)?;
+            let buf = Buffer::from(bytes);
+            Ok(buf)
+        }
     }
 }
